@@ -4,10 +4,9 @@ interface StepProps {
   number: number;
   title: string;
   description: string;
-  icon: React.ReactNode;
 }
 
-const Step: React.FC<StepProps> = ({ number, title, description, icon }) => {
+const Step: React.FC<StepProps> = ({ number, title, description }) => {
   return (
     <div className="text-center p-8">
       {/* Step Number Circle */}
@@ -32,19 +31,16 @@ const HowItWorksSection: React.FC = () => {
       number: 1,
       title: "Upload",
       description: "Take a photo or upload an image of your recipe from any cookbook, handwritten note, or printed page.",
-      icon: null
     },
     {
       number: 2,
       title: "Process",
       description: "Our AI technology extracts and digitizes the text, identifying ingredients, instructions, and cooking details automatically.",
-      icon: null
     },
     {
       number: 3,
       title: "Organize",
       description: "Your digital recipe is ready! Edit, organize into cookbooks, add tags, and enjoy your perfectly structured recipe collection.",
-      icon: null
     }
   ];
 

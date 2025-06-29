@@ -1,4 +1,4 @@
-export { HomePage } from './HomePage';
+export { default as HomePage } from './HomePage';
 export { UploadPage } from './UploadPage';
 export { RecipesPage } from './RecipesPage';
 export { RecipeDetailPage } from './RecipeDetailPage';
