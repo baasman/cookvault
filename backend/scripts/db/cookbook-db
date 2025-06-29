@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""
+Cookbook Creator Database Management CLI
+
+A unified command-line tool for all database operations including:
+- Database management (create, drop, reset, backup, restore)
+- Migration management (upgrade, rollback, generate)
+- Data seeding (sample data, specific components)
+- Database utilities (export, import, statistics, validation)
+- Development helpers
+
+Usage:
+    cookbook-db <command> [options]
+    cookbook-db --help
+
+Examples:
+    cookbook-db init                           # Initialize database with sample data
+    cookbook-db dev-reset                      # Quick development reset
+    cookbook-db db status                      # Show database status
+    cookbook-db migrate upgrade                # Run latest migrations
+    cookbook-db seed all                       # Seed all sample data
+    cookbook-db utils export --format json    # Export data to JSON
+    cookbook-db status                         # Show overall system status
+"""
+
+import sys
+from pathlib import Path
+
+# Add the current directory to the path so we can import the CLI module
+sys.path.insert(0, str(Path(__file__).parent))
+
+from cli import main
+
+if __name__ == "__main__":
+    main()

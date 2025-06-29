@@ -1,0 +1,239 @@
+<html>
+
+<head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link rel="stylesheet" as="style" onload="this.rel='stylesheet'"
+        href="https://fonts.googleapis.com/css2?display=swap&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900&amp;family=Plus+Jakarta+Sans%3Awght%40400%3B500%3B700%3B800" />
+
+    <title>Stitch Design</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+</head>
+
+<body>
+    <div class="relative flex size-full min-h-screen flex-col bg-[#fcf9f8] group/design-root overflow-x-hidden"
+        style='font-family: "Plus Jakarta Sans", "Noto Sans", sans-serif;'>
+        <div class="layout-container flex h-full grow flex-col">
+            <header
+                class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f3ebe7] px-10 py-3">
+                <div class="flex items-center gap-4 text-[#1c120d]">
+                    <div class="size-4">
+                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 6H42L36 24L42 42H6L12 24L6 6Z" fill="currentColor"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-[#1c120d] text-lg font-bold leading-tight tracking-[-0.015em]">Recipe Manager</h2>
+                </div>
+                <div class="flex flex-1 justify-end gap-8">
+                    <div class="flex items-center gap-9">
+                        <a class="text-[#1c120d] text-sm font-medium leading-normal" href="#">Home</a>
+                        <a class="text-[#1c120d] text-sm font-medium leading-normal" href="#">Explore</a>
+                        <a class="text-[#1c120d] text-sm font-medium leading-normal" href="#">Create</a>
+                    </div>
+                    <button
+                        class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 bg-[#f3ebe7] text-[#1c120d] gap-2 text-sm font-bold leading-normal tracking-[0.015em] min-w-0 px-2.5">
+                        <div class="text-[#1c120d]" data-icon="Bell" data-size="20px" data-weight="regular">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" fill="currentColor"
+                                viewBox="0 0 256 256">
+                                <path
+                                    d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z">
+                                </path>
+                            </svg>
+                        </div>
+                    </button>
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
+                        style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA0f_-26604xLRQwNXVDRzOgsqQ0APow4YlmqjL3O23pVdiMlv0XZoa5ddk4d_lJLF8DnOOMtWum8dHGMC6S8DI2EHkrco_ZUXrjI8mGnXzISVnS2TkkSgJH3ue4b3ybYMmXNcmX2t7NixyJdr07F_q2psTgVzkriSr7Hi-Q6PY2raMdlD-MDGz7vFt5XtlR56lrhHT99q62mMwJy7boRPqj2Xb795-6E07-PznKEq_xuIjJd3rmK1lz6cTYCw3_JOENNYOIsKJNR8");'>
+                    </div>
+                </div>
+            </header>
+            <div class="px-40 flex flex-1 justify-center py-5">
+                <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
+                    <div class="flex p-4 @container">
+                        <div class="flex w-full flex-col gap-4 items-center">
+                            <div class="flex gap-4 flex-col items-center">
+                                <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32"
+                                    style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD9AF6YvC4fneGrjIUk0Goi7xfwnG7eVlf-FuXInreoYXY7TJdFHRGh-yY492gmQ5gbKF6XqcZ3lI78M76pZo_NpkvSJX5T3yOxqPHOVFg8djKY0JmLnhMA-9F2MbmSynBN7pxyaZnEjlUuHhgC1KQz24q1P7zzkKAR29zpYquIKr7xxM7tCFNr26kdrEiUjMpyDbDYunPRTkFjhPVcbc00EmhjNwHyNgVmtSj-NqLmu_RM3m7acAeFp102WWIQi4Tnw0wRgwbUrYU");'>
+                                </div>
+                                <div class="flex flex-col items-center justify-center justify-center">
+                                    <p
+                                        class="text-[#1c120d] text-[22px] font-bold leading-tight tracking-[-0.015em] text-center">
+                                        Sophia Bennett</p>
+                                    <p class="text-[#9b644b] text-base font-normal leading-normal text-center">Joined in
+                                        2022</p>
+                                    <p class="text-[#9b644b] text-base font-normal leading-normal text-center">120
+                                        Recipes | 5 Collections</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pb-3">
+                        <div class="flex border-b border-[#e8d7cf] px-4 gap-8">
+                            <a class="flex flex-col items-center justify-center border-b-[3px] border-b-[#f15f1c] text-[#1c120d] pb-[13px] pt-4"
+                                href="#">
+                                <p class="text-[#1c120d] text-sm font-bold leading-normal tracking-[0.015em]">Overview
+                                </p>
+                            </a>
+                            <a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-[#9b644b] pb-[13px] pt-4"
+                                href="#">
+                                <p class="text-[#9b644b] text-sm font-bold leading-normal tracking-[0.015em]">Recipes
+                                </p>
+                            </a>
+                            <a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-[#9b644b] pb-[13px] pt-4"
+                                href="#">
+                                <p class="text-[#9b644b] text-sm font-bold leading-normal tracking-[0.015em]">
+                                    Collections</p>
+                            </a>
+                        </div>
+                    </div>
+                    <h2 class="text-[#1c120d] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
+                        Account Details</h2>
+                    <div class="p-4 grid grid-cols-[20%_1fr] gap-x-6">
+                        <div class="col-span-2 grid grid-cols-subgrid border-t border-t-[#e8d7cf] py-5">
+                            <p class="text-[#9b644b] text-sm font-normal leading-normal">Username</p>
+                            <p class="text-[#1c120d] text-sm font-normal leading-normal">sophia.bennett</p>
+                        </div>
+                        <div class="col-span-2 grid grid-cols-subgrid border-t border-t-[#e8d7cf] py-5">
+                            <p class="text-[#9b644b] text-sm font-normal leading-normal">Email</p>
+                            <p class="text-[#1c120d] text-sm font-normal leading-normal">sophia.bennett@email.com</p>
+                        </div>
+                        <div class="col-span-2 grid grid-cols-subgrid border-t border-t-[#e8d7cf] py-5">
+                            <p class="text-[#9b644b] text-sm font-normal leading-normal">Password</p>
+                            <p class="text-[#1c120d] text-sm font-normal leading-normal">********</p>
+                        </div>
+                    </div>
+                    <h2 class="text-[#1c120d] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
+                        Import History</h2>
+                    <div class="px-4 py-3 @container">
+                        <div class="flex overflow-hidden rounded-xl border border-[#e8d7cf] bg-[#fcf9f8]">
+                            <table class="flex-1">
+                                <thead>
+                                    <tr class="bg-[#fcf9f8]">
+                                        <th
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-120 px-4 py-3 text-left text-[#1c120d] w-[400px] text-sm font-medium leading-normal">
+                                            Date</th>
+                                        <th
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-240 px-4 py-3 text-left text-[#1c120d] w-[400px] text-sm font-medium leading-normal">
+                                            Method</th>
+                                        <th
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-360 px-4 py-3 text-left text-[#1c120d] w-[400px] text-sm font-medium leading-normal">
+                                            Recipes Imported
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-t border-t-[#e8d7cf]">
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            2024-01-15
+                                        </td>
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            Manual</td>
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            5</td>
+                                    </tr>
+                                    <tr class="border-t border-t-[#e8d7cf]">
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            2023-12-20
+                                        </td>
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            AI</td>
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            12</td>
+                                    </tr>
+                                    <tr class="border-t border-t-[#e8d7cf]">
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-120 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            2023-11-05
+                                        </td>
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-240 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            Manual</td>
+                                        <td
+                                            class="table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-360 h-[72px] px-4 py-2 w-[400px] text-[#9b644b] text-sm font-normal leading-normal">
+                                            8</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <style>
+                            @container(max-width:120px) {
+                                .table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-120 {
+                                    display: none;
+                                }
+                            }
+
+                            @container(max-width:240px) {
+                                .table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-240 {
+                                    display: none;
+                                }
+                            }
+
+                            @container(max-width:360px) {
+                                .table-ae7a20b9-b08a-46a0-90d6-309e081c9279-column-360 {
+                                    display: none;
+                                }
+                            }
+                        </style>
+                    </div>
+                    <h2 class="text-[#1c120d] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">
+                        Settings</h2>
+                    <div class="flex items-center gap-4 bg-[#fcf9f8] px-4 min-h-14 justify-between">
+                        <p class="text-[#1c120d] text-base font-normal leading-normal flex-1 truncate">Notifications</p>
+                        <div class="shrink-0">
+                            <label
+                                class="relative flex h-[31px] w-[51px] cursor-pointer items-center rounded-full border-none bg-[#f3ebe7] p-0.5 has-[:checked]:justify-end has-[:checked]:bg-[#f15f1c]">
+                                <div class="h-full w-[27px] rounded-full bg-white"
+                                    style="box-shadow: rgba(0, 0, 0, 0.15) 0px 3px 8px, rgba(0, 0, 0, 0.06) 0px 3px 1px;">
+                                </div>
+                                <input type="checkbox" class="invisible absolute" />
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4 bg-[#fcf9f8] px-4 min-h-14 justify-between">
+                        <p class="text-[#1c120d] text-base font-normal leading-normal flex-1 truncate">Privacy</p>
+                        <div class="shrink-0">
+                            <div class="text-[#1c120d] flex size-7 items-center justify-center" data-icon="ArrowRight"
+                                data-size="24px" data-weight="regular">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor"
+                                    viewBox="0 0 256 256">
+                                    <path
+                                        d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z">
+                                    </path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4 bg-[#fcf9f8] px-4 min-h-14 justify-between">
+                        <p class="text-[#1c120d] text-base font-normal leading-normal flex-1 truncate">Help &amp;
+                            Support</p>
+                        <div class="shrink-0">
+                            <div class="text-[#1c120d] flex size-7 items-center justify-center" data-icon="ArrowRight"
+                                data-size="24px" data-weight="regular">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor"
+                                    viewBox="0 0 256 256">
+                                    <path
+                                        d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z">
+                                    </path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex px-4 py-3 justify-start">
+                        <button
+                            class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 px-4 bg-[#f3ebe7] text-[#1c120d] text-sm font-bold leading-normal tracking-[0.015em]">
+                            <span class="truncate">Log Out</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

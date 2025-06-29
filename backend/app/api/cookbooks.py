@@ -1,0 +1,308 @@
+from flask import Response, jsonify, request
+from sqlalchemy import func
+
+from app import db
+from app.api import bp
+from app.api.auth import require_auth
+from app.models import Cookbook, Recipe
+
+
+@bp.route("/cookbooks", methods=["GET"])
+@require_auth
+def get_user_cookbooks(current_user) -> Response:
+    """Get all cookbooks for the authenticated user with recipe counts."""
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    search = request.args.get("search", "")
+    sort_by = request.args.get("sort_by", "title")  # title, author, created_at, recipe_count
+    
+    # Base query for user's cookbooks
+    query = Cookbook.query.filter_by(user_id=current_user.id)
+    
+    # Apply search filter if provided
+    if search:
+        query = query.filter(
+            db.or_(
+                Cookbook.title.ilike(f"%{search}%"),
+                Cookbook.author.ilike(f"%{search}%")
+            )
+        )
+    
+    # Apply sorting
+    if sort_by == "title":
+        query = query.order_by(Cookbook.title)
+    elif sort_by == "author":
+        query = query.order_by(Cookbook.author)
+    elif sort_by == "created_at":
+        query = query.order_by(Cookbook.created_at.desc())
+    elif sort_by == "recipe_count":
+        # This requires a subquery to count recipes
+        recipe_count_subquery = (
+            db.session.query(func.count(Recipe.id))
+            .filter(Recipe.cookbook_id == Cookbook.id)
+            .filter(Recipe.user_id == current_user.id)
+            .scalar_subquery()
+        )
+        query = query.order_by(recipe_count_subquery.desc())
+    
+    # Paginate results
+    cookbooks_pagination = query.paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    # Build response with recipe counts
+    cookbooks_data = []
+    for cookbook in cookbooks_pagination.items:
+        # Get recipe count for this cookbook (only user's recipes)
+        recipe_count = Recipe.query.filter_by(
+            cookbook_id=cookbook.id, user_id=current_user.id
+        ).count()
+        
+        cookbook_dict = cookbook.to_dict()
+        cookbook_dict["recipe_count"] = recipe_count
+        cookbooks_data.append(cookbook_dict)
+    
+    return jsonify({
+        "cookbooks": cookbooks_data,
+        "total": cookbooks_pagination.total,
+        "pages": cookbooks_pagination.pages,
+        "current_page": page,
+        "per_page": per_page,
+        "has_next": cookbooks_pagination.has_next,
+        "has_prev": cookbooks_pagination.has_prev
+    })
+
+
+@bp.route("/cookbooks/<int:cookbook_id>", methods=["GET"])
+@require_auth
+def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
+    """Get specific cookbook with its recipes for the authenticated user."""
+    # Get cookbook and verify ownership
+    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    if not cookbook:
+        return jsonify({"error": "Cookbook not found"}), 404
+    
+    # Get user's recipes for this cookbook
+    recipes = Recipe.query.filter_by(
+        cookbook_id=cookbook_id, user_id=current_user.id
+    ).order_by(Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()).all()
+    
+    cookbook_dict = cookbook.to_dict()
+    cookbook_dict["recipes"] = [recipe.to_dict() for recipe in recipes]
+    cookbook_dict["recipe_count"] = len(recipes)
+    
+    return jsonify(cookbook_dict)
+
+
+@bp.route("/cookbooks/<int:cookbook_id>/recipes", methods=["GET"])
+@require_auth
+def get_cookbook_recipes(current_user, cookbook_id: int) -> Response:
+    """Get all recipes for a specific cookbook for the authenticated user."""
+    # Verify cookbook ownership
+    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    if not cookbook:
+        return jsonify({"error": "Cookbook not found"}), 404
+    
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    
+    # Get paginated recipes for this cookbook
+    recipes_pagination = Recipe.query.filter_by(
+        cookbook_id=cookbook_id, user_id=current_user.id
+    ).order_by(
+        Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()
+    ).paginate(page=page, per_page=per_page, error_out=False)
+    
+    return jsonify({
+        "cookbook": cookbook.to_dict(),
+        "recipes": [recipe.to_dict() for recipe in recipes_pagination.items],
+        "total": recipes_pagination.total,
+        "pages": recipes_pagination.pages,
+        "current_page": page,
+        "per_page": per_page,
+        "has_next": recipes_pagination.has_next,
+        "has_prev": recipes_pagination.has_prev
+    })
+
+
+@bp.route("/cookbooks", methods=["POST"])
+@require_auth
+def create_cookbook(current_user) -> Response:
+    """Create a new cookbook for the authenticated user."""
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate required fields
+    title = data.get("title", "").strip()
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    
+    try:
+        cookbook = Cookbook(
+            title=title,
+            author=data.get("author", "").strip() or None,
+            description=data.get("description", "").strip() or None,
+            isbn=data.get("isbn", "").strip() or None,
+            publisher=data.get("publisher", "").strip() or None,
+            cover_image_url=data.get("cover_image_url", "").strip() or None,
+            user_id=current_user.id
+        )
+        
+        # Handle publication_date if provided
+        publication_date = data.get("publication_date")
+        if publication_date:
+            from datetime import datetime
+            try:
+                cookbook.publication_date = datetime.fromisoformat(publication_date.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({"error": "Invalid publication_date format"}), 400
+        
+        db.session.add(cookbook)
+        db.session.commit()
+        
+        cookbook_dict = cookbook.to_dict()
+        cookbook_dict["recipe_count"] = 0  # New cookbook has no recipes
+        
+        return jsonify({
+            "message": "Cookbook created successfully",
+            "cookbook": cookbook_dict
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to create cookbook"}), 500
+
+
+@bp.route("/cookbooks/<int:cookbook_id>", methods=["PUT"])
+@require_auth
+def update_cookbook(current_user, cookbook_id: int) -> Response:
+    """Update cookbook details for the authenticated user."""
+    # Get cookbook and verify ownership
+    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    if not cookbook:
+        return jsonify({"error": "Cookbook not found"}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    try:
+        # Update fields if provided
+        if "title" in data:
+            title = data["title"].strip()
+            if not title:
+                return jsonify({"error": "Title cannot be empty"}), 400
+            cookbook.title = title
+        
+        if "author" in data:
+            cookbook.author = data["author"].strip() or None
+        
+        if "description" in data:
+            cookbook.description = data["description"].strip() or None
+        
+        if "isbn" in data:
+            cookbook.isbn = data["isbn"].strip() or None
+        
+        if "publisher" in data:
+            cookbook.publisher = data["publisher"].strip() or None
+        
+        if "cover_image_url" in data:
+            cookbook.cover_image_url = data["cover_image_url"].strip() or None
+        
+        if "publication_date" in data:
+            publication_date = data["publication_date"]
+            if publication_date:
+                from datetime import datetime
+                try:
+                    cookbook.publication_date = datetime.fromisoformat(publication_date.replace('Z', '+00:00'))
+                except ValueError:
+                    return jsonify({"error": "Invalid publication_date format"}), 400
+            else:
+                cookbook.publication_date = None
+        
+        db.session.commit()
+        
+        # Get recipe count
+        recipe_count = Recipe.query.filter_by(
+            cookbook_id=cookbook.id, user_id=current_user.id
+        ).count()
+        
+        cookbook_dict = cookbook.to_dict()
+        cookbook_dict["recipe_count"] = recipe_count
+        
+        return jsonify({
+            "message": "Cookbook updated successfully",
+            "cookbook": cookbook_dict
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to update cookbook"}), 500
+
+
+@bp.route("/cookbooks/<int:cookbook_id>", methods=["DELETE"])
+@require_auth
+def delete_cookbook(current_user, cookbook_id: int) -> Response:
+    """Delete a cookbook and its associated recipes for the authenticated user."""
+    # Get cookbook and verify ownership
+    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    if not cookbook:
+        return jsonify({"error": "Cookbook not found"}), 404
+    
+    try:
+        # Note: Due to foreign key constraints, we might need to handle associated recipes
+        # The current model relationships should handle cascading if configured properly
+        db.session.delete(cookbook)
+        db.session.commit()
+        
+        return jsonify({"message": "Cookbook deleted successfully"})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to delete cookbook"}), 500
+
+
+@bp.route("/cookbooks/stats", methods=["GET"])
+@require_auth
+def get_cookbook_stats(current_user) -> Response:
+    """Get cookbook statistics for the authenticated user."""
+    
+    # Get basic counts
+    total_cookbooks = Cookbook.query.filter_by(user_id=current_user.id).count()
+    total_recipes = Recipe.query.filter_by(user_id=current_user.id).count()
+    
+    # Get cookbooks with recipe counts
+    cookbook_stats = db.session.query(
+        Cookbook.id,
+        Cookbook.title,
+        func.count(Recipe.id).label('recipe_count')
+    ).outerjoin(
+        Recipe, db.and_(
+            Recipe.cookbook_id == Cookbook.id,
+            Recipe.user_id == current_user.id
+        )
+    ).filter(
+        Cookbook.user_id == current_user.id
+    ).group_by(Cookbook.id, Cookbook.title).all()
+    
+    # Calculate additional stats
+    cookbooks_with_recipes = sum(1 for stats in cookbook_stats if stats.recipe_count > 0)
+    avg_recipes_per_cookbook = total_recipes / total_cookbooks if total_cookbooks > 0 else 0
+    
+    return jsonify({
+        "total_cookbooks": total_cookbooks,
+        "total_recipes": total_recipes,
+        "cookbooks_with_recipes": cookbooks_with_recipes,
+        "empty_cookbooks": total_cookbooks - cookbooks_with_recipes,
+        "avg_recipes_per_cookbook": round(avg_recipes_per_cookbook, 1),
+        "cookbook_details": [
+            {
+                "id": stats.id,
+                "title": stats.title,
+                "recipe_count": stats.recipe_count
+            }
+            for stats in cookbook_stats
+        ]
+    })
