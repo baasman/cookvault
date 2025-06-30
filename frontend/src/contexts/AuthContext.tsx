@@ -4,11 +4,14 @@ interface User {
   id: string;
   email: string;
   name: string;
+  role: string;
+  isAdmin: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
@@ -52,7 +55,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser({
             id: '1',
             email: 'user@example.com',
-            name: 'Demo User'
+            name: 'Demo User',
+            role: 'user',
+            isAdmin: false
           });
         }
       } catch (error) {
@@ -89,6 +94,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         id: data.user.id.toString(),
         email: data.user.email,
         name: data.user.username,
+        role: data.user.role,
+        isAdmin: data.user.role === 'admin',
       });
 
       localStorage.setItem('auth_token', data.session_token);
@@ -118,6 +125,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         id: data.user.id.toString(),
         email: data.user.email,
         name: data.user.username,
+        role: data.user.role,
+        isAdmin: data.user.role === 'admin',
       });
 
       localStorage.setItem('auth_token', data.session_token);
@@ -134,6 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value = {
     user,
     isAuthenticated: !!user,
+    isAdmin: user?.isAdmin || false,
     login,
     register,
     logout,

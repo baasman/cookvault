@@ -17,7 +17,7 @@ const HeroSection: React.FC = () => {
               Your Recipes, Perfectly Organized
             </h1>
             <p className="text-xl text-text-secondary mb-10 max-w-lg mx-auto lg:mx-0">
-              Transform handwritten notes into digital files with AI-powered OCR technology. 
+              Transform handwritten notes and recipe images into digital files with AI-powered OCR technology.
               From scattered recipes to organized cookbook collections.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -29,9 +29,9 @@ const HeroSection: React.FC = () => {
                   {isAuthenticated ? "Upload Recipe" : "Get Started"}
                 </Button>
               </Link>
-              <Button 
-                variant="secondary" 
-                size="lg" 
+              <Button
+                variant="secondary"
+                size="lg"
                 className="w-full sm:w-auto"
                 onClick={() => {
                   const featuresSection = document.getElementById('features');
@@ -56,11 +56,11 @@ const HeroSection: React.FC = () => {
                   AI Recipe Extraction
                 </h3>
               </div>
-              
+
               <p className="text-text-secondary mb-6">
                 Upload any recipe image and watch our AI extract ingredients, instructions, and details automatically.
               </p>
-              
+
               {/* Upload Demo Area */}
               <div className="border-2 border-dashed border-border rounded-xl p-6 text-center bg-background">
                 <svg className="text-text-secondary mx-auto mb-2 w-8 h-8 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" style={{maxWidth: '32px', maxHeight: '32px'}}>

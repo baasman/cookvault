@@ -3,7 +3,7 @@ from sqlalchemy import func
 
 from app import db
 from app.api import bp
-from app.api.auth import require_auth
+from app.api.auth import require_auth, should_apply_user_filter
 from app.models import Cookbook, Recipe
 
 
@@ -16,8 +16,10 @@ def get_user_cookbooks(current_user) -> Response:
     search = request.args.get("search", "")
     sort_by = request.args.get("sort_by", "title")  # title, author, created_at, recipe_count
     
-    # Base query for user's cookbooks
-    query = Cookbook.query.filter_by(user_id=current_user.id)
+    # Base query - admins see all cookbooks, users see only their own
+    query = Cookbook.query
+    if should_apply_user_filter(current_user):
+        query = query.filter_by(user_id=current_user.id)
     
     # Apply search filter if provided
     if search:
@@ -53,10 +55,11 @@ def get_user_cookbooks(current_user) -> Response:
     # Build response with recipe counts
     cookbooks_data = []
     for cookbook in cookbooks_pagination.items:
-        # Get recipe count for this cookbook (only user's recipes)
-        recipe_count = Recipe.query.filter_by(
-            cookbook_id=cookbook.id, user_id=current_user.id
-        ).count()
+        # Get recipe count for this cookbook - admins see all, users see only their own
+        recipe_count_query = Recipe.query.filter_by(cookbook_id=cookbook.id)
+        if should_apply_user_filter(current_user):
+            recipe_count_query = recipe_count_query.filter_by(user_id=current_user.id)
+        recipe_count = recipe_count_query.count()
         
         cookbook_dict = cookbook.to_dict()
         cookbook_dict["recipe_count"] = recipe_count
@@ -77,15 +80,19 @@ def get_user_cookbooks(current_user) -> Response:
 @require_auth
 def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
     """Get specific cookbook with its recipes for the authenticated user."""
-    # Get cookbook and verify ownership
-    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    # Get cookbook - admins can access any cookbook, users only their own
+    if should_apply_user_filter(current_user):
+        cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    else:
+        cookbook = Cookbook.query.get(cookbook_id)
     if not cookbook:
         return jsonify({"error": "Cookbook not found"}), 404
     
-    # Get user's recipes for this cookbook
-    recipes = Recipe.query.filter_by(
-        cookbook_id=cookbook_id, user_id=current_user.id
-    ).order_by(Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()).all()
+    # Get recipes for this cookbook - admins see all, users see only their own
+    recipe_query = Recipe.query.filter_by(cookbook_id=cookbook_id)
+    if should_apply_user_filter(current_user):
+        recipe_query = recipe_query.filter_by(user_id=current_user.id)
+    recipes = recipe_query.order_by(Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()).all()
     
     cookbook_dict = cookbook.to_dict()
     cookbook_dict["recipes"] = [recipe.to_dict() for recipe in recipes]
@@ -98,18 +105,22 @@ def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
 @require_auth
 def get_cookbook_recipes(current_user, cookbook_id: int) -> Response:
     """Get all recipes for a specific cookbook for the authenticated user."""
-    # Verify cookbook ownership
-    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    # Verify cookbook access - admins can access any cookbook, users only their own
+    if should_apply_user_filter(current_user):
+        cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    else:
+        cookbook = Cookbook.query.get(cookbook_id)
     if not cookbook:
         return jsonify({"error": "Cookbook not found"}), 404
     
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     
-    # Get paginated recipes for this cookbook
-    recipes_pagination = Recipe.query.filter_by(
-        cookbook_id=cookbook_id, user_id=current_user.id
-    ).order_by(
+    # Get paginated recipes for this cookbook - admins see all, users see only their own
+    recipe_query = Recipe.query.filter_by(cookbook_id=cookbook_id)
+    if should_apply_user_filter(current_user):
+        recipe_query = recipe_query.filter_by(user_id=current_user.id)
+    recipes_pagination = recipe_query.order_by(
         Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
     
@@ -179,8 +190,11 @@ def create_cookbook(current_user) -> Response:
 @require_auth
 def update_cookbook(current_user, cookbook_id: int) -> Response:
     """Update cookbook details for the authenticated user."""
-    # Get cookbook and verify ownership
-    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    # Get cookbook - admins can update any cookbook, users only their own
+    if should_apply_user_filter(current_user):
+        cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    else:
+        cookbook = Cookbook.query.get(cookbook_id)
     if not cookbook:
         return jsonify({"error": "Cookbook not found"}), 404
     
@@ -246,8 +260,11 @@ def update_cookbook(current_user, cookbook_id: int) -> Response:
 @require_auth
 def delete_cookbook(current_user, cookbook_id: int) -> Response:
     """Delete a cookbook and its associated recipes for the authenticated user."""
-    # Get cookbook and verify ownership
-    cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    # Get cookbook - admins can delete any cookbook, users only their own
+    if should_apply_user_filter(current_user):
+        cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    else:
+        cookbook = Cookbook.query.get(cookbook_id)
     if not cookbook:
         return jsonify({"error": "Cookbook not found"}), 404
     
@@ -269,23 +286,39 @@ def delete_cookbook(current_user, cookbook_id: int) -> Response:
 def get_cookbook_stats(current_user) -> Response:
     """Get cookbook statistics for the authenticated user."""
     
-    # Get basic counts
-    total_cookbooks = Cookbook.query.filter_by(user_id=current_user.id).count()
-    total_recipes = Recipe.query.filter_by(user_id=current_user.id).count()
+    # Get basic counts - admins see all, users see only their own
+    cookbook_query = Cookbook.query
+    recipe_query = Recipe.query
+    if should_apply_user_filter(current_user):
+        cookbook_query = cookbook_query.filter_by(user_id=current_user.id)
+        recipe_query = recipe_query.filter_by(user_id=current_user.id)
+    total_cookbooks = cookbook_query.count()
+    total_recipes = recipe_query.count()
     
-    # Get cookbooks with recipe counts
-    cookbook_stats = db.session.query(
+    # Get cookbooks with recipe counts - admins see all, users see only their own
+    cookbook_stats_query = db.session.query(
         Cookbook.id,
         Cookbook.title,
         func.count(Recipe.id).label('recipe_count')
-    ).outerjoin(
-        Recipe, db.and_(
-            Recipe.cookbook_id == Cookbook.id,
-            Recipe.user_id == current_user.id
+    )
+    
+    if should_apply_user_filter(current_user):
+        # Users see only their own cookbooks and recipes
+        cookbook_stats_query = cookbook_stats_query.outerjoin(
+            Recipe, db.and_(
+                Recipe.cookbook_id == Cookbook.id,
+                Recipe.user_id == current_user.id
+            )
+        ).filter(
+            Cookbook.user_id == current_user.id
         )
-    ).filter(
-        Cookbook.user_id == current_user.id
-    ).group_by(Cookbook.id, Cookbook.title).all()
+    else:
+        # Admins see all cookbooks and all recipes
+        cookbook_stats_query = cookbook_stats_query.outerjoin(
+            Recipe, Recipe.cookbook_id == Cookbook.id
+        )
+    
+    cookbook_stats = cookbook_stats_query.group_by(Cookbook.id, Cookbook.title).all()
     
     # Calculate additional stats
     cookbooks_with_recipes = sum(1 for stats in cookbook_stats if stats.recipe_count > 0)

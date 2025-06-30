@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.api import bp
-from app.api.auth import require_auth
+from app.api.auth import require_auth, should_apply_user_filter
 from app.models import (
     Cookbook,
     Ingredient,
@@ -39,8 +39,10 @@ def get_recipes(current_user) -> Response:
     search = request.args.get("search", "")
     cookbook_id = request.args.get("cookbook_id", type=int)
 
-    # Base query for user's recipes
-    query = Recipe.query.filter_by(user_id=current_user.id)
+    # Base query - admins see all recipes, users see only their own
+    query = Recipe.query
+    if should_apply_user_filter(current_user):
+        query = query.filter_by(user_id=current_user.id)
 
     # Apply filters
     if cookbook_id:
@@ -74,7 +76,11 @@ def get_recipes(current_user) -> Response:
 @bp.route("/recipes/<int:recipe_id>", methods=["GET"])
 @require_auth
 def get_recipe(current_user, recipe_id: int) -> Response:
-    recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    # Admin can access any recipe, users only their own
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
     if not recipe:
         return jsonify({"error": "Recipe not found"}), 404
 
@@ -190,8 +196,8 @@ def serve_image(current_user, filename: str) -> Response:
         if not recipe_image:
             return jsonify({"error": "Image not found"}), 404
 
-        # Check if user owns the recipe associated with this image
-        if recipe_image.recipe_id:
+        # Check if user owns the recipe associated with this image (admins can access all)
+        if recipe_image.recipe_id and should_apply_user_filter(current_user):
             recipe = Recipe.query.filter_by(id=recipe_image.recipe_id, user_id=current_user.id).first()
             if not recipe:
                 return jsonify({"error": "Access denied"}), 403

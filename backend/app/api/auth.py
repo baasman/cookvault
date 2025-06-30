@@ -48,6 +48,16 @@ def require_admin(f):
     return decorated_function
 
 
+def is_admin_user(user: User) -> bool:
+    """Check if user has admin role."""
+    return user.role == UserRole.ADMIN
+
+
+def should_apply_user_filter(user: User) -> bool:
+    """Determine if user filtering should be applied (False for admins)."""
+    return not is_admin_user(user)
+
+
 def get_current_user() -> Optional[User]:
     """Get the current authenticated user from session."""
     session_token = session.get("session_token")
