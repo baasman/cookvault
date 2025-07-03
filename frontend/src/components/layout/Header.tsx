@@ -63,14 +63,9 @@ const Header: React.FC<HeaderProps> = ({
                       Upload Recipe
                     </Button>
                   </Link>
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm font-medium" style={{color: '#9b644b'}}>
-                      {user?.name}
-                    </span>
-                    <Button variant="secondary" size="sm" onClick={handleLogout}>
-                      Logout
-                    </Button>
-                  </div>
+                  <Button variant="secondary" size="sm" onClick={handleLogout}>
+                    Logout
+                  </Button>
                 </>
               ) : (
                 <>
@@ -133,14 +128,9 @@ const Header: React.FC<HeaderProps> = ({
                           Upload Recipe
                         </Button>
                       </Link>
-                      <div className="flex items-center justify-between px-3 py-2">
-                        <span className="text-sm font-medium" style={{color: '#9b644b'}}>
-                          {user?.name}
-                        </span>
-                        <Button variant="secondary" size="sm" onClick={handleLogout}>
-                          Logout
-                        </Button>
-                      </div>
+                      <Button variant="secondary" size="sm" onClick={handleLogout} className="w-full">
+                        Logout
+                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-2">

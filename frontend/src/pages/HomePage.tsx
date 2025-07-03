@@ -1,28 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AIIcon, BookIcon, CollectionIcon, UploadIcon } from '../components/icons'; // Assuming these exist or will be created
+import { AIIcon, BookIcon, CollectionIcon } from '../components/icons'; // Assuming these exist or will be created
+import { HeroSection } from '../components/homepage';
 
 const HomePage: React.FC = () => {
   return (
     <>
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="container">
-          <div className="hero-content" style={{ textAlign: 'center', justifyContent: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div className="hero-text">
-              <h1>Your Recipes, Perfectly Organized</h1>
-              <p>Transform handwritten notes into digital files with AI-powered OCR technology. From scattered recipes to organized cookbook collections.</p>
-              <div className="hero-actions">
-                <Link to="/upload" className="btn btn-primary btn-lg">
-                  <UploadIcon className="icon icon-black" />
-                  Upload Recipe
-                </Link>
-                <a href="#features" className="btn btn-secondary btn-lg">Learn More</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HeroSection />
 
       {/* Features Section */}
       <section className="features" id="features">
