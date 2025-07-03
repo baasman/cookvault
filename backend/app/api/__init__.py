@@ -2,4 +2,4 @@ from flask import Blueprint
 
 bp = Blueprint("api", __name__)
 
-from app.api import recipes, auth
+from app.api import recipes, auth, cookbooks

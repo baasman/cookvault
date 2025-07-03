@@ -14,7 +14,9 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or "sqlite:///cookbook.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
-    UPLOAD_FOLDER = Path(os.environ.get("UPLOAD_FOLDER", "uploads"))
+    UPLOAD_FOLDER = (
+        Path(__file__).parent.parent / os.environ.get("UPLOAD_FOLDER", "uploads")
+    )
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 

@@ -154,6 +154,55 @@ class CookbooksApi {
       throw error;
     }
   }
+
+  async searchAllCookbooks(query: string): Promise<Cookbook[]> {
+    try {
+      const searchParams = new URLSearchParams({
+        q: query.trim(),
+      });
+
+      const response = await fetch(`${this.baseUrl}/cookbooks/search?${searchParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.cookbooks || [];
+    } catch (error) {
+      console.error('Error searching cookbooks:', error);
+      throw new Error('Failed to search cookbooks');
+    }
+  }
+
+  async uploadCookbookImage(cookbookId: number, imageFile: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('image', imageFile);
+
+      const response = await fetch(`${this.baseUrl}/cookbooks/${cookbookId}/images`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading cookbook image:', error);
+      throw error;
+    }
+  }
 }
 
 export const cookbooksApi = new CookbooksApi();

@@ -4,11 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { recipesApi } from '../services/recipesApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
+import { RecipeImageDisplay } from '../components/recipe/RecipeImageDisplay';
 
 const RecipeDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const recipeId = id ? parseInt(id, 10) : null;
 
   const { 
@@ -111,11 +112,17 @@ const RecipeDetailPage: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-8">
           {/* Recipe Image */}
           <div className="w-full lg:w-1/3 mb-6 lg:mb-0">
-            <div className="aspect-square bg-gradient-to-br from-background-secondary to-primary-200 rounded-xl flex items-center justify-center">
-              <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-            </div>
+            {/* Debug info */}
+            {console.log('Recipe Detail Debug:', {
+              userRole: user?.role,
+              userId: user?.id,
+              recipeUserId: recipe.user_id,
+              canEdit: user?.role === 'admin' || (user && recipe.user_id === parseInt(user.id))
+            })}
+            <RecipeImageDisplay 
+              recipe={recipe} 
+              canEdit={user?.role === 'admin' || (user && recipe.user_id === parseInt(user.id))}
+            />
           </div>
 
           {/* Recipe Info */}
@@ -217,9 +224,9 @@ const RecipeDetailPage: React.FC = () => {
                           {ingredient.preparation && (
                             <span className="text-text-secondary">, {ingredient.preparation}</span>
                           )}
-                          {ingredient.optional && (
+                          {/* {Boolean(ingredient.optional) && (
                             <span className="text-text-secondary italic"> (optional)</span>
-                          )}
+                          )} */}
                         </span>
                       </div>
                     </li>
@@ -243,7 +250,7 @@ const RecipeDetailPage: React.FC = () => {
                   .sort((a, b) => a.step_number - b.step_number)
                   .map((instruction) => (
                     <li key={instruction.id} className="flex space-x-4">
-                      <div className="flex-shrink-0 w-8 h-8 bg-accent text-white rounded-full flex items-center justify-center font-medium">
+                      <div className="flex-shrink-0 w-8 h-8 bg-accent text-black rounded-full flex items-center justify-center font-medium">
                         {instruction.step_number}
                       </div>
                       <div className="flex-1 pt-1">

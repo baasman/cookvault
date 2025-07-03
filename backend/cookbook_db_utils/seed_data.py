@@ -137,14 +137,37 @@ class DataSeeder:
     def _create_sample_ingredients(self) -> List[Ingredient]:
         """Create sample ingredients"""
         sample_ingredients = [
+            # Basic seasonings
             {"name": "salt", "category": "seasoning"},
             {"name": "black pepper", "category": "seasoning"},
             {"name": "olive oil", "category": "oil"},
             {"name": "garlic", "category": "vegetable"},
             {"name": "onion", "category": "vegetable"},
-            {"name": "flour", "category": "baking"},
-            {"name": "eggs", "category": "dairy"},
             {"name": "butter", "category": "dairy"},
+            {"name": "lemon", "category": "fruit"},
+            
+            # Brussels sprouts recipe ingredients
+            {"name": "brussels sprouts", "category": "vegetable"},
+            {"name": "black garlic", "category": "seasoning"},
+            {"name": "thyme", "category": "herb"},
+            {"name": "parmesan cheese", "category": "dairy"},
+            
+            # New potatoes recipe ingredients
+            {"name": "new potatoes", "category": "vegetable"},
+            {"name": "fresh peas", "category": "vegetable"},
+            {"name": "cilantro", "category": "herb"},
+            {"name": "mint", "category": "herb"},
+            {"name": "spring onions", "category": "vegetable"},
+            
+            # Tofu chraimeh recipe ingredients
+            {"name": "firm tofu", "category": "protein"},
+            {"name": "haricots verts", "category": "vegetable"},
+            {"name": "canned tomatoes", "category": "pantry"},
+            {"name": "cumin", "category": "spice"},
+            {"name": "paprika", "category": "spice"},
+            {"name": "cayenne pepper", "category": "spice"},
+            {"name": "coriander seeds", "category": "spice"},
+            {"name": "fresh chilies", "category": "vegetable"},
         ]
 
         created_ingredients = []
@@ -173,14 +196,12 @@ class DataSeeder:
 
         sample_cookbooks = [
             {
-                "title": "Quick & Easy Meals",
-                "author": "Gordon Chef",
-                "description": "Simple recipes for busy weeknights"
-            },
-            {
-                "title": "Healthy Home Cooking",
-                "author": "Home Cook",
-                "description": "Nutritious family-friendly recipes"
+                "title": "Ottolenghi Simple",
+                "author": "Yotam Ottolenghi",
+                "description": "A cookbook of abundantly flavored recipes that offer maximum joy for minimum effort",
+                "publisher": "Ten Speed Press",
+                "isbn": "978-1607749165",
+                "publication_date": datetime(2018, 10, 4)
             }
         ]
 
@@ -193,6 +214,9 @@ class DataSeeder:
                 title=cookbook_data["title"],
                 author=cookbook_data["author"],
                 description=cookbook_data["description"],
+                publisher=cookbook_data.get("publisher"),
+                isbn=cookbook_data.get("isbn"),
+                publication_date=cookbook_data.get("publication_date"),
                 user_id=user.id
             )
             db.session.add(cookbook)
@@ -209,20 +233,34 @@ class DataSeeder:
 
         sample_recipes = [
             {
-                "title": "Simple Pasta",
-                "description": "A basic pasta recipe",
-                "prep_time": 10,
-                "cook_time": 15,
-                "servings": 2,
-                "difficulty": "easy"
+                "title": "Brussels Sprouts with Browned Butter and Black Garlic",
+                "description": "Charred Brussels sprouts enhanced with the deep, molasses-like sweetness of black garlic and nutty browned butter",
+                "prep_time": 15,
+                "cook_time": 25,
+                "servings": 4,
+                "difficulty": "medium",
+                "page_number": 142,
+                "image_filename": "brussel-sprouts-browned-butter-black-garlic.png"
             },
             {
-                "title": "Basic Salad",
-                "description": "Fresh and healthy salad",
-                "prep_time": 5,
-                "cook_time": 0,
-                "servings": 1,
-                "difficulty": "easy"
+                "title": "New Potatoes with Peas and Cilantro",
+                "description": "Baby potatoes cooked with fresh peas and finished with bright cilantro and a lemony dressing",
+                "prep_time": 10,
+                "cook_time": 20,
+                "servings": 6,
+                "difficulty": "easy",
+                "page_number": 98,
+                "image_filename": "new-potatoes-peas-cilantro.png"
+            },
+            {
+                "title": "Tofu and Haricots Verts Chraimeh",
+                "description": "Silky tofu and crisp green beans in a spicy North African tomato sauce with warming spices",
+                "prep_time": 20,
+                "cook_time": 30,
+                "servings": 4,
+                "difficulty": "medium",
+                "page_number": 176,
+                "image_filename": "tofu-haricots-chraimeh.png"
             }
         ]
 
@@ -230,7 +268,7 @@ class DataSeeder:
         
         for i, recipe_data in enumerate(sample_recipes):
             user = users[i % len(users)]
-            cookbook = cookbooks[i % len(cookbooks)]
+            cookbook = cookbooks[0]  # Use the Ottolenghi Simple cookbook for all recipes
             
             recipe = Recipe(
                 title=recipe_data["title"],
@@ -239,19 +277,59 @@ class DataSeeder:
                 cook_time=recipe_data["cook_time"],
                 servings=recipe_data["servings"],
                 difficulty=recipe_data["difficulty"],
+                page_number=recipe_data.get("page_number"),
                 user_id=user.id,
                 cookbook_id=cookbook.id
             )
             db.session.add(recipe)
             db.session.flush()  # Get recipe ID
             
-            # Add one instruction
-            instruction = Instruction(
-                recipe_id=recipe.id,
-                step_number=1,
-                text=f"Follow the traditional method for {recipe_data['title']}"
-            )
-            db.session.add(instruction)
+            # Add realistic cooking instructions for each recipe
+            instructions_by_recipe = [
+                # Brussels Sprouts with Browned Butter and Black Garlic
+                [
+                    "Preheat the oven to 220°C/200°C fan/425°F/gas 7.",
+                    "Trim the Brussels sprouts and cut in half lengthwise through the core.",
+                    "Toss the Brussels sprouts with olive oil, salt, and pepper on a large baking sheet.",
+                    "Roast for 20-25 minutes until charred and tender, turning once halfway through.",
+                    "Meanwhile, heat butter in a small pan over medium heat until it turns golden brown and smells nutty.",
+                    "Mash the black garlic with a fork until smooth.",
+                    "Toss the roasted sprouts with browned butter, black garlic, and fresh thyme.",
+                    "Finish with grated Parmesan and serve immediately."
+                ],
+                # New Potatoes with Peas and Cilantro
+                [
+                    "Place new potatoes in a large pot of salted water and bring to a boil.",
+                    "Cook for 15-18 minutes until tender when pierced with a knife.",
+                    "Meanwhile, blanch fresh peas in boiling water for 2 minutes, then drain.",
+                    "Drain potatoes and let cool slightly, then cut in half if large.",
+                    "Make a dressing with olive oil, lemon juice, minced garlic, salt, and pepper.",
+                    "Toss warm potatoes with peas, chopped cilantro, mint, and spring onions.",
+                    "Add the dressing and toss gently to combine.",
+                    "Taste and adjust seasoning, then serve warm or at room temperature."
+                ],
+                # Tofu and Haricots Verts Chraimeh
+                [
+                    "Heat oil in a large pan and fry cubed tofu until golden on all sides. Set aside.",
+                    "In the same pan, sauté onions until softened, about 5 minutes.",
+                    "Add garlic, cumin, paprika, coriander seeds, and cayenne. Cook for 1 minute.",
+                    "Add crushed tomatoes, fresh chilies, salt, and a splash of water.",
+                    "Simmer the sauce for 15 minutes until thickened.",
+                    "Add trimmed haricots verts and cook for 8-10 minutes until tender.",
+                    "Return tofu to the pan and simmer for 5 minutes to heat through.",
+                    "Garnish with fresh cilantro and serve with rice or flatbread."
+                ]
+            ]
+            
+            recipe_instructions = instructions_by_recipe[i] if i < len(instructions_by_recipe) else [f"Follow the traditional method for {recipe_data['title']}"]
+            
+            for step_num, instruction_text in enumerate(recipe_instructions, 1):
+                instruction = Instruction(
+                    recipe_id=recipe.id,
+                    step_number=step_num,
+                    text=instruction_text
+                )
+                db.session.add(instruction)
             
             # Add one ingredient
             if ingredients:
@@ -276,28 +354,42 @@ class DataSeeder:
         if not recipes:
             return []
 
+        # Image filenames from the seed_data directory
+        image_files = [
+            "brussel-sprouts-browned-butter-black-garlic.png",
+            "new-potatoes-peas-cilantro.png",
+            "tofu-haricots-chraimeh.png"
+        ]
+
         created_jobs = []
         
-        # First create a sample recipe image for the processing job
-        for recipe in recipes[:1]:  # Only create job for first recipe
-            # Create a sample recipe image first
+        # Create processing jobs for all recipes
+        for i, recipe in enumerate(recipes):
+            image_filename = image_files[i] if i < len(image_files) else "sample_image.jpg"
+            
+            # Create a recipe image for each recipe
             recipe_image = RecipeImage(
-                recipe_id=recipe.id,
-                filename="sample_image.jpg",
-                original_filename="sample_recipe_image.jpg",
-                file_path="/tmp/sample_image.jpg",
-                file_size=1024,
-                content_type="image/jpeg"
+                filename=image_filename,
+                original_filename=image_filename,
+                file_path=f"/Users/baasman/projects/cookbook-creator/backend/scripts/seed_data/{image_filename}",
+                file_size=2048576,  # ~2MB realistic file size
+                content_type="image/png"
             )
             db.session.add(recipe_image)
             db.session.flush()  # Get the image ID
             
-            # Now create the processing job with the image reference
+            # Create processing job with realistic OCR text
+            ocr_texts = [
+                f"Recipe from Ottolenghi Simple: {recipe.title}. This delicious recipe combines traditional techniques with modern flavors.",
+                f"From the cookbook Ottolenghi Simple by Yotam Ottolenghi. Page {recipe.page_number or 'unknown'}. {recipe.description}",
+                f"Ottolenghi Simple recipe: {recipe.title}. Prep time: {recipe.prep_time} minutes. Cook time: {recipe.cook_time} minutes."
+            ]
+            
             job = ProcessingJob(
                 recipe_id=recipe.id,
                 image_id=recipe_image.id,
                 status=ProcessingStatus.COMPLETED,
-                ocr_text=f"Sample OCR text for {recipe.title}"
+                ocr_text=ocr_texts[i] if i < len(ocr_texts) else f"OCR text for {recipe.title}"
             )
             db.session.add(job)
             created_jobs.append(job)

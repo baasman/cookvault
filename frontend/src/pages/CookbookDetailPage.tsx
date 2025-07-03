@@ -1,0 +1,310 @@
+import React from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { cookbooksApi } from '../services/cookbooksApi';
+import { useAuth } from '../contexts/AuthContext';
+import { Button } from '../components/ui';
+import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
+import type { Recipe } from '../types';
+
+const CookbookDetailPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
+  const cookbookId = id ? parseInt(id, 10) : null;
+
+  const { 
+    data: cookbook, 
+    isLoading, 
+    error 
+  } = useQuery({
+    queryKey: ['cookbook', cookbookId],
+    queryFn: () => cookbookId ? cookbooksApi.fetchCookbook(cookbookId) : Promise.reject('No cookbook ID'),
+    enabled: isAuthenticated && !!cookbookId,
+  });
+
+  const formatTime = (minutes: number | undefined) => {
+    if (!minutes) return 'Not specified';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.getFullYear().toString();
+    } catch {
+      return '';
+    }
+  };
+
+  const getDifficultyColor = (difficulty: string | undefined) => {
+    switch (difficulty?.toLowerCase()) {
+      case 'easy': return '#22c55e';
+      case 'medium': return '#f59e0b';
+      case 'hard': return '#ef4444';
+      default: return '#9b644b';
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
+          Please log in to view this cookbook
+        </h2>
+        <Button onClick={() => navigate('/login')}>
+          Sign In
+        </Button>
+      </div>
+    );
+  }
+
+  if (!cookbookId) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
+          Invalid cookbook
+        </h2>
+        <Button onClick={() => navigate('/cookbooks')}>
+          Back to Cookbooks
+        </Button>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{borderColor: '#f15f1c'}}></div>
+          <p style={{color: '#9b644b'}}>Loading cookbook...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !cookbook) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
+          Cookbook not found
+        </h2>
+        <p className="mb-4" style={{color: '#9b644b'}}>
+          The cookbook you're looking for doesn't exist or you don't have permission to view it.
+        </p>
+        <Button onClick={() => navigate('/cookbooks')}>
+          Back to Cookbooks
+        </Button>
+      </div>
+    );
+  }
+
+  const recipes = (cookbook as any).recipes as Recipe[] || [];
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      {/* Back Navigation */}
+      <div className="mb-6">
+        <button
+          onClick={() => navigate('/cookbooks')}
+          className="flex items-center space-x-2 text-text-secondary hover:text-accent transition-colors"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span>Back to Cookbooks</span>
+        </button>
+      </div>
+
+      {/* Cookbook Header */}
+      <div className="bg-white rounded-xl shadow-sm border p-8 mb-8" style={{borderColor: '#e8d7cf'}}>
+        <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-8">
+          {/* Cookbook Cover */}
+          <div className="w-full lg:w-1/4 mb-6 lg:mb-0">
+            <CookbookImageDisplay 
+              cookbook={cookbook} 
+              canEdit={user?.role === 'admin' || (user && cookbook.user_id === parseInt(user.id))}
+            />
+          </div>
+
+          {/* Cookbook Info */}
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold mb-4" style={{color: '#1c120d'}}>
+              {cookbook.title}
+            </h1>
+
+            {cookbook.author && (
+              <p className="text-xl text-text-secondary mb-4">
+                by {cookbook.author}
+              </p>
+            )}
+
+            {cookbook.description && (
+              <p className="text-lg text-text-secondary mb-6 leading-relaxed">
+                {cookbook.description}
+              </p>
+            )}
+
+            {/* Cookbook Metadata */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="p-4 bg-background-secondary rounded-lg">
+                <div className="text-sm text-text-secondary mb-1">Recipes</div>
+                <div className="text-2xl font-bold text-accent">{recipes.length}</div>
+              </div>
+
+              {cookbook.publisher && (
+                <div className="p-4 bg-background-secondary rounded-lg">
+                  <div className="text-sm text-text-secondary mb-1">Publisher</div>
+                  <div className="font-medium text-text-primary">{cookbook.publisher}</div>
+                </div>
+              )}
+
+              {cookbook.publication_date && (
+                <div className="p-4 bg-background-secondary rounded-lg">
+                  <div className="text-sm text-text-secondary mb-1">Published</div>
+                  <div className="font-medium text-text-primary">{formatDate(cookbook.publication_date)}</div>
+                </div>
+              )}
+
+              {cookbook.isbn && (
+                <div className="p-4 bg-background-secondary rounded-lg">
+                  <div className="text-sm text-text-secondary mb-1">ISBN</div>
+                  <div className="font-medium text-text-primary">{cookbook.isbn}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recipes Section */}
+      <div className="bg-white rounded-xl shadow-sm border p-8" style={{borderColor: '#e8d7cf'}}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold" style={{color: '#1c120d'}}>
+            Recipes ({recipes.length})
+          </h2>
+        </div>
+
+        {recipes.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recipes
+              .sort((a, b) => {
+                // Sort by page number (nulls last), then by title
+                if (a.page_number === null && b.page_number === null) return a.title.localeCompare(b.title);
+                if (a.page_number === null) return 1;
+                if (b.page_number === null) return -1;
+                return a.page_number - b.page_number;
+              })
+              .map((recipe) => (
+                <Link key={recipe.id} to={`/recipes/${recipe.id}`}>
+                  <div className="group bg-white rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden" style={{borderColor: '#e8d7cf'}}>
+                    {/* Recipe Image */}
+                    <div className="aspect-[4/3] bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden">
+                      {(() => {
+                        const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
+                        const imageUrl = primaryImage ? `/api/images/${primaryImage.filename}` : null;
+                        
+                        return imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={recipe.title}
+                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                            onError={(e) => {
+                              // Hide the image and show placeholder if loading fails
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null;
+                      })()}
+                      
+                      {/* Placeholder - shown when no image or image fails to load */}
+                      <div className={`absolute inset-0 flex items-center justify-center ${recipe.images && recipe.images.length > 0 ? 'hidden' : ''}`}>
+                        <svg className="h-12 w-12 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                      </div>
+                      
+                      {/* Page Number Badge */}
+                      {recipe.page_number && (
+                        <div className="absolute top-3 left-3">
+                          <span className="px-2 py-1 text-xs font-medium text-white rounded-full bg-accent">
+                            Page {recipe.page_number}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recipe Info */}
+                    <div className="p-4">
+                      <h3 className="text-lg font-semibold text-text-primary group-hover:text-accent transition-colors line-clamp-2 mb-2">
+                        {recipe.title}
+                      </h3>
+
+                      {recipe.description && (
+                        <p className="text-sm text-text-secondary line-clamp-2 mb-3">
+                          {recipe.description}
+                        </p>
+                      )}
+
+                      {/* Recipe Metadata */}
+                      <div className="flex items-center justify-between text-xs text-text-secondary">
+                        <div className="flex items-center space-x-3">
+                          {recipe.prep_time && (
+                            <div className="flex items-center">
+                              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span>{formatTime(recipe.prep_time)}</span>
+                            </div>
+                          )}
+                          
+                          {recipe.cook_time && (
+                            <div className="flex items-center">
+                              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                              </svg>
+                              <span>{formatTime(recipe.cook_time)}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {recipe.difficulty && (
+                          <div className="flex items-center">
+                            <div 
+                              className="w-2 h-2 rounded-full mr-1" 
+                              style={{backgroundColor: getDifficultyColor(recipe.difficulty)}}
+                            ></div>
+                            <span style={{color: getDifficultyColor(recipe.difficulty)}}>
+                              {recipe.difficulty.charAt(0).toUpperCase() + recipe.difficulty.slice(1)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <svg className="h-16 w-16 mx-auto text-text-secondary mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m5 0v-9a2 2 0 00-2-2H7a2 2 0 00-2 2v9m14 0h2" />
+            </svg>
+            <h3 className="text-lg font-medium text-text-primary mb-2">No recipes yet</h3>
+            <p className="text-text-secondary mb-4">This cookbook doesn't have any imported recipes yet.</p>
+            <Button onClick={() => navigate('/upload')}>
+              Import Recipes
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export { CookbookDetailPage };

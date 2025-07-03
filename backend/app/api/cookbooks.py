@@ -1,10 +1,21 @@
-from flask import Response, jsonify, request
+import os
+import uuid
+from pathlib import Path
+
+from flask import Response, jsonify, request, send_file, current_app
 from sqlalchemy import func
+from werkzeug.utils import secure_filename
 
 from app import db
 from app.api import bp
 from app.api.auth import require_auth, should_apply_user_filter
 from app.models import Cookbook, Recipe
+
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "tiff"}
+
+
+def allowed_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @bp.route("/cookbooks", methods=["GET"])
@@ -89,7 +100,7 @@ def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
         return jsonify({"error": "Cookbook not found"}), 404
     
     # Get recipes for this cookbook - admins see all, users see only their own
-    recipe_query = Recipe.query.filter_by(cookbook_id=cookbook_id)
+    recipe_query = Recipe.query.options(db.joinedload(Recipe.images)).filter_by(cookbook_id=cookbook_id)
     if should_apply_user_filter(current_user):
         recipe_query = recipe_query.filter_by(user_id=current_user.id)
     recipes = recipe_query.order_by(Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()).all()
@@ -117,7 +128,7 @@ def get_cookbook_recipes(current_user, cookbook_id: int) -> Response:
     per_page = request.args.get("per_page", 20, type=int)
     
     # Get paginated recipes for this cookbook - admins see all, users see only their own
-    recipe_query = Recipe.query.filter_by(cookbook_id=cookbook_id)
+    recipe_query = Recipe.query.options(db.joinedload(Recipe.images)).filter_by(cookbook_id=cookbook_id)
     if should_apply_user_filter(current_user):
         recipe_query = recipe_query.filter_by(user_id=current_user.id)
     recipes_pagination = recipe_query.order_by(
@@ -281,6 +292,50 @@ def delete_cookbook(current_user, cookbook_id: int) -> Response:
         return jsonify({"error": "Failed to delete cookbook"}), 500
 
 
+@bp.route("/cookbooks/search", methods=["GET"])
+@require_auth
+def search_all_cookbooks(current_user) -> Response:
+    """Search for cookbooks across all users by title, author, ISBN, publisher."""
+    query_param = request.args.get("q", "").strip()
+    
+    if not query_param:
+        return jsonify({"cookbooks": []})
+    
+    # Search across all cookbooks from all users
+    search_query = Cookbook.query.filter(
+        db.or_(
+            Cookbook.title.ilike(f"%{query_param}%"),
+            Cookbook.author.ilike(f"%{query_param}%"),
+            Cookbook.publisher.ilike(f"%{query_param}%"),
+            Cookbook.isbn.ilike(f"%{query_param}%")
+        )
+    ).order_by(Cookbook.title.asc())
+    
+    # Limit results to prevent overwhelming the user
+    cookbooks = search_query.limit(20).all()
+    
+    # Build response with basic cookbook info and creator
+    cookbooks_data = []
+    for cookbook in cookbooks:
+        cookbook_dict = cookbook.to_dict()
+        # Add creator information
+        if cookbook.user:
+            cookbook_dict["creator"] = {
+                "id": cookbook.user.id,
+                "username": cookbook.user.username
+            }
+        else:
+            cookbook_dict["creator"] = None
+        
+        # Get recipe count for this cookbook
+        recipe_count = Recipe.query.filter_by(cookbook_id=cookbook.id).count()
+        cookbook_dict["recipe_count"] = recipe_count
+        
+        cookbooks_data.append(cookbook_dict)
+    
+    return jsonify({"cookbooks": cookbooks_data})
+
+
 @bp.route("/cookbooks/stats", methods=["GET"])
 @require_auth
 def get_cookbook_stats(current_user) -> Response:
@@ -339,3 +394,50 @@ def get_cookbook_stats(current_user) -> Response:
             for stats in cookbook_stats
         ]
     })
+
+
+@bp.route("/cookbooks/<int:cookbook_id>/images", methods=["POST"])
+@require_auth
+def upload_cookbook_image(current_user, cookbook_id: int) -> Response:
+    """Upload an image for a cookbook."""
+    # Get cookbook - admins can upload to any cookbook, users only their own
+    if should_apply_user_filter(current_user):
+        cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+    else:
+        cookbook = Cookbook.query.get(cookbook_id)
+    
+    if not cookbook:
+        return jsonify({"error": "Cookbook not found"}), 404
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files["image"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type"}), 400
+
+    try:
+        # Generate unique filename
+        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        file_path = upload_folder / filename
+
+        # Save file
+        file.save(str(file_path))
+
+        # Update cookbook with new image URL
+        cookbook.cover_image_url = f"/api/images/{filename}"
+        db.session.commit()
+
+        return jsonify({
+            "message": "Cookbook image uploaded successfully",
+            "filename": filename,
+            "image_url": cookbook.cover_image_url
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to upload image"}), 500

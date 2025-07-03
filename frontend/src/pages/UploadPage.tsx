@@ -16,7 +16,28 @@ const UploadPage: React.FC = () => {
       const uploadData = new FormData();
       uploadData.append('image', formData.image);
       
-      if (formData.cookbook_id) {
+      if (formData.create_new_cookbook) {
+        uploadData.append('create_new_cookbook', 'true');
+        uploadData.append('new_cookbook_title', formData.new_cookbook_title || '');
+        
+        if (formData.new_cookbook_author) {
+          uploadData.append('new_cookbook_author', formData.new_cookbook_author);
+        }
+        if (formData.new_cookbook_description) {
+          uploadData.append('new_cookbook_description', formData.new_cookbook_description);
+        }
+        if (formData.new_cookbook_publisher) {
+          uploadData.append('new_cookbook_publisher', formData.new_cookbook_publisher);
+        }
+        if (formData.new_cookbook_isbn) {
+          uploadData.append('new_cookbook_isbn', formData.new_cookbook_isbn);
+        }
+        if (formData.new_cookbook_publication_date) {
+          uploadData.append('new_cookbook_publication_date', formData.new_cookbook_publication_date);
+        }
+      } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
+        uploadData.append('cookbook_id', formData.selected_existing_cookbook_id.toString());
+      } else if (formData.cookbook_id) {
         uploadData.append('cookbook_id', formData.cookbook_id.toString());
       }
       

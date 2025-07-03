@@ -8,7 +8,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app import db
 from app.api import bp
-from app.models import User, UserSession, UserRole, UserStatus
+from app.models import User, UserSession, UserRole, UserStatus, Recipe, Cookbook
+from sqlalchemy import func
 
 
 def require_auth(f):
@@ -239,6 +240,9 @@ def login() -> Tuple[Response, int]:
 
         # Create new session
         user_session = create_user_session(user, request)
+        
+        # Store session token in Flask session for subsequent requests
+        session["session_token"] = user_session.session_token
 
         current_app.logger.info(f"User logged in: {user.username}")
 
@@ -382,3 +386,109 @@ def change_password(current_user: User) -> Tuple[Response, int]:
         db.session.rollback()
         current_app.logger.error(f"Password change failed: {str(e)}")
         return jsonify({"error": "Password change failed"}), 500
+
+
+@bp.route("/user/profile", methods=["GET"])
+@require_auth
+def get_user_profile(current_user: User) -> Response:
+    """Get current user profile with statistics."""
+    try:
+        # Get basic user info
+        user_info = current_user.to_dict(include_sensitive=True)
+        
+        # Calculate recipe statistics
+        total_recipes = Recipe.query.filter_by(user_id=current_user.id).count()
+        
+        # Recipe difficulty breakdown
+        difficulty_stats = db.session.query(
+            Recipe.difficulty,
+            func.count(Recipe.id).label('count')
+        ).filter_by(user_id=current_user.id).group_by(Recipe.difficulty).all()
+        
+        difficulty_breakdown = {
+            'easy': 0,
+            'medium': 0, 
+            'hard': 0,
+            'unspecified': 0
+        }
+        
+        for stat in difficulty_stats:
+            if stat.difficulty:
+                difficulty_breakdown[stat.difficulty.lower()] = stat.count
+            else:
+                difficulty_breakdown['unspecified'] = stat.count
+        
+        # Average cook time
+        avg_cook_time_result = db.session.query(
+            func.avg(Recipe.cook_time)
+        ).filter(
+            Recipe.user_id == current_user.id,
+            Recipe.cook_time.isnot(None)
+        ).scalar()
+        
+        avg_cook_time = round(avg_cook_time_result, 1) if avg_cook_time_result else 0
+        
+        # Cookbook statistics
+        total_cookbooks = Cookbook.query.filter_by(user_id=current_user.id).count()
+        
+        # Recipes per cookbook
+        cookbook_recipe_stats = db.session.query(
+            Cookbook.id,
+            Cookbook.title,
+            func.count(Recipe.id).label('recipe_count')
+        ).outerjoin(
+            Recipe, Recipe.cookbook_id == Cookbook.id
+        ).filter(
+            Cookbook.user_id == current_user.id
+        ).group_by(Cookbook.id, Cookbook.title).all()
+        
+        avg_recipes_per_cookbook = total_recipes / total_cookbooks if total_cookbooks > 0 else 0
+        
+        # Most popular cookbook
+        most_popular_cookbook = None
+        if cookbook_recipe_stats:
+            top_cookbook = max(cookbook_recipe_stats, key=lambda x: x.recipe_count)
+            if top_cookbook.recipe_count > 0:
+                most_popular_cookbook = {
+                    'id': top_cookbook.id,
+                    'title': top_cookbook.title,
+                    'recipe_count': top_cookbook.recipe_count
+                }
+        
+        # Recent activity (last 10 recipes)
+        recent_recipes = Recipe.query.filter_by(
+            user_id=current_user.id
+        ).order_by(Recipe.created_at.desc()).limit(10).all()
+        
+        recent_activity = [
+            {
+                'type': 'recipe',
+                'id': recipe.id,
+                'title': recipe.title,
+                'created_at': recipe.created_at.isoformat() if recipe.created_at else None,
+                'cookbook_title': recipe.cookbook.title if recipe.cookbook else None
+            }
+            for recipe in recent_recipes
+        ]
+        
+        # Compile statistics
+        statistics = {
+            'total_recipes': total_recipes,
+            'total_cookbooks': total_cookbooks,
+            'difficulty_breakdown': difficulty_breakdown,
+            'avg_cook_time_minutes': avg_cook_time,
+            'avg_recipes_per_cookbook': round(avg_recipes_per_cookbook, 1),
+            'most_popular_cookbook': most_popular_cookbook,
+            'cookbooks_with_recipes': sum(1 for stat in cookbook_recipe_stats if stat.recipe_count > 0),
+            'empty_cookbooks': sum(1 for stat in cookbook_recipe_stats if stat.recipe_count == 0)
+        }
+        
+        return jsonify({
+            'user': user_info,
+            'statistics': statistics,
+            'recent_activity': recent_activity
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Failed to get user profile: {str(e)}")
+        return jsonify({"error": "Failed to retrieve profile"}), 500

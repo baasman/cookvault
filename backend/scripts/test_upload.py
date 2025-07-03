@@ -13,12 +13,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app import create_app, db
-from app.models import Recipe, RecipeImage, ProcessingJob, Cookbook, Instruction, Tag
+from app.models import (
+    Recipe, RecipeImage, ProcessingJob, Cookbook, Instruction, Tag, User
+)
 
 
 def create_sample_image_data() -> bytes:
     """Load the example image from the data folder."""
-    image_path = Path(__file__).parent.parent / "tests" / "data" / "ex-image.png"
+    image_path = Path(__file__).parent.parent / "scripts" / "seed_data" / "new-potatoes-peas-cilantro.jpg"
     if not image_path.exists():
         # Fallback to minimal PNG if file doesn't exist
         png_data = (
@@ -32,6 +34,49 @@ def create_sample_image_data() -> bytes:
         return f.read()
 
 
+def create_test_user_and_login(client):
+    """Create a test user and login to get session authentication."""
+    # Create test user
+    user_data = {
+        "username": "testuser",
+        "email": "test@example.com",
+        "password": "testpassword123",
+        "first_name": "Test",
+        "last_name": "User"
+    }
+
+    # Register user
+    register_response = client.post(
+        "/api/auth/register",
+        data=json.dumps(user_data),
+        content_type="application/json"
+    )
+    print(f"Register response: {register_response.status_code}")
+
+    if register_response.status_code != 201:
+        print(f"Registration failed: {register_response.get_json()}")
+        return None
+
+    # Login user
+    login_response = client.post(
+        "/api/auth/login",
+        data=json.dumps({
+            "login": "test@example.com",
+            "password": "testpassword123"
+        }),
+        content_type="application/json"
+    )
+    print(f"Login response: {login_response.status_code}")
+
+    if login_response.status_code == 200:
+        login_data = login_response.get_json()
+        print(f"Logged in user: {login_data['user']['username']}")
+        return login_data['user']
+    else:
+        print(f"Login failed: {login_response.get_json()}")
+        return None
+
+
 def test_upload_recipe():
     """Test uploading a recipe image and processing it."""
     print("Creating Flask app...")
@@ -40,21 +85,28 @@ def test_upload_recipe():
         # Create all database tables
         db.create_all()
 
-        # Create a sample cookbook first
+        # Create test client and authenticate first
+        client = app.test_client()
+        print("Creating test user and logging in...")
+        user = create_test_user_and_login(client)
+        if not user:
+            print("Failed to authenticate user, aborting test")
+            return
+
+        # Create a sample cookbook for the authenticated user
         print("Creating sample cookbook...")
         cookbook = Cookbook(
-            title="The Joy of Cooking",
-            author="Irma S. Rombauer",
-            description="A classic American cookbook",
-            publisher="Scribner",
-            isbn="978-0-7432-4626-2",
+            title="Ottolenghi Simple",
+            author="Yotam Ottolenghi",
+            description="...",
+            publisher="...",
+            isbn="978-0-4626-2",
+            user_id=user['id']
         )
         db.session.add(cookbook)
         db.session.commit()
         print(f"Created cookbook: {cookbook.title} (ID: {cookbook.id})")
 
-        # Create test client
-        client = app.test_client()
         print("Testing recipe upload with cookbook information...")
         image_data = create_sample_image_data()
 
@@ -130,15 +182,23 @@ def test_recipe_crud():
         db.create_all()
         client = app.test_client()
 
+        # Create test user and authenticate
+        print("Creating test user and logging in...")
+        user = create_test_user_and_login(client)
+        if not user:
+            print("Failed to authenticate user, aborting test")
+            return
+
         # Test getting recipes when database is empty
         response = client.get("/api/recipes")
         print(f"Empty recipes response: {response.get_json()}")
 
-        # Create a cookbook first
+        # Create a cookbook for the authenticated user
         cookbook = Cookbook(
             title="Test Cookbook from Script",
             author="Test Author",
             description="A test cookbook for CRUD operations",
+            user_id=user['id']
         )
         db.session.add(cookbook)
         db.session.flush()
@@ -153,6 +213,7 @@ def test_recipe_crud():
             cook_time=30,
             servings=4,
             difficulty="easy",
+            user_id=user['id']
         )
 
         db.session.add(recipe)

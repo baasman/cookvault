@@ -1,9 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Button, Input } from '../ui';
-import { cookbooksApi } from '../../services/cookbooksApi';
-import { useAuth } from '../../contexts/AuthContext';
-import type { UploadFormData, Cookbook } from '../../types';
+import { CookbookSearch } from '../cookbook/CookbookSearch';
+import type { UploadFormData } from '../../types';
 
 interface UploadFormProps {
   onSubmit: (data: UploadFormData) => void;
@@ -12,23 +10,24 @@ interface UploadFormProps {
 }
 
 const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, error }) => {
-  const { isAuthenticated } = useAuth();
   const [formData, setFormData] = useState<UploadFormData>({
-    image: null as File | null,
+    image: null,
     cookbook_id: undefined,
     page_number: undefined,
+    create_new_cookbook: false,
+    new_cookbook_title: '',
+    new_cookbook_author: '',
+    new_cookbook_description: '',
+    new_cookbook_publisher: '',
+    new_cookbook_isbn: '',
+    new_cookbook_publication_date: '',
+    search_existing_cookbook: false,
+    selected_existing_cookbook_id: undefined,
+    cookbook_search_query: '',
   });
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Fetch user's cookbooks for selection
-  const { data: cookbooksData } = useQuery({
-    queryKey: ['cookbooks', 'all'],
-    queryFn: () => cookbooksApi.fetchCookbooks({ per_page: 100 }), // Get all cookbooks
-    enabled: isAuthenticated,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
 
   const handleFileSelect = (file: File) => {
     // Validate file type
@@ -88,11 +87,23 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       return;
     }
 
+    // Validate new cookbook creation if selected
+    if (formData.create_new_cookbook && (!formData.new_cookbook_title || formData.new_cookbook_title.trim() === '')) {
+      alert('Please enter a cookbook title');
+      return;
+    }
+
+    // Validate cookbook search selection if selected
+    if (formData.search_existing_cookbook && !formData.selected_existing_cookbook_id) {
+      alert('Please select a cookbook from the search results');
+      return;
+    }
+
     onSubmit(formData);
   };
 
   const clearImage = () => {
-    setFormData(prev => ({ ...prev, image: null as File | null }));
+    setFormData(prev => ({ ...prev, image: null }));
     setImagePreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -178,51 +189,170 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             Cookbook Information (Optional)
           </h3>
           
-          <div className="flex flex-col gap-4">
-            {/* Cookbook Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{color: '#1c120d'}}>
-                Select Cookbook
-              </label>
-              <select
-                value={formData.cookbook_id || ''}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
-                  cookbook_id: e.target.value ? parseInt(e.target.value, 10) : undefined 
-                }))}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                style={{borderColor: '#e8d7cf'}}
-              >
-                <option value="">No cookbook (standalone recipe)</option>
-                {cookbooksData?.cookbooks?.map((cookbook: Cookbook) => (
-                  <option key={cookbook.id} value={cookbook.id}>
-                    {cookbook.title}
-                    {cookbook.author && ` by ${cookbook.author}`}
-                    {` (${cookbook.recipe_count} recipe${cookbook.recipe_count !== 1 ? 's' : ''})`}
-                  </option>
-                ))}
-              </select>
-              {cookbooksData?.cookbooks?.length === 0 && (
-                <p className="text-xs mt-1" style={{color: '#9b644b'}}>
-                  No cookbooks found. <a href="/cookbooks" className="text-accent hover:underline">Create your first cookbook</a> to organize your recipes.
-                </p>
-              )}
-            </div>
-            
-            {/* Page Number - only show when cookbook is selected */}
-            {formData.cookbook_id && (
-              <div className="w-full sm:w-48">
-                <Input
-                  label="Page Number"
-                  type="number"
-                  placeholder="Page number in cookbook"
-                  value={formData.page_number?.toString() || ''}
-                  onChange={(value) => setFormData(prev => ({ 
+          {/* Cookbook Mode Selection */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="cookbook_mode"
+                  checked={formData.search_existing_cookbook}
+                  onChange={() => setFormData(prev => ({ 
                     ...prev, 
-                    page_number: value ? parseInt(value, 10) : undefined 
+                    create_new_cookbook: false,
+                    search_existing_cookbook: true,
+                    cookbook_id: undefined,
+                    selected_existing_cookbook_id: undefined,
+                    page_number: undefined 
                   }))}
+                  className="mr-2 text-accent"
                 />
-              </div>
+                <span className="text-sm font-medium" style={{color: '#1c120d'}}>Search for existing cookbook</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="cookbook_mode"
+                  checked={formData.create_new_cookbook}
+                  onChange={() => setFormData(prev => ({ 
+                    ...prev, 
+                    create_new_cookbook: true,
+                    search_existing_cookbook: false,
+                    cookbook_id: undefined,
+                    selected_existing_cookbook_id: undefined,
+                    page_number: undefined 
+                  }))}
+                  className="mr-2 text-accent"
+                />
+                <span className="text-sm font-medium" style={{color: '#1c120d'}}>Create new cookbook</span>
+              </label>
+            </div>
+          </div>
+          
+          <div className="flex flex-col gap-4">
+            {formData.search_existing_cookbook ? (
+              /* Cookbook Search */
+              <>
+                <CookbookSearch
+                  onSelect={(cookbook) => {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      selected_existing_cookbook_id: cookbook.id,
+                      cookbook_search_query: cookbook.title 
+                    }));
+                  }}
+                  onCreateNew={() => {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      create_new_cookbook: true,
+                      search_existing_cookbook: false,
+                      selected_existing_cookbook_id: undefined 
+                    }));
+                  }}
+                />
+                
+                {/* Show selected cookbook info */}
+                {formData.selected_existing_cookbook_id && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm font-medium text-green-800 mb-1">Selected Cookbook:</p>
+                    <p className="text-sm text-green-700">{formData.cookbook_search_query}</p>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ 
+                        ...prev, 
+                        selected_existing_cookbook_id: undefined,
+                        cookbook_search_query: '' 
+                      }))}
+                      className="text-xs text-green-600 hover:text-green-800 mt-1"
+                    >
+                      Change selection
+                    </button>
+                  </div>
+                )}
+                
+                {/* Page Number for selected cookbook */}
+                {formData.selected_existing_cookbook_id && (
+                  <div className="w-full sm:w-48">
+                    <Input
+                      label="Page Number"
+                      type="number"
+                      placeholder="Page number in cookbook"
+                      value={formData.page_number?.toString() || ''}
+                      onChange={(value) => setFormData(prev => ({ 
+                        ...prev, 
+                        page_number: value ? parseInt(value, 10) : undefined 
+                      }))}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              /* New Cookbook Creation Form */
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Cookbook Title *"
+                    placeholder="Enter cookbook title"
+                    value={formData.new_cookbook_title || ''}
+                    onChange={(value) => setFormData(prev => ({ ...prev, new_cookbook_title: value }))}
+                    required
+                  />
+                  <Input
+                    label="Author"
+                    placeholder="Enter author name"
+                    value={formData.new_cookbook_author || ''}
+                    onChange={(value) => setFormData(prev => ({ ...prev, new_cookbook_author: value }))}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Publisher"
+                    placeholder="Enter publisher name"
+                    value={formData.new_cookbook_publisher || ''}
+                    onChange={(value) => setFormData(prev => ({ ...prev, new_cookbook_publisher: value }))}
+                  />
+                  <Input
+                    label="ISBN"
+                    placeholder="Enter ISBN"
+                    value={formData.new_cookbook_isbn || ''}
+                    onChange={(value) => setFormData(prev => ({ ...prev, new_cookbook_isbn: value }))}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Publication Date"
+                    type="date"
+                    value={formData.new_cookbook_publication_date || ''}
+                    onChange={(value) => setFormData(prev => ({ ...prev, new_cookbook_publication_date: value }))}
+                  />
+                  <Input
+                    label="Page Number"
+                    type="number"
+                    placeholder="Page number in cookbook"
+                    value={formData.page_number?.toString() || ''}
+                    onChange={(value) => setFormData(prev => ({ 
+                      ...prev, 
+                      page_number: value ? parseInt(value, 10) : undefined 
+                    }))}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{color: '#1c120d'}}>
+                    Description
+                  </label>
+                  <textarea
+                    placeholder="Enter cookbook description (optional)"
+                    value={formData.new_cookbook_description || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, new_cookbook_description: e.target.value }))}
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
+                    style={{borderColor: '#e8d7cf'}}
+                  />
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -11,8 +11,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ 
   navItems = [
     { label: 'Recipes', href: '/recipes' },
-    { label: 'Cookbooks', href: '/cookbooks' },
-    { label: 'Upload', href: '/upload' }
+    { label: 'Cookbooks', href: '/cookbooks' }
   ]
 }) => {
   const { isAuthenticated, user, logout } = useAuth();
@@ -22,6 +21,11 @@ const Header: React.FC<HeaderProps> = ({
     logout();
     setIsMobileMenuOpen(false);
   };
+
+  // Add Profile to navigation only when authenticated
+  const displayNavItems = isAuthenticated 
+    ? [...navItems, { label: 'Profile', href: '/profile' }]
+    : navItems;
 
   return (
     <header className="border-b sticky top-0 z-50" style={{backgroundColor: '#fcf9f8', borderColor: '#e8d7cf'}}>
@@ -38,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({
 
             {/* Desktop Navigation */}
             <nav className="flex items-center space-x-8">
-              {navItems.map((item) => (
+              {displayNavItems.map((item) => (
                 <Link
                   key={item.href}
                   to={item.href}
@@ -104,7 +108,7 @@ const Header: React.FC<HeaderProps> = ({
           {isMobileMenuOpen && (
             <div className="md:hidden border-t" style={{borderColor: '#e8d7cf'}}>
               <div className="px-2 pt-2 pb-3 space-y-1">
-                {navItems.map((item) => (
+                {displayNavItems.map((item) => (
                   <Link
                     key={item.href}
                     to={item.href}

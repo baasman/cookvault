@@ -40,7 +40,7 @@ def get_recipes(current_user) -> Response:
     cookbook_id = request.args.get("cookbook_id", type=int)
 
     # Base query - admins see all recipes, users see only their own
-    query = Recipe.query
+    query = Recipe.query.options(db.joinedload(Recipe.images))
     if should_apply_user_filter(current_user):
         query = query.filter_by(user_id=current_user.id)
 
@@ -78,9 +78,9 @@ def get_recipes(current_user) -> Response:
 def get_recipe(current_user, recipe_id: int) -> Response:
     # Admin can access any recipe, users only their own
     if should_apply_user_filter(current_user):
-        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+        recipe = Recipe.query.options(db.joinedload(Recipe.images)).filter_by(id=recipe_id, user_id=current_user.id).first()
     else:
-        recipe = Recipe.query.get(recipe_id)
+        recipe = Recipe.query.options(db.joinedload(Recipe.images)).get(recipe_id)
     if not recipe:
         return jsonify({"error": "Recipe not found"}), 404
 
@@ -104,15 +104,54 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     # Get cookbook information from form data
     cookbook_id = request.form.get("cookbook_id")
     page_number = request.form.get("page_number")
+    create_new_cookbook = request.form.get("create_new_cookbook") == "true"
 
-    # Validate cookbook_id if provided and verify ownership
+    # Handle new cookbook creation
     cookbook = None
-    if cookbook_id:
+    if create_new_cookbook:
+        # Validate required fields for new cookbook
+        new_cookbook_title = request.form.get("new_cookbook_title", "").strip()
+        if not new_cookbook_title:
+            return jsonify({"error": "Cookbook title is required when creating a new cookbook"}), 400
+        
+        # Create new cookbook
+        try:
+            from datetime import datetime
+            
+            cookbook = Cookbook(
+                title=new_cookbook_title,
+                author=request.form.get("new_cookbook_author", "").strip() or None,
+                description=request.form.get("new_cookbook_description", "").strip() or None,
+                publisher=request.form.get("new_cookbook_publisher", "").strip() or None,
+                isbn=request.form.get("new_cookbook_isbn", "").strip() or None,
+                user_id=current_user.id
+            )
+            
+            # Handle publication date if provided
+            publication_date = request.form.get("new_cookbook_publication_date", "").strip()
+            if publication_date:
+                try:
+                    cookbook.publication_date = datetime.fromisoformat(publication_date)
+                except ValueError:
+                    return jsonify({"error": "Invalid publication date format"}), 400
+            
+            db.session.add(cookbook)
+            db.session.flush()  # Get the cookbook ID
+            cookbook_id = cookbook.id
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Cookbook creation failed: {str(e)}")
+            return jsonify({"error": "Failed to create cookbook"}), 500
+    
+    elif cookbook_id:
+        # Validate existing cookbook_id
         try:
             cookbook_id = int(cookbook_id)
-            cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+            cookbook = Cookbook.query.get(cookbook_id)
             if not cookbook:
-                return jsonify({"error": "Cookbook not found or access denied"}), 400
+                return jsonify({"error": "Cookbook not found"}), 400
+            # Note: We allow adding recipes to any existing cookbook for sharing
         except ValueError:
             return jsonify({"error": "Invalid cookbook_id"}), 400
 
@@ -173,6 +212,77 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         return jsonify({"error": "Upload failed"}), 500
 
 
+@bp.route("/recipes/<int:recipe_id>/images", methods=["POST"])
+@require_auth
+def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
+    """Upload an image for an existing recipe."""
+    
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+    
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files["image"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({"error": "File type not allowed"}), 400
+
+    try:
+        # Generate secure filename
+        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        file_path = upload_folder / filename
+
+        # Save the file
+        file.save(file_path)
+
+        # Create recipe image record
+        recipe_image = RecipeImage(
+            recipe_id=recipe.id,
+            filename=filename,
+            original_filename=file.filename,
+            file_path=str(file_path),
+            file_size=file_path.stat().st_size,
+            content_type=file.content_type or "image/jpeg",
+        )
+
+        db.session.add(recipe_image)
+        db.session.commit()
+
+        current_app.logger.info(f"Image uploaded for recipe {recipe_id} by user {current_user.id}")
+
+        return (
+            jsonify(
+                {
+                    "message": "Image uploaded successfully",
+                    "image": {
+                        "id": recipe_image.id,
+                        "filename": recipe_image.filename,
+                        "original_filename": recipe_image.original_filename,
+                        "file_size": recipe_image.file_size,
+                        "content_type": recipe_image.content_type,
+                        "uploaded_at": recipe_image.uploaded_at.isoformat(),
+                    },
+                }
+            ),
+            201,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Image upload failed for recipe {recipe_id}: {str(e)}")
+        return jsonify({"error": "Image upload failed"}), 500
+
+
 @bp.route("/jobs/<int:job_id>", methods=["GET"])
 @require_auth
 def get_processing_job(current_user, job_id: int):
@@ -189,18 +299,25 @@ def get_processing_job(current_user, job_id: int):
 @bp.route("/images/<string:filename>", methods=["GET"])
 @require_auth
 def serve_image(current_user, filename: str) -> Response:
-    """Serve uploaded recipe images."""
+    """Serve uploaded images (recipe and cookbook images)."""
     try:
-        # Verify user owns the image through recipe ownership
+        # Check if it's a recipe image
         recipe_image = RecipeImage.query.filter_by(filename=filename).first()
-        if not recipe_image:
-            return jsonify({"error": "Image not found"}), 404
-
-        # Check if user owns the recipe associated with this image (admins can access all)
-        if recipe_image.recipe_id and should_apply_user_filter(current_user):
-            recipe = Recipe.query.filter_by(id=recipe_image.recipe_id, user_id=current_user.id).first()
-            if not recipe:
-                return jsonify({"error": "Access denied"}), 403
+        if recipe_image:
+            # Check if user owns the recipe associated with this image (admins can access all)
+            if recipe_image.recipe_id and should_apply_user_filter(current_user):
+                recipe = Recipe.query.filter_by(id=recipe_image.recipe_id, user_id=current_user.id).first()
+                if not recipe:
+                    return jsonify({"error": "Access denied"}), 403
+        else:
+            # Check if it's a cookbook cover image
+            cookbook = Cookbook.query.filter(Cookbook.cover_image_url.like(f"%{filename}")).first()
+            if cookbook:
+                # Check if user owns the cookbook (admins can access all)
+                if should_apply_user_filter(current_user) and cookbook.user_id != current_user.id:
+                    return jsonify({"error": "Access denied"}), 403
+            else:
+                return jsonify({"error": "Image not found"}), 404
 
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         file_path = upload_folder / filename

@@ -12,6 +12,7 @@ export interface Cookbook {
   recipe_count: number;
   created_at: string;
   updated_at: string;
+  recipes?: Recipe[]; // Only populated in detail view
 }
 
 export interface Ingredient {
@@ -35,6 +36,15 @@ export interface Tag {
   name: string;
 }
 
+export interface RecipeImage {
+  id: number;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
 export interface Recipe {
   id: number;
   title: string;
@@ -46,9 +56,11 @@ export interface Recipe {
   servings?: number;
   difficulty?: string;
   source?: string;
+  user_id?: number;
   ingredients: Ingredient[];
   instructions: Instruction[];
   tags: Tag[];
+  images?: RecipeImage[];
   created_at: string;
   updated_at: string;
 }
@@ -84,9 +96,21 @@ export interface ApiError {
 
 // Form types
 export interface UploadFormData {
-  image: File;
+  image: File | null;
   cookbook_id?: number;
   page_number?: number;
+  // New cookbook creation fields
+  create_new_cookbook?: boolean;
+  new_cookbook_title?: string;
+  new_cookbook_author?: string;
+  new_cookbook_description?: string;
+  new_cookbook_publisher?: string;
+  new_cookbook_isbn?: string;
+  new_cookbook_publication_date?: string;
+  // Existing cookbook search fields
+  search_existing_cookbook?: boolean;
+  selected_existing_cookbook_id?: number;
+  cookbook_search_query?: string;
 }
 
 export interface RecipeFormData {
@@ -122,7 +146,7 @@ export interface InputProps {
   disabled?: boolean;
   required?: boolean;
   error?: string;
-  type?: 'text' | 'email' | 'password' | 'number' | 'search';
+  type?: 'text' | 'email' | 'password' | 'number' | 'search' | 'date';
   icon?: React.ReactNode;
   className?: string;
 }
@@ -171,4 +195,55 @@ export interface FilterOptions {
 export interface SortOptions {
   field: 'title' | 'created_at' | 'cook_time' | 'difficulty';
   direction: 'asc' | 'desc';
+}
+
+// User Profile Types
+export interface UserProfile {
+  user: UserInfo;
+  statistics: UserStatistics;
+  recent_activity: RecentActivity[];
+}
+
+export interface UserInfo {
+  id: number;
+  username: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  bio?: string;
+  avatar_url?: string;
+  role: string;
+  status: string;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+  last_login?: string;
+}
+
+export interface UserStatistics {
+  total_recipes: number;
+  total_cookbooks: number;
+  difficulty_breakdown: {
+    easy: number;
+    medium: number;
+    hard: number;
+    unspecified: number;
+  };
+  avg_cook_time_minutes: number;
+  avg_recipes_per_cookbook: number;
+  most_popular_cookbook?: {
+    id: number;
+    title: string;
+    recipe_count: number;
+  };
+  cookbooks_with_recipes: number;
+  empty_cookbooks: number;
+}
+
+export interface RecentActivity {
+  type: 'recipe' | 'cookbook';
+  id: number;
+  title: string;
+  created_at: string;
+  cookbook_title?: string;
 }

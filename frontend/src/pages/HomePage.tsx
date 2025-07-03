@@ -8,7 +8,7 @@ const HomePage: React.FC = () => {
       {/* Hero Section */}
       <section className="hero">
         <div className="container">
-          <div className="hero-content">
+          <div className="hero-content" style={{ textAlign: 'center', justifyContent: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div className="hero-text">
               <h1>Your Recipes, Perfectly Organized</h1>
               <p>Transform handwritten notes into digital files with AI-powered OCR technology. From scattered recipes to organized cookbook collections.</p>
@@ -18,21 +18,6 @@ const HomePage: React.FC = () => {
                   Upload Recipe
                 </Link>
                 <a href="#features" className="btn btn-secondary btn-lg">Learn More</a>
-              </div>
-            </div>
-            <div className="hero-visual">
-              <div className="hero-card">
-                <div className="hero-card-header">
-                  <div className="hero-card-icon">
-                    <UploadIcon className="icon icon-white" />
-                  </div>
-                  <h3>AI Recipe Extraction</h3>
-                </div>
-                <p>Upload any recipe image and watch our AI extract ingredients, instructions, and details automatically.</p>
-                <div className="upload-area">
-                  <UploadIcon className="icon" style={{ width: '2rem', height: '2rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
-                  <p style={{ fontSize: '0.9rem', margin: '0' }}>Drop your recipe image here</p>
-                </div>
               </div>
             </div>
           </div>
