@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { cookbooksApi } from '../../services/cookbooksApi';
+import { decodeHtmlEntities } from '../../utils/textUtils';
 import type { Cookbook } from '../../types';
 
 interface CookbookSearchProps {
@@ -103,8 +104,8 @@ const CookbookSearch: React.FC<CookbookSearchProps> = ({ onSelect, onCreateNew }
                         </p>
                       )}
                       {cookbook.description && (
-                        <p className="text-xs text-text-secondary mt-1 line-clamp-2">
-                          {cookbook.description}
+                        <p className="text-xs text-text-secondary mt-1 line-clamp-4 description-text-compact">
+                          {decodeHtmlEntities(cookbook.description)}
                         </p>
                       )}
                       

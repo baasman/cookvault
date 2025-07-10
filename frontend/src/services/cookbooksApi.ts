@@ -27,6 +27,25 @@ interface CreateCookbookData {
   publication_date?: string;
 }
 
+interface GoogleBook {
+  google_books_id: string;
+  title: string;
+  author: string;
+  publisher: string;
+  publication_date: string | null;
+  isbn: string;
+  description: string;
+  thumbnail_url: string | null;
+  categories: string[];
+  page_count: number | null;
+}
+
+interface GoogleBooksResponse {
+  books: GoogleBook[];
+  total: number;
+  query: string;
+}
+
 class CookbooksApi {
   private baseUrl = '/api';
 
@@ -203,6 +222,87 @@ class CookbooksApi {
       throw error;
     }
   }
+
+  async searchGoogleBooks(query: string, maxResults: number = 10): Promise<GoogleBooksResponse> {
+    try {
+      const searchParams = new URLSearchParams({
+        q: query.trim(),
+        max_results: maxResults.toString(),
+      });
+
+      const response = await fetch(`${this.baseUrl}/cookbooks/search/google-books?${searchParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error searching online book database:', error);
+      throw error;
+    }
+  }
+
+  async searchGoogleBooksByIsbn(isbn: string): Promise<GoogleBook | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cookbooks/search/google-books/isbn/${encodeURIComponent(isbn)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.book;
+    } catch (error) {
+      console.error('Error searching online book database by ISBN:', error);
+      throw error;
+    }
+  }
+
+  async createCookbookFromGoogleBooks(googleBooksId: string): Promise<Cookbook> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cookbooks/from-google-books`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          google_books_id: googleBooksId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.cookbook;
+    } catch (error) {
+      console.error('Error creating cookbook from online database:', error);
+      throw error;
+    }
+  }
 }
 
 export const cookbooksApi = new CookbooksApi();
+
+export type { GoogleBook, GoogleBooksResponse };

@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
+import { Button, Input, PasswordInput } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [loginField, setLoginField] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,10 +21,10 @@ const LoginPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
-      navigate('/');
+      await login(loginField, password);
+      navigate('/recipes');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid email or password');
+      setError(err instanceof Error ? err.message : 'Invalid username/email or password');
     } finally {
       setIsSubmitting(false);
     }
@@ -56,17 +55,16 @@ const LoginPage: React.FC = () => {
       <div className="p-8 rounded-lg shadow-sm" style={{backgroundColor: '#ffffff', border: '1px solid #e8d7cf'}}>
         <form onSubmit={handleSubmit} className="space-y-6">
           <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            placeholder="Enter your email"
+            label="Username or Email"
+            type="text"
+            value={loginField}
+            onChange={setLoginField}
+            placeholder="Enter your username or email"
             required
           />
 
-          <Input
+          <PasswordInput
             label="Password"
-            type="password"
             value={password}
             onChange={setPassword}
             placeholder="Enter your password"

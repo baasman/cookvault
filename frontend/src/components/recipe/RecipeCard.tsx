@@ -129,23 +129,25 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
           </div>
 
           {/* Recipe Tags */}
-          {recipe.tags && recipe.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {recipe.tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag.id}
-                  className="px-2 py-1 text-xs rounded-full bg-background-secondary text-text-secondary"
-                >
-                  {tag.name}
-                </span>
-              ))}
-              {recipe.tags.length > 3 && (
-                <span className="px-2 py-1 text-xs text-text-secondary">
-                  +{recipe.tags.length - 3}
-                </span>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1 min-h-[28px]">
+            {recipe.tags && recipe.tags.length > 0 && (
+              <>
+                {recipe.tags.slice(0, 3).map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="px-2 py-1 text-xs rounded-full bg-background-secondary text-text-secondary"
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+                {recipe.tags.length > 3 && (
+                  <span className="px-2 py-1 text-xs text-text-secondary">
+                    +{recipe.tags.length - 3}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
 
           {/* Cookbook info */}
           {recipe.cookbook && (

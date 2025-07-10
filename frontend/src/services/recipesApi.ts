@@ -6,6 +6,35 @@ interface FetchRecipesParams {
   search?: string;
 }
 
+interface UpdateRecipeParams {
+  title?: string;
+  description?: string;
+  prep_time?: number;
+  cook_time?: number;
+  servings?: number;
+  difficulty?: string;
+}
+
+type EditableIngredient = {
+  name: string;
+  quantity?: number;
+  unit?: string;
+  preparation?: string;
+  optional: boolean;
+};
+
+interface UpdateIngredientsParams {
+  ingredients: EditableIngredient[];
+}
+
+interface UpdateInstructionsParams {
+  instructions: string[];
+}
+
+interface UpdateTagsParams {
+  tags: string[];
+}
+
 class RecipesApi {
   private baseUrl = '/api';
 
@@ -119,7 +148,7 @@ class RecipesApi {
     return false;
   }
 
-  async uploadRecipeImage(recipeId: number, imageFile: File): Promise<any> {
+  async uploadRecipeImage(recipeId: number, imageFile: File): Promise<{message: string; image: any}> {
     try {
       const formData = new FormData();
       formData.append('image', imageFile);
@@ -138,6 +167,102 @@ class RecipesApi {
       return await response.json();
     } catch (error) {
       console.error('Error uploading recipe image:', error);
+      throw error;
+    }
+  }
+
+  async updateRecipe(recipeId: number, params: UpdateRecipeParams): Promise<Recipe> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error updating recipe:', error);
+      throw error;
+    }
+  }
+
+  async updateRecipeIngredients(recipeId: number, params: UpdateIngredientsParams): Promise<Recipe> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/ingredients`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error updating recipe ingredients:', error);
+      throw error;
+    }
+  }
+
+  async updateRecipeInstructions(recipeId: number, params: UpdateInstructionsParams): Promise<Recipe> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/instructions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error updating recipe instructions:', error);
+      throw error;
+    }
+  }
+
+  async updateRecipeTags(recipeId: number, params: UpdateTagsParams): Promise<Recipe> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/tags`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error updating recipe tags:', error);
       throw error;
     }
   }

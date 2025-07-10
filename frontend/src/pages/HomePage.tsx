@@ -13,7 +13,7 @@ const HomePage: React.FC = () => {
         <div className="container">
           <div className="features-header">
             <h2>Key Features</h2>
-            <p>Cookbook Creator offers a comprehensive suite of tools designed to simplify recipe management and enhance your cooking experience.</p>
+            <p>...Name... offers a comprehensive suite of tools designed to simplify recipe management and enhance your cooking experience.</p>
           </div>
           <div className="features-grid">
             <div className="feature-card">
@@ -51,7 +51,7 @@ const HomePage: React.FC = () => {
             <div className="step">
               <div className="step-number">1</div>
               <h3>Upload</h3>
-              <p>Take a photo or upload an image of your recipe from any cookbook, handwritten note, or printed page.</p>
+              <p>Link a video, blog post, or take a photo and upload an image of your recipe from any cookbook, handwritten note, or printed page.</p>
             </div>
             <div className="step">
               <div className="step-number">2</div>
@@ -61,7 +61,7 @@ const HomePage: React.FC = () => {
             <div className="step">
               <div className="step-number">3</div>
               <h3>Organize</h3>
-              <p>Your digital recipe is ready! Edit, organize into cookbooks, add tags, and enjoy your perfectly structured recipe collection.</p>
+              <p>Your digital recipe is ready! Edit, organize, add tags, and enjoy your perfectly structured recipe collection.</p>
             </div>
           </div>
         </div>

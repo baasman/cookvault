@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
+import { Button, Input, PasswordInput } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 
 const RegisterPage: React.FC = () => {
@@ -39,7 +38,7 @@ const RegisterPage: React.FC = () => {
         first_name: firstName,
         last_name: lastName,
       });
-      navigate('/');
+      navigate('/recipes');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
@@ -106,18 +105,16 @@ const RegisterPage: React.FC = () => {
             required
           />
 
-          <Input
+          <PasswordInput
             label="Password"
-            type="password"
             value={password}
             onChange={setPassword}
             placeholder="Create a password"
             required
           />
 
-          <Input
+          <PasswordInput
             label="Confirm Password"
-            type="password"
             value={confirmPassword}
             onChange={setConfirmPassword}
             placeholder="Confirm your password"

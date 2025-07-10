@@ -41,7 +41,7 @@ const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="flex items-center space-x-8">
+            <nav className="hidden md:flex items-center space-x-8">
               {displayNavItems.map((item) => (
                 <Link
                   key={item.href}
@@ -55,7 +55,7 @@ const Header: React.FC<HeaderProps> = ({
             </nav>
 
             {/* Desktop Auth & Actions */}
-            <div className="flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-4">
               {isAuthenticated ? (
                 <>
                   <Link to="/upload">

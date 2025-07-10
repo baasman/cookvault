@@ -111,6 +111,9 @@ export interface UploadFormData {
   search_existing_cookbook?: boolean;
   selected_existing_cookbook_id?: number;
   cookbook_search_query?: string;
+  // Google Books search fields
+  search_google_books?: boolean;
+  selected_google_book?: any; // GoogleBook type from cookbooksApi
 }
 
 export interface RecipeFormData {

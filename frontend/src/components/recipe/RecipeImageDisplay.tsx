@@ -1,16 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../../services/recipesApi';
-import type { Recipe, RecipeImage } from '../../types';
+import type { Recipe } from '../../types';
 
 interface RecipeImageDisplayProps {
   recipe: Recipe;
   canEdit?: boolean;
+  isEditMode?: boolean;
 }
 
-const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit = false }) => {
+const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit = false, isEditMode = false }) => {
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -91,66 +93,107 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
   };
 
   const handleClick = () => {
-    if (canEdit) {
+    if (isEditMode && canEdit) {
       fileInputRef.current?.click();
+    } else if (imageUrl) {
+      setShowModal(true);
     }
   };
 
   // Show existing image
   if (imageUrl && !uploadMutation.isPending && !imagePreview) {
     return (
-      <div className="relative group">
-        <div className="aspect-square bg-gradient-to-br from-background-secondary to-primary-200 rounded-xl overflow-hidden">
-          <img
-            src={imageUrl}
-            alt={recipe.title}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              // Fallback to placeholder if image fails to load
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              target.nextElementSibling?.classList.remove('hidden');
-            }}
-          />
-          
-          {/* Placeholder fallback */}
-          <div className="hidden absolute inset-0 flex items-center justify-center">
-            <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          </div>
-        </div>
-
-        {/* Edit overlay for recipe owners */}
-        {canEdit && (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpg,image/jpeg,image/gif"
-              onChange={handleFileInput}
-              className="hidden"
+      <>
+        <div className="relative group">
+          <div className="aspect-square bg-gradient-to-br from-background-secondary to-primary-200 rounded-xl overflow-hidden">
+            <img
+              src={imageUrl}
+              alt={recipe.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to placeholder if image fails to load
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.nextElementSibling?.classList.remove('hidden');
+              }}
             />
-            <div
+            
+            {/* Placeholder fallback */}
+            <div className="hidden absolute inset-0 flex items-center justify-center">
+              <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* Edit overlay for recipe owners in edit mode */}
+          {isEditMode && canEdit && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpg,image/jpeg,image/gif"
+                onChange={handleFileInput}
+                className="hidden"
+              />
+              <div 
+                onClick={handleClick}
+                className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-xl cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100"
+              >
+                <div className="text-white text-center">
+                  <svg className="h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="text-sm font-medium">Change Photo</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* View overlay hint for non-edit mode */}
+          {!isEditMode && imageUrl && (
+            <div 
               onClick={handleClick}
-              className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-xl cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100"
+              className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100"
             >
               <div className="text-white text-center">
                 <svg className="h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                 </svg>
-                <span className="text-sm font-medium">Change Photo</span>
+                <span className="text-sm font-medium">View Full Size</span>
               </div>
             </div>
-          </>
+          )}
+        </div>
+
+        {/* Full size image modal */}
+        {showModal && imageUrl && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
+            <div className="relative max-w-4xl max-h-screen p-4">
+              <img
+                src={imageUrl}
+                alt={recipe.title}
+                className="max-w-full max-h-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <button
+                onClick={() => setShowModal(false)}
+                className="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-75 transition-colors"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
         )}
-      </div>
+      </>
     );
   }
 
-  // Show upload area (no image exists or uploading)
-  if (canEdit) {
+  // Show upload area (no image exists and in edit mode)
+  if (isEditMode && canEdit) {
     return (
       <div className="aspect-square">
         <input

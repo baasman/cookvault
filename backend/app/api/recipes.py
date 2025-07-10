@@ -212,6 +212,244 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         return jsonify({"error": "Upload failed"}), 500
 
 
+@bp.route("/recipes/<int:recipe_id>", methods=["PUT"])
+@require_auth
+def update_recipe(current_user, recipe_id: int) -> Response:
+    """Update recipe metadata (title, description, timing, etc.)."""
+    
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+    
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Update allowed fields
+        if "title" in data:
+            if not data["title"].strip():
+                return jsonify({"error": "Title cannot be empty"}), 400
+            recipe.title = data["title"].strip()
+
+        if "description" in data:
+            recipe.description = (
+                data["description"].strip() if data["description"] else None
+            )
+
+        if "prep_time" in data:
+            recipe.prep_time = data["prep_time"] if data["prep_time"] else None
+
+        if "cook_time" in data:
+            recipe.cook_time = data["cook_time"] if data["cook_time"] else None
+
+        if "servings" in data:
+            recipe.servings = data["servings"] if data["servings"] else None
+
+        if "difficulty" in data:
+            recipe.difficulty = data["difficulty"] if data["difficulty"] else None
+
+        db.session.commit()
+        current_app.logger.info(f"Recipe {recipe_id} updated by user {current_user.id}")
+
+        return jsonify({
+            "message": "Recipe updated successfully",
+            "recipe": recipe.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Recipe update failed for recipe {recipe_id}: {str(e)}")
+        return jsonify({"error": "Recipe update failed"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/ingredients", methods=["PUT"])
+@require_auth
+def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
+    """Update recipe ingredients list."""
+    
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+    
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        data = request.get_json()
+        if not data or "ingredients" not in data:
+            return jsonify({"error": "No ingredients data provided"}), 400
+
+        ingredients_data = data["ingredients"]
+        if not isinstance(ingredients_data, list):
+            return jsonify({"error": "Ingredients must be a list"}), 400
+
+        # Remove existing recipe-ingredient associations
+        db.session.execute(
+            recipe_ingredients.delete().where(
+                recipe_ingredients.c.recipe_id == recipe_id
+            )
+        )
+
+        # Add new ingredients
+        for order, ingredient_data in enumerate(ingredients_data, 1):
+            if not isinstance(ingredient_data, dict):
+                return jsonify({"error": "Invalid ingredient data"}), 400
+
+            ingredient_name = ingredient_data.get("name", "").strip()
+            if not ingredient_name:
+                return jsonify({"error": "Ingredient name is required"}), 400
+
+            # Find or create ingredient
+            ingredient = Ingredient.query.filter_by(name=ingredient_name).first()
+            if not ingredient:
+                ingredient = Ingredient(
+                    name=ingredient_name,
+                    category=ingredient_data.get("category")
+                )
+                db.session.add(ingredient)
+                db.session.flush()
+
+            # Create recipe-ingredient association
+            db.session.execute(
+                recipe_ingredients.insert().values(
+                    recipe_id=recipe_id,
+                    ingredient_id=ingredient.id,
+                    quantity=ingredient_data.get("quantity"),
+                    unit=ingredient_data.get("unit"),
+                    preparation=ingredient_data.get("preparation"),
+                    optional=ingredient_data.get("optional", False),
+                    order=order,
+                )
+            )
+
+        db.session.commit()
+        current_app.logger.info(f"Ingredients updated for recipe {recipe_id} by user {current_user.id}")
+
+        return jsonify({
+            "message": "Ingredients updated successfully",
+            "recipe": recipe.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Ingredients update failed for recipe {recipe_id}: {str(e)}")
+        return jsonify({"error": "Ingredients update failed"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/instructions", methods=["PUT"])
+@require_auth
+def update_recipe_instructions(current_user, recipe_id: int) -> Response:
+    """Update recipe instructions list."""
+    
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+    
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        data = request.get_json()
+        if not data or "instructions" not in data:
+            return jsonify({"error": "No instructions data provided"}), 400
+
+        instructions_data = data["instructions"]
+        if not isinstance(instructions_data, list):
+            return jsonify({"error": "Instructions must be a list"}), 400
+
+        # Remove existing instructions
+        Instruction.query.filter_by(recipe_id=recipe_id).delete()
+
+        # Add new instructions
+        for step_number, instruction_text in enumerate(instructions_data, 1):
+            if not isinstance(instruction_text, str):
+                return jsonify({"error": "Invalid instruction data"}), 400
+
+            instruction_text = instruction_text.strip()
+            if not instruction_text:
+                return jsonify({"error": "Instruction text cannot be empty"}), 400
+
+            instruction = Instruction(
+                recipe_id=recipe_id,
+                step_number=step_number,
+                text=instruction_text
+            )
+            db.session.add(instruction)
+
+        db.session.commit()
+        current_app.logger.info(f"Instructions updated for recipe {recipe_id} by user {current_user.id}")
+
+        return jsonify({
+            "message": "Instructions updated successfully",
+            "recipe": recipe.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Instructions update failed for recipe {recipe_id}: {str(e)}")
+        return jsonify({"error": "Instructions update failed"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/tags", methods=["PUT"])
+@require_auth
+def update_recipe_tags(current_user, recipe_id: int) -> Response:
+    """Update recipe tags list."""
+    
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+    
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        data = request.get_json()
+        if not data or "tags" not in data:
+            return jsonify({"error": "No tags data provided"}), 400
+
+        tags_data = data["tags"]
+        if not isinstance(tags_data, list):
+            return jsonify({"error": "Tags must be a list"}), 400
+
+        # Remove existing tags
+        Tag.query.filter_by(recipe_id=recipe_id).delete()
+
+        # Add new tags
+        for tag_name in tags_data:
+            if not isinstance(tag_name, str):
+                return jsonify({"error": "Invalid tag data"}), 400
+
+            tag_name = tag_name.strip()
+            if tag_name:
+                tag = Tag(recipe_id=recipe_id, name=tag_name)
+                db.session.add(tag)
+
+        db.session.commit()
+        current_app.logger.info(f"Tags updated for recipe {recipe_id} by user {current_user.id}")
+
+        return jsonify({
+            "message": "Tags updated successfully",
+            "recipe": recipe.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Tags update failed for recipe {recipe_id}: {str(e)}")
+        return jsonify({"error": "Tags update failed"}), 500
+
+
 @bp.route("/recipes/<int:recipe_id>/images", methods=["POST"])
 @require_auth
 def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:

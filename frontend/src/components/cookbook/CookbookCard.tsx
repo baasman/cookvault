@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { Cookbook } from '../../types';
+import { decodeHtmlEntities } from '../../utils/textUtils';
 
 interface CookbookCardProps {
   cookbook: Cookbook;
@@ -81,8 +82,8 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick }) => {
 
           {/* Description */}
           {cookbook.description && (
-            <p className="text-sm text-text-secondary line-clamp-2 mb-3">
-              {cookbook.description}
+            <p className="text-xs text-text-secondary line-clamp-4 mb-3 description-text-compact">
+              {decodeHtmlEntities(cookbook.description)}
             </p>
           )}
 

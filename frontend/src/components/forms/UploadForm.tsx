@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { Button, Input } from '../ui';
 import { CookbookSearch } from '../cookbook/CookbookSearch';
+import { GoogleBooksSearch } from '../cookbook/GoogleBooksSearch';
+import { cookbooksApi, type GoogleBook } from '../../services/cookbooksApi';
 import type { UploadFormData } from '../../types';
 
 interface UploadFormProps {
@@ -24,6 +26,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     search_existing_cookbook: false,
     selected_existing_cookbook_id: undefined,
     cookbook_search_query: '',
+    search_google_books: false,
+    selected_google_book: null,
   });
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -96,6 +100,12 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     // Validate cookbook search selection if selected
     if (formData.search_existing_cookbook && !formData.selected_existing_cookbook_id) {
       alert('Please select a cookbook from the search results');
+      return;
+    }
+
+    // Validate online database selection if selected
+    if (formData.search_google_books && !formData.selected_google_book) {
+      alert('Please select a cookbook from the online database or enter details manually');
       return;
     }
 
@@ -196,13 +206,34 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                 <input
                   type="radio"
                   name="cookbook_mode"
+                  checked={formData.search_google_books}
+                  onChange={() => setFormData(prev => ({ 
+                    ...prev, 
+                    create_new_cookbook: false,
+                    search_existing_cookbook: false,
+                    search_google_books: true,
+                    cookbook_id: undefined,
+                    selected_existing_cookbook_id: undefined,
+                    selected_google_book: null,
+                    page_number: undefined 
+                  }))}
+                  className="mr-2 text-accent"
+                />
+                <span className="text-sm font-medium" style={{color: '#1c120d'}}>Search Online Database</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="cookbook_mode"
                   checked={formData.search_existing_cookbook}
                   onChange={() => setFormData(prev => ({ 
                     ...prev, 
                     create_new_cookbook: false,
                     search_existing_cookbook: true,
+                    search_google_books: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
+                    selected_google_book: null,
                     page_number: undefined 
                   }))}
                   className="mr-2 text-accent"
@@ -218,8 +249,10 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                     ...prev, 
                     create_new_cookbook: true,
                     search_existing_cookbook: false,
+                    search_google_books: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
+                    selected_google_book: null,
                     page_number: undefined 
                   }))}
                   className="mr-2 text-accent"
@@ -230,7 +263,102 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           </div>
           
           <div className="flex flex-col gap-4">
-            {formData.search_existing_cookbook ? (
+            {formData.search_google_books ? (
+              /* Online Database Search */
+              <>
+                <GoogleBooksSearch
+                  onBookSelect={async (book: GoogleBook) => {
+                    try {
+                      // Create cookbook from Google Books
+                      const cookbook = await cookbooksApi.createCookbookFromGoogleBooks(book.google_books_id);
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        selected_google_book: book,
+                        cookbook_id: cookbook.id,
+                        new_cookbook_title: cookbook.title,
+                        new_cookbook_author: cookbook.author || '',
+                        new_cookbook_description: cookbook.description || '',
+                        new_cookbook_publisher: cookbook.publisher || '',
+                        new_cookbook_isbn: cookbook.isbn || '',
+                        new_cookbook_publication_date: cookbook.publication_date 
+                          ? new Date(cookbook.publication_date).toISOString().split('T')[0] 
+                          : ''
+                      }));
+                    } catch (error) {
+                      console.error('Error creating cookbook from Google Books:', error);
+                      alert('Failed to create cookbook from online database. Please try again.');
+                    }
+                  }}
+                  onManualEntry={() => {
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      create_new_cookbook: true,
+                      search_google_books: false,
+                      selected_google_book: null 
+                    }));
+                  }}
+                  isLoading={isLoading}
+                />
+                
+                {/* Show selected online book info */}
+                {formData.selected_google_book && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm font-medium text-green-800 mb-2">Selected from online database:</p>
+                    <div className="flex items-start space-x-3">
+                      {formData.selected_google_book.thumbnail_url && (
+                        <img
+                          src={formData.selected_google_book.thumbnail_url}
+                          alt={formData.selected_google_book.title}
+                          className="w-12 h-16 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-green-800">{formData.selected_google_book.title}</p>
+                        {formData.selected_google_book.author && (
+                          <p className="text-xs text-green-700">by {formData.selected_google_book.author}</p>
+                        )}
+                        {formData.selected_google_book.publisher && (
+                          <p className="text-xs text-green-600">{formData.selected_google_book.publisher}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ 
+                        ...prev, 
+                        selected_google_book: null,
+                        cookbook_id: undefined,
+                        new_cookbook_title: '',
+                        new_cookbook_author: '',
+                        new_cookbook_description: '',
+                        new_cookbook_publisher: '',
+                        new_cookbook_isbn: '',
+                        new_cookbook_publication_date: ''
+                      }))}
+                      className="text-xs text-green-600 hover:text-green-800 mt-2"
+                    >
+                      Choose different book
+                    </button>
+                  </div>
+                )}
+                
+                {/* Page Number for online database selection */}
+                {formData.selected_google_book && (
+                  <div className="w-full sm:w-48">
+                    <Input
+                      label="Page Number"
+                      type="number"
+                      placeholder="Page number in cookbook"
+                      value={formData.page_number?.toString() || ''}
+                      onChange={(value) => setFormData(prev => ({ 
+                        ...prev, 
+                        page_number: value ? parseInt(value, 10) : undefined 
+                      }))}
+                    />
+                  </div>
+                )}
+              </>
+            ) : formData.search_existing_cookbook ? (
               /* Cookbook Search */
               <>
                 <CookbookSearch
@@ -246,7 +374,9 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                       ...prev, 
                       create_new_cookbook: true,
                       search_existing_cookbook: false,
-                      selected_existing_cookbook_id: undefined 
+                      search_google_books: false,
+                      selected_existing_cookbook_id: undefined,
+                      selected_google_book: null 
                     }));
                   }}
                 />

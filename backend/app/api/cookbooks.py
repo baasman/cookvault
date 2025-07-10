@@ -10,6 +10,7 @@ from app import db
 from app.api import bp
 from app.api.auth import require_auth, should_apply_user_filter
 from app.models import Cookbook, Recipe
+from app.services.google_books_service import GoogleBooksService, GoogleBooksAPIError
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "tiff"}
 
@@ -441,3 +442,132 @@ def upload_cookbook_image(current_user, cookbook_id: int) -> Response:
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Failed to upload image"}), 500
+
+
+@bp.route("/cookbooks/search/google-books", methods=["GET"])
+@require_auth
+def search_google_books(current_user) -> Response:
+    """Search for books using Google Books API."""
+    query = request.args.get("q", "").strip()
+    max_results = request.args.get("max_results", 10, type=int)
+    
+    if not query:
+        return jsonify({"error": "Query parameter 'q' is required"}), 400
+    
+    # Limit max_results to prevent abuse
+    max_results = min(max_results, 20)
+    
+    try:
+        # Initialize Google Books service
+        api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
+        service = GoogleBooksService(api_key)
+        
+        # Search for books
+        books = service.search_books(query, max_results)
+        
+        return jsonify({
+            "books": books,
+            "total": len(books),
+            "query": query
+        })
+        
+    except GoogleBooksAPIError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+
+@bp.route("/cookbooks/from-google-books", methods=["POST"])
+@require_auth
+def create_cookbook_from_google_books(current_user) -> Response:
+    """Create a new cookbook from Google Books data."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    google_books_id = data.get("google_books_id")
+    if not google_books_id:
+        return jsonify({"error": "google_books_id is required"}), 400
+    
+    try:
+        # Initialize Google Books service
+        api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
+        service = GoogleBooksService(api_key)
+        
+        # Get book details from Google Books
+        book_data = service.get_book_details(google_books_id)
+        if not book_data:
+            return jsonify({"error": "Book not found in Google Books"}), 404
+        
+        # Check if cookbook already exists (by title and author)
+        existing_cookbook = Cookbook.query.filter_by(
+            title=book_data["title"],
+            author=book_data["author"],
+            user_id=current_user.id
+        ).first()
+        
+        if existing_cookbook:
+            return jsonify({
+                "error": "A cookbook with this title and author already exists",
+                "existing_cookbook": existing_cookbook.to_dict()
+            }), 409
+        
+        # Create new cookbook
+        cookbook = Cookbook(
+            title=book_data["title"],
+            author=book_data["author"] or None,
+            description=book_data["description"] or None,
+            isbn=book_data["isbn"] or None,
+            publisher=book_data["publisher"] or None,
+            publication_date=book_data["publication_date"],
+            cover_image_url=book_data["thumbnail_url"] or None,
+            user_id=current_user.id
+        )
+        
+        db.session.add(cookbook)
+        db.session.commit()
+        
+        cookbook_dict = cookbook.to_dict()
+        cookbook_dict["recipe_count"] = 0  # New cookbook has no recipes
+        cookbook_dict["source"] = "google_books"
+        cookbook_dict["google_books_id"] = google_books_id
+        
+        return jsonify({
+            "message": "Cookbook created successfully from Google Books",
+            "cookbook": cookbook_dict
+        }), 201
+        
+    except GoogleBooksAPIError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to create cookbook from Google Books"}), 500
+
+
+@bp.route("/cookbooks/search/google-books/isbn/<isbn>", methods=["GET"])
+@require_auth
+def search_google_books_by_isbn(current_user, isbn: str) -> Response:
+    """Search for a book by ISBN using Google Books API."""
+    if not isbn:
+        return jsonify({"error": "ISBN is required"}), 400
+    
+    try:
+        # Initialize Google Books service
+        api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
+        service = GoogleBooksService(api_key)
+        
+        # Search by ISBN
+        book = service.search_by_isbn(isbn)
+        
+        if not book:
+            return jsonify({"error": "Book not found"}), 404
+        
+        return jsonify({
+            "book": book,
+            "isbn": isbn
+        })
+        
+    except GoogleBooksAPIError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred"}), 500

@@ -70,6 +70,14 @@
   }
 
   /* Text clamp utilities */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -84,6 +92,45 @@
     line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .line-clamp-4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Description formatting utilities */
+  .description-text {
+    line-height: 1.5;
+    word-wrap: break-word;
+    hyphens: auto;
+    font-size: 0.95em;
+  }
+
+  .description-text-compact {
+    line-height: 1.3;
+    word-wrap: break-word;
+    font-size: 0.85em;
+  }
+
+  /* Enhanced whitespace handling for multiline descriptions */
+  .preserve-newlines {
+    white-space: pre-line;
+  }
+
+  .preserve-spaces {
+    white-space: pre-wrap;
+  }
+
+  /* Responsive description styles */
+  @media (max-width: 640px) {
+    .description-text {
+      line-height: 1.6;
+      font-size: 0.875rem;
+    }
   }
 
   /* Custom styles from ui.html */
@@ -178,106 +225,6 @@
     font-size: 1.1rem;
   }
 
-  /* Hero Section */
-  .hero {
-    background: linear-gradient(135deg, var(--primary-100) 0%, var(--background) 50%, var(--primary-200) 100%);
-    position: relative;
-    overflow: hidden;
-    padding: 4rem 0 6rem;
-  }
-
-  .hero::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 60%;
-    height: 100%;
-    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><pattern id="cooking" patternUnits="userSpaceOnUse" width="100" height="100"><circle cx="50" cy="50" r="2" fill="%23f15f1c" opacity="0.1"/></pattern></defs><rect width="1200" height="800" fill="url(%23cooking)"/></svg>') no-repeat;
-    background-size: cover;
-    opacity: 0.3;
-  }
-
-  .hero-content {
-    position: relative;
-    z-index: 2;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 3rem;
-    align-items: center;
-    min-height: 60vh;
-  }
-
-  .hero-text h1 {
-    font-size: 3.5rem;
-    font-weight: 700;
-    line-height: 1.1;
-    margin-bottom: 1.5rem;
-    color: var(--text-primary);
-  }
-
-  .hero-text p {
-    font-size: 1.25rem;
-    color: var(--text-secondary);
-    margin-bottom: 2.5rem;
-    max-width: 31.25rem; /* 500px */
-  }
-
-  .hero-actions {
-    display: flex;
-    gap: 1rem;
-  }
-
-  .hero-visual {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-  }
-
-  .hero-card {
-    background: white;
-    border-radius: 1.5rem;
-    padding: 2rem;
-    box-shadow: 0 1.25rem 3.75rem rgba(28, 18, 13, 0.15); /* 20px 60px */
-    max-width: 25rem; /* 400px */
-    border: 1px solid var(--border);
-  }
-
-  .hero-card-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .hero-card-icon {
-    width: 3rem;
-    height: 3rem;
-    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-    border-radius: 0.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .hero-card h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-
-  .hero-card p {
-    color: var(--text-secondary);
-    margin-bottom: 1rem;
-  }
-
-  .upload-area {
-    border: 2px dashed var(--border);
-    border-radius: 0.75rem;
-    padding: 2rem;
-    text-align: center;
-    background: var(--background);
-  }
 
   /* Features Section */
   .features {
@@ -471,21 +418,6 @@
   @media (max-width: 48rem) { /* 768px */
     .nav {
       display: none;
-    }
-
-    .hero-content {
-      grid-template-columns: 1fr;
-      text-align: center;
-      gap: 2rem;
-    }
-
-    .hero-text h1 {
-      font-size: 2.5rem;
-    }
-
-    .hero-actions {
-      justify-content: center;
-      flex-wrap: wrap;
     }
 
     .features-grid {

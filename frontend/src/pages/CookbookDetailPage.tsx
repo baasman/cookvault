@@ -5,6 +5,7 @@ import { cookbooksApi } from '../services/cookbooksApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
+import { formatTextForDisplay, decodeHtmlEntities } from '../utils/textUtils';
 import type { Recipe } from '../types';
 
 const CookbookDetailPage: React.FC = () => {
@@ -143,9 +144,9 @@ const CookbookDetailPage: React.FC = () => {
             )}
 
             {cookbook.description && (
-              <p className="text-lg text-text-secondary mb-6 leading-relaxed">
-                {cookbook.description}
-              </p>
+              <div className="text-sm text-text-secondary mb-6 description-text preserve-newlines">
+                {formatTextForDisplay(cookbook.description)}
+              </div>
             )}
 
             {/* Cookbook Metadata */}
@@ -246,8 +247,8 @@ const CookbookDetailPage: React.FC = () => {
                       </h3>
 
                       {recipe.description && (
-                        <p className="text-sm text-text-secondary line-clamp-2 mb-3">
-                          {recipe.description}
+                        <p className="text-xs text-text-secondary line-clamp-4 mb-3 description-text-compact">
+                          {decodeHtmlEntities(recipe.description)}
                         </p>
                       )}
 

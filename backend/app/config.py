@@ -19,6 +19,7 @@ class Config:
     )
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+    GOOGLE_BOOKS_API_KEY = os.environ.get("GOOGLE_BOOKS_API_KEY")
 
 
 class DevelopmentConfig(Config):

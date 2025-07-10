@@ -13,12 +13,12 @@ const HeroSection: React.FC = () => {
         <div className="flex justify-center items-center min-h-[60vh]">
           {/* Hero Text */}
           <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-text-primary leading-tight mb-6">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-text-primary leading-tight mb-6">
               Your Recipes, Perfectly Organized
             </h1>
-            <p className="text-xl text-text-secondary mb-10 max-w-3xl mx-auto">
-              Transform handwritten notes and recipe images into digital files with AI-powered OCR technology.
-              From scattered recipes to organized cookbook collections.
+            <p className="text-lg sm:text-xl text-text-secondary mb-10 max-w-3xl mx-auto">
+              Transform handwritten notes, blog posts, image recipes and more into digital files with AI-powered OCR technology.
+              From scattered recipes to organized recipe collections.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to={isAuthenticated ? "/upload" : "/register"}>
