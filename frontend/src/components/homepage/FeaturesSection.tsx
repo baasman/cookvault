@@ -56,7 +56,7 @@ const FeaturesSection: React.FC = () => {
             Key Features
           </h2>
           <p className="text-xl text-text-secondary max-w-3xl mx-auto">
-            Cookbook Creator offers a comprehensive suite of tools designed to simplify recipe management and enhance your cooking experience.
+            CookVault offers a comprehensive suite of tools designed to simplify recipe management and enhance your cooking experience.
           </p>
         </div>
 

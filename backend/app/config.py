@@ -125,7 +125,7 @@ class ProductionConfig(Config):
 
         if not app.debug and not app.testing:
             file_handler = RotatingFileHandler(
-                "logs/cookbook-creator.log", maxBytes=10240000, backupCount=10
+                "logs/cookvault.log", maxBytes=10240000, backupCount=10
             )
             file_handler.setFormatter(
                 logging.Formatter(
@@ -135,7 +135,7 @@ class ProductionConfig(Config):
             file_handler.setLevel(logging.INFO)
             app.logger.addHandler(file_handler)
             app.logger.setLevel(logging.INFO)
-            app.logger.info("Cookbook Creator startup")
+            app.logger.info("CookVault startup")
 
 
 config: dict[str, Type[Config]] = {

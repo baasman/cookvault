@@ -1,7 +1,7 @@
 [project]
 name = "app"
 version = "0.1.0"
-description = "Backend API for Cookbook Creator - OCR and recipe digitization platform"
+description = "Backend API for CookVault - OCR and recipe digitization platform"
 authors = [{ name = "Boudewijn", email = "boudeyz@gmail.com" }]
 readme = "backend/README.md"
 requires-python = ">=3.11"

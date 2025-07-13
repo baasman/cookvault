@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Production startup script for Cookbook Creator backend
+# Production startup script for CookVault backend
 
 set -e
 
-echo "Starting Cookbook Creator backend..."
+echo "Starting CookVault backend..."
 
 # Set default environment variables if not provided
 export FLASK_ENV=${FLASK_ENV:-production}

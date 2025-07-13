@@ -1,6 +1,6 @@
-# Cookbook Creator - Production Deployment Guide
+# CookVault - Production Deployment Guide
 
-This guide covers deploying the Cookbook Creator application to production environments.
+This guide covers deploying the CookVault application to production environments.
 
 ## Quick Start
 
@@ -83,14 +83,14 @@ docker-compose -f docker-compose.prod.yml --profile nginx up -d
 **Build and run application only**:
 ```bash
 # Build image
-docker build -f Dockerfile.prod -t cookbook-creator .
+docker build -f Dockerfile.prod -t cookvault .
 
 # Run with external database
 docker run -d \
-  --name cookbook-creator \
+  --name cookvault \
   -p 8000:8000 \
   --env-file .env.production \
-  cookbook-creator
+  cookvault
 ```
 
 ### Option 3: Cloud Platforms
@@ -176,7 +176,7 @@ Both endpoints return JSON with health status:
     "redis": true,
     "uploads": true
   },
-  "service": "cookbook-creator-backend",
+  "service": "cookvault-backend",
   "version": "1.0.0"
 }
 ```

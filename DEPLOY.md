@@ -1,6 +1,6 @@
-# 🚀 Cookbook Creator - Quick Deployment Guide
+# 🚀 CookVault - Quick Deployment Guide
 
-This guide provides step-by-step commands for deploying the Cookbook Creator application to production.
+This guide provides step-by-step commands for deploying the CookVault application to production.
 
 ## 📋 Prerequisites Checklist
 
@@ -85,14 +85,14 @@ docker-compose -f docker-compose.prod.yml --profile nginx ps
 
 ```bash
 # Build the production image
-docker build -f Dockerfile.prod -t cookbook-creator:latest .
+docker build -f Dockerfile.prod -t cookvault:latest .
 
 # Run with external services
 docker run -d \
-  --name cookbook-creator \
+  --name cookvault \
   -p 8000:8000 \
   --env-file .env.production \
-  cookbook-creator:latest
+  cookvault:latest
 ```
 
 ## 🗄️ Database Setup
@@ -254,12 +254,12 @@ railway up
 ```bash
 # Create app.yaml
 cat > app.yaml << EOF
-name: cookbook-creator
+name: cookvault
 services:
 - name: web
   source_dir: /
   github:
-    repo: your-username/cookbook-creator
+    repo: your-username/cookvault
     branch: main
   run_command: cd backend && ./start.sh
   environment_slug: python
@@ -289,11 +289,11 @@ doctl apps create app.yaml
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin your-account.dkr.ecr.us-east-1.amazonaws.com
 
 # Build and tag
-docker build -f Dockerfile.prod -t cookbook-creator .
-docker tag cookbook-creator:latest your-account.dkr.ecr.us-east-1.amazonaws.com/cookbook-creator:latest
+docker build -f Dockerfile.prod -t cookvault .
+docker tag cookvault:latest your-account.dkr.ecr.us-east-1.amazonaws.com/cookvault:latest
 
 # Push to ECR
-docker push your-account.dkr.ecr.us-east-1.amazonaws.com/cookbook-creator:latest
+docker push your-account.dkr.ecr.us-east-1.amazonaws.com/cookvault:latest
 
 # Create ECS task definition and service (use AWS Console or CLI)
 ```
@@ -504,4 +504,4 @@ If you encounter issues:
 
 ---
 
-**🎉 Congratulations! Your Cookbook Creator app is now production-ready!**
+**🎉 Congratulations! Your CookVault app is now production-ready!**

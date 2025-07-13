@@ -35,7 +35,7 @@ const Header: React.FC<HeaderProps> = ({
             <div className="flex-shrink-0">
               <Link to="/" className="flex items-center">
                 <span className="text-2xl font-bold" style={{color: '#1c120d'}}>
-                  Cookbook Creator
+                  CookVault
                 </span>
               </Link>
             </div>
