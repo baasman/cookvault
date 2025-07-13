@@ -279,7 +279,8 @@ class DataSeeder:
                 difficulty=recipe_data["difficulty"],
                 page_number=recipe_data.get("page_number"),
                 user_id=user.id,
-                cookbook_id=cookbook.id
+                cookbook_id=cookbook.id,
+                is_public=False  # Start as private by default
             )
             db.session.add(recipe)
             db.session.flush()  # Get recipe ID

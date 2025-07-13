@@ -19,6 +19,7 @@ from app.models import (
     Recipe,
     RecipeImage,
     Tag,
+    UserRecipeCollection,
 )
 from app.models.recipe import recipe_ingredients
 from app.services.ocr_service import OCRService
@@ -38,11 +39,51 @@ def get_recipes(current_user) -> Response:
     per_page = request.args.get("per_page", 10, type=int)
     search = request.args.get("search", "")
     cookbook_id = request.args.get("cookbook_id", type=int)
+    filter_type = request.args.get("filter", "collection")  # collection, discover, mine
 
-    # Base query - admins see all recipes, users see only their own
+    # Base query with privacy filtering
     query = Recipe.query.options(db.joinedload(Recipe.images))
+
+    # Apply ownership and collection filtering based on user role and filter type
     if should_apply_user_filter(current_user):
-        query = query.filter_by(user_id=current_user.id)
+        if filter_type == "mine":
+            # Only user's own uploaded recipes
+            query = query.filter(Recipe.user_id == current_user.id)
+        elif filter_type == "collection":
+            # Only recipes in user's collection (both own and added from others)
+            # Join with the collection table to get only collected recipes
+            query = query.join(UserRecipeCollection).filter(
+                UserRecipeCollection.user_id == current_user.id
+            )
+        elif filter_type == "discover":
+            # All public recipes from other users (for discovery) - only when searching
+            if search and search.strip():
+                query = query.filter(
+                    Recipe.is_public == True,
+                    Recipe.user_id != current_user.id,  # Exclude user's own recipes
+                )
+                # Debug logging
+                current_app.logger.info(
+                    f"Discover mode search '{search}' for user {current_user.id}: looking for public recipes from other users"
+                )
+            else:
+                # No search term - return empty results
+                query = query.filter(Recipe.id == -1)  # Impossible condition
+        # No default case needed - collection is the default
+    else:
+        # Admins see all recipes, but can still use filters
+        if filter_type == "mine":
+            query = query.filter(Recipe.user_id == current_user.id)
+        elif filter_type == "collection":
+            # For admins, collection filter shows all recipes (could be refined)
+            pass  # No additional filter needed
+        elif filter_type == "discover":
+            # All public recipes from other users (for discovery) - only when searching
+            if search and search.strip():
+                query = query.filter(Recipe.is_public == True)
+            else:
+                # No search term - return empty results
+                query = query.filter(Recipe.id == -1)  # Impossible condition
 
     # Apply filters
     if cookbook_id:
@@ -52,7 +93,7 @@ def get_recipes(current_user) -> Response:
         query = query.filter(
             db.or_(
                 Recipe.title.ilike(f"%{search}%"),
-                Recipe.description.ilike(f"%{search}%")
+                Recipe.description.ilike(f"%{search}%"),
             )
         )
 
@@ -60,15 +101,32 @@ def get_recipes(current_user) -> Response:
     query = query.order_by(Recipe.created_at.desc())
 
     recipes = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    # Debug logging - show what recipes are being returned
+    if should_apply_user_filter(current_user):
+        recipe_debug = [(r.id, r.title, r.user_id, r.is_public) for r in recipes.items]
+        current_app.logger.info(
+            f"Filter: {filter_type}, Search: '{search}', Returning {len(recipes.items)} recipes for user {current_user.id}: {recipe_debug}"
+        )
+
+        # If in discover mode and no results, let's check what public recipes exist
+        if filter_type == "discover" and len(recipes.items) == 0 and search:
+            all_public = Recipe.query.filter(Recipe.is_public == True).all()
+            public_debug = [(r.id, r.title, r.user_id, r.is_public) for r in all_public]
+            current_app.logger.info(f"All public recipes in database: {public_debug}")
+
     return jsonify(
         {
-            "recipes": [recipe.to_dict() for recipe in recipes.items],
+            "recipes": [
+                recipe.to_dict(current_user_id=current_user.id)
+                for recipe in recipes.items
+            ],
             "total": recipes.total,
             "pages": recipes.pages,
             "current_page": page,
             "per_page": per_page,
             "has_next": recipes.has_next,
-            "has_prev": recipes.has_prev
+            "has_prev": recipes.has_prev,
         }
     )
 
@@ -76,15 +134,19 @@ def get_recipes(current_user) -> Response:
 @bp.route("/recipes/<int:recipe_id>", methods=["GET"])
 @require_auth
 def get_recipe(current_user, recipe_id: int) -> Response:
-    # Admin can access any recipe, users only their own
-    if should_apply_user_filter(current_user):
-        recipe = Recipe.query.options(db.joinedload(Recipe.images)).filter_by(id=recipe_id, user_id=current_user.id).first()
-    else:
-        recipe = Recipe.query.options(db.joinedload(Recipe.images)).get(recipe_id)
+    # Check if recipe exists and user can access it
+    recipe = Recipe.query.options(db.joinedload(Recipe.images)).get(recipe_id)
     if not recipe:
         return jsonify({"error": "Recipe not found"}), 404
 
-    return jsonify(recipe.to_dict())
+    # Check access permissions: owner, admin, or public recipe
+    is_admin = not should_apply_user_filter(current_user)
+    can_view = recipe.can_be_viewed_by(current_user.id, is_admin)
+
+    if not can_view:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    return jsonify(recipe.to_dict(include_user=True, current_user_id=current_user.id))
 
 
 @bp.route("/recipes/upload", methods=["POST"])
@@ -112,38 +174,47 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         # Validate required fields for new cookbook
         new_cookbook_title = request.form.get("new_cookbook_title", "").strip()
         if not new_cookbook_title:
-            return jsonify({"error": "Cookbook title is required when creating a new cookbook"}), 400
-        
+            return (
+                jsonify(
+                    {"error": "Cookbook title is required when creating a new cookbook"}
+                ),
+                400,
+            )
+
         # Create new cookbook
         try:
             from datetime import datetime
-            
+
             cookbook = Cookbook(
                 title=new_cookbook_title,
                 author=request.form.get("new_cookbook_author", "").strip() or None,
-                description=request.form.get("new_cookbook_description", "").strip() or None,
-                publisher=request.form.get("new_cookbook_publisher", "").strip() or None,
+                description=request.form.get("new_cookbook_description", "").strip()
+                or None,
+                publisher=request.form.get("new_cookbook_publisher", "").strip()
+                or None,
                 isbn=request.form.get("new_cookbook_isbn", "").strip() or None,
-                user_id=current_user.id
+                user_id=current_user.id,
             )
-            
+
             # Handle publication date if provided
-            publication_date = request.form.get("new_cookbook_publication_date", "").strip()
+            publication_date = request.form.get(
+                "new_cookbook_publication_date", ""
+            ).strip()
             if publication_date:
                 try:
                     cookbook.publication_date = datetime.fromisoformat(publication_date)
                 except ValueError:
                     return jsonify({"error": "Invalid publication date format"}), 400
-            
+
             db.session.add(cookbook)
             db.session.flush()  # Get the cookbook ID
             cookbook_id = cookbook.id
-            
+
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Cookbook creation failed: {str(e)}")
             return jsonify({"error": "Failed to create cookbook"}), 500
-    
+
     elif cookbook_id:
         # Validate existing cookbook_id
         try:
@@ -191,7 +262,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
 
         # TODO: Queue background processing job
         # For now, process synchronously
-        _process_recipe_image(processing_job.id)
+        _process_recipe_image(processing_job.id, current_user.id)
 
         return (
             jsonify(
@@ -216,13 +287,13 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
 @require_auth
 def update_recipe(current_user, recipe_id: int) -> Response:
     """Update recipe metadata (title, description, timing, etc.)."""
-    
+
     # Verify recipe exists and user has permission
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
     else:
         recipe = Recipe.query.get(recipe_id)
-    
+
     if not recipe:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
@@ -257,14 +328,15 @@ def update_recipe(current_user, recipe_id: int) -> Response:
         db.session.commit()
         current_app.logger.info(f"Recipe {recipe_id} updated by user {current_user.id}")
 
-        return jsonify({
-            "message": "Recipe updated successfully",
-            "recipe": recipe.to_dict()
-        })
+        return jsonify(
+            {"message": "Recipe updated successfully", "recipe": recipe.to_dict()}
+        )
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Recipe update failed for recipe {recipe_id}: {str(e)}")
+        current_app.logger.error(
+            f"Recipe update failed for recipe {recipe_id}: {str(e)}"
+        )
         return jsonify({"error": "Recipe update failed"}), 500
 
 
@@ -272,13 +344,13 @@ def update_recipe(current_user, recipe_id: int) -> Response:
 @require_auth
 def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
     """Update recipe ingredients list."""
-    
+
     # Verify recipe exists and user has permission
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
     else:
         recipe = Recipe.query.get(recipe_id)
-    
+
     if not recipe:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
@@ -311,8 +383,7 @@ def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
             ingredient = Ingredient.query.filter_by(name=ingredient_name).first()
             if not ingredient:
                 ingredient = Ingredient(
-                    name=ingredient_name,
-                    category=ingredient_data.get("category")
+                    name=ingredient_name, category=ingredient_data.get("category")
                 )
                 db.session.add(ingredient)
                 db.session.flush()
@@ -331,16 +402,19 @@ def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
             )
 
         db.session.commit()
-        current_app.logger.info(f"Ingredients updated for recipe {recipe_id} by user {current_user.id}")
+        current_app.logger.info(
+            f"Ingredients updated for recipe {recipe_id} by user {current_user.id}"
+        )
 
-        return jsonify({
-            "message": "Ingredients updated successfully",
-            "recipe": recipe.to_dict()
-        })
+        return jsonify(
+            {"message": "Ingredients updated successfully", "recipe": recipe.to_dict()}
+        )
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Ingredients update failed for recipe {recipe_id}: {str(e)}")
+        current_app.logger.error(
+            f"Ingredients update failed for recipe {recipe_id}: {str(e)}"
+        )
         return jsonify({"error": "Ingredients update failed"}), 500
 
 
@@ -348,13 +422,13 @@ def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
 @require_auth
 def update_recipe_instructions(current_user, recipe_id: int) -> Response:
     """Update recipe instructions list."""
-    
+
     # Verify recipe exists and user has permission
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
     else:
         recipe = Recipe.query.get(recipe_id)
-    
+
     if not recipe:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
@@ -380,23 +454,24 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
                 return jsonify({"error": "Instruction text cannot be empty"}), 400
 
             instruction = Instruction(
-                recipe_id=recipe_id,
-                step_number=step_number,
-                text=instruction_text
+                recipe_id=recipe_id, step_number=step_number, text=instruction_text
             )
             db.session.add(instruction)
 
         db.session.commit()
-        current_app.logger.info(f"Instructions updated for recipe {recipe_id} by user {current_user.id}")
+        current_app.logger.info(
+            f"Instructions updated for recipe {recipe_id} by user {current_user.id}"
+        )
 
-        return jsonify({
-            "message": "Instructions updated successfully",
-            "recipe": recipe.to_dict()
-        })
+        return jsonify(
+            {"message": "Instructions updated successfully", "recipe": recipe.to_dict()}
+        )
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Instructions update failed for recipe {recipe_id}: {str(e)}")
+        current_app.logger.error(
+            f"Instructions update failed for recipe {recipe_id}: {str(e)}"
+        )
         return jsonify({"error": "Instructions update failed"}), 500
 
 
@@ -404,13 +479,13 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
 @require_auth
 def update_recipe_tags(current_user, recipe_id: int) -> Response:
     """Update recipe tags list."""
-    
+
     # Verify recipe exists and user has permission
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
     else:
         recipe = Recipe.query.get(recipe_id)
-    
+
     if not recipe:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
@@ -437,12 +512,13 @@ def update_recipe_tags(current_user, recipe_id: int) -> Response:
                 db.session.add(tag)
 
         db.session.commit()
-        current_app.logger.info(f"Tags updated for recipe {recipe_id} by user {current_user.id}")
+        current_app.logger.info(
+            f"Tags updated for recipe {recipe_id} by user {current_user.id}"
+        )
 
-        return jsonify({
-            "message": "Tags updated successfully",
-            "recipe": recipe.to_dict()
-        })
+        return jsonify(
+            {"message": "Tags updated successfully", "recipe": recipe.to_dict()}
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -454,13 +530,13 @@ def update_recipe_tags(current_user, recipe_id: int) -> Response:
 @require_auth
 def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
     """Upload an image for an existing recipe."""
-    
+
     # Verify recipe exists and user has permission
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
     else:
         recipe = Recipe.query.get(recipe_id)
-    
+
     if not recipe:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
@@ -496,7 +572,9 @@ def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
         db.session.add(recipe_image)
         db.session.commit()
 
-        current_app.logger.info(f"Image uploaded for recipe {recipe_id} by user {current_user.id}")
+        current_app.logger.info(
+            f"Image uploaded for recipe {recipe_id} by user {current_user.id}"
+        )
 
         return (
             jsonify(
@@ -517,7 +595,9 @@ def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Image upload failed for recipe {recipe_id}: {str(e)}")
+        current_app.logger.error(
+            f"Image upload failed for recipe {recipe_id}: {str(e)}"
+        )
         return jsonify({"error": "Image upload failed"}), 500
 
 
@@ -527,7 +607,9 @@ def get_processing_job(current_user, job_id: int):
     job = ProcessingJob.query.get_or_404(job_id)
     # Verify job belongs to user (through cookbook ownership or direct ownership)
     if job.cookbook_id:
-        cookbook = Cookbook.query.filter_by(id=job.cookbook_id, user_id=current_user.id).first()
+        cookbook = Cookbook.query.filter_by(
+            id=job.cookbook_id, user_id=current_user.id
+        ).first()
         if not cookbook:
             return jsonify({"error": "Job not found"}), 404
 
@@ -542,17 +624,31 @@ def serve_image(current_user, filename: str) -> Response:
         # Check if it's a recipe image
         recipe_image = RecipeImage.query.filter_by(filename=filename).first()
         if recipe_image:
-            # Check if user owns the recipe associated with this image (admins can access all)
+            # Check if user can access the recipe associated with this image
             if recipe_image.recipe_id and should_apply_user_filter(current_user):
-                recipe = Recipe.query.filter_by(id=recipe_image.recipe_id, user_id=current_user.id).first()
+                recipe = Recipe.query.get(recipe_image.recipe_id)
                 if not recipe:
+                    return jsonify({"error": "Recipe not found"}), 404
+
+                # Allow access if user owns recipe OR if recipe is public
+                can_access = (
+                    recipe.user_id == current_user.id  # User owns the recipe
+                    or recipe.is_public  # Recipe is public
+                )
+
+                if not can_access:
                     return jsonify({"error": "Access denied"}), 403
         else:
             # Check if it's a cookbook cover image
-            cookbook = Cookbook.query.filter(Cookbook.cover_image_url.like(f"%{filename}")).first()
+            cookbook = Cookbook.query.filter(
+                Cookbook.cover_image_url.like(f"%{filename}")
+            ).first()
             if cookbook:
                 # Check if user owns the cookbook (admins can access all)
-                if should_apply_user_filter(current_user) and cookbook.user_id != current_user.id:
+                if (
+                    should_apply_user_filter(current_user)
+                    and cookbook.user_id != current_user.id
+                ):
                     return jsonify({"error": "Access denied"}), 403
             else:
                 return jsonify({"error": "Image not found"}), 404
@@ -574,7 +670,7 @@ def serve_image(current_user, filename: str) -> Response:
         return jsonify({"error": "Error serving image"}), 500
 
 
-def _process_recipe_image(job_id: int) -> None:
+def _process_recipe_image(job_id: int, user_id: int = None) -> None:
     """Main function to process a recipe image through OCR and parsing."""
     job = ProcessingJob.query.get(job_id)
     if not job:
@@ -591,10 +687,19 @@ def _process_recipe_image(job_id: int) -> None:
         parsed_recipe = _parse_extracted_text(extracted_text)
 
         # Create recipe and related records
-        recipe = _create_recipe_from_parsed_data(parsed_recipe, extracted_text, job)
+        recipe = _create_recipe_from_parsed_data(
+            parsed_recipe, extracted_text, job, user_id
+        )
 
         # Associate recipe with job and image
         _associate_recipe_with_job(job, recipe)
+
+        # Automatically add user's own recipe to their collection
+        if recipe.user_id:
+            collection_item = UserRecipeCollection(
+                user_id=recipe.user_id, recipe_id=recipe.id
+            )
+            db.session.add(collection_item)
 
         job.status = ProcessingStatus.COMPLETED
         db.session.commit()
@@ -607,14 +712,39 @@ def _process_recipe_image(job_id: int) -> None:
 
 
 def _extract_text_from_image(image_id: int) -> str:
-    """Extract text from recipe image using OCR."""
+    """Extract text from recipe image using quality-aware OCR."""
     recipe_image = RecipeImage.query.get(image_id)
     if not recipe_image:
         raise Exception("Recipe image not found")
 
     ocr_service = OCRService()
     image_path = Path(recipe_image.file_path)
-    return ocr_service.extract_text_from_image(image_path)
+
+    # Use quality-aware extraction with LLM fallback
+    extraction_result = ocr_service.extract_text_with_quality_check(image_path)
+
+    # Log extraction details for monitoring
+    current_app.logger.info(
+        f"OCR extraction completed for image {image_id}: "
+        f"method={extraction_result['method']}, "
+        f"quality_score={extraction_result.get('quality_score', 'N/A')}, "
+        f"fallback_used={extraction_result['fallback_used']}"
+    )
+
+    # Update processing job with OCR metadata if available
+    try:
+        # Find the processing job for this image
+        job = ProcessingJob.query.filter_by(image_id=image_id).first()
+        if job:
+            # Store OCR metadata for analytics
+            job.ocr_method = extraction_result["method"]
+            job.ocr_quality_score = extraction_result.get("quality_score")
+            job.ocr_fallback_used = extraction_result["fallback_used"]
+            db.session.commit()
+    except Exception as e:
+        current_app.logger.warning(f"Failed to update OCR metadata: {str(e)}")
+
+    return extraction_result["text"]
 
 
 def _parse_extracted_text(extracted_text: str) -> Dict[str, Any]:
@@ -624,11 +754,14 @@ def _parse_extracted_text(extracted_text: str) -> Dict[str, Any]:
 
 
 def _create_recipe_from_parsed_data(
-    parsed_recipe: Dict[str, Any], extracted_text: str, job: ProcessingJob
+    parsed_recipe: Dict[str, Any],
+    extracted_text: str,
+    job: ProcessingJob,
+    upload_user_id: int = None,
 ) -> Recipe:
     """Create recipe and all related records from parsed data."""
-    # Get user_id from cookbook if it exists
-    user_id = None
+    # Get user_id from cookbook if it exists, otherwise use the upload user_id
+    user_id = upload_user_id  # Default to the user who uploaded the image
     if job.cookbook_id:
         cookbook = Cookbook.query.get(job.cookbook_id)
         if cookbook:
@@ -645,6 +778,7 @@ def _create_recipe_from_parsed_data(
         servings=parsed_recipe.get("servings"),
         difficulty=parsed_recipe.get("difficulty"),
         user_id=user_id,
+        is_public=False,  # New recipes are private by default
     )
 
     db.session.add(recipe)
@@ -840,3 +974,264 @@ def _parse_ingredient_text(ingredient_text: str) -> Dict[str, Any]:
         "optional": "optional" in ingredient_text.lower(),
         "category": None,  # Could be enhanced with ingredient categorization
     }
+
+
+@bp.route("/recipes/<int:recipe_id>/privacy", methods=["PUT"])
+@require_auth
+def toggle_recipe_privacy(current_user, recipe_id: int) -> Response:
+    """Toggle recipe privacy (public/private)."""
+
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        data = request.get_json()
+        if not data or "is_public" not in data:
+            return jsonify({"error": "is_public field is required"}), 400
+
+        is_public = data["is_public"]
+        if not isinstance(is_public, bool):
+            return jsonify({"error": "is_public must be a boolean"}), 400
+
+        # Update privacy status
+        if is_public:
+            recipe.publish()
+            message = "Recipe published successfully"
+        else:
+            recipe.unpublish()
+            message = "Recipe made private successfully"
+
+        db.session.commit()
+        current_app.logger.info(
+            f"Recipe {recipe_id} privacy changed to {'public' if is_public else 'private'} by user {current_user.id}"
+        )
+
+        return jsonify({"message": message, "recipe": recipe.to_dict()})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Privacy toggle failed for recipe {recipe_id}: {str(e)}"
+        )
+        return jsonify({"error": "Privacy update failed"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/publish", methods=["POST"])
+@require_auth
+def publish_recipe(current_user, recipe_id: int) -> Response:
+    """Publish a recipe to make it public."""
+
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        if recipe.is_public:
+            return jsonify({"message": "Recipe is already public"}), 200
+
+        recipe.publish()
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Recipe {recipe_id} published by user {current_user.id}"
+        )
+
+        return jsonify(
+            {"message": "Recipe published successfully", "recipe": recipe.to_dict()}
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Recipe publish failed for recipe {recipe_id}: {str(e)}"
+        )
+        return jsonify({"error": "Recipe publish failed"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/unpublish", methods=["POST"])
+@require_auth
+def unpublish_recipe(current_user, recipe_id: int) -> Response:
+    """Unpublish a recipe to make it private."""
+
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        if not recipe.is_public:
+            return jsonify({"message": "Recipe is already private"}), 200
+
+        recipe.unpublish()
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Recipe {recipe_id} unpublished by user {current_user.id}"
+        )
+
+        return jsonify(
+            {"message": "Recipe made private successfully", "recipe": recipe.to_dict()}
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Recipe unpublish failed for recipe {recipe_id}: {str(e)}"
+        )
+        return jsonify({"error": "Recipe unpublish failed"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/add-to-collection", methods=["POST"])
+@require_auth
+def add_to_collection(current_user, recipe_id: int) -> Response:
+    """Add a recipe to user's collection."""
+
+    # Check if recipe exists and is accessible
+    recipe = Recipe.query.get(recipe_id)
+    if not recipe:
+        return jsonify({"error": "Recipe not found"}), 404
+
+    # Check if user can access this recipe (public or own recipe)
+    is_admin = not should_apply_user_filter(current_user)
+    can_view = recipe.can_be_viewed_by(current_user.id, is_admin)
+
+    if not can_view:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    # Check if already in collection
+    existing = UserRecipeCollection.query.filter_by(
+        user_id=current_user.id, recipe_id=recipe_id
+    ).first()
+
+    if existing:
+        return jsonify({"message": "Recipe already in collection"}), 200
+
+    try:
+        # Add to collection
+        collection_item = UserRecipeCollection(
+            user_id=current_user.id, recipe_id=recipe_id
+        )
+        db.session.add(collection_item)
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Recipe {recipe_id} added to collection by user {current_user.id}"
+        )
+
+        return (
+            jsonify(
+                {
+                    "message": "Recipe added to collection successfully",
+                    "collection_item": collection_item.to_dict(),
+                }
+            ),
+            201,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Add to collection failed for recipe {recipe_id}: {str(e)}"
+        )
+        return jsonify({"error": "Failed to add recipe to collection"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/remove-from-collection", methods=["DELETE"])
+@require_auth
+def remove_from_collection(current_user, recipe_id: int) -> Response:
+    """Remove a recipe from user's collection."""
+
+    # Find the collection item
+    collection_item = UserRecipeCollection.query.filter_by(
+        user_id=current_user.id, recipe_id=recipe_id
+    ).first()
+
+    if not collection_item:
+        return jsonify({"error": "Recipe not in collection"}), 404
+
+    try:
+        db.session.delete(collection_item)
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Recipe {recipe_id} removed from collection by user {current_user.id}"
+        )
+
+        return jsonify({"message": "Recipe removed from collection successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Remove from collection failed for recipe {recipe_id}: {str(e)}"
+        )
+        return jsonify({"error": "Failed to remove recipe from collection"}), 500
+
+
+@bp.route("/recipes/discover", methods=["GET"])
+@require_auth
+def discover_recipes(current_user) -> Response:
+    """Browse public recipes that are not in user's collection."""
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    search = request.args.get("search", "")
+
+    # Get IDs of recipes already in user's collection
+    user_collection_ids = db.session.execute(
+        text("SELECT recipe_id FROM user_recipe_collections WHERE user_id = :user_id"),
+        {"user_id": current_user.id},
+    ).fetchall()
+
+    collected_recipe_ids = [row.recipe_id for row in user_collection_ids]
+
+    # Base query for public recipes not in collection and not owned by user
+    query = Recipe.query.options(db.joinedload(Recipe.images)).filter(
+        Recipe.is_public == True, Recipe.user_id != current_user.id
+    )
+
+    # Exclude recipes already in collection
+    if collected_recipe_ids:
+        query = query.filter(~Recipe.id.in_(collected_recipe_ids))
+
+    # Apply search filter
+    if search:
+        query = query.filter(
+            db.or_(
+                Recipe.title.ilike(f"%{search}%"),
+                Recipe.description.ilike(f"%{search}%"),
+            )
+        )
+
+    # Order by publication date (newest first)
+    query = query.order_by(Recipe.published_at.desc())
+
+    recipes = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify(
+        {
+            "recipes": [
+                recipe.to_dict(include_user=True, current_user_id=current_user.id)
+                for recipe in recipes.items
+            ],
+            "total": recipes.total,
+            "pages": recipes.pages,
+            "current_page": page,
+            "per_page": per_page,
+            "has_next": recipes.has_next,
+            "has_prev": recipes.has_prev,
+        }
+    )

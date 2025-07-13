@@ -28,6 +28,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     cookbook_search_query: '',
     search_google_books: false,
     selected_google_book: null,
+    no_cookbook: true, // Default to no cookbook
   });
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -108,6 +109,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       alert('Please select a cookbook from the online database or enter details manually');
       return;
     }
+
+    // No validation needed for no_cookbook option - it's always valid
 
     onSubmit(formData);
   };
@@ -206,12 +209,33 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                 <input
                   type="radio"
                   name="cookbook_mode"
+                  checked={formData.no_cookbook}
+                  onChange={() => setFormData(prev => ({ 
+                    ...prev, 
+                    create_new_cookbook: false,
+                    search_existing_cookbook: false,
+                    search_google_books: false,
+                    no_cookbook: true,
+                    cookbook_id: undefined,
+                    selected_existing_cookbook_id: undefined,
+                    selected_google_book: null,
+                    page_number: undefined 
+                  }))}
+                  className="mr-2 text-accent"
+                />
+                <span className="text-sm font-medium" style={{color: '#1c120d'}}>No cookbook (standalone recipe)</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="cookbook_mode"
                   checked={formData.search_google_books}
                   onChange={() => setFormData(prev => ({ 
                     ...prev, 
                     create_new_cookbook: false,
                     search_existing_cookbook: false,
                     search_google_books: true,
+                    no_cookbook: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
                     selected_google_book: null,
@@ -231,6 +255,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                     create_new_cookbook: false,
                     search_existing_cookbook: true,
                     search_google_books: false,
+                    no_cookbook: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
                     selected_google_book: null,
@@ -250,6 +275,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                     create_new_cookbook: true,
                     search_existing_cookbook: false,
                     search_google_books: false,
+                    no_cookbook: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
                     selected_google_book: null,
@@ -263,7 +289,14 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           </div>
           
           <div className="flex flex-col gap-4">
-            {formData.search_google_books ? (
+            {formData.no_cookbook ? (
+              /* No Cookbook - show nothing additional */
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  Your recipe will be uploaded as a standalone recipe without being linked to any cookbook.
+                </p>
+              </div>
+            ) : formData.search_google_books ? (
               /* Online Database Search */
               <>
                 <GoogleBooksSearch
@@ -509,7 +542,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Processing...
+                Converting...
               </div>
             ) : (
               'Upload Recipe'

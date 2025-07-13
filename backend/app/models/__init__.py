@@ -7,6 +7,7 @@ from app.models.recipe import (
     Instruction,
     Ingredient,
     Cookbook,
+    UserRecipeCollection,
     recipe_ingredients,
 )
 from app.models.user import (
@@ -26,6 +27,7 @@ __all__ = [
     "Instruction",
     "Ingredient",
     "Cookbook",
+    "UserRecipeCollection",
     "recipe_ingredients",
     "User",
     "Password",

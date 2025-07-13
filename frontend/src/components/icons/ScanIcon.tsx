@@ -5,7 +5,7 @@ interface IconProps {
   style?: React.CSSProperties;
 }
 
-const AIIcon: React.FC<IconProps> = ({ className = '', style }) => {
+const ScanIcon: React.FC<IconProps> = ({ className = '', style }) => {
   return (
     <svg 
       className={`${className} flex-shrink-0`}
@@ -18,4 +18,4 @@ const AIIcon: React.FC<IconProps> = ({ className = '', style }) => {
   );
 };
 
-export { AIIcon };
+export { ScanIcon };

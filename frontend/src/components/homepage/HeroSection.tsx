@@ -17,7 +17,7 @@ const HeroSection: React.FC = () => {
               Your Recipes, Perfectly Organized
             </h1>
             <p className="text-lg sm:text-xl text-text-secondary mb-10 max-w-3xl mx-auto">
-              Transform handwritten notes, blog posts, image recipes and more into digital files with AI-powered OCR technology.
+              Transform handwritten notes, blog posts, image recipes and more into digital files with smart scanning technology.
               From scattered recipes to organized recipe collections.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

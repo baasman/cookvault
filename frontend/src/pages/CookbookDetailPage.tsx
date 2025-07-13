@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { cookbooksApi } from '../services/cookbooksApi';
 import { useAuth } from '../contexts/AuthContext';
-import { Button } from '../components/ui';
+import { Button, SearchBar } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
 import { formatTextForDisplay, decodeHtmlEntities } from '../utils/textUtils';
 import type { Recipe } from '../types';
@@ -13,14 +13,15 @@ const CookbookDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const cookbookId = id ? parseInt(id, 10) : null;
+  const [searchTerm, setSearchTerm] = useState('');
 
   const { 
     data: cookbook, 
     isLoading, 
     error 
   } = useQuery({
-    queryKey: ['cookbook', cookbookId],
-    queryFn: () => cookbookId ? cookbooksApi.fetchCookbook(cookbookId) : Promise.reject('No cookbook ID'),
+    queryKey: ['cookbook', cookbookId, searchTerm],
+    queryFn: () => cookbookId ? cookbooksApi.fetchCookbook(cookbookId, searchTerm) : Promise.reject('No cookbook ID'),
     enabled: isAuthenticated && !!cookbookId,
   });
 
@@ -41,15 +42,14 @@ const CookbookDetailPage: React.FC = () => {
     }
   };
 
-  const getDifficultyColor = (difficulty: string | undefined) => {
-    switch (difficulty?.toLowerCase()) {
-      case 'easy': return '#22c55e';
-      case 'medium': return '#f59e0b';
-      case 'hard': return '#ef4444';
-      default: return '#9b644b';
-    }
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
   };
 
+  // Check if current user owns this cookbook
+  const isOwnCookbook = user && cookbook?.user_id && cookbook.user_id.toString() === user.id.toString();
+
+  // Note: Cookbooks are now publicly viewable, but require auth for search functionality
   if (!isAuthenticated) {
     return (
       <div className="text-center py-12">
@@ -189,6 +189,26 @@ const CookbookDetailPage: React.FC = () => {
           </h2>
         </div>
 
+        {/* Search Bar */}
+        <div className="mb-6">
+          <SearchBar
+            value={searchTerm}
+            onChange={handleSearch}
+            placeholder="Search recipes in this cookbook..."
+            className="w-full max-w-md"
+          />
+          {searchTerm && (
+            <p className="text-sm text-text-secondary mt-2">
+              {recipes.length === 0 
+                ? `No recipes found matching "${searchTerm}"`
+                : recipes.length === 1
+                ? `1 recipe found matching "${searchTerm}"`
+                : `${recipes.length} recipes found matching "${searchTerm}"`
+              }
+            </p>
+          )}
+        </div>
+
         {recipes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recipes
@@ -275,15 +295,9 @@ const CookbookDetailPage: React.FC = () => {
                         </div>
 
                         {recipe.difficulty && (
-                          <div className="flex items-center">
-                            <div 
-                              className="w-2 h-2 rounded-full mr-1" 
-                              style={{backgroundColor: getDifficultyColor(recipe.difficulty)}}
-                            ></div>
-                            <span style={{color: getDifficultyColor(recipe.difficulty)}}>
-                              {recipe.difficulty.charAt(0).toUpperCase() + recipe.difficulty.slice(1)}
-                            </span>
-                          </div>
+                          <span className="text-text-secondary">
+                            {recipe.difficulty.charAt(0).toUpperCase() + recipe.difficulty.slice(1)}
+                          </span>
                         )}
                       </div>
                     </div>

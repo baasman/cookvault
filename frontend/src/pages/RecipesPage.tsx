@@ -6,10 +6,13 @@ import { recipesApi } from '../services/recipesApi';
 import { useAuth } from '../contexts/AuthContext';
 import type { Recipe } from '../types';
 
+type RecipeFilter = 'collection' | 'discover' | 'mine';
+
 const RecipesPage: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeFilter, setActiveFilter] = useState<RecipeFilter>('collection');
   const recipesPerPage = 12;
 
   // Fetch recipes using React Query
@@ -19,35 +22,64 @@ const RecipesPage: React.FC = () => {
     error, 
     refetch 
   } = useQuery({
-    queryKey: ['recipes', currentPage, searchTerm],
+    queryKey: ['recipes', currentPage, searchTerm, activeFilter],
     queryFn: () => recipesApi.fetchRecipes({ 
       page: currentPage, 
       per_page: recipesPerPage,
-      search: searchTerm 
+      search: searchTerm,
+      filter: activeFilter
     }),
     enabled: isAuthenticated, // Only fetch if user is authenticated
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Reset to page 1 when search term changes
+  // Reset to page 1 when search term or filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, activeFilter]);
 
-  // Memoized filtered recipes for client-side search
-  const filteredRecipes = useMemo(() => {
-    if (!recipesData?.recipes) return [];
-    return recipesData.recipes;
-  }, [recipesData?.recipes]);
+  // Recipes are now filtered on the backend, so just use them directly
+  const filteredRecipes = recipesData?.recipes || [];
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
+  };
+
+  const handleFilterChange = (filter: RecipeFilter) => {
+    setActiveFilter(filter);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Get page content based on active filter
+  const getPageContent = () => {
+    switch (activeFilter) {
+      case 'mine':
+        return {
+          title: 'My Uploads',
+          description: 'Recipes you have uploaded and created',
+          searchPlaceholder: 'Search your uploaded recipes...'
+        };
+      case 'discover':
+        return {
+          title: 'Discover Recipes',
+          description: 'Browse and search all public recipes',
+          searchPlaceholder: 'Search all public recipes...'
+        };
+      case 'collection':
+      default:
+        return {
+          title: 'My Collection',
+          description: 'Your curated collection of recipes',
+          searchPlaceholder: 'Search your collection...'
+        };
+    }
+  };
+
+  const pageContent = getPageContent();
 
   if (!isAuthenticated) {
     return (
@@ -86,11 +118,34 @@ const RecipesPage: React.FC = () => {
       {/* Page Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{color: '#1c120d'}}>
-          My Recipes
+          {pageContent.title}
         </h1>
         <p style={{color: '#9b644b'}}>
-          Discover and manage your personalized recipe collection
+          {pageContent.description}
         </p>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex justify-center mb-6">
+        <div className="flex bg-background-secondary rounded-lg p-1">
+          {([
+            { key: 'collection', label: 'My Collection' },
+            { key: 'discover', label: 'Discover' },
+            { key: 'mine', label: 'My Uploads' }
+          ] as const).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => handleFilterChange(key)}
+              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeFilter === key
+                  ? 'bg-white text-text-primary shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -98,7 +153,7 @@ const RecipesPage: React.FC = () => {
         <SearchBar
           value={searchTerm}
           onChange={handleSearch}
-          placeholder="Search recipes, ingredients, tags, cookbooks..."
+          placeholder={pageContent.searchPlaceholder}
           className="w-full max-w-2xl"
         />
       </div>
@@ -123,11 +178,18 @@ const RecipesPage: React.FC = () => {
                 {searchTerm ? (
                   <p>
                     Found {filteredRecipes.length} recipe{filteredRecipes.length !== 1 ? 's' : ''} 
+                    {activeFilter === 'mine' ? ' in your uploaded recipes' : 
+                     activeFilter === 'collection' ? ' in your collection' : 
+                     activeFilter === 'discover' ? ' in public recipes' : ''}
                     {searchTerm && ` matching "${searchTerm}"`}
                   </p>
                 ) : (
                   <p>
-                    Showing {filteredRecipes.length} of {recipesData?.total || 0} recipes
+                    Showing {filteredRecipes.length} 
+                    {activeFilter === 'mine' ? ' of your uploaded recipes' : 
+                     activeFilter === 'collection' ? ' recipes in your collection' : 
+                     activeFilter === 'discover' ? ` of ${recipesData?.total || 0} public recipes` :
+                     ` of ${recipesData?.total || 0} recipes`}
                   </p>
                 )}
               </div>
@@ -138,6 +200,7 @@ const RecipesPage: React.FC = () => {
                   <RecipeCard
                     key={recipe.id}
                     recipe={recipe}
+                    showAddToCollection={activeFilter === 'discover'}
                   />
                 ))}
               </div>
@@ -200,18 +263,27 @@ const RecipesPage: React.FC = () => {
                     strokeLinecap="round" 
                     strokeLinejoin="round" 
                     strokeWidth={1} 
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" 
+                    d={activeFilter === 'discover' ? "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" : "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"}
                   />
                 </svg>
               </div>
               
-              {searchTerm ? (
+              {activeFilter === 'discover' && !searchTerm ? (
+                <>
+                  <h3 className="text-xl font-semibold mb-2" style={{color: '#1c120d'}}>
+                    Start discovering recipes
+                  </h3>
+                  <p className="mb-6" style={{color: '#9b644b'}}>
+                    Use the search bar above to find recipes from the community that you can add to your collection.
+                  </p>
+                </>
+              ) : searchTerm ? (
                 <>
                   <h3 className="text-xl font-semibold mb-2" style={{color: '#1c120d'}}>
                     No recipes found
                   </h3>
                   <p className="mb-4" style={{color: '#9b644b'}}>
-                    No recipes match your search for "{searchTerm}". Try different keywords or browse all recipes.
+                    No recipes match your search for "{searchTerm}". Try different keywords.
                   </p>
                   <button
                     onClick={() => setSearchTerm('')}
@@ -223,17 +295,37 @@ const RecipesPage: React.FC = () => {
               ) : (
                 <>
                   <h3 className="text-xl font-semibold mb-2" style={{color: '#1c120d'}}>
-                    No recipes yet
+                    {activeFilter === 'collection' ? 'No recipes in your collection yet' : 'No recipes yet'}
                   </h3>
                   <p className="mb-6" style={{color: '#9b644b'}}>
-                    Start building your recipe collection by uploading your first recipe!
+                    {activeFilter === 'collection' 
+                      ? 'Discover recipes or upload your own to start building your collection!'
+                      : 'Start building your recipe collection by uploading your first recipe!'
+                    }
                   </p>
-                  <a 
-                    href="/upload" 
-                    className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
-                  >
-                    Upload Your First Recipe
-                  </a>
+                  {activeFilter === 'collection' ? (
+                    <div className="flex gap-4 justify-center">
+                      <button
+                        onClick={() => handleFilterChange('discover')}
+                        className="px-6 py-3 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                      >
+                        Discover Recipes
+                      </button>
+                      <a 
+                        href="/upload" 
+                        className="inline-block px-6 py-3 border border-accent text-accent rounded-lg hover:bg-accent hover:text-white transition-colors font-medium"
+                      >
+                        Upload Recipe
+                      </a>
+                    </div>
+                  ) : (
+                    <a 
+                      href="/upload" 
+                      className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                    >
+                      Upload Your First Recipe
+                    </a>
+                  )}
                 </>
               )}
             </div>

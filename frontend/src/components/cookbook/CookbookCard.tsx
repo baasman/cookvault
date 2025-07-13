@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Cookbook } from '../../types';
 import { decodeHtmlEntities } from '../../utils/textUtils';
 
@@ -9,11 +10,16 @@ interface CookbookCardProps {
 }
 
 const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick }) => {
+  const { user } = useAuth();
+  
   const handleClick = () => {
     if (onClick) {
       onClick();
     }
   };
+
+  // Check if current user owns this cookbook
+  const isOwnCookbook = user && cookbook.user_id && cookbook.user_id.toString() === user.id.toString();
 
   const formatDate = (dateString: string) => {
     try {
@@ -29,6 +35,15 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick }) => {
       <div className="group bg-white rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden" style={{borderColor: '#e8d7cf'}}>
         {/* Cookbook Cover */}
         <div className="aspect-[3/4] bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden">
+          {/* Ownership indicator */}
+          {isOwnCookbook && (
+            <div className="absolute top-3 right-3 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex items-center gap-1 z-10">
+              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+              </svg>
+              Mine
+            </div>
+          )}
           {cookbook.cover_image_url ? (
             <img 
               src={cookbook.cover_image_url} 

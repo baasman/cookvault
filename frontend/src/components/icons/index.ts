@@ -1,5 +1,5 @@
 export { UploadIcon } from './UploadIcon';
-export { AIIcon } from './AIIcon';
+export { ScanIcon } from './ScanIcon';
 export { BookIcon } from './BookIcon';
 export { CollectionIcon } from './CollectionIcon';
 export { ArrowRightIcon } from './ArrowRightIcon';

@@ -4,6 +4,7 @@ interface FetchRecipesParams {
   page?: number;
   per_page?: number;
   search?: string;
+  filter?: 'collection' | 'discover' | 'mine';
 }
 
 interface UpdateRecipeParams {
@@ -39,12 +40,18 @@ class RecipesApi {
   private baseUrl = '/api';
 
   async fetchRecipes(params: FetchRecipesParams = {}): Promise<RecipesResponse> {
-    const { page = 1, per_page = 12 } = params;
+    const { page = 1, per_page = 12, filter = 'collection' } = params;
     
     const searchParams = new URLSearchParams({
       page: page.toString(),
       per_page: per_page.toString(),
+      filter: filter,
     });
+
+    // Add search parameter to the request
+    if (params.search && params.search.trim()) {
+      searchParams.append('search', params.search.trim());
+    }
 
     try {
       const response = await fetch(`${this.baseUrl}/recipes?${searchParams}`, {
@@ -60,23 +67,6 @@ class RecipesApi {
       }
 
       const data = await response.json();
-      
-      // If search term is provided, filter on the frontend for now
-      // TODO: Implement server-side search when backend supports it
-      if (params.search && params.search.trim()) {
-        const searchTerm = params.search.toLowerCase().trim();
-        const filteredRecipes = data.recipes.filter((recipe: Recipe) => 
-          this.matchesSearch(recipe, searchTerm)
-        );
-        
-        return {
-          ...data,
-          recipes: filteredRecipes,
-          total: filteredRecipes.length,
-          pages: Math.ceil(filteredRecipes.length / per_page)
-        };
-      }
-
       return data;
     } catch (error) {
       console.error('Error fetching recipes:', error);
@@ -264,6 +254,152 @@ class RecipesApi {
     } catch (error) {
       console.error('Error updating recipe tags:', error);
       throw error;
+    }
+  }
+
+  async toggleRecipePrivacy(recipeId: number, isPublic: boolean): Promise<Recipe> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/privacy`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ is_public: isPublic }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error toggling recipe privacy:', error);
+      throw error;
+    }
+  }
+
+  async publishRecipe(recipeId: number): Promise<Recipe> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error publishing recipe:', error);
+      throw error;
+    }
+  }
+
+  async unpublishRecipe(recipeId: number): Promise<Recipe> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/unpublish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error unpublishing recipe:', error);
+      throw error;
+    }
+  }
+
+  async addToCollection(recipeId: number): Promise<{ message: string; collection_item: any }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/add-to-collection`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error adding recipe to collection:', error);
+      throw error;
+    }
+  }
+
+  async removeFromCollection(recipeId: number): Promise<{ message: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/remove-from-collection`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error removing recipe from collection:', error);
+      throw error;
+    }
+  }
+
+  async fetchDiscoverRecipes(params: { page?: number; per_page?: number; search?: string } = {}): Promise<RecipesResponse> {
+    const { page = 1, per_page = 12, search } = params;
+    
+    const searchParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: per_page.toString(),
+    });
+
+    if (search && search.trim()) {
+      searchParams.append('search', search.trim());
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/discover?${searchParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching discover recipes:', error);
+      throw new Error('Failed to fetch discover recipes');
     }
   }
 }

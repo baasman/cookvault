@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AIIcon, BookIcon, CollectionIcon } from '../components/icons'; // Assuming these exist or will be created
+import { ScanIcon, BookIcon, CollectionIcon } from '../components/icons'; // Assuming these exist or will be created
 import { HeroSection } from '../components/homepage';
 
 const HomePage: React.FC = () => {
@@ -18,10 +18,10 @@ const HomePage: React.FC = () => {
           <div className="features-grid">
             <div className="feature-card">
               <div className="feature-icon">
-                <AIIcon className="icon icon-white" style={{ width: '2rem', height: '2rem' }} />
+                <ScanIcon className="icon icon-white" style={{ width: '2rem', height: '2rem' }} />
               </div>
-              <h3>AI-Powered Recognition</h3>
-              <p>Our advanced OCR technology accurately extracts text from your handwritten or printed recipes, ensuring consistency in measurements and formatting for perfect results every time.</p>
+              <h3>Smart Text Recognition</h3>
+              <p>Our advanced scanning technology accurately extracts text from your handwritten or printed recipes, ensuring consistency in measurements and formatting for perfect results every time.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon">
@@ -56,7 +56,7 @@ const HomePage: React.FC = () => {
             <div className="step">
               <div className="step-number">2</div>
               <h3>Process</h3>
-              <p>Our AI technology extracts and digitizes the text, identifying ingredients, instructions, and cooking details automatically.</p>
+              <p>Our system automatically converts and organizes the text, identifying ingredients, instructions, and cooking details for you.</p>
             </div>
             <div className="step">
               <div className="step-number">3</div>
@@ -71,7 +71,7 @@ const HomePage: React.FC = () => {
       <section className="cta">
         <div className="container">
           <h2>Start Building Your Digital Recipe Collection Today</h2>
-          <p>Join thousands of home cooks who have already digitized their favorite recipes. Get started in minutes.</p>
+          <p>Join thousands of home cooks who have already converted their favorite recipes. Get started in minutes.</p>
           <Link to="/register" className="btn btn-white btn-lg">
             Create Your Account
             <svg className="icon" viewBox="0 0 24 24">

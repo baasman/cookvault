@@ -21,17 +21,15 @@ def allowed_file(filename: str) -> bool:
 
 @bp.route("/cookbooks", methods=["GET"])
 @require_auth
-def get_user_cookbooks(current_user) -> Response:
-    """Get all cookbooks for the authenticated user with recipe counts."""
+def get_all_cookbooks(current_user) -> Response:
+    """Get all public cookbooks with recipe counts. No ownership restrictions for viewing."""
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
     search = request.args.get("search", "")
     sort_by = request.args.get("sort_by", "title")  # title, author, created_at, recipe_count
     
-    # Base query - admins see all cookbooks, users see only their own
+    # Base query - all cookbooks are publicly viewable
     query = Cookbook.query
-    if should_apply_user_filter(current_user):
-        query = query.filter_by(user_id=current_user.id)
     
     # Apply search filter if provided
     if search:
@@ -91,19 +89,36 @@ def get_user_cookbooks(current_user) -> Response:
 @bp.route("/cookbooks/<int:cookbook_id>", methods=["GET"])
 @require_auth
 def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
-    """Get specific cookbook with its recipes for the authenticated user."""
-    # Get cookbook - admins can access any cookbook, users only their own
-    if should_apply_user_filter(current_user):
-        cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
-    else:
-        cookbook = Cookbook.query.get(cookbook_id)
+    """Get specific cookbook with its public recipes. Anyone can view any cookbook."""
+    search = request.args.get("search", "")
+    
+    # Get cookbook - publicly accessible
+    cookbook = Cookbook.query.get(cookbook_id)
     if not cookbook:
         return jsonify({"error": "Cookbook not found"}), 404
     
-    # Get recipes for this cookbook - admins see all, users see only their own
+    # Get recipes for this cookbook - show public recipes from all users + user's own private recipes
     recipe_query = Recipe.query.options(db.joinedload(Recipe.images)).filter_by(cookbook_id=cookbook_id)
+    
     if should_apply_user_filter(current_user):
-        recipe_query = recipe_query.filter_by(user_id=current_user.id)
+        # Regular users see: public recipes from all users + their own private recipes
+        recipe_query = recipe_query.filter(
+            db.or_(
+                Recipe.is_public == True,  # Public recipes from anyone
+                Recipe.user_id == current_user.id  # Own private recipes
+            )
+        )
+    # Admins see all recipes (no additional filter needed)
+    
+    # Apply search filter if provided
+    if search:
+        recipe_query = recipe_query.filter(
+            db.or_(
+                Recipe.title.ilike(f"%{search}%"),
+                Recipe.description.ilike(f"%{search}%")
+            )
+        )
+    
     recipes = recipe_query.order_by(Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()).all()
     
     cookbook_dict = cookbook.to_dict()
@@ -116,22 +131,39 @@ def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
 @bp.route("/cookbooks/<int:cookbook_id>/recipes", methods=["GET"])
 @require_auth
 def get_cookbook_recipes(current_user, cookbook_id: int) -> Response:
-    """Get all recipes for a specific cookbook for the authenticated user."""
-    # Verify cookbook access - admins can access any cookbook, users only their own
-    if should_apply_user_filter(current_user):
-        cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
-    else:
-        cookbook = Cookbook.query.get(cookbook_id)
+    """Get all public recipes for a specific cookbook. Anyone can view recipes in any cookbook."""
+    # Get cookbook - publicly accessible
+    cookbook = Cookbook.query.get(cookbook_id)
     if not cookbook:
         return jsonify({"error": "Cookbook not found"}), 404
     
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
+    search = request.args.get("search", "")
     
-    # Get paginated recipes for this cookbook - admins see all, users see only their own
+    # Get paginated recipes for this cookbook with privacy filtering
     recipe_query = Recipe.query.options(db.joinedload(Recipe.images)).filter_by(cookbook_id=cookbook_id)
+    
+    # Apply privacy filtering
     if should_apply_user_filter(current_user):
-        recipe_query = recipe_query.filter_by(user_id=current_user.id)
+        # Regular users see: public recipes from all users + their own private recipes
+        recipe_query = recipe_query.filter(
+            db.or_(
+                Recipe.is_public == True,  # Public recipes from anyone
+                Recipe.user_id == current_user.id  # Own private recipes
+            )
+        )
+    # Admins see all recipes (no additional filter needed)
+    
+    # Apply search filter if provided
+    if search:
+        recipe_query = recipe_query.filter(
+            db.or_(
+                Recipe.title.ilike(f"%{search}%"),
+                Recipe.description.ilike(f"%{search}%")
+            )
+        )
+    
     recipes_pagination = recipe_query.order_by(
         Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)

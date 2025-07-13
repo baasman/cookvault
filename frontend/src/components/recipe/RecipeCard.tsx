@@ -1,19 +1,84 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { recipesApi } from '../../services/recipesApi';
+import { useAuth } from '../../contexts/AuthContext';
+import { AddToCollectionButton } from './AddToCollectionButton';
 import type { Recipe } from '../../types';
+import toast from 'react-hot-toast';
 
 interface RecipeCardProps {
   recipe: Recipe;
   onClick?: () => void;
+  showPrivacyControls?: boolean;
+  showAddToCollection?: boolean;
 }
 
-const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
+const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyControls = true, showAddToCollection = false }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [isTogglingPrivacy, setIsTogglingPrivacy] = useState(false);
   
+  // Check if current user owns this recipe
+  const isOwnRecipe = user && recipe.user_id && recipe.user_id.toString() === user.id.toString();
+  
+  // Check if current user can control this recipe's privacy
+  const canControlPrivacy = user && (
+    user.role === 'admin' || isOwnRecipe
+  );
+  
+
+
+  // Mutation for toggling privacy
+  const privacyMutation = useMutation({
+    mutationFn: (isPublic: boolean) => recipesApi.toggleRecipePrivacy(recipe.id, isPublic),
+    onMutate: () => {
+      setIsTogglingPrivacy(true);
+    },
+    onSuccess: (updatedRecipe) => {
+      // Update all recipe queries in the cache (they have different keys like ['recipes', page, searchTerm, filter])
+      queryClient.setQueriesData(
+        { queryKey: ['recipes'] }, 
+        (oldData: any) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            recipes: oldData.recipes.map((r: Recipe) => 
+              r.id === recipe.id ? updatedRecipe : r
+            )
+          };
+        }
+      );
+      
+      // Also update individual recipe cache if it exists
+      queryClient.setQueryData(['recipe', recipe.id], updatedRecipe);
+      
+      toast.success(updatedRecipe.is_public ? 'Recipe published!' : 'Recipe made private');
+      setIsTogglingPrivacy(false);
+    },
+    onError: (error) => {
+      console.error('Privacy toggle failed:', error);
+      toast.error('Failed to update recipe privacy');
+      setIsTogglingPrivacy(false);
+    }
+  });
+
   const handleClick = () => {
     if (onClick) {
       onClick();
     }
+  };
+
+  const handlePrivacyToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!canControlPrivacy || isTogglingPrivacy) {
+      return;
+    }
+    
+    privacyMutation.mutate(!recipe.is_public);
   };
 
   const handleCookbookClick = (e: React.MouseEvent) => {
@@ -30,14 +95,6 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
-  const getDifficultyColor = (difficulty: string | undefined) => {
-    switch (difficulty?.toLowerCase()) {
-      case 'easy': return '#22c55e';
-      case 'medium': return '#f59e0b';
-      case 'hard': return '#ef4444';
-      default: return '#9b644b';
-    }
-  };
 
   // Get the first image from the recipe
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
@@ -69,17 +126,76 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
             </svg>
           </div>
           
-          {/* Recipe difficulty badge */}
-          {recipe.difficulty && (
-            <div className="absolute top-3 right-3">
-              <span 
-                className="px-2 py-1 text-xs font-medium text-white rounded-full"
-                style={{backgroundColor: getDifficultyColor(recipe.difficulty)}}
-              >
-                {recipe.difficulty}
-              </span>
+          {/* Recipe badges */}
+          <div className="absolute top-3 right-3 flex flex-col gap-2">
+            {/* Ownership indicator */}
+            {isOwnRecipe && (
+              <div className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full flex items-center gap-1">
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+                </svg>
+                Mine
+              </div>
+            )}
+            
+            {/* Privacy badge */}
+            <div className="flex items-center gap-1">
+              {/* Privacy indicator */}
+              <div className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 ${
+                recipe.is_public 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                {recipe.is_public ? (
+                  <>
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
+                    </svg>
+                    Public
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+                    </svg>
+                    Private
+                  </>
+                )}
+              </div>
+
+              {/* Privacy toggle button (only for recipe owners) */}
+              {canControlPrivacy && showPrivacyControls && (
+                <button
+                  onClick={handlePrivacyToggle}
+                  disabled={isTogglingPrivacy}
+                  className={`p-1 rounded-full transition-colors ${
+                    isTogglingPrivacy 
+                      ? 'bg-gray-200 cursor-not-allowed' 
+                      : 'bg-white/80 hover:bg-white shadow-sm'
+                  }`}
+                  title={recipe.is_public ? 'Make private' : 'Make public'}
+                >
+                  {isTogglingPrivacy ? (
+                    <svg className="h-3 w-3 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                  ) : recipe.is_public ? (
+                    <svg className="h-3 w-3 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+                    </svg>
+                  ) : (
+                    <svg className="h-3 w-3 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
-          )}
+
+          </div>
         </div>
 
         {/* Recipe Content */}
@@ -149,9 +265,34 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick }) => {
             )}
           </div>
 
+          {/* Add to Collection Button */}
+          {showAddToCollection && (
+            <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+              <AddToCollectionButton recipe={recipe} size="sm" />
+            </div>
+          )}
+
+          {/* User info for public recipes */}
+          {recipe.is_public && recipe.user && (
+            <div className="mt-3 pt-3 border-t border-primary-200">
+              <p className="text-xs text-text-secondary">
+                By: <span className="font-medium text-text-primary">
+                  {recipe.user.first_name && recipe.user.last_name 
+                    ? `${recipe.user.first_name} ${recipe.user.last_name}` 
+                    : recipe.user.username}
+                </span>
+                {recipe.published_at && (
+                  <span className="ml-2">
+                    • Published {new Date(recipe.published_at).toLocaleDateString()}
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
           {/* Cookbook info */}
           {recipe.cookbook && (
-            <div className="mt-3 pt-3 border-t border-primary-200">
+            <div className={`mt-3 pt-3 border-t border-primary-200 ${recipe.is_public && recipe.user ? 'mt-2 pt-2' : ''}`}>
               <p className="text-xs text-text-secondary">
                 From: <button 
                   onClick={handleCookbookClick}

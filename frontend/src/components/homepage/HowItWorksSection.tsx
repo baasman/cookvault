@@ -35,7 +35,7 @@ const HowItWorksSection: React.FC = () => {
     {
       number: 2,
       title: "Process",
-      description: "Our AI technology extracts and digitizes the text, identifying ingredients, instructions, and cooking details automatically.",
+      description: "Our system automatically converts and organizes the text, identifying ingredients, instructions, and cooking details for you.",
     },
     {
       number: 3,

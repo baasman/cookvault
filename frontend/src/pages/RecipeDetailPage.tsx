@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import { RecipeImageDisplay } from '../components/recipe/RecipeImageDisplay';
 import { RecipeEditForm } from '../components/recipe/RecipeEditForm';
+import { AddToCollectionButton } from '../components/recipe/AddToCollectionButton';
 import type { Recipe } from '../types';
 
 const RecipeDetailPage: React.FC = () => {
@@ -27,18 +28,7 @@ const RecipeDetailPage: React.FC = () => {
   });
 
   const canEdit = Boolean(recipe && user && (user.role === 'admin' || recipe.user_id === parseInt(user.id)));
-  
-  // Debug logging for admin check
-  if (recipe && user) {
-    console.log('Edit Permission Debug:', {
-      userRole: user.role,
-      userId: user.id,
-      recipeUserId: recipe.user_id,
-      isAdmin: user.role === 'admin',
-      isOwner: recipe.user_id === parseInt(user.id),
-      canEdit
-    });
-  }
+  const isOwnRecipe = Boolean(recipe && user && recipe.user_id === parseInt(user.id));
 
   const handleSaveEdit = (updatedRecipe: Recipe) => {
     // Update the query cache with the new recipe data
@@ -134,14 +124,22 @@ const RecipeDetailPage: React.FC = () => {
           <span>Back to Recipes</span>
         </button>
         
-        {canEdit && !isEditing && (
-          <Button onClick={() => setIsEditing(true)} variant="secondary" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit Recipe
-          </Button>
-        )}
+        <div className="flex items-center space-x-3">
+          {/* Add to Collection Button - show for public recipes not owned by current user */}
+          {recipe && !isOwnRecipe && recipe.is_public && !isEditing && (
+            <AddToCollectionButton recipe={recipe} />
+          )}
+          
+          {/* Edit Button */}
+          {canEdit && !isEditing && (
+            <Button onClick={() => setIsEditing(true)} variant="secondary" size="sm">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Recipe
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Recipe Content */}
@@ -201,6 +199,37 @@ const RecipeDetailPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* User Information - Show for public recipes or recipes from other users */}
+                {recipe.user && (recipe.is_public || recipe.user_id !== parseInt(user?.id || '0')) && (
+                  <div className="mb-6 p-4 bg-background-secondary rounded-lg border border-primary-200">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center">
+                        <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-sm text-text-secondary">Uploaded by</div>
+                        <div className="font-medium text-text-primary">
+                          {recipe.user.first_name && recipe.user.last_name 
+                            ? `${recipe.user.first_name} ${recipe.user.last_name}`
+                            : recipe.user.username
+                          }
+                        </div>
+                        {recipe.created_at && (
+                          <div className="text-xs text-text-secondary">
+                            {new Date(recipe.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Tags */}
                 {recipe.tags && recipe.tags.length > 0 && (

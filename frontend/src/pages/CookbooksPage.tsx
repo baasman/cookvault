@@ -86,10 +86,10 @@ const CookbooksPage: React.FC = () => {
       {/* Page Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{color: '#1c120d'}}>
-          My Cookbooks
+          Cookbooks
         </h1>
         <p style={{color: '#9b644b'}}>
-          Organize and browse your cookbook collection
+          Discover and browse cookbook collections from the community
         </p>
       </div>
 

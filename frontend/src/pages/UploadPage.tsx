@@ -79,7 +79,7 @@ const UploadPage: React.FC = () => {
           Upload Recipe
         </h1>
         <p className="text-lg" style={{color: '#9b644b'}}>
-          Upload an image of your recipe and we'll digitize it for you using AI
+          Upload an image of your recipe and we'll convert it to digital format for you
         </p>
       </div>
 
@@ -172,7 +172,7 @@ const UploadPage: React.FC = () => {
               2. Process
             </h3>
             <p className="text-xs leading-tight" style={{color: '#9b644b'}}>
-              AI extracts text
+              System converts text
             </p>
           </div>
           

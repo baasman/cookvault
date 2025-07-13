@@ -82,9 +82,16 @@ class CookbooksApi {
     }
   }
 
-  async fetchCookbook(id: number): Promise<Cookbook> {
+  async fetchCookbook(id: number, search?: string): Promise<Cookbook> {
     try {
-      const response = await fetch(`${this.baseUrl}/cookbooks/${id}`, {
+      const searchParams = new URLSearchParams();
+      if (search) {
+        searchParams.append('search', search);
+      }
+      
+      const url = `${this.baseUrl}/cookbooks/${id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

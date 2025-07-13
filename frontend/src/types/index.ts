@@ -57,12 +57,21 @@ export interface Recipe {
   difficulty?: string;
   source?: string;
   user_id?: number;
+  is_public: boolean;
+  published_at?: string;
+  user?: {
+    id: number;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+  };
   ingredients: Ingredient[];
   instructions: Instruction[];
   tags: Tag[];
   images?: RecipeImage[];
   created_at: string;
   updated_at: string;
+  is_in_collection?: boolean;
 }
 
 export interface ProcessingJob {
@@ -90,6 +99,46 @@ export interface RecipesResponse {
   current_page: number;
 }
 
+export interface PublicRecipesResponse {
+  recipes: Recipe[];
+  pagination: {
+    page: number;
+    pages: number;
+    per_page: number;
+    total: number;
+    has_next: boolean;
+    has_prev: boolean;
+    next_num?: number;
+    prev_num?: number;
+  };
+}
+
+export interface UserPublicRecipesResponse {
+  user: {
+    id: number;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+  };
+  recipes: Recipe[];
+  pagination: {
+    page: number;
+    pages: number;
+    per_page: number;
+    total: number;
+    has_next: boolean;
+    has_prev: boolean;
+    next_num?: number;
+    prev_num?: number;
+  };
+}
+
+export interface PublicStatsResponse {
+  public_recipes: number;
+  contributing_users: number;
+  recent_recipes: number;
+}
+
 export interface ApiError {
   error: string;
 }
@@ -99,6 +148,8 @@ export interface UploadFormData {
   image: File | null;
   cookbook_id?: number;
   page_number?: number;
+  // Upload mode selection
+  no_cookbook?: boolean;
   // New cookbook creation fields
   create_new_cookbook?: boolean;
   new_cookbook_title?: string;

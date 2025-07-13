@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Float,
+    Boolean,
     Table,
     Column,
     text,
@@ -16,6 +17,28 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app import db
+
+
+class UserRecipeCollection(db.Model):
+    """Track which recipes users have added to their personal collections"""
+    __tablename__ = 'user_recipe_collections'
+    
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), primary_key=True)
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipe.id"), primary_key=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="recipe_collections")
+    recipe: Mapped["Recipe"] = relationship("Recipe", back_populates="user_collections")
+
+    def to_dict(self) -> dict:
+        return {
+            "user_id": self.user_id,
+            "recipe_id": self.recipe_id,
+            "added_at": self.added_at.isoformat() if self.added_at else None,
+            "notes": self.notes,
+        }
 
 
 recipe_ingredients = Table(
@@ -145,6 +168,10 @@ class Recipe(db.Model):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
     
+    # Privacy settings
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    
     # User relationship
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
     cookbook: Mapped[Optional["Cookbook"]] = relationship(
@@ -171,6 +198,9 @@ class Recipe(db.Model):
     user: Mapped[Optional["User"]] = relationship(
         "User", back_populates="recipes"
     )
+    user_collections: Mapped[List["UserRecipeCollection"]] = relationship(
+        "UserRecipeCollection", back_populates="recipe", cascade="all, delete-orphan"
+    )
 
     def get_status(self) -> str:
         """Get the status of the recipe based on its processing jobs."""
@@ -180,6 +210,64 @@ class Recipe(db.Model):
         # Get the most recent processing job
         latest_job = max(self.processing_jobs, key=lambda job: job.created_at)
         return latest_job.status.value if latest_job.status else "imported"
+    
+    def publish(self) -> None:
+        """Publish the recipe to make it public."""
+        self.is_public = True
+        self.published_at = datetime.utcnow()
+    
+    def unpublish(self) -> None:
+        """Unpublish the recipe to make it private."""
+        self.is_public = False
+        self.published_at = None
+    
+    def can_be_viewed_by(self, user_id: Optional[int] = None, is_admin: bool = False) -> bool:
+        """Check if a recipe can be viewed by a given user."""
+        # Public recipes can be viewed by anyone
+        if self.is_public:
+            return True
+        
+        # Admins can view all recipes
+        if is_admin:
+            return True
+        
+        # Private recipes can only be viewed by their owner
+        return self.user_id == user_id if user_id else False
+    
+    def is_in_user_collection(self, user_id: int) -> bool:
+        """Check if this recipe is in a user's collection."""
+        if not user_id:
+            return False
+        
+        collection_item = UserRecipeCollection.query.filter_by(
+            user_id=user_id,
+            recipe_id=self.id
+        ).first()
+        
+        return collection_item is not None
+    
+    @classmethod
+    def get_public_recipes(cls, limit: Optional[int] = None, offset: int = 0):
+        """Get all public recipes with optional pagination."""
+        query = cls.query.filter(cls.is_public == True).order_by(cls.published_at.desc())
+        
+        if limit:
+            query = query.limit(limit).offset(offset)
+        
+        return query.all()
+    
+    @classmethod
+    def get_user_public_recipes(cls, user_id: int, limit: Optional[int] = None, offset: int = 0):
+        """Get all public recipes by a specific user."""
+        query = cls.query.filter(
+            cls.user_id == user_id,
+            cls.is_public == True
+        ).order_by(cls.published_at.desc())
+        
+        if limit:
+            query = query.limit(limit).offset(offset)
+        
+        return query.all()
 
     def get_recipe_ingredients(self) -> List[dict]:
         result = db.session.execute(
@@ -209,8 +297,8 @@ class Recipe(db.Model):
             for row in result
         ]
 
-    def to_dict(self) -> dict:
-        return {
+    def to_dict(self, include_user: bool = False, current_user_id: Optional[int] = None) -> dict:
+        result = {
             "id": self.id,
             "title": self.title,
             "description": self.description,
@@ -228,9 +316,27 @@ class Recipe(db.Model):
             "servings": self.servings,
             "difficulty": self.difficulty,
             "source": self.source,
+            "is_public": self.is_public,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "user_id": self.user_id,
         }
+        
+        # Include user information for public recipes or when explicitly requested
+        if include_user and self.user:
+            result["user"] = {
+                "id": self.user.id,
+                "username": self.user.username,
+                "first_name": self.user.first_name,
+                "last_name": self.user.last_name,
+            }
+        
+        # Include collection status if current user is provided
+        if current_user_id:
+            result["is_in_collection"] = self.is_in_user_collection(current_user_id)
+        
+        return result
 
 
 class RecipeImage(db.Model):
@@ -273,6 +379,11 @@ class ProcessingJob(db.Model):
     ocr_text: Mapped[Optional[str]] = mapped_column(Text)
     processed_data: Mapped[Optional[str]] = mapped_column(Text)
 
+    # OCR Quality Metadata
+    ocr_method: Mapped[Optional[str]] = mapped_column(String(20))  # 'traditional' or 'llm'
+    ocr_quality_score: Mapped[Optional[int]] = mapped_column(Integer)  # 1-10 quality score
+    ocr_fallback_used: Mapped[Optional[bool]] = mapped_column(db.Boolean, default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
@@ -288,6 +399,9 @@ class ProcessingJob(db.Model):
             "image_id": self.image_id,
             "status": self.status.value,
             "error_message": self.error_message,
+            "ocr_method": self.ocr_method,
+            "ocr_quality_score": self.ocr_quality_score,
+            "ocr_fallback_used": self.ocr_fallback_used,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": (
                 self.completed_at.isoformat() if self.completed_at else None
