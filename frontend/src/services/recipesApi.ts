@@ -1,4 +1,4 @@
-import type { Recipe, RecipesResponse } from '../types';
+import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse } from '../types';
 
 interface FetchRecipesParams {
   page?: number;
@@ -400,6 +400,170 @@ class RecipesApi {
     } catch (error) {
       console.error('Error fetching discover recipes:', error);
       throw new Error('Failed to fetch discover recipes');
+    }
+  }
+
+  // Recipe Notes Methods
+  async getUserNote(recipeId: number): Promise<{ note: RecipeNote | null }> {
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/notes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user note:', error);
+      throw new Error('Failed to fetch user note');
+    }
+  }
+
+  async saveUserNote(recipeId: number, content: string): Promise<{ note: RecipeNote }> {
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error saving user note:', error);
+      throw error;
+    }
+  }
+
+  async deleteUserNote(recipeId: number): Promise<{ message: string }> {
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/notes`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting user note:', error);
+      throw error;
+    }
+  }
+
+  // Recipe Comments Methods
+  async getRecipeComments(recipeId: number, params: { page?: number; per_page?: number } = {}): Promise<CommentsResponse> {
+    const { page = 1, per_page = 20 } = params;
+    
+    const searchParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: per_page.toString(),
+    });
+
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/comments?${searchParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching recipe comments:', error);
+      throw new Error('Failed to fetch recipe comments');
+    }
+  }
+
+  async createComment(recipeId: number, content: string): Promise<{ comment: RecipeComment }> {
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      throw error;
+    }
+  }
+
+  async updateComment(recipeId: number, commentId: number, content: string): Promise<{ comment: RecipeComment }> {
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      throw error;
+    }
+  }
+
+  async deleteComment(recipeId: number, commentId: number): Promise<{ message: string }> {
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      throw error;
     }
   }
 }

@@ -21,7 +21,29 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
   const [isTogglingPrivacy, setIsTogglingPrivacy] = useState(false);
   
   // Check if current user owns this recipe
-  const isOwnRecipe = user && recipe.user_id && recipe.user_id.toString() === user.id.toString();
+  const isOwnRecipe = Boolean(
+    user && 
+    recipe.user_id && 
+    user.id && 
+    !isNaN(parseInt(user.id)) &&
+    recipe.user_id === parseInt(user.id)
+  );
+  
+  // Debug logging for button visibility issues
+  console.log('RecipeCard Debug:', {
+    recipeId: recipe.id,
+    recipeTitle: recipe.title,
+    recipeUserId: recipe.user_id,
+    recipeUserIdType: typeof recipe.user_id,
+    currentUserId: user?.id,
+    currentUserIdType: typeof user?.id,
+    parsedUserId: user?.id ? parseInt(user.id) : null,
+    isOwnRecipe,
+    userRole: user?.role,
+    isInCollection: recipe.is_in_collection,
+    hasIsInCollection: 'is_in_collection' in recipe,
+    isPublic: recipe.is_public
+  });
   
   // Check if current user can control this recipe's privacy
   const canControlPrivacy = user && (

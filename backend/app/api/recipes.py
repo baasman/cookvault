@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -17,7 +18,9 @@ from app.models import (
     ProcessingJob,
     ProcessingStatus,
     Recipe,
+    RecipeComment,
     RecipeImage,
+    RecipeNote,
     Tag,
     UserRecipeCollection,
 )
@@ -51,9 +54,18 @@ def get_recipes(current_user) -> Response:
             query = query.filter(Recipe.user_id == current_user.id)
         elif filter_type == "collection":
             # Only recipes in user's collection (both own and added from others)
-            # Join with the collection table to get only collected recipes
-            query = query.join(UserRecipeCollection).filter(
+            # Include recipes that are either:
+            # 1. Owned by the user (uploaded by them)
+            # 2. Explicitly added to their collection via UserRecipeCollection
+            user_recipe_ids_subquery = db.session.query(UserRecipeCollection.recipe_id).filter(
                 UserRecipeCollection.user_id == current_user.id
+            ).subquery()
+            
+            query = query.filter(
+                db.or_(
+                    Recipe.user_id == current_user.id,  # User's own recipes
+                    Recipe.id.in_(user_recipe_ids_subquery)  # Explicitly collected recipes
+                )
             )
         elif filter_type == "discover":
             # All public recipes from other users (for discovery) - only when searching
@@ -1235,3 +1247,264 @@ def discover_recipes(current_user) -> Response:
             "has_prev": recipes.has_prev,
         }
     )
+
+
+@bp.route("/recipes/<int:recipe_id>/notes", methods=["GET"])
+@require_auth
+def get_recipe_note(current_user, recipe_id: int) -> Response:
+    """Get the owner's note for a specific recipe. Anyone who can view the recipe can see the owner's notes."""
+    # First, check if the recipe exists and user can view it
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
+        return jsonify({"error": "Recipe not found"}), 404
+    
+    # Get the recipe owner's note for this recipe (not the current user's note)
+    note = RecipeNote.query.filter_by(
+        user_id=recipe.user_id,  # Owner's note, not current user's note
+        recipe_id=recipe_id
+    ).first()
+    
+    if not note:
+        return jsonify({"note": None}), 200
+    
+    return jsonify({"note": note.to_dict()}), 200
+
+
+@bp.route("/recipes/<int:recipe_id>/notes", methods=["POST"])
+@require_auth
+def save_recipe_note(current_user, recipe_id: int) -> Response:
+    """Create or update user's note for a recipe. Only recipe owners can create notes."""
+    # First, check if the recipe exists and user owns it
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    # Only recipe owners can create/edit notes
+    if recipe.user_id != current_user.id:
+        return jsonify({"error": "Only recipe owners can create notes"}), 403
+    
+    data = request.get_json()
+    if not data or "content" not in data:
+        return jsonify({"error": "Note content is required"}), 400
+    
+    content = data["content"].strip()
+    if not content:
+        return jsonify({"error": "Note content cannot be empty"}), 400
+    
+    # Limit note length (1000 characters)
+    if len(content) > 1000:
+        return jsonify({"error": "Note content cannot exceed 1000 characters"}), 400
+    
+    # Check if note already exists
+    note = RecipeNote.query.filter_by(
+        user_id=current_user.id,
+        recipe_id=recipe_id
+    ).first()
+    
+    if note:
+        # Update existing note
+        note.content = content
+        note.updated_at = datetime.utcnow()
+    else:
+        # Create new note
+        note = RecipeNote(
+            user_id=current_user.id,
+            recipe_id=recipe_id,
+            content=content
+        )
+        db.session.add(note)
+    
+    try:
+        db.session.commit()
+        return jsonify({"note": note.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error saving recipe note: {e}")
+        return jsonify({"error": "Failed to save note"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/notes", methods=["DELETE"])
+@require_auth
+def delete_recipe_note(current_user, recipe_id: int) -> Response:
+    """Delete user's note for a recipe. Only recipe owners can delete notes."""
+    # First, check if the recipe exists and user owns it
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    # Only recipe owners can delete notes
+    if recipe.user_id != current_user.id:
+        return jsonify({"error": "Only recipe owners can delete notes"}), 403
+    
+    # Get user's note for this recipe
+    note = RecipeNote.query.filter_by(
+        user_id=current_user.id,
+        recipe_id=recipe_id
+    ).first()
+    
+    if not note:
+        return jsonify({"error": "Note not found"}), 404
+    
+    try:
+        db.session.delete(note)
+        db.session.commit()
+        return jsonify({"message": "Note deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting recipe note: {e}")
+        return jsonify({"error": "Failed to delete note"}), 500
+
+
+# Recipe Comments Endpoints
+
+@bp.route("/recipes/<int:recipe_id>/comments", methods=["GET"])
+@require_auth
+def get_recipe_comments(current_user, recipe_id: int) -> Response:
+    """Get paginated comments for a recipe."""
+    # Check if recipe exists and user can view it
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
+        return jsonify({"error": "Recipe not found"}), 404
+    
+    # Get pagination parameters
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("per_page", 20, type=int), 50)  # Max 50 comments per page
+    
+    # Query comments with user information, ordered by creation date (newest first)
+    comments_query = RecipeComment.query.filter_by(recipe_id=recipe_id)\
+        .order_by(RecipeComment.created_at.desc())
+    
+    comments_paginated = comments_query.paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    return jsonify({
+        "comments": [comment.to_dict(include_user=True) for comment in comments_paginated.items],
+        "total": comments_paginated.total,
+        "pages": comments_paginated.pages,
+        "current_page": page,
+        "per_page": per_page,
+        "has_next": comments_paginated.has_next,
+        "has_prev": comments_paginated.has_prev,
+    }), 200
+
+
+@bp.route("/recipes/<int:recipe_id>/comments", methods=["POST"])
+@require_auth
+def create_recipe_comment(current_user, recipe_id: int) -> Response:
+    """Create a new comment on a recipe."""
+    # Check if recipe exists and user can view it
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
+        return jsonify({"error": "Recipe not found"}), 404
+    
+    data = request.get_json()
+    if not data or "content" not in data:
+        return jsonify({"error": "Comment content is required"}), 400
+    
+    content = data["content"].strip()
+    if not content:
+        return jsonify({"error": "Comment content cannot be empty"}), 400
+    
+    # Limit comment length (500 characters)
+    if len(content) > 500:
+        return jsonify({"error": "Comment content cannot exceed 500 characters"}), 400
+    
+    # Create new comment
+    comment = RecipeComment(
+        recipe_id=recipe_id,
+        user_id=current_user.id,
+        content=content
+    )
+    
+    try:
+        db.session.add(comment)
+        db.session.commit()
+        
+        # Return the comment with user information
+        return jsonify({"comment": comment.to_dict(include_user=True)}), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creating comment: {e}")
+        return jsonify({"error": "Failed to create comment"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/comments/<int:comment_id>", methods=["PUT"])
+@require_auth
+def update_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Response:
+    """Update a comment. Only the comment author can edit their comment."""
+    # Check if recipe exists and user can view it
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
+        return jsonify({"error": "Recipe not found"}), 404
+    
+    # Get the comment
+    comment = RecipeComment.query.filter_by(
+        id=comment_id,
+        recipe_id=recipe_id
+    ).first()
+    
+    if not comment:
+        return jsonify({"error": "Comment not found"}), 404
+    
+    # Only comment author can edit their comment
+    if comment.user_id != current_user.id:
+        return jsonify({"error": "You can only edit your own comments"}), 403
+    
+    data = request.get_json()
+    if not data or "content" not in data:
+        return jsonify({"error": "Comment content is required"}), 400
+    
+    content = data["content"].strip()
+    if not content:
+        return jsonify({"error": "Comment content cannot be empty"}), 400
+    
+    # Limit comment length (500 characters)
+    if len(content) > 500:
+        return jsonify({"error": "Comment content cannot exceed 500 characters"}), 400
+    
+    # Update comment
+    comment.content = content
+    comment.updated_at = datetime.utcnow()
+    
+    try:
+        db.session.commit()
+        return jsonify({"comment": comment.to_dict(include_user=True)}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating comment: {e}")
+        return jsonify({"error": "Failed to update comment"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/comments/<int:comment_id>", methods=["DELETE"])
+@require_auth
+def delete_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Response:
+    """Delete a comment. Comment author or admin can delete."""
+    # Check if recipe exists and user can view it
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
+        return jsonify({"error": "Recipe not found"}), 404
+    
+    # Get the comment
+    comment = RecipeComment.query.filter_by(
+        id=comment_id,
+        recipe_id=recipe_id
+    ).first()
+    
+    if not comment:
+        return jsonify({"error": "Comment not found"}), 404
+    
+    # Only comment author or admin can delete comment
+    is_admin = current_user.role == 'admin'
+    if comment.user_id != current_user.id and not is_admin:
+        return jsonify({"error": "You can only delete your own comments"}), 403
+    
+    try:
+        db.session.delete(comment)
+        db.session.commit()
+        return jsonify({"message": "Comment deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting comment: {e}")
+        return jsonify({"error": "Failed to delete comment"}), 500

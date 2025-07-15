@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface User {
   id: string;
@@ -43,6 +44,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Check for existing session on mount
@@ -50,18 +52,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const token = localStorage.getItem('auth_token');
         if (token) {
-          // TODO: Validate token with backend
-          // For now, simulate a logged-in user
-          setUser({
-            id: '1',
-            email: 'user@example.com',
-            name: 'Demo User',
-            role: 'user',
-            isAdmin: false
+          // Validate token with backend
+          const response = await fetch('/api/auth/me', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
           });
+
+          if (response.ok) {
+            const data = await response.json();
+            setUser({
+              id: data.user.id.toString(),
+              email: data.user.email,
+              name: data.user.username,
+              role: data.user.role,
+              isAdmin: data.user.role === 'admin',
+            });
+          } else {
+            // Token is invalid, remove it
+            localStorage.removeItem('auth_token');
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error);
+        // Remove invalid token
+        localStorage.removeItem('auth_token');
       } finally {
         setIsLoading(false);
       }
@@ -99,6 +116,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       localStorage.setItem('auth_token', data.session_token);
+      
+      // Invalidate all queries to ensure fresh data for the new user
+      queryClient.invalidateQueries();
     } finally {
       setIsLoading(false);
     }
@@ -138,6 +158,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('auth_token');
+    // Clear all React Query cache to prevent data leakage between users
+    queryClient.clear();
   };
 
   const value = {

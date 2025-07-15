@@ -8,6 +8,8 @@ from app.models.recipe import (
     Ingredient,
     Cookbook,
     UserRecipeCollection,
+    RecipeNote,
+    RecipeComment,
     recipe_ingredients,
 )
 from app.models.user import (
@@ -28,6 +30,8 @@ __all__ = [
     "Ingredient",
     "Cookbook",
     "UserRecipeCollection",
+    "RecipeNote",
+    "RecipeComment",
     "recipe_ingredients",
     "User",
     "Password",

@@ -73,6 +73,12 @@ class User(db.Model):
     recipe_collections: Mapped[List["UserRecipeCollection"]] = relationship(
         "UserRecipeCollection", back_populates="user", cascade="all, delete-orphan"
     )
+    recipe_notes: Mapped[List["RecipeNote"]] = relationship(
+        "RecipeNote", back_populates="user", cascade="all, delete-orphan"
+    )
+    recipe_comments: Mapped[List["RecipeComment"]] = relationship(
+        "RecipeComment", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def set_password(self, password: str) -> None:
         """Hash and set the user's password."""

@@ -28,7 +28,7 @@ class Config:
 
     # OCR Quality and LLM fallback settings
     OCR_QUALITY_THRESHOLD = int(
-        os.environ.get("OCR_QUALITY_THRESHOLD", 7)
+        os.environ.get("OCR_QUALITY_THRESHOLD", 9)
     )  # 1-10 scale
     OCR_ENABLE_LLM_FALLBACK = (
         os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"

@@ -45,6 +45,30 @@ export interface RecipeImage {
   uploaded_at: string;
 }
 
+export interface RecipeNote {
+  id: number;
+  user_id: number;
+  recipe_id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecipeComment {
+  id: number;
+  recipe_id: number;
+  user_id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: number;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+  };
+}
+
 export interface Recipe {
   id: number;
   title: string;
@@ -72,6 +96,7 @@ export interface Recipe {
   created_at: string;
   updated_at: string;
   is_in_collection?: boolean;
+  user_note?: RecipeNote | null;
 }
 
 export interface ProcessingJob {
@@ -137,6 +162,16 @@ export interface PublicStatsResponse {
   public_recipes: number;
   contributing_users: number;
   recent_recipes: number;
+}
+
+export interface CommentsResponse {
+  comments: RecipeComment[];
+  total: number;
+  pages: number;
+  current_page: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 export interface ApiError {

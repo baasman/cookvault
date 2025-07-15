@@ -14,11 +14,10 @@ const HeroSection: React.FC = () => {
           {/* Hero Text */}
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-text-primary leading-tight mb-6">
-              Your Recipes, Perfectly Organized
+              Give Your Cookbooks Digital Life
             </h1>
             <p className="text-lg sm:text-xl text-text-secondary mb-10 max-w-3xl mx-auto">
-              Transform handwritten notes, blog posts, image recipes and more into digital files with smart scanning technology.
-              From scattered recipes to organized recipe collections.
+              Transform your cherished cookbooks into searchable digital libraries. From vintage family collections to modern culinary masterpieces — preserve the recipes you love while making them more accessible than ever. Import from any source: cookbooks, magazines, handwritten notes, or online recipes.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to={isAuthenticated ? "/upload" : "/register"}>

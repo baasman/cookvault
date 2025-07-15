@@ -201,6 +201,12 @@ class Recipe(db.Model):
     user_collections: Mapped[List["UserRecipeCollection"]] = relationship(
         "UserRecipeCollection", back_populates="recipe", cascade="all, delete-orphan"
     )
+    user_notes: Mapped[List["RecipeNote"]] = relationship(
+        "RecipeNote", back_populates="recipe", cascade="all, delete-orphan"
+    )
+    comments: Mapped[List["RecipeComment"]] = relationship(
+        "RecipeComment", back_populates="recipe", cascade="all, delete-orphan"
+    )
 
     def get_status(self) -> str:
         """Get the status of the recipe based on its processing jobs."""
@@ -239,6 +245,11 @@ class Recipe(db.Model):
         if not user_id:
             return False
         
+        # User's own recipes are automatically considered "in collection"
+        if self.user_id == user_id:
+            return True
+        
+        # Check if explicitly added to collection
         collection_item = UserRecipeCollection.query.filter_by(
             user_id=user_id,
             recipe_id=self.id
@@ -335,6 +346,14 @@ class Recipe(db.Model):
         # Include collection status if current user is provided
         if current_user_id:
             result["is_in_collection"] = self.is_in_user_collection(current_user_id)
+            
+            # Include recipe owner's note for this recipe if it exists
+            user_note = None
+            for note in self.user_notes:
+                if note.user_id == self.user_id:  # Recipe owner's note, not current user's note
+                    user_note = note.to_dict()
+                    break
+            result["user_note"] = user_note
         
         return result
 
@@ -407,3 +426,73 @@ class ProcessingJob(db.Model):
                 self.completed_at.isoformat() if self.completed_at else None
             ),
         }
+
+
+class RecipeNote(db.Model):
+    """User's personal notes for recipes"""
+    __tablename__ = 'recipe_notes'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipe.id"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    
+    # Add unique constraint so each user can have only one note per recipe
+    __table_args__ = (db.UniqueConstraint('user_id', 'recipe_id', name='unique_user_recipe_note'),)
+    
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="recipe_notes")
+    recipe: Mapped["Recipe"] = relationship("Recipe", back_populates="user_notes")
+    
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "recipe_id": self.recipe_id,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class RecipeComment(db.Model):
+    """Comments on recipes by users"""
+    __tablename__ = 'recipe_comments'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipe.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="recipe_comments")
+    recipe: Mapped["Recipe"] = relationship("Recipe", back_populates="comments")
+    
+    def to_dict(self, include_user: bool = True) -> dict:
+        result = {
+            "id": self.id,
+            "recipe_id": self.recipe_id,
+            "user_id": self.user_id,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+        
+        # Include user information for display
+        if include_user and self.user:
+            result["user"] = {
+                "id": self.user.id,
+                "username": self.user.username,
+                "first_name": self.user.first_name,
+                "last_name": self.user.last_name,
+            }
+        
+        return result

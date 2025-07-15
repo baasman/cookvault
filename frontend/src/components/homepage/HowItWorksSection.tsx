@@ -29,18 +29,18 @@ const HowItWorksSection: React.FC = () => {
   const steps = [
     {
       number: 1,
-      title: "Upload",
-      description: "Take a photo or upload an image of your recipe from any cookbook, handwritten note, or printed page.",
+      title: "Digitize",
+      description: "Photograph pages from your favorite cookbooks, magazines, or handwritten recipe cards. Our system handles any source material.",
     },
     {
       number: 2,
-      title: "Process",
-      description: "Our system automatically converts and organizes the text, identifying ingredients, instructions, and cooking details for you.",
+      title: "Extract",
+      description: "Advanced scanning technology preserves every detail — ingredients, instructions, tips, and even the author's original notes and formatting.",
     },
     {
       number: 3,
       title: "Organize",
-      description: "Your digital recipe is ready! Edit, organize into cookbooks, add tags, and enjoy your perfectly structured recipe collection.",
+      description: "Build your digital cookbook library. Tag by cuisine, difficulty, occasion, or create custom collections. Your recipes become instantly searchable and always accessible.",
     }
   ];
 

@@ -7,6 +7,8 @@ import { Button } from '../components/ui';
 import { RecipeImageDisplay } from '../components/recipe/RecipeImageDisplay';
 import { RecipeEditForm } from '../components/recipe/RecipeEditForm';
 import { AddToCollectionButton } from '../components/recipe/AddToCollectionButton';
+import { NotesSection } from '../components/recipe/NotesSection';
+import { CommentsSection } from '../components/recipe/CommentsSection';
 import type { Recipe } from '../types';
 
 const RecipeDetailPage: React.FC = () => {
@@ -27,8 +29,41 @@ const RecipeDetailPage: React.FC = () => {
     enabled: isAuthenticated && !!recipeId,
   });
 
-  const canEdit = Boolean(recipe && user && (user.role === 'admin' || recipe.user_id === parseInt(user.id)));
-  const isOwnRecipe = Boolean(recipe && user && recipe.user_id === parseInt(user.id));
+  const canEdit = Boolean(
+    recipe && 
+    user && 
+    (user.role === 'admin' || 
+     (recipe.user_id && user.id && !isNaN(parseInt(user.id)) && recipe.user_id === parseInt(user.id)))
+  );
+  const isOwnRecipe = Boolean(
+    recipe && 
+    user && 
+    recipe.user_id && 
+    user.id && 
+    !isNaN(parseInt(user.id)) &&
+    recipe.user_id === parseInt(user.id)
+  );
+
+  // Debug logging for button visibility issues
+  if (recipe && user) {
+    console.log('RecipeDetailPage Debug:', {
+      recipeId: recipe.id,
+      recipeTitle: recipe.title,
+      recipeUserId: recipe.user_id,
+      recipeUserIdType: typeof recipe.user_id,
+      currentUserId: user.id,
+      currentUserIdType: typeof user.id,
+      parsedUserId: parseInt(user.id),
+      canEdit,
+      isOwnRecipe,
+      userRole: user.role,
+      isAdmin: user.role === 'admin',
+      isInCollection: recipe.is_in_collection,
+      hasIsInCollection: 'is_in_collection' in recipe,
+      isPublic: recipe.is_public,
+      isEditing
+    });
+  }
 
   const handleSaveEdit = (updatedRecipe: Recipe) => {
     // Update the query cache with the new recipe data
@@ -340,6 +375,16 @@ const RecipeDetailPage: React.FC = () => {
             </div>
           </div>
         </>
+      )}
+
+      {/* Notes Section - Only show when not editing */}
+      {!isEditing && (
+        <NotesSection recipe={recipe} />
+      )}
+
+      {/* Comments Section - Only show when not editing */}
+      {!isEditing && (
+        <CommentsSection recipe={recipe} />
       )}
 
       {/* Recipe Source */}
