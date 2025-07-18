@@ -7,6 +7,7 @@ import { Button } from '../components/ui';
 import { RecipeImageDisplay } from '../components/recipe/RecipeImageDisplay';
 import { RecipeEditForm } from '../components/recipe/RecipeEditForm';
 import { AddToCollectionButton } from '../components/recipe/AddToCollectionButton';
+import { CopyRecipeButton } from '../components/recipe/CopyRecipeButton';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import type { Recipe } from '../types';
@@ -163,6 +164,11 @@ const RecipeDetailPage: React.FC = () => {
           {/* Add to Collection Button - show for public recipes not owned by current user */}
           {recipe && !isOwnRecipe && recipe.is_public && !isEditing && (
             <AddToCollectionButton recipe={recipe} />
+          )}
+          
+          {/* Copy Recipe Button - show for public recipes not owned by current user */}
+          {recipe && !isOwnRecipe && recipe.is_public && !isEditing && (
+            <CopyRecipeButton recipe={recipe} size="sm" />
           )}
           
           {/* Edit Button */}

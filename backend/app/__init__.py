@@ -23,15 +23,15 @@ def create_app(config_name: str | None = None) -> Flask:
     config_name = config_name or os.environ.get("FLASK_ENV", "default")
     config_obj = config[config_name]
     app.config.from_object(config_obj)
-    
+
     # Initialize config-specific settings
     config_obj.init_app(app)
-    
+
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
-    
+
     # Configure CORS
     cors_origins = app.config.get('CORS_ORIGINS', ["http://localhost:5173", "http://127.0.0.1:5173"])
     CORS(
@@ -41,7 +41,7 @@ def create_app(config_name: str | None = None) -> Flask:
         allow_headers=['Content-Type', 'Authorization'],
         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     )
-    
+
     # Configure security headers with Talisman
     if not app.debug:
         csp = {
@@ -62,7 +62,7 @@ def create_app(config_name: str | None = None) -> Flask:
                 'microphone': "'none'",
             }
         )
-    
+
     # Configure rate limiting
     limiter = Limiter(
         app=app,
@@ -70,27 +70,27 @@ def create_app(config_name: str | None = None) -> Flask:
         default_limits=[app.config.get('RATELIMIT_DEFAULT', '100/hour')],
         storage_uri=app.config.get('RATELIMIT_STORAGE_URL')
     )
-    
+
     # Create upload folder
     upload_folder = Path(app.config["UPLOAD_FOLDER"])
     upload_folder.mkdir(exist_ok=True)
-    
+
     # Create logs folder for production
     if not app.debug:
         logs_folder = Path("logs")
         logs_folder.mkdir(exist_ok=True)
-    
+
     # Register blueprints
     from app.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix="/api")
-    
+
     # Serve static files (frontend build)
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve_frontend(path):
         """Serve frontend static files or index.html for SPA routing"""
         frontend_build_dir = Path(__file__).parent.parent.parent / "frontend" / "dist"
-        
+
         if frontend_build_dir.exists():
             if path and (frontend_build_dir / path).exists():
                 return send_from_directory(frontend_build_dir, path)
@@ -106,24 +106,24 @@ def create_app(config_name: str | None = None) -> Flask:
     def health_check():
         """Health check endpoint for load balancers"""
         return {
-            "status": "healthy", 
+            "status": "healthy",
             "service": "cookbook-creator-backend",
             "version": "1.0.0"
         }
-    
+
     @app.route("/api/health")
     @limiter.exempt
     def api_health_check():
         """Detailed health check for monitoring"""
         import redis
         from sqlalchemy import text
-        
+
         checks = {
             "database": False,
             "redis": False,
             "uploads": False
         }
-        
+
         try:
             # Check database connection
             with db.engine.connect() as conn:
@@ -131,7 +131,7 @@ def create_app(config_name: str | None = None) -> Flask:
             checks["database"] = True
         except Exception as e:
             app.logger.error(f"Database health check failed: {e}")
-        
+
         try:
             # Check Redis connection
             r = redis.from_url(app.config['REDIS_URL'])
@@ -139,17 +139,17 @@ def create_app(config_name: str | None = None) -> Flask:
             checks["redis"] = True
         except Exception as e:
             app.logger.error(f"Redis health check failed: {e}")
-        
+
         try:
             # Check upload folder
             upload_folder = Path(app.config["UPLOAD_FOLDER"])
             checks["uploads"] = upload_folder.exists() and upload_folder.is_dir()
         except Exception as e:
             app.logger.error(f"Upload folder health check failed: {e}")
-        
+
         all_healthy = all(checks.values())
         status_code = 200 if all_healthy else 503
-        
+
         return {
             "status": "healthy" if all_healthy else "unhealthy",
             "checks": checks,

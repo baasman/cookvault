@@ -566,6 +566,28 @@ class RecipesApi {
       throw error;
     }
   }
+
+  async copyRecipe(recipeId: number): Promise<{ recipe: Recipe; message: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/copy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error copying recipe:', error);
+      throw error;
+    }
+  }
 }
 
 export const recipesApi = new RecipesApi();

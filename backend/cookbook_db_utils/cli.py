@@ -162,6 +162,27 @@ def execute_command(args):
     migrate_manager = MigrationManager(args.env)
     seeder = DataSeeder(args.env)
     db_utils = DatabaseUtils(args.env)
+    
+    # Always log which database is being used
+    db_uri = db_manager.app.config['SQLALCHEMY_DATABASE_URI']
+    if db_uri.startswith('sqlite:///'):
+        db_path = db_uri.replace('sqlite:///', '')
+        print(f"🗄️  Using SQLite database: {db_path}")
+    elif db_uri.startswith('postgresql'):
+        # Extract host and database name from PostgreSQL URI for security
+        import re
+        match = re.search(r'postgresql://[^@]+@([^:/]+):?(\d+)?/([^?]+)', db_uri)
+        if match:
+            host, port, dbname = match.groups()
+            port_str = f":{port}" if port else ""
+            print(f"🗄️  Using PostgreSQL database: {dbname} on {host}{port_str}")
+        else:
+            print(f"🗄️  Using PostgreSQL database: [connection string parsed]")
+    else:
+        print(f"🗄️  Using database: {db_uri.split('://')[0] if '://' in db_uri else 'Unknown'}")
+    
+    print(f"🌍 Environment: {args.env}")
+    print("")
 
     # Database management commands
     if args.command == "db":
@@ -308,7 +329,6 @@ def main():
 
     # Set up verbose logging if requested
     if args.verbose:
-        print(f"🔧 Environment: {args.env}")
         print(f"📝 Command: {args.command}")
 
     try:

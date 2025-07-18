@@ -35,6 +35,24 @@ def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def safe_int_conversion(value: Any) -> int | None:
+    """Safely convert a value to an integer, extracting the first number from strings"""
+    if value is None:
+        return None
+    
+    if isinstance(value, int):
+        return value
+    
+    if isinstance(value, str):
+        import re
+        # Extract the first number from the string
+        match = re.search(r'\d+', value.strip())
+        if match:
+            return int(match.group())
+    
+    return None
+
+
 @bp.route("/recipes", methods=["GET"])
 @require_auth
 def get_recipes(current_user) -> Response:
@@ -785,9 +803,9 @@ def _create_recipe_from_parsed_data(
         description=parsed_recipe.get("description"),
         cookbook_id=job.cookbook_id,
         page_number=job.page_number,
-        prep_time=parsed_recipe.get("prep_time"),
-        cook_time=parsed_recipe.get("cook_time"),
-        servings=parsed_recipe.get("servings"),
+        prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
+        cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
+        servings=safe_int_conversion(parsed_recipe.get("servings")),
         difficulty=parsed_recipe.get("difficulty"),
         user_id=user_id,
         is_public=False,  # New recipes are private by default
@@ -1508,3 +1526,119 @@ def delete_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Resp
         db.session.rollback()
         current_app.logger.error(f"Error deleting comment: {e}")
         return jsonify({"error": "Failed to delete comment"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/copy", methods=["POST"])
+@require_auth
+def copy_recipe(current_user, recipe_id: int) -> Response:
+    """Create a copy of a public recipe for the current user."""
+    # Check if recipe exists and is public
+    recipe = Recipe.query.options(
+        db.joinedload(Recipe.images),
+        db.joinedload(Recipe.ingredients),
+        db.joinedload(Recipe.recipe_instructions),
+        db.joinedload(Recipe.recipe_tags)
+    ).get(recipe_id)
+    
+    if not recipe:
+        return jsonify({"error": "Recipe not found"}), 404
+    
+    # Only public recipes can be copied
+    if not recipe.is_public:
+        return jsonify({"error": "Only public recipes can be copied"}), 403
+    
+    # Users cannot copy their own recipes
+    if recipe.user_id == current_user.id:
+        return jsonify({"error": "You cannot copy your own recipe"}), 400
+    
+    try:
+        # Create new recipe with copied data
+        new_recipe = Recipe(
+            title=f"{recipe.title} (Copy)",
+            description=recipe.description,
+            prep_time=recipe.prep_time,
+            cook_time=recipe.cook_time,
+            servings=recipe.servings,
+            difficulty=recipe.difficulty,
+            source=recipe.source,
+            user_id=current_user.id,
+            is_public=False,  # Copied recipes are private by default
+            cookbook_id=None,  # Remove cookbook association
+            page_number=None,  # Remove page number
+        )
+        
+        db.session.add(new_recipe)
+        db.session.flush()  # Get the new recipe ID
+        
+        # Copy ingredients
+        for ingredient in recipe.ingredients:
+            # Get the association data from the recipe_ingredients table
+            association = db.session.execute(
+                recipe_ingredients.select().where(
+                    recipe_ingredients.c.recipe_id == recipe_id,
+                    recipe_ingredients.c.ingredient_id == ingredient.id
+                )
+            ).first()
+            
+            if association:
+                # Create new association for the copied recipe
+                new_association = recipe_ingredients.insert().values(
+                    recipe_id=new_recipe.id,
+                    ingredient_id=ingredient.id,
+                    quantity=association.quantity,
+                    unit=association.unit,
+                    preparation=association.preparation,
+                    optional=association.optional,
+                    order=association.order
+                )
+                db.session.execute(new_association)
+        
+        # Copy instructions
+        for instruction in recipe.recipe_instructions:
+            new_instruction = Instruction(
+                recipe_id=new_recipe.id,
+                step_number=instruction.step_number,
+                text=instruction.text
+            )
+            db.session.add(new_instruction)
+        
+        # Copy tags
+        for tag in recipe.recipe_tags:
+            new_recipe.recipe_tags.append(tag)
+        
+        # Copy images
+        for image in recipe.images:
+            # Copy the image file
+            original_path = Path(image.file_path)
+            if original_path.exists():
+                # Generate new filename
+                new_filename = f"{uuid.uuid4()}.{image.filename.split('.')[-1]}"
+                new_path = original_path.parent / new_filename
+                
+                # Copy the file
+                import shutil
+                shutil.copy2(original_path, new_path)
+                
+                # Create new image record
+                new_image = RecipeImage(
+                    recipe_id=new_recipe.id,
+                    filename=new_filename,
+                    original_filename=image.original_filename,
+                    file_path=str(new_path),
+                    file_size=image.file_size,
+                    content_type=image.content_type
+                )
+                db.session.add(new_image)
+        
+        db.session.commit()
+        
+        # Return the copied recipe
+        return jsonify({
+            "recipe": new_recipe.to_dict(include_user=True),
+            "message": "Recipe copied successfully"
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error copying recipe: {e}")
+        return jsonify({"error": "Failed to copy recipe"}), 500

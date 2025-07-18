@@ -14,9 +14,22 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 
 from cookbook_db_utils.imports import (
-    create_app, db, User, UserSession, Password, Recipe, Cookbook, Ingredient,
-    Tag, Instruction, RecipeImage, ProcessingJob,
-    UserRole, UserStatus, ProcessingStatus, recipe_ingredients
+    create_app,
+    db,
+    User,
+    UserSession,
+    Password,
+    Recipe,
+    Cookbook,
+    Ingredient,
+    Tag,
+    Instruction,
+    RecipeImage,
+    ProcessingJob,
+    UserRole,
+    UserStatus,
+    ProcessingStatus,
+    recipe_ingredients,
 )
 
 
@@ -25,6 +38,7 @@ class DataSeeder:
 
     def __init__(self, config_name: str = "development"):
         """Initialize with Flask app context"""
+        print(config_name)
         self.app = create_app(config_name)
         self.config_name = config_name
 
@@ -39,30 +53,30 @@ class DataSeeder:
         try:
             with self.app.app_context():
                 # Create all data in order within a single context and transaction
-                
+
                 # 1. Create users
                 users = self._create_sample_users()
-                results['users'] = len(users)
+                results["users"] = len(users)
                 db.session.flush()  # Get user IDs
-                
+
                 # 2. Create ingredients
                 ingredients = self._create_sample_ingredients()
-                results['ingredients'] = len(ingredients)
+                results["ingredients"] = len(ingredients)
                 db.session.flush()  # Get ingredient IDs
-                
+
                 # 3. Create cookbooks
                 cookbooks = self._create_sample_cookbooks(users)
-                results['cookbooks'] = len(cookbooks)
+                results["cookbooks"] = len(cookbooks)
                 db.session.flush()  # Get cookbook IDs
-                
+
                 # 4. Create recipes
                 recipes = self._create_sample_recipes(users, cookbooks, ingredients)
-                results['recipes'] = len(recipes)
+                results["recipes"] = len(recipes)
                 db.session.flush()  # Get recipe IDs
-                
+
                 # 5. Create processing jobs
                 jobs = self._create_sample_processing_jobs(recipes)
-                results['processing_jobs'] = len(jobs)
+                results["processing_jobs"] = len(jobs)
 
                 # Commit all changes at once
                 db.session.commit()
@@ -75,7 +89,10 @@ class DataSeeder:
                 return results
 
         except Exception as e:
+            import traceback
             print(f"❌ Error during data seeding: {e}")
+            print("Full traceback:")
+            traceback.print_exc()
             db.session.rollback()
             return {}
 
@@ -88,7 +105,7 @@ class DataSeeder:
                 "first_name": "Admin",
                 "last_name": "User",
                 "role": UserRole.ADMIN,
-                "password": "admin123"
+                "password": "admin123",
             },
             {
                 "username": "chef_gordon",
@@ -96,7 +113,7 @@ class DataSeeder:
                 "first_name": "Gordon",
                 "last_name": "Chef",
                 "role": UserRole.USER,
-                "password": "chef123"
+                "password": "chef123",
             },
             {
                 "username": "home_cook",
@@ -104,12 +121,12 @@ class DataSeeder:
                 "first_name": "Home",
                 "last_name": "Cook",
                 "role": UserRole.USER,
-                "password": "cook123"
-            }
+                "password": "cook123",
+            },
         ]
 
         created_users = []
-        
+
         for user_data in sample_users:
             # Check if user already exists
             existing = User.query.filter_by(username=user_data["username"]).first()
@@ -124,10 +141,10 @@ class DataSeeder:
                 last_name=user_data["last_name"],
                 role=user_data["role"],
                 status=UserStatus.ACTIVE,
-                is_verified=True
+                is_verified=True,
             )
             user.set_password(user_data["password"])
-            
+
             db.session.add(user)
             created_users.append(user)
 
@@ -145,20 +162,17 @@ class DataSeeder:
             {"name": "onion", "category": "vegetable"},
             {"name": "butter", "category": "dairy"},
             {"name": "lemon", "category": "fruit"},
-            
             # Brussels sprouts recipe ingredients
             {"name": "brussels sprouts", "category": "vegetable"},
             {"name": "black garlic", "category": "seasoning"},
             {"name": "thyme", "category": "herb"},
             {"name": "parmesan cheese", "category": "dairy"},
-            
             # New potatoes recipe ingredients
             {"name": "new potatoes", "category": "vegetable"},
             {"name": "fresh peas", "category": "vegetable"},
             {"name": "cilantro", "category": "herb"},
             {"name": "mint", "category": "herb"},
             {"name": "spring onions", "category": "vegetable"},
-            
             # Tofu chraimeh recipe ingredients
             {"name": "firm tofu", "category": "protein"},
             {"name": "haricots verts", "category": "vegetable"},
@@ -171,7 +185,7 @@ class DataSeeder:
         ]
 
         created_ingredients = []
-        
+
         for ing_data in sample_ingredients:
             # Check if ingredient already exists
             existing = Ingredient.query.filter_by(name=ing_data["name"]).first()
@@ -180,8 +194,7 @@ class DataSeeder:
                 continue
 
             ingredient = Ingredient(
-                name=ing_data["name"],
-                category=ing_data["category"]
+                name=ing_data["name"], category=ing_data["category"]
             )
             db.session.add(ingredient)
             created_ingredients.append(ingredient)
@@ -201,15 +214,15 @@ class DataSeeder:
                 "description": "A cookbook of abundantly flavored recipes that offer maximum joy for minimum effort",
                 "publisher": "Ten Speed Press",
                 "isbn": "978-1607749165",
-                "publication_date": datetime(2018, 10, 4)
+                "publication_date": datetime(2018, 10, 4),
             }
         ]
 
         created_cookbooks = []
-        
+
         for i, cookbook_data in enumerate(sample_cookbooks):
             user = users[i % len(users)]
-            
+
             cookbook = Cookbook(
                 title=cookbook_data["title"],
                 author=cookbook_data["author"],
@@ -217,7 +230,7 @@ class DataSeeder:
                 publisher=cookbook_data.get("publisher"),
                 isbn=cookbook_data.get("isbn"),
                 publication_date=cookbook_data.get("publication_date"),
-                user_id=user.id
+                user_id=user.id,
             )
             db.session.add(cookbook)
             created_cookbooks.append(cookbook)
@@ -225,8 +238,12 @@ class DataSeeder:
         print(f"✅ Created {len(created_cookbooks)} cookbooks")
         return created_cookbooks
 
-    def _create_sample_recipes(self, users: List[User], cookbooks: List[Cookbook], 
-                              ingredients: List[Ingredient]) -> List[Recipe]:
+    def _create_sample_recipes(
+        self,
+        users: List[User],
+        cookbooks: List[Cookbook],
+        ingredients: List[Ingredient],
+    ) -> List[Recipe]:
         """Create sample recipes"""
         if not users or not cookbooks or not ingredients:
             return []
@@ -240,7 +257,7 @@ class DataSeeder:
                 "servings": 4,
                 "difficulty": "medium",
                 "page_number": 142,
-                "image_filename": "brussel-sprouts-browned-butter-black-garlic.png"
+                "image_filename": "brussel-sprouts-browned-butter-black-garlic.png",
             },
             {
                 "title": "New Potatoes with Peas and Cilantro",
@@ -250,7 +267,7 @@ class DataSeeder:
                 "servings": 6,
                 "difficulty": "easy",
                 "page_number": 98,
-                "image_filename": "new-potatoes-peas-cilantro.png"
+                "image_filename": "new-potatoes-peas-cilantro.png",
             },
             {
                 "title": "Tofu and Haricots Verts Chraimeh",
@@ -260,16 +277,18 @@ class DataSeeder:
                 "servings": 4,
                 "difficulty": "medium",
                 "page_number": 176,
-                "image_filename": "tofu-haricots-chraimeh.png"
-            }
+                "image_filename": "tofu-haricots-chraimeh.png",
+            },
         ]
 
         created_recipes = []
-        
+
         for i, recipe_data in enumerate(sample_recipes):
             user = users[i % len(users)]
-            cookbook = cookbooks[0]  # Use the Ottolenghi Simple cookbook for all recipes
-            
+            cookbook = cookbooks[
+                0
+            ]  # Use the Ottolenghi Simple cookbook for all recipes
+
             recipe = Recipe(
                 title=recipe_data["title"],
                 description=recipe_data["description"],
@@ -280,11 +299,11 @@ class DataSeeder:
                 page_number=recipe_data.get("page_number"),
                 user_id=user.id,
                 cookbook_id=cookbook.id,
-                is_public=False  # Start as private by default
+                is_public=False,  # Start as private by default
             )
             db.session.add(recipe)
             db.session.flush()  # Get recipe ID
-            
+
             # Add realistic cooking instructions for each recipe
             instructions_by_recipe = [
                 # Brussels Sprouts with Browned Butter and Black Garlic
@@ -296,7 +315,7 @@ class DataSeeder:
                     "Meanwhile, heat butter in a small pan over medium heat until it turns golden brown and smells nutty.",
                     "Mash the black garlic with a fork until smooth.",
                     "Toss the roasted sprouts with browned butter, black garlic, and fresh thyme.",
-                    "Finish with grated Parmesan and serve immediately."
+                    "Finish with grated Parmesan and serve immediately.",
                 ],
                 # New Potatoes with Peas and Cilantro
                 [
@@ -307,7 +326,7 @@ class DataSeeder:
                     "Make a dressing with olive oil, lemon juice, minced garlic, salt, and pepper.",
                     "Toss warm potatoes with peas, chopped cilantro, mint, and spring onions.",
                     "Add the dressing and toss gently to combine.",
-                    "Taste and adjust seasoning, then serve warm or at room temperature."
+                    "Taste and adjust seasoning, then serve warm or at room temperature.",
                 ],
                 # Tofu and Haricots Verts Chraimeh
                 [
@@ -318,20 +337,22 @@ class DataSeeder:
                     "Simmer the sauce for 15 minutes until thickened.",
                     "Add trimmed haricots verts and cook for 8-10 minutes until tender.",
                     "Return tofu to the pan and simmer for 5 minutes to heat through.",
-                    "Garnish with fresh cilantro and serve with rice or flatbread."
-                ]
+                    "Garnish with fresh cilantro and serve with rice or flatbread.",
+                ],
             ]
-            
-            recipe_instructions = instructions_by_recipe[i] if i < len(instructions_by_recipe) else [f"Follow the traditional method for {recipe_data['title']}"]
-            
+
+            recipe_instructions = (
+                instructions_by_recipe[i]
+                if i < len(instructions_by_recipe)
+                else [f"Follow the traditional method for {recipe_data['title']}"]
+            )
+
             for step_num, instruction_text in enumerate(recipe_instructions, 1):
                 instruction = Instruction(
-                    recipe_id=recipe.id,
-                    step_number=step_num,
-                    text=instruction_text
+                    recipe_id=recipe.id, step_number=step_num, text=instruction_text
                 )
                 db.session.add(instruction)
-            
+
             # Add one ingredient
             if ingredients:
                 ingredient = ingredients[i % len(ingredients)]
@@ -341,16 +362,18 @@ class DataSeeder:
                     quantity=1,
                     unit="cup",
                     optional=False,
-                    order=1
+                    order=1,
                 )
                 db.session.execute(stmt)
-            
+
             created_recipes.append(recipe)
 
         print(f"✅ Created {len(created_recipes)} recipes")
         return created_recipes
 
-    def _create_sample_processing_jobs(self, recipes: List[Recipe]) -> List[ProcessingJob]:
+    def _create_sample_processing_jobs(
+        self, recipes: List[Recipe]
+    ) -> List[ProcessingJob]:
         """Create sample processing jobs"""
         if not recipes:
             return []
@@ -359,38 +382,44 @@ class DataSeeder:
         image_files = [
             "brussel-sprouts-browned-butter-black-garlic.png",
             "new-potatoes-peas-cilantro.png",
-            "tofu-haricots-chraimeh.png"
+            "tofu-haricots-chraimeh.png",
         ]
 
         created_jobs = []
-        
+
         # Create processing jobs for all recipes
         for i, recipe in enumerate(recipes):
-            image_filename = image_files[i] if i < len(image_files) else "sample_image.jpg"
-            
+            image_filename = (
+                image_files[i] if i < len(image_files) else "sample_image.jpg"
+            )
+
             # Create a recipe image for each recipe
             recipe_image = RecipeImage(
                 filename=image_filename,
                 original_filename=image_filename,
                 file_path=f"/Users/baasman/projects/cookbook-creator/backend/scripts/seed_data/{image_filename}",
                 file_size=2048576,  # ~2MB realistic file size
-                content_type="image/png"
+                content_type="image/png",
             )
             db.session.add(recipe_image)
             db.session.flush()  # Get the image ID
-            
+
             # Create processing job with realistic OCR text
             ocr_texts = [
                 f"Recipe from Ottolenghi Simple: {recipe.title}. This delicious recipe combines traditional techniques with modern flavors.",
                 f"From the cookbook Ottolenghi Simple by Yotam Ottolenghi. Page {recipe.page_number or 'unknown'}. {recipe.description}",
-                f"Ottolenghi Simple recipe: {recipe.title}. Prep time: {recipe.prep_time} minutes. Cook time: {recipe.cook_time} minutes."
+                f"Ottolenghi Simple recipe: {recipe.title}. Prep time: {recipe.prep_time} minutes. Cook time: {recipe.cook_time} minutes.",
             ]
-            
+
             job = ProcessingJob(
                 recipe_id=recipe.id,
                 image_id=recipe_image.id,
                 status=ProcessingStatus.COMPLETED,
-                ocr_text=ocr_texts[i] if i < len(ocr_texts) else f"OCR text for {recipe.title}"
+                ocr_text=(
+                    ocr_texts[i]
+                    if i < len(ocr_texts)
+                    else f"OCR text for {recipe.title}"
+                ),
             )
             db.session.add(job)
             created_jobs.append(job)
@@ -403,7 +432,7 @@ class DataSeeder:
         if not confirm:
             print("⚠️  WARNING: This will delete all data!")
             response = input("Continue? (y/N): ").lower().strip()
-            if response != 'y':
+            if response != "y":
                 print("Operation cancelled.")
                 return False
 
@@ -416,12 +445,15 @@ class DataSeeder:
                 Cookbook.query.delete()
                 Ingredient.query.delete()
                 User.query.delete()
-                
+
                 db.session.commit()
                 print("✅ All data cleared successfully!")
                 return True
         except Exception as e:
+            import traceback
             print(f"❌ Error clearing data: {e}")
+            print("Full traceback:")
+            traceback.print_exc()
             db.session.rollback()
             return False
 
@@ -446,21 +478,29 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Cookbook Creator Data Seeder")
-    parser.add_argument("--env", default="development",
-                       choices=["development", "testing"],
-                       help="Environment configuration")
+    parser.add_argument(
+        "--env",
+        default="development",
+        choices=["development", "testing"],
+        help="Environment configuration",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Seed all
     seed_parser = subparsers.add_parser("seed", help="Seed all sample data")
-    seed_parser.add_argument("--dataset", default="full", 
-                           choices=["minimal", "full", "demo"],
-                           help="Dataset size to seed")
+    seed_parser.add_argument(
+        "--dataset",
+        default="full",
+        choices=["minimal", "full", "demo"],
+        help="Dataset size to seed",
+    )
 
     # Clear data
     clear_parser = subparsers.add_parser("clear", help="Clear all data")
-    clear_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
+    clear_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation"
+    )
 
     # Individual components
     subparsers.add_parser("users", help="Seed only users")
