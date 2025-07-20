@@ -97,6 +97,11 @@ export interface Recipe {
   updated_at: string;
   is_in_collection?: boolean;
   user_note?: RecipeNote | null;
+  groups?: {
+    id: number;
+    name: string;
+    description?: string;
+  }[];
 }
 
 export interface ProcessingJob {

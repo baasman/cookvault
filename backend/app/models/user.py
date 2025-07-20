@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app import db, bcrypt
@@ -78,6 +78,12 @@ class User(db.Model):
     )
     recipe_comments: Mapped[List["RecipeComment"]] = relationship(
         "RecipeComment", back_populates="user", cascade="all, delete-orphan"
+    )
+    recipe_groups: Mapped[List["RecipeGroup"]] = relationship(
+        "RecipeGroup", back_populates="user", cascade="all, delete-orphan"
+    )
+    copyright_consents: Mapped[List["CopyrightConsent"]] = relationship(
+        "CopyrightConsent", back_populates="user", cascade="all, delete-orphan"
     )
 
     def set_password(self, password: str) -> None:
@@ -247,4 +253,46 @@ class UserSession(db.Model):
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "is_active": self.is_active,
             "logout_at": self.logout_at.isoformat() if self.logout_at else None,
+        }
+
+
+class CopyrightConsent(db.Model):
+    """Model to track copyright consent for recipe uploads and publications."""
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    recipe_id: Mapped[Optional[int]] = mapped_column(ForeignKey("recipe.id"))
+    
+    # Consent details
+    consent_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    consent_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'upload' or 'publish'
+    
+    # Tracking
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45))  # IPv6 compatible
+    user_agent: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Status
+    is_valid: Mapped[bool] = mapped_column(Boolean, default=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="copyright_consents")
+    recipe: Mapped[Optional["Recipe"]] = relationship("Recipe")
+
+    def revoke(self) -> None:
+        """Revoke this consent record."""
+        self.is_valid = False
+        self.revoked_at = datetime.utcnow()
+
+    def to_dict(self) -> dict:
+        """Convert consent to dictionary representation."""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "recipe_id": self.recipe_id,
+            "consent_data": self.consent_data,
+            "consent_type": self.consent_type,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "is_valid": self.is_valid,
+            "revoked_at": self.revoked_at.isoformat() if self.revoked_at else None,
         }

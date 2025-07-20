@@ -257,15 +257,23 @@ class RecipesApi {
     }
   }
 
-  async toggleRecipePrivacy(recipeId: number, isPublic: boolean): Promise<Recipe> {
+  async toggleRecipePrivacy(recipeId: number, isPublic: boolean, copyrightConsent?: Record<string, boolean>): Promise<Recipe> {
     try {
+      const requestBody: { is_public: boolean; copyright_consent?: Record<string, boolean> } = {
+        is_public: isPublic
+      };
+      
+      if (isPublic && copyrightConsent) {
+        requestBody.copyright_consent = copyrightConsent;
+      }
+
       const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/privacy`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ is_public: isPublic }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

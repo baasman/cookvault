@@ -7,10 +7,12 @@ from app.models.recipe import (
     Instruction,
     Ingredient,
     Cookbook,
+    RecipeGroup,
     UserRecipeCollection,
     RecipeNote,
     RecipeComment,
     recipe_ingredients,
+    recipe_group_memberships,
 )
 from app.models.user import (
     User,
@@ -18,6 +20,7 @@ from app.models.user import (
     UserSession,
     UserRole,
     UserStatus,
+    CopyrightConsent,
 )
 
 __all__ = [
@@ -29,13 +32,16 @@ __all__ = [
     "Instruction",
     "Ingredient",
     "Cookbook",
+    "RecipeGroup",
     "UserRecipeCollection",
     "RecipeNote",
     "RecipeComment",
     "recipe_ingredients",
+    "recipe_group_memberships",
     "User",
     "Password",
     "UserSession",
     "UserRole",
     "UserStatus",
+    "CopyrightConsent",
 ]

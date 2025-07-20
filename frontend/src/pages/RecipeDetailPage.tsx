@@ -8,6 +8,7 @@ import { RecipeImageDisplay } from '../components/recipe/RecipeImageDisplay';
 import { RecipeEditForm } from '../components/recipe/RecipeEditForm';
 import { AddToCollectionButton } from '../components/recipe/AddToCollectionButton';
 import { CopyRecipeButton } from '../components/recipe/CopyRecipeButton';
+import { AddToGroupButton } from '../components/recipe/AddToGroupButton';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import type { Recipe } from '../types';
@@ -166,6 +167,11 @@ const RecipeDetailPage: React.FC = () => {
             <AddToCollectionButton recipe={recipe} />
           )}
           
+          {/* Add to Group Button - show for authenticated users viewing any recipe */}
+          {recipe && isAuthenticated && !isEditing && (
+            <AddToGroupButton recipe={recipe} size="sm" />
+          )}
+          
           {/* Copy Recipe Button - show for public recipes not owned by current user */}
           {recipe && !isOwnRecipe && recipe.is_public && !isEditing && (
             <CopyRecipeButton recipe={recipe} size="sm" />
@@ -305,6 +311,28 @@ const RecipeDetailPage: React.FC = () => {
                     {recipe.page_number && (
                       <p className="text-sm text-text-secondary">Page {recipe.page_number}</p>
                     )}
+                  </div>
+                )}
+
+                {/* Recipe Groups Info */}
+                {recipe.groups && recipe.groups.length > 0 && (
+                  <div className="p-4 bg-background-secondary rounded-lg">
+                    <h3 className="text-sm font-medium text-text-secondary mb-1">In Recipe Groups</h3>
+                    <div className="space-y-1">
+                      {recipe.groups.map((group) => (
+                        <div key={group.id}>
+                          <Link 
+                            to={`/recipe-groups/${group.id}`}
+                            className="font-medium text-text-primary hover:text-accent transition-colors underline hover:no-underline"
+                          >
+                            {group.name}
+                          </Link>
+                          {group.description && (
+                            <p className="text-xs text-text-secondary">{group.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

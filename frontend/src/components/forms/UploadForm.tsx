@@ -30,9 +30,25 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     selected_google_book: null,
     no_cookbook: true, // Default to no cookbook
   });
+  
+  const [copyrightConsents, setCopyrightConsents] = useState({
+    rightsToShare: false,
+    understandsPublic: false,
+    personalUseOnly: false,
+    noCopyrightViolation: false
+  });
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleConsentChange = (key: keyof typeof copyrightConsents) => {
+    setCopyrightConsents(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const allConsentsGiven = Object.values(copyrightConsents).every(Boolean);
 
   const handleFileSelect = (file: File) => {
     // Validate file type
@@ -111,6 +127,12 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     }
 
     // No validation needed for no_cookbook option - it's always valid
+
+    // Validate copyright consent
+    if (!allConsentsGiven) {
+      alert('Please acknowledge all copyright consent requirements before uploading.');
+      return;
+    }
 
     onSubmit(formData);
   };
@@ -520,6 +542,80 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           </div>
         </div>
 
+        {/* Copyright Consent Section */}
+        <div className="flex flex-col gap-4">
+          <h3 className="text-lg font-medium" style={{color: '#1c120d'}}>
+            Copyright Consent
+          </h3>
+          
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h4 className="font-semibold text-gray-900 mb-2">Important Copyright Notice</h4>
+            <p className="text-sm text-gray-700">
+              Recipe ingredients and basic cooking methods are generally not copyrightable. However, 
+              detailed creative descriptions, personal stories, unique presentations, and substantial 
+              portions of published cookbooks may be protected by copyright.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={copyrightConsents.rightsToShare}
+                onChange={() => handleConsentChange('rightsToShare')}
+                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                disabled={isLoading}
+              />
+              <span className="text-sm text-gray-700">
+                <strong>I have the right to share this recipe.</strong> I either created this recipe myself, 
+                have permission to share it, or believe it contains only non-copyrightable factual cooking information.
+              </span>
+            </label>
+
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={copyrightConsents.understandsPublic}
+                onChange={() => handleConsentChange('understandsPublic')}
+                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                disabled={isLoading}
+              />
+              <span className="text-sm text-gray-700">
+                <strong>I understand this recipe may be made public.</strong> I may choose to make this recipe 
+                publicly visible later, allowing other users to view, search for, and access it.
+              </span>
+            </label>
+
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={copyrightConsents.personalUseOnly}
+                onChange={() => handleConsentChange('personalUseOnly')}
+                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                disabled={isLoading}
+              />
+              <span className="text-sm text-gray-700">
+                <strong>I grant others permission for personal use.</strong> If I make this recipe public, 
+                I allow other users to use it for their personal, non-commercial cooking and meal preparation.
+              </span>
+            </label>
+
+            <label className="flex items-start space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={copyrightConsents.noCopyrightViolation}
+                onChange={() => handleConsentChange('noCopyrightViolation')}
+                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                disabled={isLoading}
+              />
+              <span className="text-sm text-gray-700">
+                <strong>I will not violate copyright.</strong> I have not copied substantial portions of copyrighted 
+                cookbooks, magazine articles, or other protected content without permission.
+              </span>
+            </label>
+          </div>
+        </div>
+
         {/* Error Message */}
         {error && (
           <div className="p-4 rounded-xl" style={{backgroundColor: '#fee2e2', color: '#dc2626'}}>
@@ -533,7 +629,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             type="submit"
             variant="primary"
             size="lg"
-            disabled={isLoading || !formData.image}
+            disabled={isLoading || !formData.image || !allConsentsGiven}
             className="min-w-[200px]"
           >
             {isLoading ? (

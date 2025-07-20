@@ -23,6 +23,7 @@ from app.models import (
     RecipeNote,
     Tag,
     UserRecipeCollection,
+    CopyrightConsent,
 )
 from app.models.recipe import recipe_ingredients
 from app.services.ocr_service import OCRService
@@ -86,19 +87,21 @@ def get_recipes(current_user) -> Response:
                 )
             )
         elif filter_type == "discover":
-            # All public recipes from other users (for discovery) - only when searching
+            # All public recipes from other users (for discovery)
+            query = query.filter(
+                Recipe.is_public == True,
+                Recipe.user_id != current_user.id,  # Exclude user's own recipes
+            )
             if search and search.strip():
-                query = query.filter(
-                    Recipe.is_public == True,
-                    Recipe.user_id != current_user.id,  # Exclude user's own recipes
-                )
                 # Debug logging
                 current_app.logger.info(
                     f"Discover mode search '{search}' for user {current_user.id}: looking for public recipes from other users"
                 )
             else:
-                # No search term - return empty results
-                query = query.filter(Recipe.id == -1)  # Impossible condition
+                # No search term - show all recent public recipes
+                current_app.logger.info(
+                    f"Discover mode (no search) for user {current_user.id}: showing recent public recipes from other users"
+                )
         # No default case needed - collection is the default
     else:
         # Admins see all recipes, but can still use filters
@@ -108,12 +111,12 @@ def get_recipes(current_user) -> Response:
             # For admins, collection filter shows all recipes (could be refined)
             pass  # No additional filter needed
         elif filter_type == "discover":
-            # All public recipes from other users (for discovery) - only when searching
+            # All public recipes (for discovery)
+            query = query.filter(Recipe.is_public == True)
             if search and search.strip():
-                query = query.filter(Recipe.is_public == True)
+                current_app.logger.info(f"Admin discover mode search '{search}': looking for public recipes")
             else:
-                # No search term - return empty results
-                query = query.filter(Recipe.id == -1)  # Impossible condition
+                current_app.logger.info("Admin discover mode (no search): showing all recent public recipes")
 
     # Apply filters
     if cookbook_id:
@@ -1028,6 +1031,41 @@ def toggle_recipe_privacy(current_user, recipe_id: int) -> Response:
         is_public = data["is_public"]
         if not isinstance(is_public, bool):
             return jsonify({"error": "is_public must be a boolean"}), 400
+
+        # Prevent making public recipes private
+        if not is_public and recipe.is_public:
+            return jsonify({
+                "error": "Cannot make public recipes private. Once a recipe is public, it cannot be made private again. You can only delete it."
+            }), 400
+
+        # When making recipe public, require copyright consent
+        if is_public and not recipe.is_public:
+            copyright_consent = data.get("copyright_consent", {})
+            
+            # Validate all required consents are present and true
+            required_consents = [
+                "rightsToShare",
+                "understandsPublic", 
+                "personalUseOnly",
+                "noCopyrightViolation"
+            ]
+            
+            for consent in required_consents:
+                if not copyright_consent.get(consent):
+                    return jsonify({
+                        "error": f"Copyright consent required: {consent} must be acknowledged"
+                    }), 400
+
+            # Record copyright consent
+            consent_record = CopyrightConsent(
+                user_id=current_user.id,
+                recipe_id=recipe.id,
+                consent_data=copyright_consent,
+                consent_type="publish",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get("User-Agent")
+            )
+            db.session.add(consent_record)
 
         # Update privacy status
         if is_public:

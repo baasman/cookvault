@@ -150,6 +150,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       localStorage.setItem('auth_token', data.session_token);
+      
+      // Invalidate all queries to ensure fresh data for the new user
+      queryClient.invalidateQueries();
     } finally {
       setIsLoading(false);
     }

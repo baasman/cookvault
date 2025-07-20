@@ -53,6 +53,15 @@ recipe_ingredients = Table(
     Column("order", Integer, default=0),
 )
 
+recipe_group_memberships = Table(
+    "recipe_group_memberships",
+    db.Model.metadata,
+    Column("recipe_id", Integer, ForeignKey("recipe.id"), primary_key=True),
+    Column("group_id", Integer, ForeignKey("recipe_group.id"), primary_key=True),
+    Column("added_at", DateTime, default=datetime.utcnow),
+    Column("order", Integer, default=0),
+)
+
 
 class Cookbook(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -88,6 +97,43 @@ class Cookbook(db.Model):
             "isbn": self.isbn,
             "publisher": self.publisher,
             "cover_image_url": self.cover_image_url,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "recipe_count": len(self.recipes)
+        }
+
+
+class RecipeGroup(db.Model):
+    """User-created recipe groups for organization"""
+    __tablename__ = 'recipe_group'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    cover_image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    is_private: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="recipe_groups")
+    recipes: Mapped[List["Recipe"]] = relationship(
+        "Recipe", 
+        secondary=recipe_group_memberships, 
+        back_populates="groups"
+    )
+    
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "cover_image_url": self.cover_image_url,
+            "user_id": self.user_id,
+            "is_private": self.is_private,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "recipe_count": len(self.recipes)
@@ -206,6 +252,11 @@ class Recipe(db.Model):
     )
     comments: Mapped[List["RecipeComment"]] = relationship(
         "RecipeComment", back_populates="recipe", cascade="all, delete-orphan"
+    )
+    groups: Mapped[List["RecipeGroup"]] = relationship(
+        "RecipeGroup", 
+        secondary=recipe_group_memberships, 
+        back_populates="recipes"
     )
 
     def get_status(self) -> str:
@@ -354,6 +405,17 @@ class Recipe(db.Model):
                     user_note = note.to_dict()
                     break
             result["user_note"] = user_note
+            
+            # Include groups that this recipe belongs to (only for the current user's groups)
+            user_groups = []
+            for group in self.groups:
+                if group.user_id == current_user_id:
+                    user_groups.append({
+                        "id": group.id,
+                        "name": group.name,
+                        "description": group.description
+                    })
+            result["groups"] = user_groups
         
         return result
 
