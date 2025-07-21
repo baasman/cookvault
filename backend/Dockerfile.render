@@ -36,6 +36,10 @@ RUN chmod +x start.sh
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app
+
+# Ensure UV is available to the app user by creating a symlink
+RUN ln -sf /usr/local/bin/uv /usr/bin/uv || ln -sf $(which uv) /usr/bin/uv
+
 USER app
 
 # Set Python path and UV configuration
