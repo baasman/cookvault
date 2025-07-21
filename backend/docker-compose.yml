@@ -26,13 +26,16 @@ services:
       - redis_data:/data
 
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.render
     ports:
       - "5000:5000"
     environment:
       FLASK_ENV: development
       DATABASE_URL: postgresql://cookbook_user:cookbook_pass@postgres:5432/cookbook_db
       REDIS_URL: redis://redis:6379/0
+      UV_PYTHON: python
     volumes:
       - .:/app
       - uploads_volume:/app/uploads
@@ -41,7 +44,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    command: flask run --host=0.0.0.0 --debug
+    command: uv run flask run --host=0.0.0.0 --debug
 
 volumes:
   postgres_data:

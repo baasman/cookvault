@@ -3,7 +3,7 @@ name = "app"
 version = "0.1.0"
 description = "Backend API for CookVault - OCR and recipe digitization platform"
 authors = [{ name = "Boudewijn", email = "boudeyz@gmail.com" }]
-readme = "backend/README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "flask>=3.0.0",
@@ -24,6 +24,7 @@ dependencies = [
     "gunicorn>=21.2.0",
     "flask-talisman>=1.1.0",
     "flask-limiter>=3.5.0",
+    "psycopg==3.2.9",
 ]
 
 [project.optional-dependencies]

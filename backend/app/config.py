@@ -122,8 +122,13 @@ class ProductionConfig(Config):
         # Set up production logging
         import logging
         from logging.handlers import RotatingFileHandler
+        import os
 
         if not app.debug and not app.testing:
+            # Ensure logs directory exists
+            logs_dir = Path("logs")
+            logs_dir.mkdir(exist_ok=True)
+            
             file_handler = RotatingFileHandler(
                 "logs/cookvault.log", maxBytes=10240000, backupCount=10
             )

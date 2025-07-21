@@ -18,9 +18,12 @@ if [[ -z "$SECRET_KEY" ]]; then
     exit 1
 fi
 
+# Set UV to use system Python
+export UV_PYTHON=python
+
 # Run database migrations
 echo "Running database migrations..."
-python -m flask db upgrade
+uv run flask db upgrade
 
 # Create logs directory
 mkdir -p logs

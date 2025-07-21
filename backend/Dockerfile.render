@@ -1,0 +1,53 @@
+# Render-optimized Dockerfile for CookVault Backend
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies (including tesseract for OCR)
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libpq-dev \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster Python package management
+RUN pip install uv
+
+# Copy dependency files
+COPY ../README.md ../pyproject.toml ../uv.lock* ./
+
+# Install Python dependencies using uv
+RUN uv sync --frozen --no-dev
+
+# Copy application code
+COPY backend/ .
+
+# Create uploads and logs directories
+RUN mkdir -p uploads logs
+
+# Copy and set permissions for startup script
+COPY backend/start.sh .
+RUN chmod +x start.sh
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
+USER app
+
+# Set Python path and UV configuration
+ENV PYTHONPATH=/app
+ENV UV_PYTHON=python
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:$PORT/api/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Start the application
+CMD ["./start.sh"]
