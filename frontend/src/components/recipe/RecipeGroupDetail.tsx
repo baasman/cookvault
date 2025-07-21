@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { recipeGroupsApi, type RecipeGroup } from '../../services/recipeGroupsApi';
+import { recipeGroupsApi } from '../../services/recipeGroupsApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui';
 import { SearchBar } from '../ui';

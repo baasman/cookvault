@@ -4,6 +4,7 @@ interface StepProps {
   number: number;
   title: string;
   description: string;
+  icon?: React.ReactNode;
 }
 
 const Step: React.FC<StepProps> = ({ number, title, description }) => {
@@ -62,7 +63,6 @@ const HowItWorksSection: React.FC = () => {
                 number={step.number}
                 title={step.title}
                 description={step.description}
-                icon={step.icon}
               />
               
               {/* Arrow connector between steps (hidden on mobile) */}

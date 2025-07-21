@@ -14,7 +14,7 @@ const Header: React.FC<HeaderProps> = ({
     { label: 'Cookbooks', href: '/cookbooks' }
   ]
 }) => {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {

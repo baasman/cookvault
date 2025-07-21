@@ -98,6 +98,7 @@ class RecipesApi {
     }
   }
 
+  /* 
   private matchesSearch(recipe: Recipe, searchTerm: string): boolean {
     // Search in recipe title
     if (recipe.title.toLowerCase().includes(searchTerm)) {
@@ -137,6 +138,7 @@ class RecipesApi {
 
     return false;
   }
+  */
 
   async uploadRecipeImage(recipeId: number, imageFile: File): Promise<{message: string; image: any}> {
     try {

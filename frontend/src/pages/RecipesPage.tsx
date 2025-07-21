@@ -34,7 +34,7 @@ const RecipesPage: React.FC = () => {
       page: currentPage, 
       per_page: recipesPerPage,
       search: searchTerm,
-      filter: activeFilter
+      filter: activeFilter === 'groups' ? 'mine' : activeFilter
     }),
     enabled: isAuthenticated && activeFilter !== 'groups', // Only fetch if user is authenticated and not viewing groups
     staleTime: 5 * 60 * 1000, // 5 minutes

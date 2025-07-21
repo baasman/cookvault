@@ -19,7 +19,6 @@ interface CommentItemProps {
 
 const CommentItem: React.FC<CommentItemProps> = ({ 
   comment, 
-  recipeId, 
   currentUserId, 
   onEdit, 
   onDelete 

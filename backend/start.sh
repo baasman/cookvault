@@ -27,6 +27,10 @@ echo "Checking UV availability..."
 UV_PATH=$(which uv 2>/dev/null || echo "/usr/local/bin/uv")
 echo "Using UV at: $UV_PATH"
 
+# Debug: Log outgoing IP for Redis allowlist configuration
+echo "Checking outgoing IP for Redis allowlist..."
+curl -s ipv4.icanhazip.com || echo "Could not determine external IP"
+
 # Create a wrapper function for UV commands
 run_uv() {
     if [ -f "$UV_PATH" ]; then

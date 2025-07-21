@@ -14,7 +14,9 @@ const UploadPage: React.FC = () => {
 
     try {
       const uploadData = new FormData();
-      uploadData.append('image', formData.image);
+      if (formData.image) {
+        uploadData.append('image', formData.image);
+      }
       
       if (formData.create_new_cookbook) {
         uploadData.append('create_new_cookbook', 'true');

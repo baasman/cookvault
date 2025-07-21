@@ -10,6 +10,7 @@ export interface Cookbook {
   publication_date?: string;
   cover_image_url?: string;
   recipe_count: number;
+  user_id?: number; // Owner of the cookbook
   created_at: string;
   updated_at: string;
   recipes?: Recipe[]; // Only populated in detail view
@@ -223,7 +224,7 @@ export interface RecipeFormData {
 
 // UI Component Props Types
 export interface ButtonProps {
-  variant?: 'primary' | 'secondary' | 'pill';
+  variant?: 'primary' | 'secondary' | 'pill' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
   onClick?: () => void;

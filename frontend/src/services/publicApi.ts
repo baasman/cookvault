@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { PublicRecipesResponse, UserPublicRecipesResponse, Recipe, PublicStatsResponse } from '../types';
+import type { PublicRecipesResponse, UserPublicRecipesResponse, Recipe, PublicStatsResponse } from '../types';
 
 const API_BASE_URL = '/api';
 

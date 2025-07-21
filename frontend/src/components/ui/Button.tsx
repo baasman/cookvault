@@ -12,6 +12,8 @@ const buttonVariants = cva(
         primary: "text-white hover:opacity-90 rounded-full tracking-[0.015em]",
         // Secondary button - light background from templates  
         secondary: "rounded-full tracking-[0.015em]",
+        // Outline button - border variant
+        outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-full tracking-[0.015em]",
         // Pill variant - for filter buttons from templates
         pill: "rounded-full",
       },

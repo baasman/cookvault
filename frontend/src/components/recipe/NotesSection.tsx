@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../../services/recipesApi';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Recipe, RecipeNote } from '../../types';
+import type { Recipe } from '../../types';
 import toast from 'react-hot-toast';
 
 interface NotesSectionProps {

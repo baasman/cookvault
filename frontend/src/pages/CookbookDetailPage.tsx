@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { cookbooksApi } from '../services/cookbooksApi';
@@ -46,8 +46,6 @@ const CookbookDetailPage: React.FC = () => {
     setSearchTerm(value);
   };
 
-  // Check if current user owns this cookbook
-  const isOwnCookbook = user && cookbook?.user_id && cookbook.user_id.toString() === user.id.toString();
 
   // Note: Cookbooks are now publicly viewable, but require auth for search functionality
   if (!isAuthenticated) {
@@ -127,7 +125,7 @@ const CookbookDetailPage: React.FC = () => {
           <div className="w-full lg:w-1/4 mb-6 lg:mb-0">
             <CookbookImageDisplay 
               cookbook={cookbook} 
-              canEdit={user?.role === 'admin' || (user && cookbook.user_id === parseInt(user.id))}
+              canEdit={!!(user?.role === 'admin' || (user && cookbook.user_id === parseInt(user.id)))}
             />
           </div>
 
@@ -217,7 +215,7 @@ const CookbookDetailPage: React.FC = () => {
                 if (a.page_number === null && b.page_number === null) return a.title.localeCompare(b.title);
                 if (a.page_number === null) return 1;
                 if (b.page_number === null) return -1;
-                return a.page_number - b.page_number;
+                return (a.page_number || 0) - (b.page_number || 0);
               })
               .map((recipe) => (
                 <Link key={recipe.id} to={`/recipes/${recipe.id}`}>

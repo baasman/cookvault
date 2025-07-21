@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Recipe } from '../../types';
 
@@ -15,7 +15,6 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
   variant = 'primary',
   onSuccess
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
 
   const addToCollectionMutation = useMutation({
