@@ -10,7 +10,7 @@ echo "Starting CookVault backend..."
 export FLASK_ENV=${FLASK_ENV:-production}
 export PORT=${PORT:-8000}
 export GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
-export LOG_LEVEL=${LOG_LEVEL:-info}
+export LOG_LEVEL=${LOG_LEVEL:-debug}
 
 # Validate required environment variables
 if [[ -z "$SECRET_KEY" ]]; then

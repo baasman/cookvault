@@ -79,10 +79,48 @@ def create_app(config_name: str | None = None) -> Flask:
     if not app.debug:
         logs_folder = Path("logs")
         logs_folder.mkdir(exist_ok=True)
+        
+    # Enhanced logging configuration for debugging
+    if not app.debug:
+        app.logger.setLevel(logging.DEBUG)
+    else:
+        app.logger.setLevel(logging.DEBUG)
+        
+    # Add console handler for debugging
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)s [%(name)s] %(message)s'
+    )
+    console_handler.setFormatter(formatter)
+    app.logger.addHandler(console_handler)
+    
+    # Log all registered routes for debugging (after blueprints are registered)
+    def log_routes():
+        app.logger.info("=== REGISTERED ROUTES ===")
+        for rule in app.url_map.iter_rules():
+            methods = ','.join(rule.methods - {'HEAD', 'OPTIONS'})
+            app.logger.info(f"{rule.rule} [{methods}] -> {rule.endpoint}")
+        app.logger.info("===========================")
 
     # Register blueprints
     from app.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix="/api")
+    
+    # Log routes after blueprint registration
+    log_routes()
+    
+    # Add catch-all route for debugging API calls
+    @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    def api_catchall(path):
+        app.logger.error(f"CATCHALL: Unmatched API route /{path} with method {request.method}")
+        app.logger.error(f"CATCHALL: Request headers: {dict(request.headers)}")
+        app.logger.error(f"CATCHALL: Full URL: {request.url}")
+        return jsonify({
+            "error": f"API endpoint not found: /{path}",
+            "method": request.method,
+            "available_routes": [rule.rule for rule in app.url_map.iter_rules() if rule.rule.startswith('/api')]
+        }), 404
 
     # Serve static files (frontend build)
     @app.route('/', defaults={'path': ''})

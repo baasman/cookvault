@@ -132,7 +132,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('Attempting registration with data:', { ...userData, password: '[REDACTED]' });
       
       const apiUrl = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${apiUrl}/auth/register`, {
+      const fullUrl = `${apiUrl}/auth/register`;
+      console.log('API URL from env:', import.meta.env.VITE_API_URL);
+      console.log('Using API base URL:', apiUrl);
+      console.log('Full registration URL:', fullUrl);
+      
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

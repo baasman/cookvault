@@ -8,6 +8,10 @@ from sqlalchemy.exc import IntegrityError
 
 from app import db
 from app.api import bp
+
+# Log that this module is being loaded
+print(f"Loading auth.py - Blueprint: {bp}")
+current_app.logger.info("Auth blueprint loaded") if hasattr(current_app, 'logger') else print("Auth blueprint loaded")
 from app.models import User, UserSession, UserRole, UserStatus, Recipe, Cookbook
 from sqlalchemy import func
 
@@ -100,6 +104,18 @@ def create_user_session(user: User, request) -> UserSession:
     session.permanent = True
 
     return user_session
+
+
+@bp.route("/auth/test", methods=["GET", "POST"])
+def test_auth() -> Response:
+    """Simple test endpoint."""
+    current_app.logger.info(f"Test endpoint called with method {request.method}")
+    return jsonify({
+        "message": "Auth blueprint is working",
+        "method": request.method,
+        "url": request.url,
+        "blueprint": "api.auth"
+    })
 
 
 @bp.route("/auth/debug", methods=["GET"])
