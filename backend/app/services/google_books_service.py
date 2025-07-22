@@ -25,7 +25,14 @@ class GoogleBooksService:
         Args:
             api_key: Google Books API key (optional for basic searches)
         """
-        self.api_key = api_key
+        # Only use API key if it's provided and not empty/blank
+        self.api_key = api_key.strip() if api_key and api_key.strip() else None
+        
+        if self.api_key:
+            logger.info("Google Books service initialized with API key")
+        else:
+            logger.info("Google Books service initialized without API key (using free tier)")
+            
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Cookbook-Creator/1.0'
@@ -70,7 +77,14 @@ class GoogleBooksService:
             return books
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"Google Books API request failed: {e}")
+            # Log the specific response for debugging
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Google Books API request failed with status {e.response.status_code}: {e.response.text}")
+                if e.response.status_code == 403:
+                    # Handle authentication/quota issues gracefully
+                    raise GoogleBooksAPIError("Google Books API access denied. This may be due to missing or invalid API key, or quota exceeded. The service can work without an API key for basic searches.")
+            else:
+                logger.error(f"Google Books API request failed: {e}")
             raise GoogleBooksAPIError(f"Failed to search books: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error in book search: {e}")
@@ -133,7 +147,13 @@ class GoogleBooksService:
             return self._map_google_book_to_cookbook(item)
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to get book details for {book_id}: {e}")
+            # Log the specific response for debugging
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Google Books API request failed with status {e.response.status_code}: {e.response.text}")
+                if e.response.status_code == 403:
+                    logger.error(f"Google Books API access denied for book details {book_id}. This may be due to missing or invalid API key.")
+            else:
+                logger.error(f"Failed to get book details for {book_id}: {e}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error getting book details: {e}")

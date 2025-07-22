@@ -52,6 +52,9 @@ class Config:
 
     # Logging
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    LOG_FILE = os.environ.get("LOG_FILE", "logs/cookbook-creator.log")
+    LOG_MAX_BYTES = int(os.environ.get("LOG_MAX_BYTES", 10 * 1024 * 1024))  # 10MB
+    LOG_BACKUP_COUNT = int(os.environ.get("LOG_BACKUP_COUNT", 10))
 
     @staticmethod
     def validate_required_env_vars():
@@ -120,27 +123,58 @@ class ProductionConfig(Config):
         cls.validate_required_env_vars()
 
         # Set up production logging
+        cls._setup_production_logging(app)
+
+    @staticmethod
+    def _setup_production_logging(app):
+        """Configure production logging with both file and console handlers"""
         import logging
         from logging.handlers import RotatingFileHandler
-        import os
+        import sys
 
-        if not app.debug and not app.testing:
-            # Ensure logs directory exists
-            logs_dir = Path("logs")
-            logs_dir.mkdir(exist_ok=True)
-            
-            file_handler = RotatingFileHandler(
-                "logs/cookvault.log", maxBytes=10240000, backupCount=10
-            )
-            file_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]"
-                )
-            )
-            file_handler.setLevel(logging.INFO)
-            app.logger.addHandler(file_handler)
-            app.logger.setLevel(logging.INFO)
-            app.logger.info("CookVault startup")
+        # Clear any existing handlers to avoid duplicates
+        if app.logger.hasHandlers():
+            app.logger.handlers.clear()
+
+        # Set logger level
+        log_level = getattr(logging, app.config.get('LOG_LEVEL', 'INFO').upper())
+        app.logger.setLevel(log_level)
+
+        # Create formatter
+        formatter = logging.Formatter(
+            '%(asctime)s %(levelname)s [%(name)s] %(message)s [in %(pathname)s:%(lineno)d]'
+        )
+
+        # Ensure logs directory exists
+        log_file_path = Path(app.config.get('LOG_FILE', "logs/cookbook-creator.log"))
+        log_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # File handler for all logs
+        file_handler = RotatingFileHandler(
+            app.config.get('LOG_FILE', "logs/cookbook-creator.log"), 
+            maxBytes=app.config.get('LOG_MAX_BYTES', 10 * 1024 * 1024),
+            backupCount=app.config.get('LOG_BACKUP_COUNT', 10)
+        )
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(log_level)
+        app.logger.addHandler(file_handler)
+
+        # Console handler for stdout (INFO and above)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(logging.INFO)
+        app.logger.addHandler(console_handler)
+
+        # Error handler for stderr (WARNING and above)
+        error_handler = logging.StreamHandler(sys.stderr)
+        error_handler.setFormatter(formatter)
+        error_handler.setLevel(logging.WARNING)
+        app.logger.addHandler(error_handler)
+
+        # Prevent propagation to avoid duplicate logs
+        app.logger.propagate = False
+
+        app.logger.info("Production logging configured - writing to file and console")
 
 
 config: dict[str, Type[Config]] = {

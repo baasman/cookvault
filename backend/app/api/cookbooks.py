@@ -519,6 +519,8 @@ def search_google_books(current_user) -> Response:
     try:
         # Initialize Google Books service
         api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
+        # Only pass API key if it's not None or empty
+        api_key = api_key.strip() if api_key and api_key.strip() else None
         service = GoogleBooksService(api_key)
 
         # Search for books
@@ -547,6 +549,8 @@ def create_cookbook_from_google_books(current_user) -> Response:
     try:
         # Initialize Google Books service
         api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
+        # Only pass API key if it's not None or empty
+        api_key = api_key.strip() if api_key and api_key.strip() else None
         service = GoogleBooksService(api_key)
 
         # Get book details from Google Books
@@ -619,6 +623,8 @@ def search_google_books_by_isbn(current_user, isbn: str) -> Response:
     try:
         # Initialize Google Books service
         api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
+        # Only pass API key if it's not None or empty
+        api_key = api_key.strip() if api_key and api_key.strip() else None
         service = GoogleBooksService(api_key)
 
         # Search by ISBN

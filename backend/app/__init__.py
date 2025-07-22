@@ -75,25 +75,19 @@ def create_app(config_name: str | None = None) -> Flask:
     upload_folder = Path(app.config["UPLOAD_FOLDER"])
     upload_folder.mkdir(exist_ok=True)
 
-    # Create logs folder for production
-    if not app.debug:
-        logs_folder = Path("logs")
-        logs_folder.mkdir(exist_ok=True)
-        
-    # Enhanced logging configuration for debugging
-    if not app.debug:
-        app.logger.setLevel(logging.DEBUG)
-    else:
+    # Set up logging for development only (production logging is handled in config.py)
+    if app.debug:
+        # Development logging setup
         app.logger.setLevel(logging.DEBUG)
         
-    # Add console handler for debugging
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        '%(asctime)s %(levelname)s [%(name)s] %(message)s'
-    )
-    console_handler.setFormatter(formatter)
-    app.logger.addHandler(console_handler)
+        if not app.logger.hasHandlers():
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter(
+                '%(asctime)s %(levelname)s [%(name)s] %(message)s'
+            )
+            console_handler.setFormatter(formatter)
+            app.logger.addHandler(console_handler)
     
     # Log all registered routes for debugging (after blueprints are registered)
     def log_routes():
