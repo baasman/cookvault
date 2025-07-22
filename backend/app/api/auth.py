@@ -11,7 +11,7 @@ from app.api import bp
 
 # Log that this module is being loaded
 print(f"Loading auth.py - Blueprint: {bp}")
-current_app.logger.info("Auth blueprint loaded") if hasattr(current_app, 'logger') else print("Auth blueprint loaded")
+print("Auth blueprint loaded")
 from app.models import User, UserSession, UserRole, UserStatus, Recipe, Cookbook
 from sqlalchemy import func
 
