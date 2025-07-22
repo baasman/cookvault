@@ -23,6 +23,7 @@ def require_auth(f):
     def decorated_function(*args, **kwargs):
         user = get_current_user()
         if not user:
+            current_app.logger.warning(f"Authentication failed for {request.endpoint} - No user found in session")
             return jsonify({"error": "Authentication required"}), 401
 
         if user.is_account_locked():
@@ -67,6 +68,7 @@ def get_current_user() -> Optional[User]:
     """Get the current authenticated user from session."""
     session_token = session.get("session_token")
     if not session_token:
+        current_app.logger.debug("No session token found in session")
         return None
 
     user_session = UserSession.query.filter_by(
@@ -281,8 +283,10 @@ def login() -> Tuple[Response, int]:
         
         # Store session token in Flask session for subsequent requests
         session["session_token"] = user_session.session_token
-
+        
         current_app.logger.info(f"User logged in: {user.username}")
+        current_app.logger.info(f"Session created with token: {user_session.session_token[:10]}...")
+        current_app.logger.info(f"Session cookie secure setting: {current_app.config.get('SESSION_COOKIE_SECURE')}")
 
         return (
             jsonify(

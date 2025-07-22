@@ -185,6 +185,12 @@ def get_recipe(current_user, recipe_id: int) -> Response:
 @bp.route("/recipes/upload", methods=["POST"])
 @require_auth
 def upload_recipe(current_user) -> Tuple[Response, int]:
+    """Upload a recipe image and process it into a recipe."""
+    current_app.logger.info(f"Recipe upload request from user {current_user.id} ({current_user.username})")
+    current_app.logger.info(f"Request headers: {dict(request.headers)}")
+    current_app.logger.info(f"Form data keys: {list(request.form.keys())}")
+    current_app.logger.info(f"Files: {list(request.files.keys())}")
+    
 
     if "image" not in request.files:
         return jsonify({"error": "No image file provided"}), 400
