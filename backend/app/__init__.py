@@ -26,6 +26,14 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # Initialize config-specific settings
     config_obj.init_app(app)
+    
+    # Ensure session configuration is properly set
+    app.logger.info(f"Session configuration:")
+    app.logger.info(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
+    app.logger.info(f"  SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}")
+    app.logger.info(f"  SESSION_COOKIE_HTTPONLY: {app.config.get('SESSION_COOKIE_HTTPONLY')}")
+    app.logger.info(f"  SESSION_COOKIE_SAMESITE: {app.config.get('SESSION_COOKIE_SAMESITE')}")
+    app.logger.info(f"  PERMANENT_SESSION_LIFETIME: {app.config.get('PERMANENT_SESSION_LIFETIME')}")
 
     # Initialize extensions
     db.init_app(app)

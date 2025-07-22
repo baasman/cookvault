@@ -66,9 +66,15 @@ def should_apply_user_filter(user: User) -> bool:
 
 def get_current_user() -> Optional[User]:
     """Get the current authenticated user from session."""
+    # Log all session data for debugging
+    current_app.logger.debug(f"Session data: {dict(session)}")
+    current_app.logger.debug(f"Session permanent: {session.permanent}")
+    current_app.logger.debug(f"Request cookies: {dict(request.cookies)}")
+    
     session_token = session.get("session_token")
     if not session_token:
-        current_app.logger.debug("No session token found in session")
+        current_app.logger.warning("No session token found in session")
+        current_app.logger.warning(f"Available session keys: {list(session.keys())}")
         return None
 
     user_session = UserSession.query.filter_by(
@@ -104,6 +110,10 @@ def create_user_session(user: User, request) -> UserSession:
     # Set session token in Flask session
     session["session_token"] = session_token
     session.permanent = True
+    
+    current_app.logger.info(f"Session token set in Flask session: {session_token[:10]}...")
+    current_app.logger.info(f"Session permanent: {session.permanent}")
+    current_app.logger.info(f"Session contents after setting: {dict(session)}")
 
     return user_session
 
@@ -122,14 +132,37 @@ def test_auth() -> Response:
 
 @bp.route("/auth/debug", methods=["GET"])
 def debug_auth() -> Response:
-    """Debug endpoint to test API connectivity."""
+    """Debug endpoint to test API connectivity and session state."""
     current_app.logger.info("Debug endpoint called")
-    return jsonify({
+    
+    # Get session info
+    session_data = dict(session)
+    session_token = session.get("session_token")
+    user = get_current_user()
+    
+    debug_info = {
         "message": "Auth API is working",
         "method": request.method,
         "url": request.url,
-        "headers": dict(request.headers)
-    })
+        "headers": dict(request.headers),
+        "cookies": dict(request.cookies),
+        "session_data": session_data,
+        "session_permanent": session.permanent,
+        "session_token_present": bool(session_token),
+        "session_token_preview": session_token[:10] + "..." if session_token else None,
+        "user_authenticated": user is not None,
+        "user_info": user.to_dict() if user else None,
+        "config": {
+            "SESSION_COOKIE_SECURE": current_app.config.get("SESSION_COOKIE_SECURE"),
+            "SESSION_COOKIE_HTTPONLY": current_app.config.get("SESSION_COOKIE_HTTPONLY"),
+            "SESSION_COOKIE_SAMESITE": current_app.config.get("SESSION_COOKIE_SAMESITE"),
+            "PERMANENT_SESSION_LIFETIME": current_app.config.get("PERMANENT_SESSION_LIFETIME"),
+            "SECRET_KEY_SET": bool(current_app.config.get("SECRET_KEY"))
+        }
+    }
+    
+    current_app.logger.info(f"Debug info: {debug_info}")
+    return jsonify(debug_info)
 
 
 @bp.route("/auth/register", methods=["POST"])
@@ -340,6 +373,20 @@ def logout(current_user: User) -> Tuple[Response, int]:
 def get_current_user_info(current_user: User) -> Response:
     """Get current user information."""
     return jsonify({"user": current_user.to_dict(include_sensitive=True)})
+
+
+@bp.route("/auth/status", methods=["GET"])
+def get_auth_status() -> Response:
+    """Get authentication status without requiring auth (for debugging)."""
+    user = get_current_user()
+    return jsonify({
+        "authenticated": user is not None,
+        "user": user.to_dict() if user else None,
+        "session_token_present": bool(session.get("session_token")),
+        "session_keys": list(session.keys()),
+        "cookies_present": len(request.cookies) > 0,
+        "cookie_keys": list(request.cookies.keys())
+    })
 
 
 @bp.route("/auth/sessions", methods=["GET"])
