@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { PublicRecipesResponse, UserPublicRecipesResponse, Recipe, PublicStatsResponse } from '../types';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create axios instance for public API (no auth required)
 const publicApi = axios.create({

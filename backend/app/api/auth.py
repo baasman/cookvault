@@ -102,11 +102,33 @@ def create_user_session(user: User, request) -> UserSession:
     return user_session
 
 
+@bp.route("/auth/debug", methods=["GET"])
+def debug_auth() -> Response:
+    """Debug endpoint to test API connectivity."""
+    current_app.logger.info("Debug endpoint called")
+    return jsonify({
+        "message": "Auth API is working",
+        "method": request.method,
+        "url": request.url,
+        "headers": dict(request.headers)
+    })
+
+
 @bp.route("/auth/register", methods=["POST"])
 def register() -> Tuple[Response, int]:
     """Register a new user account."""
     try:
+        current_app.logger.info(f"Registration attempt - Request headers: {dict(request.headers)}")
+        current_app.logger.info(f"Registration attempt - Request method: {request.method}")
+        current_app.logger.info(f"Registration attempt - Request URL: {request.url}")
+        
         data = request.get_json()
+        current_app.logger.info(f"Registration attempt - Data received: {bool(data)}")
+        
+        if data:
+            # Log data without password
+            safe_data = {k: v for k, v in data.items() if k != 'password'}
+            current_app.logger.info(f"Registration attempt - Safe data: {safe_data}")
 
         if not data:
             return jsonify({"error": "No data provided"}), 400

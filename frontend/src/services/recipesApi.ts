@@ -37,7 +37,7 @@ interface UpdateTagsParams {
 }
 
 class RecipesApi {
-  private baseUrl = '/api';
+  private baseUrl = import.meta.env.VITE_API_URL || '/api';
 
   async fetchRecipes(params: FetchRecipesParams = {}): Promise<RecipesResponse> {
     const { page = 1, per_page = 12, filter = 'collection' } = params;

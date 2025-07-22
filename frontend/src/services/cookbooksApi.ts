@@ -47,7 +47,7 @@ interface GoogleBooksResponse {
 }
 
 class CookbooksApi {
-  private baseUrl = '/api';
+  private baseUrl = import.meta.env.VITE_API_URL || '/api';
 
   async fetchCookbooks(params: FetchCookbooksParams = {}): Promise<CookbooksResponse> {
     const { page = 1, per_page = 12, search, sort_by = 'title' } = params;

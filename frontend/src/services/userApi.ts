@@ -1,7 +1,7 @@
 import type { UserProfile } from '../types';
 
 class UserApi {
-  private baseUrl = '/api';
+  private baseUrl = import.meta.env.VITE_API_URL || '/api';
 
   async fetchUserProfile(): Promise<UserProfile> {
     try {

@@ -53,7 +53,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const token = localStorage.getItem('auth_token');
         if (token) {
           // Validate token with backend
-          const response = await fetch('/api/auth/me', {
+          const apiUrl = import.meta.env.VITE_API_URL || '/api';
+          const response = await fetch(`${apiUrl}/auth/me`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -90,7 +91,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (usernameOrEmail: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/login', {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,15 +129,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (userData: RegisterData) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/register', {
+      console.log('Attempting registration with data:', { ...userData, password: '[REDACTED]' });
+      
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiUrl}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(userData),
+        credentials: 'include',
       });
 
+      console.log('Registration response status:', response.status);
+      console.log('Registration response headers:', Object.fromEntries(response.headers.entries()));
+
+      // Check if response has content before trying to parse JSON
+      const contentType = response.headers.get('content-type');
+      console.log('Response content-type:', contentType);
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.log('Non-JSON response:', text);
+        throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
+      }
+
       const data = await response.json();
+      console.log('Registration response data:', { ...data, session_token: data.session_token ? '[PRESENT]' : '[ABSENT]' });
 
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed');

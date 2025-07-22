@@ -49,7 +49,7 @@ interface GetGroupParams {
 }
 
 class RecipeGroupsApi {
-  private baseUrl = '/api';
+  private baseUrl = import.meta.env.VITE_API_URL || '/api';
 
   async getRecipeGroups(): Promise<RecipeGroupsResponse> {
     try {
