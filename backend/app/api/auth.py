@@ -480,6 +480,139 @@ def cookie_test() -> Response:
         })
 
 
+@bp.route("/auth/env-check", methods=["GET"])
+def env_check() -> Response:
+    """Check environment variables and runtime configuration for debugging."""
+    import os
+    
+    env_vars = {
+        "SESSION_COOKIE_SECURE": os.environ.get("SESSION_COOKIE_SECURE"),
+        "SESSION_COOKIE_SAMESITE": os.environ.get("SESSION_COOKIE_SAMESITE"), 
+        "SESSION_COOKIE_DOMAIN": os.environ.get("SESSION_COOKIE_DOMAIN"),
+        "SECRET_KEY": "SET" if os.environ.get("SECRET_KEY") else "NOT_SET",
+        "SECRET_KEY_LENGTH": len(os.environ.get("SECRET_KEY", "")),
+        "FLASK_ENV": os.environ.get("FLASK_ENV"),
+        "DATABASE_URL": "SET" if os.environ.get("DATABASE_URL") else "NOT_SET",
+        "CORS_ORIGINS": os.environ.get("CORS_ORIGINS"),
+    }
+    
+    runtime_config = {
+        "SESSION_COOKIE_SECURE": current_app.config.get("SESSION_COOKIE_SECURE"),
+        "SESSION_COOKIE_HTTPONLY": current_app.config.get("SESSION_COOKIE_HTTPONLY"),
+        "SESSION_COOKIE_SAMESITE": current_app.config.get("SESSION_COOKIE_SAMESITE"),
+        "SESSION_COOKIE_DOMAIN": current_app.config.get("SESSION_COOKIE_DOMAIN"),
+        "SESSION_COOKIE_PATH": current_app.config.get("SESSION_COOKIE_PATH"),
+        "SESSION_COOKIE_NAME": current_app.config.get("SESSION_COOKIE_NAME"),
+        "PERMANENT_SESSION_LIFETIME": current_app.config.get("PERMANENT_SESSION_LIFETIME"),
+        "SECRET_KEY_LENGTH": len(current_app.config.get("SECRET_KEY", "")),
+        "DEBUG": current_app.debug,
+        "TESTING": current_app.testing,
+    }
+    
+    current_app.logger.info(f"Environment variables check: {env_vars}")
+    current_app.logger.info(f"Runtime config check: {runtime_config}")
+    
+    return jsonify({
+        "environment_variables": env_vars,
+        "runtime_config": runtime_config,
+        "config_class": current_app.config.__class__.__name__,
+        "request_is_secure": request.is_secure,
+        "request_scheme": request.scheme,
+        "request_headers": dict(request.headers)
+    })
+
+
+@bp.route("/auth/secret-key-test", methods=["GET", "POST"])
+def secret_key_test() -> Response:
+    """Test SECRET_KEY consistency by manually validating session signatures."""
+    if request.method == "POST":
+        # Set a test session value and return details for signature analysis
+        session["secret_test"] = "test_signature_consistency"
+        session["created_at"] = datetime.utcnow().isoformat()
+        session.permanent = True
+        
+        # Get the current secret key for logging (masked)
+        secret_key = current_app.config.get("SECRET_KEY", "")
+        secret_key_preview = secret_key[:8] + "..." + secret_key[-8:] if len(secret_key) > 16 else "TOO_SHORT"
+        
+        current_app.logger.info(f"SECRET_KEY test - Creating session with key preview: {secret_key_preview}")
+        current_app.logger.info(f"SECRET_KEY test - Session data: {dict(session)}")
+        
+        return jsonify({
+            "action": "create_test_session",
+            "session_data": dict(session),
+            "secret_key_length": len(secret_key),
+            "secret_key_preview": secret_key_preview,
+            "message": "Test session created. Now make a GET request to verify signature validation."
+        })
+    
+    else:
+        # GET - Try to decode session and check signature validity
+        try:
+            from flask.sessions import SecureCookieSessionInterface
+            
+            # Get the session cookie
+            session_cookie_name = current_app.config.get("SESSION_COOKIE_NAME", "session")
+            session_cookie_value = request.cookies.get(session_cookie_name)
+            
+            current_app.logger.info(f"SECRET_KEY test - Validating session cookie: {session_cookie_name}")
+            current_app.logger.info(f"SECRET_KEY test - Cookie value present: {bool(session_cookie_value)}")
+            
+            if not session_cookie_value:
+                return jsonify({
+                    "action": "validate_session", 
+                    "error": "No session cookie found",
+                    "cookie_name": session_cookie_name,
+                    "available_cookies": list(request.cookies.keys())
+                })
+            
+            # Try to decode the session manually
+            session_interface = SecureCookieSessionInterface()
+            secret_key = current_app.config.get("SECRET_KEY")
+            
+            current_app.logger.info(f"SECRET_KEY test - Attempting manual session decode")
+            current_app.logger.info(f"SECRET_KEY test - Using secret key length: {len(secret_key)}")
+            
+            # This will verify the signature
+            try:
+                decoded_session = session_interface.get_signing_serializer(current_app).loads(session_cookie_value)
+                signature_valid = True
+                current_app.logger.info(f"SECRET_KEY test - Signature validation: SUCCESS")
+                current_app.logger.info(f"SECRET_KEY test - Decoded session: {decoded_session}")
+            except Exception as decode_error:
+                signature_valid = False
+                current_app.logger.error(f"SECRET_KEY test - Signature validation: FAILED - {str(decode_error)}")
+                decoded_session = None
+            
+            # Also check what Flask's session object contains
+            flask_session_data = dict(session)
+            secret_test_value = session.get("secret_test")
+            
+            return jsonify({
+                "action": "validate_session",
+                "signature_valid": signature_valid,
+                "decoded_session": decoded_session,
+                "flask_session_data": flask_session_data,
+                "secret_test_value": secret_test_value,
+                "expected_value": "test_signature_consistency",
+                "values_match": secret_test_value == "test_signature_consistency",
+                "secret_key_length": len(secret_key),
+                "cookie_present": bool(session_cookie_value),
+                "cookie_length": len(session_cookie_value) if session_cookie_value else 0
+            })
+            
+        except Exception as e:
+            current_app.logger.error(f"SECRET_KEY test failed: {str(e)}")
+            import traceback
+            current_app.logger.error(f"SECRET_KEY test traceback: {traceback.format_exc()}")
+            
+            return jsonify({
+                "action": "validate_session",
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }), 500
+
+
 @bp.route("/auth/sessions", methods=["GET"])
 @require_auth
 def get_user_sessions(current_user: User) -> Response:

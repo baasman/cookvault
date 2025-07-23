@@ -2,7 +2,7 @@ import os
 import logging
 from pathlib import Path
 
-from flask import Flask, send_from_directory, request
+from flask import Flask, send_from_directory, request, session, g
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_migrate import Migrate
@@ -117,6 +117,44 @@ def create_app(config_name: str | None = None) -> Flask:
             methods = ','.join(rule.methods - {'HEAD', 'OPTIONS'})
             app.logger.info(f"{rule.rule} [{methods}] -> {rule.endpoint}")
         app.logger.info("===========================")
+
+    # Add session debugging middleware
+    @app.before_request
+    def debug_session_loading():
+        """Debug session loading process for troubleshooting"""
+        # Only log for API requests to avoid spam
+        if request.path.startswith('/api/'):
+            app.logger.debug(f"=== SESSION DEBUG: {request.method} {request.path} ===")
+            app.logger.debug(f"Request cookies: {dict(request.cookies)}")
+            app.logger.debug(f"Session before access: {getattr(g, 'session_loaded', 'not yet loaded')}")
+            
+            # Force session loading by accessing it
+            try:
+                session_data = dict(session)
+                app.logger.debug(f"Session data loaded: {session_data}")
+                app.logger.debug(f"Session permanent: {session.permanent}")
+                
+                # Check if session token exists
+                session_token = session.get('session_token')
+                if session_token:
+                    app.logger.debug(f"Session token found: {session_token[:10]}...")
+                else:
+                    app.logger.warning(f"No session token in session. Available keys: {list(session.keys())}")
+                    
+                # Log session cookie configuration at runtime
+                app.logger.debug(f"Runtime session config:")
+                app.logger.debug(f"  SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}")
+                app.logger.debug(f"  SESSION_COOKIE_DOMAIN: {app.config.get('SESSION_COOKIE_DOMAIN')}")
+                app.logger.debug(f"  SESSION_COOKIE_PATH: {app.config.get('SESSION_COOKIE_PATH')}")
+                app.logger.debug(f"  SESSION_COOKIE_SAMESITE: {app.config.get('SESSION_COOKIE_SAMESITE')}")
+                app.logger.debug(f"  SECRET_KEY length: {len(app.config.get('SECRET_KEY', ''))}")
+                
+            except Exception as e:
+                app.logger.error(f"Session loading failed: {str(e)}")
+                import traceback
+                app.logger.error(f"Session loading traceback: {traceback.format_exc()}")
+            
+            app.logger.debug("=== END SESSION DEBUG ===")
 
     # Register blueprints
     from app.api import bp as api_bp
