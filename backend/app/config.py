@@ -38,16 +38,10 @@ class Config:
     # Security settings
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None
-    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None" if os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true" else "Lax")
-    SESSION_COOKIE_PATH = "/"
-    SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")  # None for same-origin only
+    SESSION_COOKIE_SAMESITE = "Lax"
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
-    
-    # Additional session configuration for production with CDN
-    SESSION_REFRESH_EACH_REQUEST = True
-    SESSION_COOKIE_NAME = "session"
 
     # Rate limiting
     RATELIMIT_STORAGE_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
@@ -74,11 +68,6 @@ class Config:
 
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {missing_vars}")
-        
-        # Additional validation for SECRET_KEY
-        secret_key = os.environ.get("SECRET_KEY")
-        if secret_key and len(secret_key) < 32:
-            raise ValueError("SECRET_KEY must be at least 32 characters long for security")
 
     @classmethod
     def init_app(cls, app):
@@ -100,7 +89,8 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
 
-    # Production security settings - inherit from base config with env var override
+    # Production security settings
+    SESSION_COOKIE_SECURE = True  # Requires HTTPS
     WTF_CSRF_ENABLED = True
 
     # Production database with connection pooling
@@ -131,14 +121,6 @@ class ProductionConfig(Config):
 
         # Validate required environment variables
         cls.validate_required_env_vars()
-        
-        # Log critical configuration for debugging
-        app.logger.info("=== PRODUCTION CONFIG VALIDATION ===")
-        app.logger.info(f"SECRET_KEY length: {len(app.config.get('SECRET_KEY', ''))}")
-        app.logger.info(f"SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}")
-        app.logger.info(f"SESSION_COOKIE_DOMAIN: {app.config.get('SESSION_COOKIE_DOMAIN')}")
-        app.logger.info(f"DATABASE_URL set: {bool(app.config.get('DATABASE_URL'))}")
-        app.logger.info("=====================================")
 
         # Set up production logging
         cls._setup_production_logging(app)
@@ -169,7 +151,7 @@ class ProductionConfig(Config):
 
         # File handler for all logs
         file_handler = RotatingFileHandler(
-            app.config.get('LOG_FILE', "logs/cookbook-creator.log"), 
+            app.config.get('LOG_FILE', "logs/cookbook-creator.log"),
             maxBytes=app.config.get('LOG_MAX_BYTES', 10 * 1024 * 1024),
             backupCount=app.config.get('LOG_BACKUP_COUNT', 10)
         )

@@ -22,8 +22,23 @@ bcrypt = Bcrypt()
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, static_folder=None)
     config_name = config_name or os.environ.get("FLASK_ENV", "default")
+    
+    # Debug config selection
+    print(f"🔧 CONFIG DEBUG: FLASK_ENV = {os.environ.get('FLASK_ENV')}")
+    print(f"🔧 CONFIG DEBUG: config_name = {config_name}")
+    print(f"🔧 CONFIG DEBUG: Available configs = {list(config.keys())}")
+    
     config_obj = config[config_name]
+    print(f"🔧 CONFIG DEBUG: Selected config class = {config_obj.__name__}")
+    
     app.config.from_object(config_obj)
+    
+    # Debug the actual SESSION_COOKIE_SECURE value after loading
+    secure_env = os.environ.get("SESSION_COOKIE_SECURE", "NOT_SET")
+    secure_runtime = app.config.get("SESSION_COOKIE_SECURE")
+    print(f"🔧 CONFIG DEBUG: SESSION_COOKIE_SECURE env = '{secure_env}'")
+    print(f"🔧 CONFIG DEBUG: SESSION_COOKIE_SECURE runtime = {secure_runtime}")
+    print(f"🔧 CONFIG DEBUG: String parsing test: '{secure_env}'.lower() == 'true' = {secure_env.lower() == 'true' if secure_env != 'NOT_SET' else 'N/A'}")
     
     # Configure proxy handling for production CDN/proxy setups
     if not app.debug:
