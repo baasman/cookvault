@@ -91,6 +91,7 @@ def create_app(config_name: str | None = None) -> Flask:
             app,
             force_https=False,  # Set to True when using HTTPS
             strict_transport_security=True,
+            session_cookie_secure=False,  # Explicitly disable secure session cookies
             content_security_policy=csp,
             feature_policy={
                 'geolocation': "'none'",

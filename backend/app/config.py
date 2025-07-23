@@ -38,13 +38,13 @@ class Config:
     # Security settings
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None
-    
+
     # Debug SESSION_COOKIE_SECURE parsing
     _session_secure_env = os.environ.get("SESSION_COOKIE_SECURE", "false")
     _session_secure_parsed = _session_secure_env.lower() == "true"
     print(f"🔧 SESSION_COOKIE_SECURE DEBUG: env='{_session_secure_env}', parsed={_session_secure_parsed}")
     SESSION_COOKIE_SECURE = _session_secure_parsed
-    
+
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None" if os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true" else "Lax")
     SESSION_COOKIE_PATH = "/"
