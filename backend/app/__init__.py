@@ -22,31 +22,31 @@ bcrypt = Bcrypt()
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, static_folder=None)
     config_name = config_name or os.environ.get("FLASK_ENV", "default")
-    
+
     # Debug config selection
     print(f"🔧 CONFIG DEBUG: FLASK_ENV = {os.environ.get('FLASK_ENV')}")
     print(f"🔧 CONFIG DEBUG: config_name = {config_name}")
     print(f"🔧 CONFIG DEBUG: Available configs = {list(config.keys())}")
-    
+
     config_obj = config[config_name]
     print(f"🔧 CONFIG DEBUG: Selected config class = {config_obj.__name__}")
-    
+
     app.config.from_object(config_obj)
-    
+
     # Debug the actual SESSION_COOKIE_SECURE value after loading
     secure_env = os.environ.get("SESSION_COOKIE_SECURE", "NOT_SET")
     secure_runtime = app.config.get("SESSION_COOKIE_SECURE")
     print(f"🔧 CONFIG DEBUG: SESSION_COOKIE_SECURE env = '{secure_env}'")
     print(f"🔧 CONFIG DEBUG: SESSION_COOKIE_SECURE runtime = {secure_runtime}")
     print(f"🔧 CONFIG DEBUG: String parsing test: '{secure_env}'.lower() == 'true' = {secure_env.lower() == 'true' if secure_env != 'NOT_SET' else 'N/A'}")
-    
+
     # Configure proxy handling for production CDN/proxy setups
     if not app.debug:
         # Handle X-Forwarded-* headers from Cloudflare/Render proxy
         app.wsgi_app = ProxyFix(
-            app.wsgi_app, 
+            app.wsgi_app,
             x_for=1,    # Number of proxies setting X-Forwarded-For
-            x_proto=1,  # Number of proxies setting X-Forwarded-Proto  
+            x_proto=1,  # Number of proxies setting X-Forwarded-Proto
             x_host=1,   # Number of proxies setting X-Forwarded-Host
             x_port=1    # Number of proxies setting X-Forwarded-Port
         )
@@ -54,7 +54,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # Initialize config-specific settings
     config_obj.init_app(app)
-    
+
     # Ensure session configuration is properly set
     app.logger.info(f"Session configuration:")
     app.logger.info(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
@@ -115,7 +115,7 @@ def create_app(config_name: str | None = None) -> Flask:
     if app.debug:
         # Development logging setup
         app.logger.setLevel(logging.DEBUG)
-        
+
         if not app.logger.hasHandlers():
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logging.DEBUG)
@@ -124,7 +124,7 @@ def create_app(config_name: str | None = None) -> Flask:
             )
             console_handler.setFormatter(formatter)
             app.logger.addHandler(console_handler)
-    
+
     # Log all registered routes for debugging (after blueprints are registered)
     def log_routes():
         app.logger.info("=== REGISTERED ROUTES ===")
@@ -142,20 +142,20 @@ def create_app(config_name: str | None = None) -> Flask:
             app.logger.debug(f"=== SESSION DEBUG: {request.method} {request.path} ===")
             app.logger.debug(f"Request cookies: {dict(request.cookies)}")
             app.logger.debug(f"Session before access: {getattr(g, 'session_loaded', 'not yet loaded')}")
-            
+
             # Force session loading by accessing it
             try:
                 session_data = dict(session)
                 app.logger.debug(f"Session data loaded: {session_data}")
                 app.logger.debug(f"Session permanent: {session.permanent}")
-                
+
                 # Check if session token exists
                 session_token = session.get('session_token')
                 if session_token:
                     app.logger.debug(f"Session token found: {session_token[:10]}...")
                 else:
                     app.logger.warning(f"No session token in session. Available keys: {list(session.keys())}")
-                    
+
                 # Log session cookie configuration at runtime
                 app.logger.debug(f"Runtime session config:")
                 app.logger.debug(f"  SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}")
@@ -163,21 +163,21 @@ def create_app(config_name: str | None = None) -> Flask:
                 app.logger.debug(f"  SESSION_COOKIE_PATH: {app.config.get('SESSION_COOKIE_PATH')}")
                 app.logger.debug(f"  SESSION_COOKIE_SAMESITE: {app.config.get('SESSION_COOKIE_SAMESITE')}")
                 app.logger.debug(f"  SECRET_KEY length: {len(app.config.get('SECRET_KEY', ''))}")
-                
+
             except Exception as e:
                 app.logger.error(f"Session loading failed: {str(e)}")
                 import traceback
                 app.logger.error(f"Session loading traceback: {traceback.format_exc()}")
-            
+
             app.logger.debug("=== END SESSION DEBUG ===")
 
     # Register blueprints
     from app.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix="/api")
-    
+
     # Log routes after blueprint registration
     log_routes()
-    
+
     # Add catch-all route for debugging API calls
     @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def api_catchall(path):
