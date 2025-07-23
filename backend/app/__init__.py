@@ -10,6 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_talisman import Talisman
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import config
 
@@ -23,6 +24,18 @@ def create_app(config_name: str | None = None) -> Flask:
     config_name = config_name or os.environ.get("FLASK_ENV", "default")
     config_obj = config[config_name]
     app.config.from_object(config_obj)
+    
+    # Configure proxy handling for production CDN/proxy setups
+    if not app.debug:
+        # Handle X-Forwarded-* headers from Cloudflare/Render proxy
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, 
+            x_for=1,    # Number of proxies setting X-Forwarded-For
+            x_proto=1,  # Number of proxies setting X-Forwarded-Proto  
+            x_host=1,   # Number of proxies setting X-Forwarded-Host
+            x_port=1    # Number of proxies setting X-Forwarded-Port
+        )
+        app.logger.info("ProxyFix middleware configured for production")
 
     # Initialize config-specific settings
     config_obj.init_app(app)

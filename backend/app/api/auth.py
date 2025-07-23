@@ -104,8 +104,13 @@ def create_user_session(user: User, request) -> UserSession:
         expires_at=expires_at,
     )
 
+    current_app.logger.info(f"Adding user session to database for user {user.id}")
     db.session.add(user_session)
+    
+    current_app.logger.info(f"Committing user session to database")
     db.session.commit()
+    
+    current_app.logger.info(f"User session committed with ID: {user_session.id}")
 
     # Set session token in Flask session
     session["session_token"] = session_token
@@ -212,7 +217,17 @@ def register() -> Tuple[Response, int]:
                 400,
             )
 
+        # Test database connection and log user count
+        current_app.logger.info("Testing database connection before user creation")
+        try:
+            total_users = User.query.count()
+            current_app.logger.info(f"Database connection OK - Total users in database: {total_users}")
+        except Exception as db_error:
+            current_app.logger.error(f"Database connection error: {str(db_error)}")
+            raise
+
         # Check if user already exists
+        current_app.logger.info(f"Checking for existing user with username '{username}' or email '{email}'")
         existing_user = User.query.filter(
             (User.username == username) | (User.email == email)
         ).first()
@@ -224,6 +239,7 @@ def register() -> Tuple[Response, int]:
                 return jsonify({"error": "Email already exists"}), 409
 
         # Create new user
+        current_app.logger.info(f"Creating user object for: {username}")
         user = User(
             username=username,
             email=email,
@@ -233,26 +249,39 @@ def register() -> Tuple[Response, int]:
             is_verified=True,  # Skip email verification for now
         )
 
+        current_app.logger.info(f"Setting password for user: {username}")
         user.set_password(password)
 
+        current_app.logger.info(f"Adding user to database session: {username}")
         db.session.add(user)
+        
+        current_app.logger.info(f"Committing user to database: {username}")
         db.session.commit()
+        
+        current_app.logger.info(f"User committed with ID: {user.id}")
+        
+        # Verify user was actually saved by querying it back
+        verification_user = User.query.filter_by(username=username).first()
+        if verification_user:
+            current_app.logger.info(f"✅ User verification successful - found user ID: {verification_user.id}")
+        else:
+            current_app.logger.error(f"❌ User verification FAILED - user not found in database after commit!")
+            raise Exception("User was not saved to database despite successful commit")
 
         # Create session for the new user
         user_session = create_user_session(user, request)
 
-        current_app.logger.info(f"New user registered: {username}")
+        current_app.logger.info(f"New user registered successfully: {username} (ID: {user.id})")
+        current_app.logger.info(f"Session after registration: {dict(session)}")
 
-        return (
-            jsonify(
-                {
-                    "message": "User registered successfully",
-                    "user": user.to_dict(),
-                    "session_token": user_session.session_token,
-                }
-            ),
-            201,
-        )
+        response = jsonify({
+            "message": "User registered successfully",
+            "user": user.to_dict(),
+            "session_token": user_session.session_token,
+        })
+        
+        current_app.logger.info(f"Registration response created - session should be set in cookies")
+        return response, 201
 
     except IntegrityError:
         db.session.rollback()
@@ -320,17 +349,16 @@ def login() -> Tuple[Response, int]:
         current_app.logger.info(f"User logged in: {user.username}")
         current_app.logger.info(f"Session created with token: {user_session.session_token[:10]}...")
         current_app.logger.info(f"Session cookie secure setting: {current_app.config.get('SESSION_COOKIE_SECURE')}")
+        current_app.logger.info(f"Session after login: {dict(session)}")
 
-        return (
-            jsonify(
-                {
-                    "message": "Login successful",
-                    "user": user.to_dict(),
-                    "session_token": user_session.session_token,
-                }
-            ),
-            200,
-        )
+        response = jsonify({
+            "message": "Login successful",
+            "user": user.to_dict(),
+            "session_token": user_session.session_token,
+        })
+        
+        current_app.logger.info(f"Login response created - session should be set in cookies")
+        return response, 200
 
     except Exception as e:
         db.session.rollback()
@@ -379,14 +407,77 @@ def get_current_user_info(current_user: User) -> Response:
 def get_auth_status() -> Response:
     """Get authentication status without requiring auth (for debugging)."""
     user = get_current_user()
+    
+    # Also check database state
+    try:
+        total_users = User.query.count()
+        all_usernames = [u.username for u in User.query.all()]
+    except Exception as e:
+        total_users = "ERROR"
+        all_usernames = [f"DB_ERROR: {str(e)}"]
+    
     return jsonify({
         "authenticated": user is not None,
         "user": user.to_dict() if user else None,
         "session_token_present": bool(session.get("session_token")),
         "session_keys": list(session.keys()),
         "cookies_present": len(request.cookies) > 0,
-        "cookie_keys": list(request.cookies.keys())
+        "cookie_keys": list(request.cookies.keys()),
+        "database_stats": {
+            "total_users": total_users,
+            "all_usernames": all_usernames
+        }
     })
+
+
+@bp.route("/auth/cookie-test", methods=["GET", "POST"])
+def cookie_test() -> Response:
+    """Test cookie setting and retrieval for debugging session issues."""
+    if request.method == "POST":
+        # Set test values in session
+        session["test_value"] = "cookie_test_123"
+        session["timestamp"] = datetime.utcnow().isoformat()
+        session.permanent = True
+        
+        current_app.logger.info(f"Cookie test - Setting session values")
+        current_app.logger.info(f"Session after setting: {dict(session)}")
+        
+        response = jsonify({
+            "action": "set",
+            "session_data": dict(session),
+            "config": {
+                "SESSION_COOKIE_SECURE": current_app.config.get("SESSION_COOKIE_SECURE"),
+                "SESSION_COOKIE_HTTPONLY": current_app.config.get("SESSION_COOKIE_HTTPONLY"),
+                "SESSION_COOKIE_SAMESITE": current_app.config.get("SESSION_COOKIE_SAMESITE"),
+                "SESSION_COOKIE_DOMAIN": current_app.config.get("SESSION_COOKIE_DOMAIN"),
+                "SESSION_COOKIE_PATH": current_app.config.get("SESSION_COOKIE_PATH"),
+                "SESSION_COOKIE_NAME": current_app.config.get("SESSION_COOKIE_NAME"),
+            }
+        })
+        
+        # Log response headers to see what cookies are being sent
+        current_app.logger.info(f"Response headers will include: Set-Cookie with session data")
+        
+        return response
+    
+    else:
+        # GET - check what we can retrieve
+        test_value = session.get("test_value")
+        timestamp = session.get("timestamp")
+        
+        current_app.logger.info(f"Cookie test - Retrieved from session: test_value={test_value}, timestamp={timestamp}")
+        current_app.logger.info(f"Current session data: {dict(session)}")
+        current_app.logger.info(f"Request cookies: {dict(request.cookies)}")
+        
+        return jsonify({
+            "action": "get",
+            "test_value": test_value,
+            "timestamp": timestamp,
+            "session_data": dict(session),
+            "request_cookies": dict(request.cookies),
+            "headers": dict(request.headers),
+            "success": test_value == "cookie_test_123"
+        })
 
 
 @bp.route("/auth/sessions", methods=["GET"])

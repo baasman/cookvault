@@ -40,10 +40,14 @@ class Config:
     WTF_CSRF_TIME_LIMIT = None
     SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None" if os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true" else "Lax")
     SESSION_COOKIE_PATH = "/"
     SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")  # None for same-origin only
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
+    
+    # Additional session configuration for production with CDN
+    SESSION_REFRESH_EACH_REQUEST = True
+    SESSION_COOKIE_NAME = "session"
 
     # Rate limiting
     RATELIMIT_STORAGE_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
