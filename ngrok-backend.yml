@@ -1,0 +1,7 @@
+version: "2"
+tunnels:
+  backend:
+    addr: backend:8000
+    proto: http
+    schemes: [https]
+    inspect: true

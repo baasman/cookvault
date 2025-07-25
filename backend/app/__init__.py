@@ -70,13 +70,16 @@ def create_app(config_name: str | None = None) -> Flask:
 
     # Configure CORS
     cors_origins = app.config.get('CORS_ORIGINS', ["http://localhost:5173", "http://127.0.0.1:5173"])
+    app.logger.info(f"🔧 CORS Origins configured: {cors_origins}")
+    
     CORS(
         app,
         origins=cors_origins,
-        supports_credentials=True,
+        supports_credentials=True,  # Required for cross-origin cookies
         allow_headers=['Content-Type', 'Authorization'],
         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     )
+    app.logger.info("🔧 CORS configured with credentials support for secure cookies")
 
     # Configure security headers with Talisman
     if not app.debug:
@@ -89,9 +92,10 @@ def create_app(config_name: str | None = None) -> Flask:
         }
         Talisman(
             app,
-            force_https=False,  # Set to True when using HTTPS
+            force_https=True,   # Enable HTTPS enforcement in production
             strict_transport_security=True,
-            session_cookie_secure=False,  # Explicitly disable secure session cookies
+            session_cookie_secure=True,  # Use secure cookies (required for SameSite=None)
+            session_cookie_samesite='None',  # Required for cross-origin secure cookies
             content_security_policy=csp,
             feature_policy={
                 'geolocation': "'none'",

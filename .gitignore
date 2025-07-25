@@ -1,6 +1,7 @@
 .venv
 .claude
 .vscode
+tasks/
 
 *.pyc
 instance

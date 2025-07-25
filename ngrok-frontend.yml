@@ -1,0 +1,7 @@
+version: "2"
+tunnels:
+  frontend:
+    addr: frontend:80
+    proto: http
+    schemes: [https]
+    inspect: true

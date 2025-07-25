@@ -1,0 +1,118 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.render
+    container_name: cookbook-backend-ngrok
+    ports:
+      - "8000:8000"
+    environment:
+      - FLASK_ENV=development  # Use dev mode to disable HTTPS redirects
+      - SESSION_COOKIE_SECURE=false
+      - SESSION_COOKIE_SAMESITE=Lax
+      - PREFERRED_URL_SCHEME=http
+      - SECRET_KEY=your-super-secret-key-for-local-testing-32chars
+      - DATABASE_URL=sqlite:////app/data/cookbook.db
+      - REDIS_URL=redis://redis:6379/0
+      - PORT=8000
+      - GUNICORN_WORKERS=2
+      - LOG_LEVEL=debug
+    volumes:
+      - ./backend:/app/backend
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - cookbook-network
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.render
+    container_name: cookbook-frontend-ngrok
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=${NGROK_BACKEND_URL}/api
+    networks:
+      - cookbook-network
+    depends_on:
+      - backend
+
+  # Ngrok tunnel for backend
+  ngrok-backend:
+    image: ngrok/ngrok:latest
+    container_name: ngrok-backend
+    restart: unless-stopped
+    command:
+      - "start"
+      - "--all"
+      - "--config"
+      - "/etc/ngrok.yml"
+      - "--authtoken"
+      - "${NGROK_AUTHTOKEN}"
+    volumes:
+      - ./ngrok-backend.yml:/etc/ngrok.yml
+    ports:
+      - 4040:4040  # ngrok web interface
+    networks:
+      - cookbook-network
+    depends_on:
+      - backend
+
+  # Ngrok tunnel for frontend
+  ngrok-frontend:
+    image: ngrok/ngrok:latest
+    container_name: ngrok-frontend
+    restart: unless-stopped
+    command:
+      - "start"
+      - "--all"
+      - "--config"
+      - "/etc/ngrok.yml"
+      - "--authtoken"
+      - "${NGROK_AUTHTOKEN}"
+    volumes:
+      - ./ngrok-frontend.yml:/etc/ngrok.yml
+    ports:
+      - 4041:4040  # ngrok web interface (different port)
+    networks:
+      - cookbook-network
+    depends_on:
+      - frontend
+
+  # Redis for session storage and caching
+  redis:
+    image: redis:7-alpine
+    container_name: cookbook-redis-ngrok
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cookbook-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  cookbook-network:
+    driver: bridge

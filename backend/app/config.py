@@ -39,14 +39,15 @@ class Config:
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None
 
-    # Debug SESSION_COOKIE_SECURE parsing
-    _session_secure_env = os.environ.get("SESSION_COOKIE_SECURE", "false")
+    # Session security settings - default to secure for HTTPS production
+    _session_secure_env = os.environ.get("SESSION_COOKIE_SECURE", "true")  # Default to true for HTTPS
     _session_secure_parsed = _session_secure_env.lower() == "true"
     print(f"🔧 SESSION_COOKIE_SECURE DEBUG: env='{_session_secure_env}', parsed={_session_secure_parsed}")
     SESSION_COOKIE_SECURE = _session_secure_parsed
 
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None" if os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true" else "Lax")
+    # For cross-origin HTTPS, use SameSite=None (requires Secure=True)
+    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None" if _session_secure_parsed else "Lax")
     SESSION_COOKIE_PATH = "/"
     SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")  # None for same-origin only
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
