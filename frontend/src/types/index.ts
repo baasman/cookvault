@@ -44,6 +44,8 @@ export interface RecipeImage {
   file_size: number;
   content_type: string;
   uploaded_at: string;
+  image_order?: number;
+  page_number?: number;
 }
 
 export interface RecipeNote {
@@ -112,14 +114,48 @@ export interface ProcessingJob {
   recipe_id?: number;
   created_at: string;
   completed_at?: string;
+  is_multi_image?: boolean;
+  multi_job_id?: number;
+  image_order?: number;
+  ocr_text?: string;
+  ocr_confidence?: number;
+  ocr_method?: string;
+}
+
+export interface MultiRecipeJob {
+  id: number;
+  user_id: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  total_images: number;
+  processed_images: number;
+  recipe_id?: number;
+  combined_ocr_text?: string;
+  error_message?: string;
+  created_at: string;
+  completed_at?: string;
+  processing_jobs?: ProcessingJob[];
 }
 
 export interface UploadResponse {
   message: string;
   job_id: number;
-  image_id: number;
+  image_id?: number;
   cookbook?: Cookbook;
   page_number?: number;
+}
+
+export interface MultiUploadResponse {
+  multi_job_id: number;
+  total_images: number;
+  message: string;
+  status_url: string;
+}
+
+export interface MultiJobStatusResponse {
+  job: MultiRecipeJob;
+  progress_percentage: number;
+  current_step: string;
+  recipe?: Recipe;
 }
 
 // API Response wrapper types
@@ -187,6 +223,8 @@ export interface ApiError {
 // Form types
 export interface UploadFormData {
   image: File | null;
+  images: File[]; // For multi-image uploads
+  isMultiImage: boolean; // Toggle between single and multi-image mode
   cookbook_id?: number;
   page_number?: number;
   // Upload mode selection
@@ -206,6 +244,13 @@ export interface UploadFormData {
   // Google Books search fields
   search_google_books?: boolean;
   selected_google_book?: any; // GoogleBook type from cookbooksApi
+}
+
+export interface ImagePreview {
+  file: File;
+  preview: string;
+  id: string;
+  order: number;
 }
 
 export interface RecipeFormData {

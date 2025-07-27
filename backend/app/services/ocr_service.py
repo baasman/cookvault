@@ -1,5 +1,6 @@
 from pathlib import Path
 import tempfile
+import re
 from typing import Dict, Tuple
 
 import pytesseract
@@ -161,3 +162,198 @@ class OCRService:
         except Exception:
             # If preprocessing fails, return original image
             return image_path
+    
+    def extract_text_from_multiple_images(self, image_paths: list[Path], maintain_order: bool = True) -> Dict[str, any]:
+        """
+        Extract text from multiple images with quality assessment and optimization.
+        
+        Args:
+            image_paths: List of paths to image files in order
+            maintain_order: Whether to process images in sequential order
+            
+        Returns:
+            Dictionary containing:
+            - results: List of extraction results per image
+            - overall_quality: Overall quality assessment
+            - completeness_score: Recipe completeness assessment
+            - processing_summary: Summary of processing results
+        """
+        if not image_paths:
+            raise ValueError("At least one image path is required")
+        
+        results = []
+        successful_extractions = 0
+        total_quality_score = 0
+        processing_errors = []
+        
+        current_app.logger.info(f"Starting multi-image OCR processing for {len(image_paths)} images")
+        
+        for i, image_path in enumerate(image_paths):
+            current_app.logger.info(f"Processing image {i+1}/{len(image_paths)}: {image_path}")
+            
+            try:
+                # Extract text with quality assessment
+                extraction_result = self.extract_text_with_quality_check(image_path)
+                extraction_result['image_index'] = i
+                extraction_result['image_path'] = str(image_path)
+                
+                results.append(extraction_result)
+                
+                if extraction_result['text'].strip():
+                    successful_extractions += 1
+                    if extraction_result['quality_score']:
+                        total_quality_score += extraction_result['quality_score']
+                        
+                current_app.logger.info(f"Image {i+1} processed: {len(extraction_result['text'])} chars, quality: {extraction_result.get('quality_score', 'N/A')}")
+                
+            except Exception as e:
+                error_msg = f"Failed to process image {i+1} ({image_path}): {str(e)}"
+                current_app.logger.error(error_msg)
+                processing_errors.append(error_msg)
+                
+                # Add failed result to maintain order
+                results.append({
+                    'image_index': i,
+                    'image_path': str(image_path),
+                    'text': '',
+                    'method': 'failed',
+                    'quality_score': 0,
+                    'quality_reasoning': f'Processing failed: {str(e)}',
+                    'fallback_used': False,
+                    'error': str(e)
+                })
+        
+        # Calculate overall quality metrics
+        avg_quality = (total_quality_score / successful_extractions) if successful_extractions > 0 else 0
+        success_rate = (successful_extractions / len(image_paths)) * 100
+        
+        # Assess overall completeness
+        all_texts = [r['text'] for r in results if r['text'].strip()]
+        completeness_score = self._assess_multi_image_completeness(all_texts)
+        
+        processing_summary = {
+            'total_images': len(image_paths),
+            'successful_extractions': successful_extractions,
+            'failed_extractions': len(image_paths) - successful_extractions,
+            'success_rate': success_rate,
+            'average_quality': avg_quality,
+            'processing_errors': processing_errors
+        }
+        
+        current_app.logger.info(f"Multi-image OCR completed: {successful_extractions}/{len(image_paths)} successful, avg quality: {avg_quality:.1f}")
+        
+        return {
+            'results': results,
+            'overall_quality': avg_quality,
+            'completeness_score': completeness_score,
+            'processing_summary': processing_summary
+        }
+    
+    def _assess_multi_image_completeness(self, texts: list[str]) -> Dict[str, any]:
+        """
+        Assess the completeness of a multi-image recipe extraction.
+        
+        Args:
+            texts: List of extracted text from all images
+            
+        Returns:
+            Dictionary with completeness assessment
+        """
+        if not texts:
+            return {
+                'score': 0,
+                'has_title': False,
+                'has_ingredients': False,
+                'has_instructions': False,
+                'estimated_completeness': 0,
+                'missing_elements': ['title', 'ingredients', 'instructions'],
+                'reasoning': 'No text extracted from any image'
+            }
+        
+        combined_text = '\n'.join(texts).lower()
+        
+        # Check for key recipe elements
+        has_title = bool(self._detect_title_indicators(combined_text))
+        has_ingredients = bool(self._detect_ingredient_indicators(combined_text))
+        has_instructions = bool(self._detect_instruction_indicators(combined_text))
+        
+        # Calculate completeness score
+        elements_found = sum([has_title, has_ingredients, has_instructions])
+        completeness_percentage = (elements_found / 3) * 100
+        
+        # Determine overall score (1-10)
+        if completeness_percentage >= 90:
+            score = 10
+        elif completeness_percentage >= 75:
+            score = 8
+        elif completeness_percentage >= 50:
+            score = 6
+        elif completeness_percentage >= 25:
+            score = 4
+        else:
+            score = 2
+        
+        missing_elements = []
+        if not has_title:
+            missing_elements.append('title')
+        if not has_ingredients:
+            missing_elements.append('ingredients')
+        if not has_instructions:
+            missing_elements.append('instructions')
+        
+        reasoning = f"Found {elements_found}/3 key elements. "
+        if missing_elements:
+            reasoning += f"Missing: {', '.join(missing_elements)}."
+        else:
+            reasoning += "All key elements detected."
+        
+        return {
+            'score': score,
+            'has_title': has_title,
+            'has_ingredients': has_ingredients,
+            'has_instructions': has_instructions,
+            'estimated_completeness': completeness_percentage,
+            'missing_elements': missing_elements,
+            'reasoning': reasoning
+        }
+    
+    def _detect_title_indicators(self, text: str) -> bool:
+        """Detect if text contains recipe title indicators."""
+        title_patterns = [
+            r'\b\w+\s+(cake|cookies?|bread|soup|stew|salad|pasta)\b',
+            r'\b(recipe|dish|meal)\b.*\b(for|with|and)\b',
+            r'^\s*[A-Z][a-z\s]+\s*$',  # Capitalized standalone lines
+        ]
+        
+        for pattern in title_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+        return False
+    
+    def _detect_ingredient_indicators(self, text: str) -> bool:
+        """Detect if text contains ingredient list indicators."""
+        ingredient_patterns = [
+            r'\bingredients?\b',
+            r'\b\d+\s*(cups?|tbsp|tsp|pounds?|oz|grams?|ml|liters?)\b',
+            r'\b\d+\s*\w+\s+(flour|sugar|butter|oil|salt|pepper)\b',
+            r'[\•\-\*]\s*\d',  # Bullet points with measurements
+        ]
+        
+        for pattern in ingredient_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+        return False
+    
+    def _detect_instruction_indicators(self, text: str) -> bool:
+        """Detect if text contains instruction/method indicators."""
+        instruction_patterns = [
+            r'\b(instructions?|method|directions?|steps?)\b',
+            r'\b\d+\.\s+\w+',  # Numbered steps
+            r'\b(mix|stir|bake|cook|heat|add|combine|blend)\b',
+            r'\b(preheat|oven|pan|bowl)\b',
+        ]
+        
+        for pattern in instruction_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+        return False

@@ -1,65 +1,95 @@
 import React, { useState } from 'react';
 import { UploadForm } from '../components/forms';
-import type { UploadFormData, UploadResponse } from '../types';
+import { recipesApi } from '../services/recipesApi';
+import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
 
 const UploadPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<UploadResponse | null>(null);
+  const [success, setSuccess] = useState<UploadResponse | MultiUploadResponse | null>(null);
+  const [multiJobId, setMultiJobId] = useState<number | null>(null);
 
   const handleUpload = async (formData: UploadFormData) => {
     setIsLoading(true);
     setError(null);
     setSuccess(null);
+    setMultiJobId(null);
 
     try {
-      const uploadData = new FormData();
-      if (formData.image) {
-        uploadData.append('image', formData.image);
-      }
-      
-      if (formData.create_new_cookbook) {
-        uploadData.append('create_new_cookbook', 'true');
-        uploadData.append('new_cookbook_title', formData.new_cookbook_title || '');
+      if (formData.isMultiImage && formData.images.length > 0) {
+        // Handle multi-image upload
+        let cookbook_id: number | undefined;
         
-        if (formData.new_cookbook_author) {
-          uploadData.append('new_cookbook_author', formData.new_cookbook_author);
+        // Determine cookbook ID based on form selection
+        if (formData.create_new_cookbook) {
+          // For now, we'll need to handle cookbook creation in the backend
+          // The backend API should be enhanced to handle cookbook creation for multi-image uploads
+          cookbook_id = undefined; // Will be handled by backend
+        } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
+          cookbook_id = formData.selected_existing_cookbook_id;
+        } else if (formData.cookbook_id) {
+          cookbook_id = formData.cookbook_id;
         }
-        if (formData.new_cookbook_description) {
-          uploadData.append('new_cookbook_description', formData.new_cookbook_description);
-        }
-        if (formData.new_cookbook_publisher) {
-          uploadData.append('new_cookbook_publisher', formData.new_cookbook_publisher);
-        }
-        if (formData.new_cookbook_isbn) {
-          uploadData.append('new_cookbook_isbn', formData.new_cookbook_isbn);
-        }
-        if (formData.new_cookbook_publication_date) {
-          uploadData.append('new_cookbook_publication_date', formData.new_cookbook_publication_date);
-        }
-      } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
-        uploadData.append('cookbook_id', formData.selected_existing_cookbook_id.toString());
-      } else if (formData.cookbook_id) {
-        uploadData.append('cookbook_id', formData.cookbook_id.toString());
-      }
-      
-      if (formData.page_number) {
-        uploadData.append('page_number', formData.page_number.toString());
-      }
 
-      const response = await fetch('/api/recipes/upload', {
-        method: 'POST',
-        body: uploadData,
-        credentials: 'include', // Include cookies for session auth
-      });
+        const result = await recipesApi.uploadMultipleImages(
+          formData.images,
+          cookbook_id,
+          formData.page_number
+        );
+        
+        setSuccess(result);
+        setMultiJobId(result.multi_job_id);
+        
+      } else if (!formData.isMultiImage && formData.image) {
+        // Handle single image upload (existing logic)
+        const uploadData = new FormData();
+        uploadData.append('image', formData.image);
+        
+        if (formData.create_new_cookbook) {
+          uploadData.append('create_new_cookbook', 'true');
+          uploadData.append('new_cookbook_title', formData.new_cookbook_title || '');
+          
+          if (formData.new_cookbook_author) {
+            uploadData.append('new_cookbook_author', formData.new_cookbook_author);
+          }
+          if (formData.new_cookbook_description) {
+            uploadData.append('new_cookbook_description', formData.new_cookbook_description);
+          }
+          if (formData.new_cookbook_publisher) {
+            uploadData.append('new_cookbook_publisher', formData.new_cookbook_publisher);
+          }
+          if (formData.new_cookbook_isbn) {
+            uploadData.append('new_cookbook_isbn', formData.new_cookbook_isbn);
+          }
+          if (formData.new_cookbook_publication_date) {
+            uploadData.append('new_cookbook_publication_date', formData.new_cookbook_publication_date);
+          }
+        } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
+          uploadData.append('cookbook_id', formData.selected_existing_cookbook_id.toString());
+        } else if (formData.cookbook_id) {
+          uploadData.append('cookbook_id', formData.cookbook_id.toString());
+        }
+        
+        if (formData.page_number) {
+          uploadData.append('page_number', formData.page_number.toString());
+        }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        const response = await fetch('/api/recipes/upload', {
+          method: 'POST',
+          body: uploadData,
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Upload failed');
+        }
+
+        const result: UploadResponse = await response.json();
+        setSuccess(result);
+      } else {
+        throw new Error('Please select at least one image to upload');
       }
-
-      const result: UploadResponse = await response.json();
-      setSuccess(result);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during upload');
@@ -71,6 +101,11 @@ const UploadPage: React.FC = () => {
   const handleNewUpload = () => {
     setSuccess(null);
     setError(null);
+    setMultiJobId(null);
+  };
+
+  const isMultiUpload = (result: UploadResponse | MultiUploadResponse): result is MultiUploadResponse => {
+    return 'multi_job_id' in result;
   };
 
   return (
@@ -101,12 +136,31 @@ const UploadPage: React.FC = () => {
               {success.message}
             </p>
             <div className="mt-4 text-sm" style={{color: '#047857'}}>
-              <p>Job ID: {success.job_id}</p>
-              {success.cookbook && (
-                <p>Added to cookbook: {success.cookbook.title}</p>
-              )}
-              {success.page_number && (
-                <p>Page: {success.page_number}</p>
+              {isMultiUpload(success) ? (
+                <>
+                  <p>Multi-image Job ID: {success.multi_job_id}</p>
+                  <p>Total Images: {success.total_images}</p>
+                  {multiJobId && (
+                    <p className="mt-2 text-xs">
+                      <a 
+                        href={`/recipes/multi-job-status/${multiJobId}`}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        View processing status →
+                      </a>
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p>Job ID: {success.job_id}</p>
+                  {'cookbook' in success && success.cookbook && (
+                    <p>Added to cookbook: {success.cookbook.title}</p>
+                  )}
+                  {'page_number' in success && success.page_number && (
+                    <p>Page: {success.page_number}</p>
+                  )}
+                </>
               )}
             </div>
             <div className="mt-6 flex justify-center gap-4">

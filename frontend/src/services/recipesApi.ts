@@ -1,4 +1,4 @@
-import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse } from '../types';
+import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse } from '../types';
 
 interface FetchRecipesParams {
   page?: number;
@@ -595,6 +595,64 @@ class RecipesApi {
       return await response.json();
     } catch (error) {
       console.error('Error copying recipe:', error);
+      throw error;
+    }
+  }
+
+  // Multi-image upload methods
+  async uploadMultipleImages(images: File[], cookbook_id?: number, page_number?: number): Promise<MultiUploadResponse> {
+    try {
+      const formData = new FormData();
+      
+      // Add all images to form data
+      images.forEach((image, index) => {
+        formData.append('images', image);
+      });
+      
+      if (cookbook_id) {
+        formData.append('cookbook_id', cookbook_id.toString());
+      }
+      
+      if (page_number) {
+        formData.append('page_number', page_number.toString());
+      }
+
+      const response = await fetch(`${this.baseUrl}/recipes/upload-multi`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading multiple images:', error);
+      throw error;
+    }
+  }
+
+  async getMultiJobStatus(jobId: number): Promise<MultiJobStatusResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/recipes/multi-job-status/${jobId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error getting multi-job status:', error);
       throw error;
     }
   }

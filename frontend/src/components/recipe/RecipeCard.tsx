@@ -132,9 +132,10 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
   };
 
 
-  // Get the first image from the recipe
+  // Get the first image from the recipe and check for multiple images
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
   const imageUrl = primaryImage ? `/api/images/${primaryImage.filename}` : null;
+  const hasMultipleImages = recipe.images && recipe.images.length > 1;
 
   return (
     <>
@@ -162,6 +163,16 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
             </div>
+
+            {/* Multi-image indicator - positioned on the left */}
+            {hasMultipleImages && (
+              <div className="absolute top-3 left-3 px-2 py-1 text-xs font-medium bg-black bg-opacity-75 text-white rounded-full flex items-center gap-1">
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
+                </svg>
+                <span>{recipe.images?.length} pages</span>
+              </div>
+            )}
             
             {/* Recipe badges */}
             <div className="absolute top-3 right-3 flex flex-col gap-2">

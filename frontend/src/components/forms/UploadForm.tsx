@@ -3,7 +3,7 @@ import { Button, Input } from '../ui';
 import { CookbookSearch } from '../cookbook/CookbookSearch';
 import { GoogleBooksSearch } from '../cookbook/GoogleBooksSearch';
 import { cookbooksApi, type GoogleBook } from '../../services/cookbooksApi';
-import type { UploadFormData } from '../../types';
+import type { UploadFormData, ImagePreview } from '../../types';
 
 interface UploadFormProps {
   onSubmit: (data: UploadFormData) => void;
@@ -14,6 +14,8 @@ interface UploadFormProps {
 const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, error }) => {
   const [formData, setFormData] = useState<UploadFormData>({
     image: null,
+    images: [],
+    isMultiImage: false,
     cookbook_id: undefined,
     page_number: undefined,
     create_new_cookbook: false,
@@ -39,7 +41,9 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
   });
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleConsentChange = (key: keyof typeof copyrightConsents) => {
     setCopyrightConsents(prev => ({
@@ -49,6 +53,77 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
   };
 
   const allConsentsGiven = Object.values(copyrightConsents).every(Boolean);
+
+  const generateImageId = () => Math.random().toString(36).substr(2, 9);
+
+  const validateFile = (file: File): boolean => {
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif', 'image/bmp', 'image/tiff'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please select valid image files (PNG, JPG, JPEG, GIF, BMP, TIFF)');
+      return false;
+    }
+
+    // Validate file size (10MB limit per file)
+    if (file.size > 10 * 1024 * 1024) {
+      alert(`File "${file.name}" is too large. Each file must be less than 10MB`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleMultipleFiles = (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validFiles = fileArray.filter(validateFile);
+    
+    if (validFiles.length === 0) return;
+
+    // Check total file count (max 10 images)
+    const totalFiles = imagePreviews.length + validFiles.length;
+    if (totalFiles > 10) {
+      alert(`Maximum 10 images allowed per recipe. You can add ${10 - imagePreviews.length} more images.`);
+      return;
+    }
+
+    // Check total size (50MB limit)
+    const currentSize = imagePreviews.reduce((sum, preview) => sum + preview.file.size, 0);
+    const newFilesSize = validFiles.reduce((sum, file) => sum + file.size, 0);
+    const totalSize = currentSize + newFilesSize;
+    
+    if (totalSize > 50 * 1024 * 1024) {
+      alert('Total file size exceeds 50MB limit');
+      return;
+    }
+
+    // Create previews for new files
+    const newPreviews: ImagePreview[] = [];
+    let processedCount = 0;
+
+    validFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const preview: ImagePreview = {
+          file,
+          preview: e.target?.result as string,
+          id: generateImageId(),
+          order: imagePreviews.length + newPreviews.length
+        };
+        newPreviews.push(preview);
+        processedCount++;
+
+        if (processedCount === validFiles.length) {
+          // All files processed, update state
+          setImagePreviews(prev => [...prev, ...newPreviews]);
+          setFormData(prev => ({ 
+            ...prev, 
+            images: [...prev.images, ...validFiles] 
+          }));
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleFileSelect = (file: File) => {
     // Validate file type
@@ -89,23 +164,50 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     e.stopPropagation();
     setDragActive(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (formData.isMultiImage || e.dataTransfer.files.length > 1) {
+        // Switch to multi-image mode if multiple files dropped
+        if (!formData.isMultiImage) {
+          setFormData(prev => ({ ...prev, isMultiImage: true, image: null }));
+          setImagePreview(null);
+        }
+        handleMultipleFiles(e.dataTransfer.files);
+      } else {
+        handleFileSelect(e.dataTransfer.files[0]);
+      }
     }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelect(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      if (formData.isMultiImage) {
+        handleMultipleFiles(e.target.files);
+      } else {
+        handleFileSelect(e.target.files[0]);
+      }
+    }
+  };
+
+  const handleMultiFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleMultipleFiles(e.target.files);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.image) {
-      alert('Please select an image to upload');
-      return;
+    // Validate images
+    if (formData.isMultiImage) {
+      if (formData.images.length === 0) {
+        alert('Please select at least one image to upload');
+        return;
+      }
+    } else {
+      if (!formData.image) {
+        alert('Please select an image to upload');
+        return;
+      }
     }
 
     // Validate new cookbook creation if selected
@@ -145,38 +247,263 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     }
   };
 
+  const removeImage = (imageId: string) => {
+    setImagePreviews(prev => {
+      const filtered = prev.filter(img => img.id !== imageId);
+      // Reorder remaining images
+      return filtered.map((img, index) => ({ ...img, order: index }));
+    });
+    setFormData(prev => {
+      const imageToRemove = imagePreviews.find(img => img.id === imageId);
+      if (imageToRemove) {
+        const filteredFiles = prev.images.filter(file => file !== imageToRemove.file);
+        return { ...prev, images: filteredFiles };
+      }
+      return prev;
+    });
+  };
+
+  const clearAllImages = () => {
+    setImagePreviews([]);
+    setFormData(prev => ({ ...prev, images: [] }));
+    if (multiFileInputRef.current) {
+      multiFileInputRef.current.value = '';
+    }
+  };
+
+  const moveImage = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    
+    setImagePreviews(prev => {
+      const newPreviews = [...prev];
+      const [moved] = newPreviews.splice(fromIndex, 1);
+      newPreviews.splice(toIndex, 0, moved);
+      
+      // Update order values
+      return newPreviews.map((img, index) => ({ ...img, order: index }));
+    });
+    
+    setFormData(prev => {
+      const newFiles = [...prev.images];
+      const [moved] = newFiles.splice(fromIndex, 1);
+      newFiles.splice(toIndex, 0, moved);
+      return { ...prev, images: newFiles };
+    });
+  };
+
+  const toggleUploadMode = () => {
+    const newIsMultiImage = !formData.isMultiImage;
+    
+    if (newIsMultiImage) {
+      // Switching to multi-image mode
+      if (formData.image) {
+        // Convert single image to multi-image format
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const preview: ImagePreview = {
+            file: formData.image!,
+            preview: e.target?.result as string,
+            id: generateImageId(),
+            order: 0
+          };
+          setImagePreviews([preview]);
+        };
+        reader.readAsDataURL(formData.image);
+        setFormData(prev => ({ 
+          ...prev, 
+          isMultiImage: true, 
+          images: [prev.image!], 
+          image: null 
+        }));
+        setImagePreview(null);
+      } else {
+        setFormData(prev => ({ ...prev, isMultiImage: true }));
+      }
+    } else {
+      // Switching to single-image mode
+      if (imagePreviews.length > 0) {
+        const firstImage = imagePreviews[0];
+        setFormData(prev => ({ 
+          ...prev, 
+          isMultiImage: false, 
+          image: firstImage.file, 
+          images: [] 
+        }));
+        setImagePreview(firstImage.preview);
+        setImagePreviews([]);
+      } else {
+        setFormData(prev => ({ ...prev, isMultiImage: false, images: [] }));
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col w-full max-w-[512px] mx-auto">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6 px-4 py-3">
         {/* Image Upload Area */}
         <div className="flex flex-col">
-          <label className="block text-base font-medium leading-normal pb-2" style={{color: '#1c120d'}}>
-            Recipe Image *
-          </label>
+          <div className="flex items-center justify-between pb-2">
+            <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
+              Recipe Image{formData.isMultiImage ? 's' : ''} *
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleUploadMode}
+                className="text-sm px-3 py-1 rounded-full border transition-colors"
+                style={{
+                  borderColor: '#e8d7cf',
+                  backgroundColor: formData.isMultiImage ? '#f15f1c' : '#fcf9f8',
+                  color: formData.isMultiImage ? 'white' : '#1c120d'
+                }}
+              >
+                {formData.isMultiImage ? 'Multi-page' : 'Single page'}
+              </button>
+            </div>
+          </div>
           
-          <div
-            className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
-              dragActive 
-                ? 'border-orange-400 bg-orange-50' 
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
-            style={{
-              borderColor: dragActive ? '#f15f1c' : '#e8d7cf',
-              backgroundColor: dragActive ? '#fcf9f8' : '#fcf9f8'
-            }}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpg,image/jpeg,image/gif,image/bmp,image/tiff"
-              onChange={handleFileInput}
-              className="hidden"
-            />
+          {formData.isMultiImage ? (
+            // Multi-image upload interface
+            <div className="space-y-4">
+              <div
+                className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+                  dragActive 
+                    ? 'border-orange-400 bg-orange-50' 
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+                style={{
+                  borderColor: dragActive ? '#f15f1c' : '#e8d7cf',
+                  backgroundColor: dragActive ? '#fcf9f8' : '#fcf9f8'
+                }}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => multiFileInputRef.current?.click()}
+              >
+                <input
+                  ref={multiFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpg,image/jpeg,image/gif,image/bmp,image/tiff"
+                  multiple
+                  onChange={handleMultiFileInput}
+                  className="hidden"
+                />
+                
+                <div className="flex flex-col items-center">
+                  <svg className="w-8 h-8 mb-3" style={{color: '#9b644b'}} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm font-medium mb-1" style={{color: '#1c120d'}}>
+                    Drop multiple recipe images here
+                  </p>
+                  <p className="text-xs" style={{color: '#9b644b'}}>
+                    or click to browse files
+                  </p>
+                  <p className="text-xs mt-1" style={{color: '#9b644b'}}>
+                    PNG, JPG, JPEG, GIF, BMP, TIFF • Max 10 images • 50MB total
+                  </p>
+                  {imagePreviews.length > 0 && (
+                    <p className="text-xs mt-2 font-medium" style={{color: '#f15f1c'}}>
+                      {imagePreviews.length} image{imagePreviews.length > 1 ? 's' : ''} selected
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Image Previews Gallery */}
+              {imagePreviews.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium" style={{color: '#1c120d'}}>
+                      Recipe Pages ({imagePreviews.length})
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={clearAllImages}
+                      className="text-xs text-red-600 hover:text-red-800"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    {imagePreviews.map((imagePreview, index) => (
+                      <div key={imagePreview.id} className="relative group">
+                        <div className="relative border rounded-lg overflow-hidden" style={{borderColor: '#e8d7cf'}}>
+                          <img
+                            src={imagePreview.preview}
+                            alt={`Recipe page ${index + 1}`}
+                            className="w-full h-32 object-cover"
+                          />
+                          <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                            Page {index + 1}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeImage(imagePreview.id)}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-600 truncate" title={imagePreview.file.name}>
+                            {imagePreview.file.name}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => moveImage(index, index - 1)}
+                              disabled={index === 0}
+                              className="text-xs p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Move up"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveImage(index, index + 1)}
+                              disabled={index === imagePreviews.length - 1}
+                              className="text-xs p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Move down"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Single image upload interface
+            <div
+              className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+                dragActive 
+                  ? 'border-orange-400 bg-orange-50' 
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+              style={{
+                borderColor: dragActive ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: dragActive ? '#fcf9f8' : '#fcf9f8'
+              }}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              onClick={() => formData.isMultiImage ? multiFileInputRef.current?.click() : fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpg,image/jpeg,image/gif,image/bmp,image/tiff"
+                onChange={handleFileInput}
+                className="hidden"
+              />
             
             {imagePreview ? (
               <div className="relative">
@@ -215,7 +542,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                 </p>
               </div>
             )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Cookbook Information */}
@@ -629,7 +957,9 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             type="submit"
             variant="primary"
             size="lg"
-            disabled={isLoading || !formData.image || !allConsentsGiven}
+            disabled={isLoading || 
+              (formData.isMultiImage ? formData.images.length === 0 : !formData.image) || 
+              !allConsentsGiven}
             className="min-w-[200px]"
           >
             {isLoading ? (

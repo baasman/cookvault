@@ -172,6 +172,56 @@ class ProcessingStatus(Enum):
     FAILED = "failed"
 
 
+class MultiRecipeJob(db.Model):
+    """Manages multi-image recipe processing jobs"""
+    __tablename__ = 'multi_recipe_job'
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    status: Mapped[ProcessingStatus] = mapped_column(default=ProcessingStatus.PENDING)
+    total_images: Mapped[int] = mapped_column(Integer, nullable=False)
+    processed_images: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
+    # Final combined recipe data
+    recipe_id: Mapped[Optional[int]] = mapped_column(ForeignKey("recipe.id"))
+    combined_ocr_text: Mapped[Optional[str]] = mapped_column(Text)
+    
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    
+    # Relationships
+    user: Mapped["User"] = relationship("User")
+    recipe: Mapped[Optional["Recipe"]] = relationship("Recipe")
+    processing_jobs: Mapped[List["ProcessingJob"]] = relationship(
+        "ProcessingJob", back_populates="multi_job"
+    )
+    
+    def get_progress_percentage(self) -> float:
+        """Calculate completion percentage"""
+        if self.total_images == 0:
+            return 0.0
+        return (self.processed_images / self.total_images) * 100
+    
+    def is_complete(self) -> bool:
+        """Check if all images have been processed"""
+        return self.processed_images >= self.total_images
+    
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "status": self.status.value,
+            "total_images": self.total_images,
+            "processed_images": self.processed_images,
+            "progress_percentage": self.get_progress_percentage(),
+            "recipe_id": self.recipe_id,
+            "error_message": self.error_message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
 class Ingredient(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
@@ -236,7 +286,10 @@ class Recipe(db.Model):
         order_by="Instruction.step_number",
     )
     images: Mapped[List["RecipeImage"]] = relationship(
-        "RecipeImage", back_populates="recipe", cascade="all, delete-orphan"
+        "RecipeImage", 
+        back_populates="recipe", 
+        cascade="all, delete-orphan",
+        order_by="RecipeImage.image_order"
     )
     processing_jobs: Mapped[List["ProcessingJob"]] = relationship(
         "ProcessingJob", back_populates="recipe"
@@ -430,8 +483,15 @@ class RecipeImage(db.Model):
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    # Multi-image support fields
+    image_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    page_number: Mapped[Optional[int]] = mapped_column(Integer)
 
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Add index for recipe_id + image_order for efficient ordering queries
+    __table_args__ = (db.Index('idx_recipe_image_order', 'recipe_id', 'image_order'),)
 
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe", back_populates="images")
 
@@ -443,6 +503,8 @@ class RecipeImage(db.Model):
             "original_filename": self.original_filename,
             "file_size": self.file_size,
             "content_type": self.content_type,
+            "image_order": self.image_order,
+            "page_number": self.page_number,
             "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
         }
 
@@ -453,6 +515,11 @@ class ProcessingJob(db.Model):
     image_id: Mapped[int] = mapped_column(ForeignKey("recipe_image.id"), nullable=False)
     cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
     page_number: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # Multi-image support fields
+    is_multi_image: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    multi_job_id: Mapped[Optional[int]] = mapped_column(ForeignKey("multi_recipe_job.id"))
+    image_order: Mapped[Optional[int]] = mapped_column(Integer)  # Order within multi-image job
 
     status: Mapped[ProcessingStatus] = mapped_column(default=ProcessingStatus.PENDING)
     error_message: Mapped[Optional[str]] = mapped_column(Text)
@@ -472,12 +539,18 @@ class ProcessingJob(db.Model):
         "Recipe", back_populates="processing_jobs"
     )
     image: Mapped["RecipeImage"] = relationship("RecipeImage")
+    multi_job: Mapped[Optional["MultiRecipeJob"]] = relationship(
+        "MultiRecipeJob", back_populates="processing_jobs"
+    )
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
             "recipe_id": self.recipe_id,
             "image_id": self.image_id,
+            "is_multi_image": self.is_multi_image,
+            "multi_job_id": self.multi_job_id,
+            "image_order": self.image_order,
             "status": self.status.value,
             "error_message": self.error_message,
             "ocr_method": self.ocr_method,

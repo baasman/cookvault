@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../services/recipesApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
-import { RecipeImageDisplay } from '../components/recipe/RecipeImageDisplay';
+import { RecipeImageCarousel } from '../components/recipe/RecipeImageCarousel';
 import { RecipeEditForm } from '../components/recipe/RecipeEditForm';
 import { AddToCollectionButton } from '../components/recipe/AddToCollectionButton';
 import { CopyRecipeButton } from '../components/recipe/CopyRecipeButton';
@@ -201,12 +201,10 @@ const RecipeDetailPage: React.FC = () => {
           {/* Recipe Header */}
           <div className="bg-white rounded-xl shadow-sm border p-8 mb-6" style={{borderColor: '#e8d7cf'}}>
             <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-8">
-              {/* Recipe Image */}
+              {/* Recipe Images */}
               <div className="w-full lg:w-1/3 mb-6 lg:mb-0">
-                <RecipeImageDisplay 
-                  recipe={recipe} 
-                  canEdit={canEdit}
-                  isEditMode={false}
+                <RecipeImageCarousel 
+                  recipe={recipe}
                 />
               </div>
 

@@ -15,6 +15,7 @@ from app.models import (
     Cookbook,
     Ingredient,
     Instruction,
+    MultiRecipeJob,
     ProcessingJob,
     ProcessingStatus,
     Recipe,
@@ -1686,3 +1687,450 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
         db.session.rollback()
         current_app.logger.error(f"Error copying recipe: {e}")
         return jsonify({"error": "Failed to copy recipe"}), 500
+
+
+@bp.route("/recipes/upload-multi", methods=["POST"])
+@require_auth
+def upload_multi_recipe():
+    """Upload multiple images for a single recipe"""
+    try:
+        user_id = request.user_id
+        
+        # Check if files are present
+        if 'images' not in request.files:
+            return jsonify({"error": "No images provided"}), 400
+        
+        files = request.files.getlist('images')
+        if not files or len(files) == 0:
+            return jsonify({"error": "No images provided"}), 400
+        
+        # Validate maximum number of images
+        max_images = current_app.config.get('MAX_IMAGES_PER_RECIPE', 10)
+        if len(files) > max_images:
+            return jsonify({"error": f"Maximum {max_images} images allowed per recipe"}), 400
+        
+        # Validate total file size
+        total_size = 0
+        max_total_size = current_app.config.get('MAX_TOTAL_UPLOAD_SIZE', 50 * 1024 * 1024)  # 50MB default
+        
+        validated_files = []
+        for i, file in enumerate(files):
+            if file.filename == '':
+                return jsonify({"error": f"Image {i+1} has no filename"}), 400
+            
+            if not allowed_file(file.filename):
+                return jsonify({"error": f"Image {i+1} has invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+            
+            # Seek to end to get file size, then reset
+            file.seek(0, 2)  # Seek to end
+            file_size = file.tell()
+            file.seek(0)  # Reset to beginning
+            
+            total_size += file_size
+            validated_files.append((file, file_size))
+        
+        if total_size > max_total_size:
+            return jsonify({"error": f"Total file size exceeds {max_total_size // (1024*1024)}MB limit"}), 400
+        
+        # Get optional cookbook information
+        cookbook_id = request.form.get('cookbook_id')
+        page_number = safe_int_conversion(request.form.get('page_number'))
+        
+        # Validate cookbook if provided
+        cookbook = None
+        if cookbook_id:
+            try:
+                cookbook_id = int(cookbook_id)
+                cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=user_id).first()
+                if not cookbook:
+                    return jsonify({"error": "Cookbook not found"}), 404
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid cookbook ID"}), 400
+        
+        # Create MultiRecipeJob
+        multi_job = MultiRecipeJob(
+            user_id=user_id,
+            total_images=len(validated_files),
+            status=ProcessingStatus.PENDING
+        )
+        db.session.add(multi_job)
+        db.session.flush()  # Get the ID
+        
+        # Save images and create processing jobs
+        upload_dir = Path(current_app.config["UPLOAD_FOLDER"])
+        upload_dir.mkdir(exist_ok=True)
+        
+        processing_jobs = []
+        
+        for i, (file, file_size) in enumerate(validated_files):
+            # Generate unique filename
+            file_extension = file.filename.rsplit('.', 1)[1].lower()
+            unique_filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
+            file_path = upload_dir / unique_filename
+            
+            # Save file
+            file.save(str(file_path))
+            
+            # Create image record
+            recipe_image = RecipeImage(
+                filename=unique_filename,
+                original_filename=file.filename,
+                file_path=str(file_path),
+                file_size=file_size,
+                content_type=file.content_type,
+                image_order=i,  # Set order based on upload sequence
+                page_number=page_number + i if page_number else i + 1
+            )
+            db.session.add(recipe_image)
+            db.session.flush()  # Get the ID
+            
+            # Create processing job
+            processing_job = ProcessingJob(
+                image_id=recipe_image.id,
+                cookbook_id=cookbook_id,
+                page_number=recipe_image.page_number,
+                is_multi_image=True,
+                multi_job_id=multi_job.id,
+                image_order=i,
+                status=ProcessingStatus.PENDING
+            )
+            db.session.add(processing_job)
+            processing_jobs.append(processing_job)
+        
+        db.session.commit()
+        
+        # Start processing
+        try:
+            process_multi_image_job(multi_job.id)
+        except Exception as e:
+            current_app.logger.error(f"Error starting multi-image processing for job {multi_job.id}: {e}")
+            multi_job.status = ProcessingStatus.FAILED
+            multi_job.error_message = f"Failed to start processing: {str(e)}"
+            db.session.commit()
+        
+        current_app.logger.info(f"Created multi-image job {multi_job.id} with {len(processing_jobs)} images for user {user_id}")
+        
+        return jsonify({
+            "multi_job_id": multi_job.id,
+            "total_images": len(processing_jobs),
+            "message": f"Multi-image upload started with {len(processing_jobs)} images",
+            "status_url": f"/api/recipes/multi-job-status/{multi_job.id}"
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in multi-image upload: {e}")
+        return jsonify({"error": "Failed to process multi-image upload"}), 500
+
+
+@bp.route("/recipes/multi-job-status/<int:job_id>", methods=["GET"])
+@require_auth
+def get_multi_job_status(job_id: int):
+    """Get status of a multi-image processing job"""
+    try:
+        user_id = request.user_id
+        
+        # Find the multi-image job
+        multi_job = MultiRecipeJob.query.filter_by(id=job_id, user_id=user_id).first()
+        if not multi_job:
+            return jsonify({"error": "Multi-image job not found"}), 404
+        
+        # Get all processing jobs for this multi-job
+        processing_jobs = ProcessingJob.query.filter_by(multi_job_id=job_id).order_by(ProcessingJob.image_order).all()
+        
+        # Build detailed status
+        job_details = []
+        for job in processing_jobs:
+            job_detail = job.to_dict()
+            if job.image:
+                job_detail["image"] = job.image.to_dict()
+            job_details.append(job_detail)
+        
+        response_data = multi_job.to_dict()
+        response_data["processing_jobs"] = job_details
+        
+        # If completed and recipe created, include recipe info
+        if multi_job.status == ProcessingStatus.COMPLETED and multi_job.recipe_id:
+            recipe = Recipe.query.get(multi_job.recipe_id)
+            if recipe:
+                response_data["recipe"] = recipe.to_dict(current_user_id=user_id)
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting multi-job status: {e}")
+        return jsonify({"error": "Failed to get job status"}), 500
+
+
+def process_multi_image_job(multi_job_id: int):
+    """Process all images in a multi-image job and combine results into a single recipe."""
+    try:
+        # Get the multi-image job
+        multi_job = MultiRecipeJob.query.get(multi_job_id)
+        if not multi_job:
+            current_app.logger.error(f"MultiRecipeJob {multi_job_id} not found")
+            return
+        
+        multi_job.status = ProcessingStatus.PROCESSING
+        db.session.commit()
+        
+        # Get all processing jobs for this multi-image job, ordered by image_order
+        processing_jobs = ProcessingJob.query.filter_by(
+            multi_job_id=multi_job_id
+        ).order_by(ProcessingJob.image_order).all()
+        
+        if not processing_jobs:
+            multi_job.status = ProcessingStatus.FAILED
+            multi_job.error_message = "No processing jobs found"
+            db.session.commit()
+            return
+        
+        current_app.logger.info(f"Processing {len(processing_jobs)} images for multi-job {multi_job_id}")
+        
+        # Collect image paths for batch processing
+        image_paths = []
+        processing_job_map = {}
+        
+        for processing_job in processing_jobs:
+            recipe_image = RecipeImage.query.get(processing_job.image_id)
+            if recipe_image:
+                image_path = Path(recipe_image.file_path)
+                image_paths.append(image_path)
+                processing_job_map[str(image_path)] = processing_job
+        
+        if not image_paths:
+            multi_job.status = ProcessingStatus.FAILED
+            multi_job.error_message = "No valid image paths found"
+            db.session.commit()
+            return
+        
+        # Use enhanced multi-image OCR processing
+        try:
+            from app.services.ocr_service import OCRService
+            ocr_service = OCRService()
+            
+            current_app.logger.info(f"Starting enhanced multi-image OCR for job {multi_job_id}")
+            multi_image_result = ocr_service.extract_text_from_multiple_images(image_paths)
+            
+            current_app.logger.info(f"Multi-image OCR completed. Quality: {multi_image_result['overall_quality']:.1f}, Completeness: {multi_image_result['completeness_score']['score']}/10")
+            
+            # Update individual processing jobs with results
+            ocr_texts = []
+            successful_jobs = []
+            
+            for result in multi_image_result['results']:
+                image_path = result['image_path']
+                processing_job = processing_job_map.get(image_path)
+                
+                if processing_job:
+                    if result.get('error'):
+                        processing_job.status = ProcessingStatus.FAILED
+                        processing_job.error_message = result['error']
+                    else:
+                        processing_job.ocr_text = result['text']
+                        processing_job.ocr_confidence = result.get('quality_score', 0.0)
+                        processing_job.ocr_method = result.get('method', 'unknown')
+                        processing_job.status = ProcessingStatus.COMPLETED
+                        
+                        if result['text'].strip():
+                            ocr_texts.append(result['text'])
+                            successful_jobs.append(processing_job)
+                        
+                        multi_job.processed_images += 1
+                    
+                    db.session.commit()
+            
+        except Exception as e:
+            current_app.logger.error(f"Enhanced multi-image OCR failed, falling back to individual processing: {e}")
+            
+            # Fallback to individual processing with original retry logic
+            ocr_texts = []
+            successful_jobs = []
+            
+            for processing_job in processing_jobs:
+                max_retries = 2
+                retry_count = 0
+                timeout_seconds = 120  # 2 minutes per image
+                
+                while retry_count <= max_retries:
+                    try:
+                        processing_job.status = ProcessingStatus.PROCESSING
+                        db.session.commit()
+                        
+                        # Add timeout handling for OCR processing
+                        import signal
+                        
+                        def timeout_handler(signum, frame):
+                            raise TimeoutError(f"OCR processing timed out after {timeout_seconds} seconds")
+                        
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(timeout_seconds)
+                        
+                        try:
+                            # Extract text from this image
+                            ocr_result = extract_recipe_text(processing_job.image_id)
+                            ocr_texts.append(ocr_result['text'])
+                            
+                            processing_job.ocr_text = ocr_result['text']
+                            processing_job.ocr_confidence = ocr_result.get('confidence', 0.0)
+                            processing_job.ocr_method = ocr_result.get('method', 'unknown')
+                            processing_job.status = ProcessingStatus.COMPLETED
+                            
+                            successful_jobs.append(processing_job)
+                            multi_job.processed_images += 1
+                            
+                            current_app.logger.info(f"Completed OCR for image {processing_job.image_id} (job {processing_job.id})")
+                            signal.alarm(0)  # Cancel timeout
+                            db.session.commit()
+                            break  # Success, exit retry loop
+                            
+                        finally:
+                            signal.alarm(0)  # Always cancel timeout
+                            
+                    except (TimeoutError, Exception) as e:
+                        retry_count += 1
+                        error_msg = f"Error processing image {processing_job.image_id} (attempt {retry_count}/{max_retries + 1}): {e}"
+                        current_app.logger.error(error_msg, exc_info=True)
+                        
+                        if retry_count > max_retries:
+                            # Final failure after all retries
+                            processing_job.status = ProcessingStatus.FAILED
+                            processing_job.error_message = f"Failed after {max_retries + 1} attempts: {str(e)}"
+                            db.session.commit()
+                        else:
+                            # Wait before retry (exponential backoff)
+                            import time
+                            wait_time = 2 ** retry_count  # 2, 4, 8 seconds
+                            current_app.logger.info(f"Retrying in {wait_time} seconds...")
+                            time.sleep(wait_time)
+        
+        # Check if we have any successful OCR results
+        if not ocr_texts:
+            multi_job.status = ProcessingStatus.FAILED
+            multi_job.error_message = "No images could be processed successfully"
+            db.session.commit()
+            return
+        
+        # Combine OCR texts for storage
+        combined_ocr_text = "\n--- PAGE BREAK ---\n".join(ocr_texts)
+        multi_job.combined_ocr_text = combined_ocr_text
+        
+        try:
+            # Parse the multi-image recipe with quality information
+            recipe_parser = RecipeParser()
+            
+            # Pass quality information if available from enhanced processing
+            quality_info = None
+            if 'multi_image_result' in locals():
+                quality_info = multi_image_result
+            
+            parsed_recipe = recipe_parser.parse_multi_image_recipe(ocr_texts, quality_info=quality_info)
+            
+            # Create the recipe
+            recipe = Recipe(
+                title=parsed_recipe.get('title', 'Untitled Recipe'),
+                description=parsed_recipe.get('description'),
+                user_id=multi_job.user_id,
+                is_public=False  # Default to private
+            )
+            db.session.add(recipe)
+            db.session.flush()  # Get recipe ID
+            
+            # Add ingredients if any
+            if parsed_recipe.get('ingredients'):
+                for ingredient_text in parsed_recipe['ingredients']:
+                    ingredient = Ingredient(
+                        recipe_id=recipe.id,
+                        text=ingredient_text
+                    )
+                    db.session.add(ingredient)
+            
+            # Add instructions if any
+            if parsed_recipe.get('instructions'):
+                for i, instruction_text in enumerate(parsed_recipe['instructions']):
+                    instruction = Instruction(
+                        recipe_id=recipe.id,
+                        step_number=i + 1,
+                        description=instruction_text
+                    )
+                    db.session.add(instruction)
+            
+            # Set recipe metadata
+            if parsed_recipe.get('prep_time'):
+                recipe.prep_time = parsed_recipe['prep_time']
+            if parsed_recipe.get('cook_time'):
+                recipe.cook_time = parsed_recipe['cook_time']
+            if parsed_recipe.get('servings'):
+                recipe.servings = parsed_recipe['servings']
+            if parsed_recipe.get('difficulty'):
+                recipe.difficulty = parsed_recipe['difficulty']
+            
+            # Link all images to the recipe
+            for processing_job in successful_jobs:
+                recipe_image = RecipeImage.query.get(processing_job.image_id)
+                if recipe_image:
+                    recipe_image.recipe_id = recipe.id
+            
+            # Update multi-job with recipe reference
+            multi_job.recipe_id = recipe.id
+            multi_job.status = ProcessingStatus.COMPLETED
+            multi_job.completed_at = datetime.utcnow()
+            
+            db.session.commit()
+            current_app.logger.info(f"Successfully created recipe {recipe.id} from multi-job {multi_job_id}")
+            
+        except Exception as e:
+            current_app.logger.error(f"Error parsing multi-image recipe for job {multi_job_id}: {e}", exc_info=True)
+            multi_job.status = ProcessingStatus.FAILED
+            multi_job.error_message = f"Recipe parsing failed: {str(e)}"
+            db.session.commit()
+            # Cleanup orphaned images for failed parsing
+            cleanup_failed_multi_job(multi_job_id)
+    
+    except Exception as e:
+        current_app.logger.error(f"Error in process_multi_image_job {multi_job_id}: {e}", exc_info=True)
+        try:
+            multi_job = MultiRecipeJob.query.get(multi_job_id)
+            if multi_job:
+                multi_job.status = ProcessingStatus.FAILED
+                multi_job.error_message = f"Processing failed: {str(e)}"
+                db.session.commit()
+                # Cleanup orphaned images for completely failed job
+                cleanup_failed_multi_job(multi_job_id)
+        except Exception as commit_error:
+            current_app.logger.error(f"Error updating job status: {commit_error}")
+
+
+def cleanup_failed_multi_job(multi_job_id: int):
+    """Clean up files and database records for a failed multi-image job."""
+    try:
+        # Get all processing jobs for this multi-image job
+        processing_jobs = ProcessingJob.query.filter_by(multi_job_id=multi_job_id).all()
+        
+        for processing_job in processing_jobs:
+            try:
+                # Get the associated image
+                recipe_image = RecipeImage.query.get(processing_job.image_id)
+                if recipe_image and recipe_image.recipe_id is None:
+                    # Only cleanup orphaned images (not linked to a recipe)
+                    file_path = Path(recipe_image.file_path)
+                    if file_path.exists():
+                        file_path.unlink()
+                        current_app.logger.info(f"Deleted orphaned image file: {file_path}")
+                    
+                    # Delete the image record
+                    db.session.delete(recipe_image)
+                    current_app.logger.info(f"Deleted orphaned image record: {recipe_image.id}")
+                
+                # Delete the processing job
+                db.session.delete(processing_job)
+                
+            except Exception as e:
+                current_app.logger.error(f"Error cleaning up processing job {processing_job.id}: {e}")
+        
+        db.session.commit()
+        current_app.logger.info(f"Cleanup completed for failed multi-job {multi_job_id}")
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in cleanup_failed_multi_job {multi_job_id}: {e}")
+        db.session.rollback()
