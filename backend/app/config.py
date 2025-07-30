@@ -5,7 +5,10 @@ from typing import Type
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env file from project root (one level up from backend)
+project_root = Path(__file__).parent.parent.parent
+env_path = project_root / ".env"
+load_dotenv(env_path)
 
 db_path = Path(__file__).parents[2] / "dbs"
 

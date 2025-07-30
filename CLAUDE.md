@@ -6,4 +6,4 @@
 
 * If an exception is caught and being logged, make sure it's clear where the error occurred in the code
 
-* 
+* ALWAYS use uv when running python based commands
