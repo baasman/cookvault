@@ -65,26 +65,26 @@ class RecipeParser:
         """Parse recipe from multiple OCR text blocks with enhanced text processing."""
         if not ocr_texts:
             raise ValueError("At least one OCR text is required")
-        
+
         if len(ocr_texts) == 1:
             return self.parse_recipe_text(ocr_texts[0], use_cache)
-        
+
         # Pre-process texts for better combination
         processed_texts = self._preprocess_multi_image_texts(ocr_texts)
-        
+
         # Combine texts for cache key generation
         combined_text = "\n--- PAGE BREAK ---\n".join(processed_texts)
         cache_key = self._generate_cache_key(combined_text)
-        
+
         # Check cache if enabled and Redis is available
         if use_cache and self.redis_client:
             cached_result = self._get_from_cache(cache_key)
             if cached_result:
                 return cached_result
-        
+
         # Build enhanced prompt with quality information
         prompt = self._build_enhanced_multi_image_parsing_prompt(processed_texts, quality_info)
-        
+
         try:
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
@@ -93,50 +93,51 @@ class RecipeParser:
                 system="You are an expert recipe parsing assistant specialized in combining multi-page recipes with advanced text processing capabilities.",
                 messages=[{"role": "user", "content": prompt}],
             )
-            
-            content = response.content[0].text
-            parsed_result = self._extract_json_from_response(content)
-            
+
+            # content = response.content[0].text
+            # parsed_result = self._extract_json_from_response(content)
+            parsed_result = json.loads(response.content[0].json())
+
             # Post-process the result for multi-image specific improvements
             enhanced_result = self._enhance_multi_image_result(parsed_result, processed_texts)
-            
+
             # Cache the result if caching is enabled and Redis is available
             if use_cache and self.redis_client:
                 self._set_in_cache(cache_key, enhanced_result)
-            
+
             return enhanced_result
-            
+
         except Exception as e:
             current_app.logger.error(f"Multi-image recipe parsing failed: {str(e)}", exc_info=True)
             raise Exception(f"Multi-image recipe parsing failed: {str(e)}") from e
-    
+
     def _preprocess_multi_image_texts(self, ocr_texts: list[str]) -> list[str]:
         """Pre-process OCR texts for better combination and parsing."""
         processed_texts = []
-        
+
         for i, text in enumerate(ocr_texts):
             if not text.strip():
                 processed_texts.append(f"[PAGE {i+1}: NO TEXT EXTRACTED]")
                 continue
-            
+
             # Clean up common OCR artifacts
             cleaned_text = self._clean_ocr_text(text)
-            
+
             # Add page context
             page_text = f"[PAGE {i+1}]\n{cleaned_text}"
             processed_texts.append(page_text)
-        
+
         return processed_texts
-    
+
     def _clean_ocr_text(self, text: str) -> str:
         """Clean common OCR artifacts and improve text quality."""
         if not text:
             return text
-        
+
         # Remove excessive whitespace and normalize line breaks
         text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
         text = re.sub(r'[ \t]+', ' ', text)
-        
+
         # Fix common OCR character misreadings
         ocr_fixes = {
             r'\b1\s*(?=[a-zA-Z])': 'I ',  # 1 -> I at word boundaries
@@ -148,51 +149,51 @@ class RecipeParser:
             r'\bteaspoon5\b': 'teaspoons',
             r'\btablespoon5\b': 'tablespoons',
         }
-        
+
         for pattern, replacement in ocr_fixes.items():
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-        
+
         # Remove isolated single characters that are likely OCR noise
         text = re.sub(r'\n\s*[a-zA-Z]\s*\n', '\n', text)
-        
+
         return text.strip()
-    
+
     def _enhance_multi_image_result(self, parsed_result: Dict, processed_texts: list[str]) -> Dict:
         """Enhance parsed result with multi-image specific improvements."""
         enhanced_result = parsed_result.copy()
-        
+
         # Add metadata about multi-image processing
         enhanced_result['multi_image_metadata'] = {
             'total_pages': len(processed_texts),
             'processing_notes': []
         }
-        
+
         # Check for potential incomplete parsing
         if not enhanced_result.get('ingredients') or not enhanced_result.get('instructions'):
             enhanced_result['multi_image_metadata']['processing_notes'].append(
                 'Some recipe elements may be missing - manual review recommended'
             )
-        
+
         # Validate ingredient and instruction counts seem reasonable
         ingredient_count = len(enhanced_result.get('ingredients', []))
         instruction_count = len(enhanced_result.get('instructions', []))
-        
+
         if ingredient_count < 2:
             enhanced_result['multi_image_metadata']['processing_notes'].append(
                 f'Only {ingredient_count} ingredients found - may be incomplete'
             )
-        
+
         if instruction_count < 2:
             enhanced_result['multi_image_metadata']['processing_notes'].append(
                 f'Only {instruction_count} instructions found - may be incomplete'
             )
-        
+
         return enhanced_result
-    
+
     def _build_enhanced_multi_image_parsing_prompt(self, processed_texts: list[str], quality_info: Dict = None) -> str:
         """Build enhanced prompt for multi-image parsing with quality context."""
         formatted_texts = "\n\n".join(processed_texts)
-        
+
         quality_context = ""
         if quality_info:
             quality_context = f"""
@@ -203,7 +204,7 @@ QUALITY ASSESSMENT CONTEXT:
 
 Pay special attention to pages with lower quality scores and be more careful with text interpretation.
 """
-        
+
         return f"""
 Please parse this multi-page recipe and extract structured information in JSON format.
 
@@ -275,8 +276,8 @@ If any information is not available or unclear, use null for that field.
         """Store parsed recipe in Redis cache."""
         try:
             self.redis_client.setex(
-                cache_key, 
-                self.cache_ttl, 
+                cache_key,
+                self.cache_ttl,
                 json.dumps(parsed_result)
             )
         except Exception:
@@ -325,9 +326,9 @@ If any information is not available or unclear, use null for that field.
         formatted_texts = []
         for i, text in enumerate(ocr_texts, 1):
             formatted_texts.append(f"=== PAGE {i} ===\n{text}")
-        
+
         combined_text = "\n\n".join(formatted_texts)
-        
+
         return f"""
 Please parse this multi-page recipe and extract structured information in JSON format.
 
