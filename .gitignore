@@ -8,7 +8,8 @@ instance
 dbs
 .env
 uploads
-
+.env.ngrok
+.env.https
 # Logs
 logs
 *.log
