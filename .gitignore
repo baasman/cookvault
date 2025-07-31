@@ -10,6 +10,7 @@ dbs
 uploads
 .env.ngrok
 .env.https
+
 # Logs
 logs
 *.log
@@ -37,3 +38,4 @@ dist-ssr
 
 .env.production
 tasks/plan-multi-image-recipe-20250725-144945.md
+backend/scripts/seed_data/Flavors_My_Kitchen_EN.pdf

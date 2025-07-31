@@ -605,7 +605,7 @@ class RecipesApi {
       const formData = new FormData();
       
       // Add all images to form data
-      images.forEach((image, index) => {
+      images.forEach((image) => {
         formData.append('images', image);
       });
       

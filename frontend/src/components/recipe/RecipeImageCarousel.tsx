@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Recipe, RecipeImage } from '../../types';
+import type { Recipe } from '../../types';
 
 interface RecipeImageCarouselProps {
   recipe: Recipe;
@@ -103,7 +103,7 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
 
   return (
     <>
-      <style jsx>{`
+      <style>{`
         .scrollbar-hide {
           -ms-overflow-style: none;
           scrollbar-width: none;
