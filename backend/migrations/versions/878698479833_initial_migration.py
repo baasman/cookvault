@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 4432ae39ea57
+Revision ID: 878698479833
 Revises: 
-Create Date: 2025-07-21 14:00:19.053621
+Create Date: 2025-08-01 08:42:54.054861
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '4432ae39ea57'
+revision = '878698479833'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -151,6 +151,21 @@ def upgrade():
     sa.ForeignKeyConstraint(['recipe_id'], ['recipe.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('multi_recipe_job',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', name='processingstatus'), nullable=False),
+    sa.Column('total_images', sa.Integer(), nullable=False),
+    sa.Column('processed_images', sa.Integer(), nullable=False),
+    sa.Column('recipe_id', sa.Integer(), nullable=True),
+    sa.Column('combined_ocr_text', sa.Text(), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('completed_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['recipe_id'], ['recipe.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('recipe_comments',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('recipe_id', sa.Integer(), nullable=False),
@@ -179,10 +194,15 @@ def upgrade():
     sa.Column('file_path', sa.String(length=500), nullable=False),
     sa.Column('file_size', sa.Integer(), nullable=False),
     sa.Column('content_type', sa.String(length=100), nullable=False),
+    sa.Column('image_order', sa.Integer(), nullable=False),
+    sa.Column('page_number', sa.Integer(), nullable=True),
     sa.Column('uploaded_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['recipe_id'], ['recipe.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('recipe_image', schema=None) as batch_op:
+        batch_op.create_index('idx_recipe_image_order', ['recipe_id', 'image_order'], unique=False)
+
     op.create_table('recipe_ingredients',
     sa.Column('recipe_id', sa.Integer(), nullable=False),
     sa.Column('ingredient_id', sa.Integer(), nullable=False),
@@ -232,6 +252,9 @@ def upgrade():
     sa.Column('image_id', sa.Integer(), nullable=False),
     sa.Column('cookbook_id', sa.Integer(), nullable=True),
     sa.Column('page_number', sa.Integer(), nullable=True),
+    sa.Column('is_multi_image', sa.Boolean(), nullable=False),
+    sa.Column('multi_job_id', sa.Integer(), nullable=True),
+    sa.Column('image_order', sa.Integer(), nullable=True),
     sa.Column('status', sa.Enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', name='processingstatus'), nullable=False),
     sa.Column('error_message', sa.Text(), nullable=True),
     sa.Column('ocr_text', sa.Text(), nullable=True),
@@ -243,6 +266,7 @@ def upgrade():
     sa.Column('completed_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['cookbook_id'], ['cookbook.id'], ),
     sa.ForeignKeyConstraint(['image_id'], ['recipe_image.id'], ),
+    sa.ForeignKeyConstraint(['multi_job_id'], ['multi_recipe_job.id'], ),
     sa.ForeignKeyConstraint(['recipe_id'], ['recipe.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -259,9 +283,13 @@ def downgrade():
     op.drop_table('tag')
     op.drop_table('recipe_notes')
     op.drop_table('recipe_ingredients')
+    with op.batch_alter_table('recipe_image', schema=None) as batch_op:
+        batch_op.drop_index('idx_recipe_image_order')
+
     op.drop_table('recipe_image')
     op.drop_table('recipe_group_memberships')
     op.drop_table('recipe_comments')
+    op.drop_table('multi_recipe_job')
     op.drop_table('instruction')
     op.drop_table('copyright_consent')
     op.drop_table('recipe')

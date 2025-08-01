@@ -5,62 +5,102 @@ from typing import Type
 
 from dotenv import load_dotenv
 
-# Load .env file from project root (one level up from backend)
+# Initialize project root
 project_root = Path(__file__).parent.parent.parent
-env_path = project_root / ".env"
-load_dotenv(env_path)
+
+
+def load_environment_config(config_name: str = None):
+    """Load environment-specific .env file"""
+    # Default to development if no config specified
+    config_name = config_name or "development"
+
+    # Map config names to env file names
+    env_file_mapping = {
+        "development": ".env",
+        "testing": ".env.testing",
+        "production": ".env.production",
+        "default": ".env",
+    }
+
+    env_filename = env_file_mapping.get(config_name, ".env")
+    env_path = project_root / env_filename
+
+    # Load the specific env file, fallback to .env if the specific file doesn't exist
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+    else:
+        # Fallback to .env
+        fallback_path = project_root / ".env"
+        if fallback_path.exists():
+            load_dotenv(fallback_path)
+
+
+# Load default .env for backwards compatibility (will be overridden by load_environment_config)
+default_env_path = project_root / ".env"
+if default_env_path.exists():
+    load_dotenv(default_env_path)
 
 db_path = Path(__file__).parents[2] / "dbs"
 
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key"
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or "sqlite:///cookbook.db"
+    # Static settings that don't need environment variables
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-    }
-    REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
-    UPLOAD_FOLDER = Path(__file__).parent.parent / os.environ.get(
-        "UPLOAD_FOLDER", "uploads"
-    )
-    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
-    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
-    GOOGLE_BOOKS_API_KEY = os.environ.get("GOOGLE_BOOKS_API_KEY")
-
-    # OCR Quality and LLM fallback settings
-    OCR_QUALITY_THRESHOLD = int(
-        os.environ.get("OCR_QUALITY_THRESHOLD", 8)
-    )  # 1-10 scale
-    OCR_ENABLE_LLM_FALLBACK = (
-        os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"
-    )
-    OCR_QUALITY_CACHE_TTL = int(os.environ.get("OCR_QUALITY_CACHE_TTL", 3600))  # 1 hour
-
-    # Security settings
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None
-
-    # Session security settings - default to secure for HTTPS production
-    _session_secure_env = os.environ.get("SESSION_COOKIE_SECURE", "true")  # Default to true for HTTPS
-    _session_secure_parsed = _session_secure_env.lower() == "true"
-    print(f"🔧 SESSION_COOKIE_SECURE DEBUG: env='{_session_secure_env}', parsed={_session_secure_parsed}")
-    SESSION_COOKIE_SECURE = _session_secure_parsed
-
     SESSION_COOKIE_HTTPONLY = True
-    # For cross-origin HTTPS, use SameSite=None (requires Secure=True)
-    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None" if _session_secure_parsed else "Lax")
     SESSION_COOKIE_PATH = "/"
-    SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN")  # None for same-origin only
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour
-
-    # Rate limiting
-    RATELIMIT_STORAGE_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
     RATELIMIT_DEFAULT = "100/hour"
-
-    # CORS settings
     CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+    @classmethod
+    def init_app(cls, app):
+        """Initialize app with dynamic configuration from environment variables"""
+        # Static settings (formerly from class attributes)
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        app.config['WTF_CSRF_ENABLED'] = True
+        app.config['WTF_CSRF_TIME_LIMIT'] = None
+        app.config['SESSION_COOKIE_HTTPONLY'] = True
+        app.config['SESSION_COOKIE_PATH'] = "/"
+        app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+        app.config['RATELIMIT_DEFAULT'] = "100/hour"
+        app.config['CORS_ORIGINS'] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+        # Default debug/testing flags (can be overridden by subclasses)
+        app.config['DEBUG'] = False
+        app.config['TESTING'] = False
+
+        # Load dynamic config values at runtime
+        app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY") or "dev-secret-key"
+        app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL") or "sqlite:///cookbook.db"
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+        }
+        app.config['REDIS_URL'] = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
+        app.config['UPLOAD_FOLDER'] = Path(__file__).parent.parent / os.environ.get("UPLOAD_FOLDER", "uploads")
+        app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
+        app.config['ANTHROPIC_API_KEY'] = os.environ.get("ANTHROPIC_API_KEY")
+        app.config['GOOGLE_BOOKS_API_KEY'] = os.environ.get("GOOGLE_BOOKS_API_KEY")
+
+        # OCR Quality and LLM fallback settings
+        app.config['OCR_QUALITY_THRESHOLD'] = int(os.environ.get("OCR_QUALITY_THRESHOLD", 8))
+        app.config['OCR_ENABLE_LLM_FALLBACK'] = os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"
+        app.config['OCR_QUALITY_CACHE_TTL'] = int(os.environ.get("OCR_QUALITY_CACHE_TTL", 3600))
+
+        # Session security settings - default to secure for HTTPS production
+        _session_secure_env = os.environ.get("SESSION_COOKIE_SECURE", "true")
+        _session_secure_parsed = _session_secure_env.lower() == "true"
+
+        app.config['SESSION_COOKIE_SECURE'] = _session_secure_parsed
+        app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get(
+            "SESSION_COOKIE_SAMESITE", "None" if _session_secure_parsed else "Lax"
+        )
+        app.config['SESSION_COOKIE_DOMAIN'] = os.environ.get("SESSION_COOKIE_DOMAIN")
+
+        # Rate limiting
+        app.config['RATELIMIT_STORAGE_URL'] = os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
 
     # Logging
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
@@ -81,54 +121,60 @@ class Config:
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {missing_vars}")
 
-    @classmethod
-    def init_app(cls, app):
-        """Base configuration initialization"""
-        pass
-
 
 class DevelopmentConfig(Config):
-    DEBUG = True
-    SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_path}/cookbook_db_dev.db"
+    @classmethod
+    def init_app(cls, app):
+        """Development-specific initialization"""
+        # Call parent init_app first
+        super().init_app(app)
+
+        # Override with development-specific settings
+        app.config['DEBUG'] = True
+        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}/cookbook_db_dev.db"
 
 
 class TestingConfig(Config):
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_path}/cookbook_db_test.db"
+    @classmethod
+    def init_app(cls, app):
+        """Testing-specific initialization"""
+        # Call parent init_app first
+        super().init_app(app)
+
+        # Override with testing-specific settings
+        app.config['TESTING'] = True
+        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}/cookbook_db_test.db"
 
 
 class ProductionConfig(Config):
-    DEBUG = False
-    TESTING = False
-
-    # Production security settings - inherit from base config (respects environment variable)
-    WTF_CSRF_ENABLED = True
-
-    # Production database with connection pooling
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_size": 10,
-        "pool_recycle": 3600,
-        "pool_pre_ping": True,
-        "max_overflow": 20,
-    }
-
-    # Production CORS - should be updated with actual frontend domains
-    CORS_ORIGINS = (
-        os.environ.get("CORS_ORIGINS", "").split(",")
-        if os.environ.get("CORS_ORIGINS")
-        else []
-    )
-
-    # Stricter rate limiting for production
-    RATELIMIT_DEFAULT = "60/hour"
-
-    # Production logging
-    LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING")
-
     @classmethod
     def init_app(cls, app):
         """Production-specific initialization"""
-        Config.init_app(app)
+        # Call parent init_app first
+        super().init_app(app)
+
+        # Production-specific settings
+        app.config['DEBUG'] = False
+        app.config['TESTING'] = False
+
+        # Production database with connection pooling
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            "pool_size": 10,
+            "pool_recycle": 3600,
+            "pool_pre_ping": True,
+            "max_overflow": 20,
+        }
+
+        # Production CORS - should be updated with actual frontend domains
+        cors_origins = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else []
+        if cors_origins:
+            app.config['CORS_ORIGINS'] = cors_origins
+
+        # Stricter rate limiting for production
+        app.config['RATELIMIT_DEFAULT'] = "60/hour"
+
+        # Production logging
+        app.config['LOG_LEVEL'] = os.environ.get("LOG_LEVEL", "WARNING")
 
         # Validate required environment variables
         cls.validate_required_env_vars()
@@ -148,23 +194,23 @@ class ProductionConfig(Config):
             app.logger.handlers.clear()
 
         # Set logger level
-        log_level = getattr(logging, app.config.get('LOG_LEVEL', 'INFO').upper())
+        log_level = getattr(logging, app.config.get("LOG_LEVEL", "INFO").upper())
         app.logger.setLevel(log_level)
 
         # Create formatter
         formatter = logging.Formatter(
-            '%(asctime)s %(levelname)s [%(name)s] %(message)s [in %(pathname)s:%(lineno)d]'
+            "%(asctime)s %(levelname)s [%(name)s] %(message)s [in %(pathname)s:%(lineno)d]"
         )
 
         # Ensure logs directory exists
-        log_file_path = Path(app.config.get('LOG_FILE', "logs/cookbook-creator.log"))
+        log_file_path = Path(app.config.get("LOG_FILE", "logs/cookbook-creator.log"))
         log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # File handler for all logs
         file_handler = RotatingFileHandler(
-            app.config.get('LOG_FILE', "logs/cookbook-creator.log"),
-            maxBytes=app.config.get('LOG_MAX_BYTES', 10 * 1024 * 1024),
-            backupCount=app.config.get('LOG_BACKUP_COUNT', 10)
+            app.config.get("LOG_FILE", "logs/cookbook-creator.log"),
+            maxBytes=app.config.get("LOG_MAX_BYTES", 10 * 1024 * 1024),
+            backupCount=app.config.get("LOG_BACKUP_COUNT", 10),
         )
         file_handler.setFormatter(formatter)
         file_handler.setLevel(log_level)

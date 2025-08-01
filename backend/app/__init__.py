@@ -12,7 +12,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from app.config import config
+from app.config import config, load_environment_config
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -23,22 +23,14 @@ def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, static_folder=None)
     config_name = config_name or os.environ.get("FLASK_ENV", "default")
 
-    # Debug config selection
-    print(f"🔧 CONFIG DEBUG: FLASK_ENV = {os.environ.get('FLASK_ENV')}")
-    print(f"🔧 CONFIG DEBUG: config_name = {config_name}")
-    print(f"🔧 CONFIG DEBUG: Available configs = {list(config.keys())}")
+    # Load environment-specific .env file before creating config
+    load_environment_config(config_name)
 
     config_obj = config[config_name]
-    print(f"🔧 CONFIG DEBUG: Selected config class = {config_obj.__name__}")
+    app.logger.info(f"🔧 Using configuration: {config_obj.__name__}")
 
-    app.config.from_object(config_obj)
-
-    # Debug the actual SESSION_COOKIE_SECURE value after loading
-    secure_env = os.environ.get("SESSION_COOKIE_SECURE", "NOT_SET")
-    secure_runtime = app.config.get("SESSION_COOKIE_SECURE")
-    print(f"🔧 CONFIG DEBUG: SESSION_COOKIE_SECURE env = '{secure_env}'")
-    print(f"🔧 CONFIG DEBUG: SESSION_COOKIE_SECURE runtime = {secure_runtime}")
-    print(f"🔧 CONFIG DEBUG: String parsing test: '{secure_env}'.lower() == 'true' = {secure_env.lower() == 'true' if secure_env != 'NOT_SET' else 'N/A'}")
+    # Initialize app with dynamic configuration (no from_object needed)
+    config_obj.init_app(app)
 
     # Configure proxy handling for production CDN/proxy setups
     if not app.debug:
@@ -51,9 +43,6 @@ def create_app(config_name: str | None = None) -> Flask:
             x_port=1    # Number of proxies setting X-Forwarded-Port
         )
         app.logger.info("ProxyFix middleware configured for production")
-
-    # Initialize config-specific settings
-    config_obj.init_app(app)
 
     # Ensure session configuration is properly set
     app.logger.info(f"Session configuration:")
@@ -104,17 +93,19 @@ def create_app(config_name: str | None = None) -> Flask:
             }
         )
 
-    # Configure rate limiting
+    # Configure rate limiting (after dynamic config is loaded)
     limiter = Limiter(
-        app=app,
         key_func=get_remote_address,
         default_limits=[app.config.get('RATELIMIT_DEFAULT', '100/hour')],
         storage_uri=app.config.get('RATELIMIT_STORAGE_URL')
     )
+    limiter.init_app(app)
+    app.logger.info(f"Rate limiter configured with default: {app.config.get('RATELIMIT_DEFAULT')}")
 
-    # Create upload folder
-    upload_folder = Path(app.config["UPLOAD_FOLDER"])
-    upload_folder.mkdir(exist_ok=True)
+    # Ensure upload folder exists (after dynamic config is loaded)
+    upload_folder = Path(app.config['UPLOAD_FOLDER'])
+    upload_folder.mkdir(parents=True, exist_ok=True)
+    app.logger.info(f"Upload folder configured: {upload_folder}")
 
     # Set up logging for development only (production logging is handled in config.py)
     if app.debug:
