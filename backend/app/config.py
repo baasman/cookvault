@@ -63,7 +63,7 @@ class Config:
         app.config['WTF_CSRF_TIME_LIMIT'] = None
         app.config['SESSION_COOKIE_HTTPONLY'] = True
         app.config['SESSION_COOKIE_PATH'] = "/"
-        app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+        app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get("PERMANENT_SESSION_LIFETIME", 3600))
         app.config['RATELIMIT_DEFAULT'] = "100/hour"
         app.config['CORS_ORIGINS'] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
