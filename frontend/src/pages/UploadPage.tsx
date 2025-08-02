@@ -74,7 +74,8 @@ const UploadPage: React.FC = () => {
           uploadData.append('page_number', formData.page_number.toString());
         }
 
-        const response = await fetch('/api/recipes/upload', {
+        const apiUrl = import.meta.env.VITE_API_URL || '/api';
+        const response = await fetch(`${apiUrl}/recipes/upload`, {
           method: 'POST',
           body: uploadData,
           credentials: 'include',
