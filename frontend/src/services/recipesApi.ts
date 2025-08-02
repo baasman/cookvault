@@ -39,6 +39,35 @@ interface UpdateTagsParams {
 class RecipesApi {
   private baseUrl = import.meta.env.VITE_API_URL || '/api';
 
+  async createEmptyRecipe(title: string, cookbook_id?: number): Promise<Recipe> {
+    try {
+      const requestBody: { title: string; cookbook_id?: number } = { title };
+      if (cookbook_id) {
+        requestBody.cookbook_id = cookbook_id;
+      }
+
+      const response = await fetch(`${this.baseUrl}/recipes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error creating empty recipe:', error);
+      throw error;
+    }
+  }
+
   async fetchRecipes(params: FetchRecipesParams = {}): Promise<RecipesResponse> {
     const { page = 1, per_page = 12, filter = 'collection' } = params;
     

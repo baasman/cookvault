@@ -40,7 +40,7 @@ const Button = React.forwardRef<HTMLButtonElement, ExtendedButtonProps>(
   ({ className, variant, size, children, style, ...props }, ref) => {
     const getButtonStyle = () => {
       if (variant === 'primary') {
-        return { backgroundColor: '#f15f1c', ...style };
+        return { backgroundColor: '#f15f1c', color: '#ffffff', ...style };
       }
       if (variant === 'secondary') {
         return { backgroundColor: '#f1ece9', color: '#1c120d', ...style };

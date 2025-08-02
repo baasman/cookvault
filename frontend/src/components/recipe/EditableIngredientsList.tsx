@@ -71,7 +71,7 @@ export const EditableIngredientsList: React.FC<EditableIngredientsListProps> = (
         <h3 className="text-lg font-medium" style={{color: '#1c120d'}}>
           Ingredients ({ingredients.length})
         </h3>
-        <Button onClick={addIngredient} size="sm">
+        <Button onClick={addIngredient} variant="primary" size="sm">
           Add Ingredient
         </Button>
       </div>
@@ -234,7 +234,7 @@ export const EditableIngredientsList: React.FC<EditableIngredientsListProps> = (
       {ingredients.length === 0 && (
         <div className="text-center py-8">
           <p className="text-text-secondary mb-4">No ingredients added yet</p>
-          <Button onClick={addIngredient} size="sm">
+          <Button onClick={addIngredient} variant="primary" size="sm">
             Add First Ingredient
           </Button>
         </div>

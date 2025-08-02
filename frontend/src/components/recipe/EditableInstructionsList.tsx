@@ -50,7 +50,7 @@ export const EditableInstructionsList: React.FC<EditableInstructionsListProps> =
         <h3 className="text-lg font-medium" style={{color: '#1c120d'}}>
           Instructions ({instructions.length} steps)
         </h3>
-        <Button onClick={addInstruction} size="sm">
+        <Button onClick={addInstruction} variant="primary" size="sm">
           Add Step
         </Button>
       </div>
@@ -146,7 +146,7 @@ export const EditableInstructionsList: React.FC<EditableInstructionsListProps> =
       {instructions.length === 0 && (
         <div className="text-center py-8">
           <p className="text-text-secondary mb-4">No instructions added yet</p>
-          <Button onClick={addInstruction} size="sm">
+          <Button onClick={addInstruction} variant="primary" size="sm">
             Add First Step
           </Button>
         </div>

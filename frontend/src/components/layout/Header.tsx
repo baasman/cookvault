@@ -58,11 +58,18 @@ const Header: React.FC<HeaderProps> = ({
             <div className="hidden md:flex items-center space-x-4">
               {isAuthenticated ? (
                 <>
-                  <Link to="/upload">
-                    <Button variant="primary" size="md">
-                      Upload Recipe
-                    </Button>
-                  </Link>
+                  <div className="flex items-center space-x-2">
+                    <Link to="/recipes/create">
+                      <Button variant="secondary" size="md">
+                        Create Recipe
+                      </Button>
+                    </Link>
+                    <Link to="/upload">
+                      <Button variant="primary" size="md">
+                        Upload Recipe
+                      </Button>
+                    </Link>
+                  </div>
                   <Button variant="secondary" size="sm" onClick={handleLogout}>
                     Logout
                   </Button>
@@ -119,6 +126,15 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="pt-4 border-t" style={{borderColor: '#e8d7cf'}}>
                   {isAuthenticated ? (
                     <div className="space-y-2">
+                      <Link
+                        to="/recipes/create"
+                        className="block w-full"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <Button variant="secondary" size="md" className="w-full">
+                          Create Recipe
+                        </Button>
+                      </Link>
                       <Link
                         to="/upload"
                         className="block w-full"

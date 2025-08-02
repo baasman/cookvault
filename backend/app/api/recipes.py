@@ -165,6 +165,57 @@ def get_recipes(current_user) -> Response:
     )
 
 
+@bp.route("/recipes", methods=["POST"])
+@require_auth
+def create_empty_recipe(current_user) -> Response:
+    """Create a new empty recipe."""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        title = data.get("title", "").strip()
+        if not title:
+            return jsonify({"error": "Recipe title is required"}), 400
+            
+        cookbook_id = data.get("cookbook_id")
+        
+        # Validate cookbook ownership if cookbook_id is provided
+        if cookbook_id:
+            cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+            if not cookbook:
+                return jsonify({"error": "Cookbook not found or access denied"}), 404
+        
+        # Create new recipe
+        recipe = Recipe(
+            title=title,
+            user_id=current_user.id,
+            cookbook_id=cookbook_id,
+            description="",
+            prep_time=0,
+            cook_time=0,
+            servings=1,
+            difficulty="",
+            is_public=False
+        )
+        
+        db.session.add(recipe)
+        db.session.commit()
+        
+        current_app.logger.info(f"Created empty recipe {recipe.id} for user {current_user.id}")
+        
+        return jsonify({
+            "message": "Recipe created successfully",
+            "recipe": recipe.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creating empty recipe: {str(e)}")
+        return jsonify({"error": "Failed to create recipe"}), 500
+
+
 @bp.route("/recipes/<int:recipe_id>", methods=["GET"])
 @require_auth
 def get_recipe(current_user, recipe_id: int) -> Response:

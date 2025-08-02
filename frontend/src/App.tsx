@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
-import { HomePage, UploadPage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage } from './pages';
+import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import CopyrightPolicyPage from './pages/CopyrightPolicyPage';
@@ -25,6 +25,7 @@ function App() {
               <Route path="/cookbooks" element={<CookbooksPage />} />
               <Route path="/cookbooks/:id" element={<CookbookDetailPage />} />
               <Route path="/upload" element={<UploadPage />} />
+              <Route path="/recipes/create" element={<CreateRecipePage />} />
               <Route path="/profile" element={<UserPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
