@@ -75,8 +75,11 @@ class DatabaseManager:
             print(f"❌ Error dropping tables: {e}")
             return False
 
-    def reset_database(self, confirm: bool = False, seed_data: bool = True) -> bool:
-        """Reset database (drop + create + optionally seed)"""
+    def reset_database(self, confirm: bool = False, seed_data: bool = True, users_only: bool = False) -> bool:
+        """Reset database (drop + create + optionally seed) or reset only user-related tables"""
+        if users_only:
+            return self._reset_user_tables_only(confirm, seed_data)
+        
         if not confirm:
             print("⚠️  WARNING: This will completely reset the database!")
             print("All existing data will be lost.")
@@ -107,6 +110,101 @@ class DatabaseManager:
             return True
         except Exception as e:
             print(f"❌ Error resetting database: {e}")
+            return False
+
+    def _reset_user_tables_only(self, confirm: bool = False, seed_data: bool = True) -> bool:
+        """Reset only user-related tables while preserving recipes, cookbooks, ingredients, etc."""
+        if not confirm:
+            print("⚠️  WARNING: This will reset all user-related data!")
+            print("The following will be deleted:")
+            print("  - All users and their accounts")  
+            print("  - User sessions and passwords")
+            print("  - User recipe collections")
+            print("  - User recipe notes and comments")
+            print("  - Recipe groups")
+            print("  - Processing jobs")
+            print("  - User copyright consents")
+            print("")
+            print("The following will be PRESERVED:")
+            print("  - Recipes and their content")
+            print("  - Cookbooks")
+            print("  - Ingredients, tags, instructions")
+            print("  - Recipe images")
+            print("")
+            if seed_data:
+                print("Sample user data will be added after reset.")
+            response = input("Continue? (y/N): ").lower().strip()
+            if response != 'y':
+                print("Operation cancelled.")
+                return False
+
+        try:
+            with self.app.app_context():
+                print("🗑️  Clearing user-related tables...")
+                
+                # Import all user-related models
+                from app.models.user import User, UserSession, Password, CopyrightConsent
+                from app.models.recipe import UserRecipeCollection, RecipeGroup, ProcessingJob, RecipeNote, RecipeComment, Cookbook, Recipe
+                
+                # Delete in order to respect foreign key constraints
+                # Start with dependent tables first
+                
+                print("   Deleting recipe comments...")
+                RecipeComment.query.delete()
+                
+                print("   Deleting user recipe notes...")
+                RecipeNote.query.delete()
+                
+                print("   Deleting user recipe collections...")
+                UserRecipeCollection.query.delete()
+                
+                print("   Deleting recipe groups...")
+                RecipeGroup.query.delete()
+                
+                print("   Deleting processing jobs...")
+                ProcessingJob.query.delete()
+                
+                print("   Deleting copyright consents...")
+                CopyrightConsent.query.delete()
+                
+                print("   Deleting user sessions...")
+                UserSession.query.delete()
+                
+                print("   Deleting password history...")
+                Password.query.delete()
+
+                # Update recipe ownership to remove user and cookbook references
+                print("🔄 Updating recipes to remove user and cookbook ownership...")
+                Recipe.query.update({Recipe.user_id: None, Recipe.cookbook_id: None})
+
+                print("   Deleting cookbooks...")
+                Cookbook.query.delete()
+                
+                print("   Deleting users...")
+                User.query.delete()
+                
+                # Commit the deletions
+                db.session.commit()
+                print("✅ User-related tables cleared successfully!")
+                
+                # Seed user data if requested
+                if seed_data:
+                    print("🌱 Seeding user data...")
+                    from cookbook_db_utils.seed_data import DataSeeder
+                    seeder = DataSeeder(self.config_name)
+                    seeder.seed_users()  # Only seed users, not recipes
+                    print("✅ User data seeded!")
+
+                print("✅ User-only database reset completed successfully!")
+                self._display_tables()
+                return True
+                
+        except Exception as e:
+            print(f"❌ Error resetting user tables: {e}")
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             return False
 
     def backup_database(self, backup_path: Optional[str] = None) -> bool:
@@ -271,6 +369,7 @@ def main():
     reset_parser = subparsers.add_parser("reset", help="Reset database (drop + create + seed)")
     reset_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
     reset_parser.add_argument("--no-seed", action="store_true", help="Don't seed sample data")
+    reset_parser.add_argument("--users-only", action="store_true", help="Reset only user-related tables, preserve recipes/cookbooks")
 
     # Backup
     backup_parser = subparsers.add_parser("backup", help="Backup database")

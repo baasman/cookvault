@@ -188,6 +188,11 @@ class PDFCookbookSeeder:
                 cookbook = self._create_cookbook_entry(
                     cookbook_metadata, user.id, dry_run
                 )
+                
+                # Step 3.5: Create cookbook cover image from first page
+                if cookbook and not dry_run:
+                    self.logger.info("Step 2.5: Creating cookbook cover image...")
+                    self._create_cookbook_cover_image(pdf_path, cookbook)
 
                 # Step 4: Process and create recipes
                 self.logger.info("Step 3: Creating recipe entries...")
@@ -225,8 +230,11 @@ class PDFCookbookSeeder:
 
         except Exception as e:
             self.logger.error(f"Error during PDF cookbook seeding: {e}")
-            if not dry_run:
-                db.session.rollback()
+            try:
+                if not dry_run:
+                    db.session.rollback()
+            except Exception as rollback_error:
+                self.logger.warning(f"Error during rollback: {rollback_error}")
 
             return {
                 "success": False,
@@ -816,6 +824,51 @@ JSON:"""
         self.logger.info(f"Created cookbook: {cookbook.title}")
         return cookbook
 
+    def _create_cookbook_cover_image(self, pdf_path: str, cookbook: Cookbook) -> None:
+        """Create cookbook cover image from first page of PDF"""
+        if not convert_from_path or not Image:
+            self.logger.warning(
+                "PDF image extraction not available (missing pdf2image or PIL)"
+            )
+            return None
+
+        try:
+            # Get the uploads directory from Flask config
+            uploads_dir = self.app.config.get("UPLOAD_FOLDER", "/tmp/uploads")
+            images_dir = Path(uploads_dir)
+            images_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extract first page as image (always page 1, regardless of skip_pages)
+            pdf_path_obj = Path(pdf_path)
+            images = convert_from_path(
+                pdf_path_obj,
+                first_page=1,  # Always use first page for cover
+                last_page=1,
+                dpi=200,  # Good quality for web display
+                fmt="PNG",
+            )
+
+            if not images:
+                self.logger.warning("No cover image extracted from PDF first page")
+                return None
+
+            # Generate filename for cookbook cover
+            cookbook_name = self._sanitize_filename(cookbook.title)
+            filename = f"{cookbook_name}_cover.png"
+            image_path = images_dir / filename
+
+            # Save the image
+            images[0].save(image_path, "PNG")
+
+            # Set cookbook cover image URL
+            cookbook.cover_image_url = f"/api/images/{filename}"
+            
+            self.logger.info(f"📸 Created cookbook cover image: {filename}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create cookbook cover image: {e}")
+            return None
+
     def _create_recipes_from_parsed_data(
         self,
         parsed_recipes: List[Dict],
@@ -864,7 +917,7 @@ JSON:"""
                     # Extract and save recipe image from PDF page
                     page_number = i + 1  # Page numbers are 1-indexed
                     recipe_image = self._extract_and_save_recipe_image(
-                        pdf_path, page_number, recipe, dry_run
+                        pdf_path, page_number, recipe, cookbook, dry_run
                     )
                     if recipe_image:
                         self.logger.info(
@@ -1011,7 +1064,7 @@ JSON:"""
         return recipe
 
     def _extract_and_save_recipe_image(
-        self, pdf_path: str, page_number: int, recipe: Recipe, dry_run: bool
+        self, pdf_path: str, page_number: int, recipe: Recipe, cookbook: Cookbook, dry_run: bool
     ) -> Optional[RecipeImage]:
         """Extract and save recipe image from PDF page"""
         if not convert_from_path or not Image:

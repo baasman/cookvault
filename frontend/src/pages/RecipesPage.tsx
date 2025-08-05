@@ -456,12 +456,13 @@ const RecipesPage: React.FC = () => {
                   </p>
                   {activeFilter === 'collection' ? (
                     <div className="flex gap-4 justify-center">
-                      <button
+                      <Button
                         onClick={() => handleFilterChange('discover')}
-                        className="px-6 py-3 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                        variant="primary"
+                        size="lg"
                       >
                         Discover Recipes
-                      </button>
+                      </Button>
                       <a 
                         href="/upload" 
                         className="inline-block px-6 py-3 border border-accent text-accent rounded-lg hover:bg-accent hover:text-white transition-colors font-medium"

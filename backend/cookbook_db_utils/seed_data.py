@@ -42,6 +42,38 @@ class DataSeeder:
         self.app = create_app(config_name)
         self.config_name = config_name
 
+    def seed_users_only(self) -> Dict[str, int]:
+        """Seed only users for development - no cookbooks, recipes, or ingredients"""
+        print("👥 Starting user-only data seeding...")
+        print("📝 This will create sample users but no cookbooks, recipes, or ingredients")
+        print("📚 You can add cookbooks and recipes later via PDF upload")
+        print("=" * 50)
+
+        results = {}
+
+        try:
+            with self.app.app_context():
+                # Create only users
+                users = self._create_sample_users()
+                results["users"] = len(users)
+                
+                # Commit changes
+                db.session.commit()
+
+                print("\n🎉 User seeding completed successfully!")
+                print("📊 Summary:")
+                print(f"   users: {results['users']}")
+                print("\n💡 Next steps:")
+                print("   - Use 'cookbook-db seed pdf-cookbook <path>' to add cookbooks from PDFs")
+                print("   - Or use the web interface to upload recipe images")
+
+                return results
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"❌ Error during user seeding: {e}")
+            raise
+
     def seed_all(self, dataset: str = "full") -> Dict[str, int]:
         """Seed all sample data in a single transaction"""
         print("🌱 Starting comprehensive data seeding...")

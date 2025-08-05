@@ -16,6 +16,9 @@ def setup_app_imports():
             Tag, Instruction, RecipeImage, ProcessingJob,
             UserRole, UserStatus, ProcessingStatus, recipe_ingredients
         )
+        from app.models.recipe import (
+            UserRecipeCollection, RecipeGroup, RecipeNote, RecipeComment
+        )
         return create_app, db, {
             'User': User,
             'UserSession': UserSession, 
@@ -31,6 +34,10 @@ def setup_app_imports():
             'UserStatus': UserStatus,
             'ProcessingStatus': ProcessingStatus,
             'recipe_ingredients': recipe_ingredients,
+            'UserRecipeCollection': UserRecipeCollection,
+            'RecipeGroup': RecipeGroup,
+            'RecipeNote': RecipeNote,
+            'RecipeComment': RecipeComment,
         }
     except ImportError:
         # When running as standalone package, we need to set up the path
@@ -45,6 +52,9 @@ def setup_app_imports():
                 User, UserSession, Password, Recipe, Cookbook, Ingredient,
                 Tag, Instruction, RecipeImage, ProcessingJob,
                 UserRole, UserStatus, ProcessingStatus, recipe_ingredients
+            )
+            from app.models.recipe import (
+                UserRecipeCollection, RecipeGroup, RecipeNote, RecipeComment
             )
             return create_app, db, {
                 'User': User,
@@ -61,6 +71,10 @@ def setup_app_imports():
                 'UserStatus': UserStatus,
                 'ProcessingStatus': ProcessingStatus,
                 'recipe_ingredients': recipe_ingredients,
+                'UserRecipeCollection': UserRecipeCollection,
+                'RecipeGroup': RecipeGroup,
+                'RecipeNote': RecipeNote,
+                'RecipeComment': RecipeComment,
             }
         except ImportError as e:
             raise ImportError(
@@ -86,10 +100,15 @@ UserRole = models['UserRole']
 UserStatus = models['UserStatus']
 ProcessingStatus = models['ProcessingStatus']
 recipe_ingredients = models['recipe_ingredients']
+UserRecipeCollection = models['UserRecipeCollection']
+RecipeGroup = models['RecipeGroup']
+RecipeNote = models['RecipeNote']
+RecipeComment = models['RecipeComment']
 
 __all__ = [
     'create_app', 'db', 'models',
     'User', 'UserSession', 'Password', 'Recipe', 'Cookbook', 'Ingredient',
     'Tag', 'Instruction', 'RecipeImage', 'ProcessingJob',
-    'UserRole', 'UserStatus', 'ProcessingStatus', 'recipe_ingredients'
+    'UserRole', 'UserStatus', 'ProcessingStatus', 'recipe_ingredients',
+    'UserRecipeCollection', 'RecipeGroup', 'RecipeNote', 'RecipeComment'
 ]

@@ -65,6 +65,7 @@ def create_parser():
     reset_parser.add_argument(
         "--no-seed", action="store_true", help="Don't seed sample data"
     )
+    reset_parser.add_argument("--users-only", action="store_true", help="Reset only user-related tables, preserve recipes/cookbooks")
 
     # db backup
     backup_parser = db_subparsers.add_parser("backup", help="Backup database")
@@ -151,6 +152,7 @@ def create_parser():
 
     # seed specific components
     seed_subparsers.add_parser("users", help="Seed only users")
+    seed_subparsers.add_parser("users-only", help="Seed only users (recommended for PDF workflow)")
     seed_subparsers.add_parser("ingredients", help="Seed only ingredients")
     seed_subparsers.add_parser("cookbooks", help="Seed only cookbooks")
     seed_subparsers.add_parser("recipes", help="Seed only recipes")
@@ -284,6 +286,40 @@ def create_parser():
         "-y", "--yes", action="store_true", help="Skip confirmation"
     )
 
+    # utils export-all
+    export_all_parser = utils_subparsers.add_parser(
+        "export-all", help="Export all database content including user data"
+    )
+    export_all_parser.add_argument("--output", help="Output file path")
+    export_all_parser.add_argument(
+        "--include-users", action="store_true", 
+        help="Include user-specific data (notes, comments, collections)"
+    )
+
+    # utils export-content
+    export_content_parser = utils_subparsers.add_parser(
+        "export-content", help="Export only content data (recipes, cookbooks, etc.) - ideal for environment migrations"
+    )
+    export_content_parser.add_argument("--output", help="Output file path")
+
+    # utils import-to-admin
+    import_admin_parser = utils_subparsers.add_parser(
+        "import-to-admin", help="Import content and assign ownership to admin user"
+    )
+    import_admin_parser.add_argument("input", help="Input file path (required)")
+    import_admin_parser.add_argument(
+        "--admin-username", default="admin", 
+        help="Username for admin user (default: admin)"
+    )
+    import_admin_parser.add_argument(
+        "--create-admin", action="store_true",
+        help="Create admin user if not exists"
+    )
+    import_admin_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Test import without committing changes"
+    )
+
     # Quick commands (shortcuts)
     subparsers.add_parser(
         "init", help="Initialize database (create tables + seed data)"
@@ -337,7 +373,9 @@ def execute_command(args):
             return db_manager.drop_tables(confirm=args.yes)
         elif args.db_command == "reset":
             return db_manager.reset_database(
-                confirm=args.yes, seed_data=not args.no_seed
+                confirm=args.yes, 
+                seed_data=not args.no_seed, 
+                users_only=args.users_only
             )
         elif args.db_command == "backup":
             return db_manager.backup_database(args.path)
@@ -387,6 +425,9 @@ def execute_command(args):
         elif args.seed_command == "users":
             seeder.seed_users()
             return True
+        elif args.seed_command == "users-only":
+            result = seeder.seed_users_only()
+            return bool(result)
         elif args.seed_command == "ingredients":
             seeder.seed_ingredients()
             return True
@@ -439,6 +480,16 @@ def execute_command(args):
             return total_issues == 0
         elif args.utils_command == "cleanup":
             return db_utils.cleanup_orphaned_records(confirm=args.yes)
+        elif args.utils_command == "export-all":
+            return db_utils.export_all_content(
+                args.output, args.include_users
+            )
+        elif args.utils_command == "export-content":
+            return db_utils.export_content_only(args.output)
+        elif args.utils_command == "import-to-admin":
+            return db_utils.import_to_admin(
+                args.input, args.admin_username, args.create_admin, args.dry_run
+            )
         else:
             print("❌ Unknown utils command")
             return False
@@ -453,7 +504,14 @@ def execute_command(args):
 
     elif args.command == "dev-reset":
         print("🔄 Development reset...")
-        return db_manager.reset_database(confirm=True, seed_data=True)
+        # Use users-only seeding by default for PDF workflow
+        success = db_manager.drop_tables(confirm=True)
+        if success:
+            success = db_manager.create_tables(confirm=True)
+            if success:
+                result = seeder.seed_users_only()
+                return bool(result)
+        return success
 
     elif args.command == "status":
         print("📊 Overall System Status")

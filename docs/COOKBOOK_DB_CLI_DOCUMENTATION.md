@@ -481,6 +481,78 @@ uv run python -m cookbook_db_utils.cli utils cleanup [--yes]
 **Options:**
 - `--yes`, `-y`: Skip confirmation prompt
 
+### `utils export-all`
+Export all database content including user data and metadata.
+
+```bash
+uv run python -m cookbook_db_utils.cli utils export-all [options]
+```
+
+**Options:**
+- `--output OUTPUT`: Output file path (auto-generated if not provided)
+- `--include-users`: Include user-specific data (notes, comments, collections)
+
+**Examples:**
+```bash
+# Export all content to auto-generated file
+uv run python -m cookbook_db_utils.cli utils export-all
+
+# Export with user data to specific file
+uv run python -m cookbook_db_utils.cli utils export-all --output full_backup.json --include-users
+
+# Export from production environment
+uv run python -m cookbook_db_utils.cli --env production utils export-all --output prod_full_export.json
+```
+
+### `utils export-content`
+Export only content data (recipes, cookbooks, ingredients, tags, etc.) without user-specific data. Ideal for migrating content between environments.
+
+```bash
+uv run python -m cookbook_db_utils.cli utils export-content [options]
+```
+
+**Options:**
+- `--output OUTPUT`: Output file path (auto-generated if not provided)
+
+**Examples:**
+```bash
+# Export content for environment migration
+uv run python -m cookbook_db_utils.cli utils export-content --output content_export.json
+
+# Export content from production to transfer to development
+uv run python -m cookbook_db_utils.cli --env production utils export-content --output prod_content.json
+```
+
+### `utils import-to-admin`
+Import content from export files and assign ownership to admin user. Perfect for transferring content between environments where users don't exist.
+
+```bash
+uv run python -m cookbook_db_utils.cli utils import-to-admin input [options]
+```
+
+**Arguments:**
+- `input`: Input file path (required)
+
+**Options:**
+- `--admin-username USERNAME`: Username for admin user (default: admin)
+- `--create-admin`: Create admin user if not exists
+- `--dry-run`: Test import without committing changes
+
+**Examples:**
+```bash
+# Import content and assign to existing admin user
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json
+
+# Import with custom admin username
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json --admin-username cookbook_admin
+
+# Import and create admin user if needed
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json --create-admin
+
+# Test import without committing
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json --dry-run --create-admin
+```
+
 ## Quick Commands
 
 Convenient shortcuts for common development tasks.
@@ -581,6 +653,19 @@ uv run python -m cookbook_db_utils.cli seed pdf-cookbook cookbook.pdf --dry-run
 
 # Process with specific metadata
 uv run python -m cookbook_db_utils.cli seed pdf-cookbook cookbook.pdf --title "My Cookbook" --author "Chef Name"
+```
+
+#### Content migration between environments:
+```bash
+# Export content from production
+uv run python -m cookbook_db_utils.cli --env production utils export-content --output prod_content.json
+
+# Reset development database and import content
+uv run python -m cookbook_db_utils.cli --env development db reset --users-only -y
+uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.json --create-admin
+
+# Test import first with dry-run
+uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.json --dry-run --create-admin
 ```
 
 #### Database maintenance:

@@ -317,6 +317,67 @@ class DatabaseUtils:
             db.session.rollback()
             return False
 
+    def export_all_content(self, output_path: Optional[str] = None, 
+                          include_user_data: bool = False) -> bool:
+        """
+        Export all database content using ContentMigrator
+        
+        Args:
+            output_path: Output file path
+            include_user_data: Whether to include user-specific data
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            from cookbook_db_utils.content_migrator import ContentMigrator
+            migrator = ContentMigrator(self.config_name)
+            return migrator.export_all_content(output_path, include_user_data)
+        except Exception as e:
+            print(f"❌ Error during export-all: {e}")
+            return False
+    
+    def export_content_only(self, output_path: Optional[str] = None) -> bool:
+        """
+        Export only content data (no user-specific data) using ContentMigrator
+        Ideal for environment migrations
+        
+        Args:
+            output_path: Output file path
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            from cookbook_db_utils.content_migrator import ContentMigrator
+            migrator = ContentMigrator(self.config_name)
+            return migrator.export_content_only(output_path)
+        except Exception as e:
+            print(f"❌ Error during export-content: {e}")
+            return False
+    
+    def import_to_admin(self, input_path: str, admin_username: str = "admin",
+                       create_admin: bool = False, dry_run: bool = False) -> bool:
+        """
+        Import content and assign ownership to admin user using ContentMigrator
+        
+        Args:
+            input_path: Input file path
+            admin_username: Username for admin user
+            create_admin: Create admin user if not exists
+            dry_run: Test import without committing
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            from cookbook_db_utils.content_migrator import ContentMigrator
+            migrator = ContentMigrator(self.config_name)
+            return migrator.import_to_admin(input_path, admin_username, create_admin, dry_run)
+        except Exception as e:
+            print(f"❌ Error during import-to-admin: {e}")
+            return False
+
 
 def main():
     """Command line interface for database utilities"""
