@@ -288,9 +288,9 @@ def create_parser():
 
     # utils export-all
     export_all_parser = utils_subparsers.add_parser(
-        "export-all", help="Export all database content including user data"
+        "export-all", help="Export all database content including user data (creates ZIP file with images)"
     )
-    export_all_parser.add_argument("--output", help="Output file path")
+    export_all_parser.add_argument("--output", help="Output file path (will be .zip)")
     export_all_parser.add_argument(
         "--include-users", action="store_true", 
         help="Include user-specific data (notes, comments, collections)"
@@ -298,15 +298,15 @@ def create_parser():
 
     # utils export-content
     export_content_parser = utils_subparsers.add_parser(
-        "export-content", help="Export only content data (recipes, cookbooks, etc.) - ideal for environment migrations"
+        "export-content", help="Export only content data (recipes, cookbooks, etc.) with images - ideal for environment migrations"
     )
-    export_content_parser.add_argument("--output", help="Output file path")
+    export_content_parser.add_argument("--output", help="Output file path (will be .zip)")
 
     # utils import-to-admin
     import_admin_parser = utils_subparsers.add_parser(
-        "import-to-admin", help="Import content and assign ownership to admin user"
+        "import-to-admin", help="Import content and assign ownership to admin user (supports ZIP and JSON files)"
     )
-    import_admin_parser.add_argument("input", help="Input file path (required)")
+    import_admin_parser.add_argument("input", help="Input file path (.zip or .json) (required)")
     import_admin_parser.add_argument(
         "--admin-username", default="admin", 
         help="Username for admin user (default: admin)"

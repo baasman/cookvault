@@ -7,6 +7,9 @@ cookbook content between environments with proper user ownership management.
 """
 
 import json
+import shutil
+import zipfile
+import base64
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -28,14 +31,18 @@ class ContentMigrator:
         self.export_metadata = {}
         self.import_stats = {}
         self.id_mappings = {}
+        
+        # Get upload directory from app config
+        with self.app.app_context():
+            self.upload_dir = Path(self.app.config.get('UPLOAD_FOLDER', 'uploads'))
     
     def export_all_content(self, output_path: Optional[str] = None, 
                           include_user_data: bool = False) -> bool:
         """
-        Export all database content including metadata
+        Export all database content including metadata and image files
         
         Args:
-            output_path: Output file path
+            output_path: Output file path (will be a .zip file)
             include_user_data: Whether to include user-specific data
             
         Returns:
@@ -50,7 +57,8 @@ class ContentMigrator:
                     "export_timestamp": datetime.now().isoformat(),
                     "source_environment": self.config_name,
                     "export_type": "full" if include_user_data else "content_only",
-                    "total_records": 0
+                    "total_records": 0,
+                    "images_exported": 0
                 }
                 
                 # Collect all content data
@@ -63,10 +71,14 @@ class ContentMigrator:
                 if output_path is None:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     export_type = "full" if include_user_data else "content"
-                    output_path = f"cookbook_{export_type}_export_{timestamp}.json"
+                    output_path = f"cookbook_{export_type}_export_{timestamp}.zip"
                 
-                # Write to file
-                return self._write_export_file(data, output_path)
+                # Ensure output path has .zip extension
+                if not output_path.endswith('.zip'):
+                    output_path = output_path.rsplit('.', 1)[0] + '.zip'
+                
+                # Create zip export with images
+                return self._create_zip_export(data, output_path)
                 
         except Exception as e:
             print(f"❌ Error during export: {e}")
@@ -86,9 +98,10 @@ class ContentMigrator:
                        create_admin: bool = False, dry_run: bool = False) -> bool:
         """
         Import content and assign ownership to admin user
+        Supports both ZIP files (with images) and JSON files (data only)
         
         Args:
-            input_path: Input file path
+            input_path: Input file path (.zip or .json)
             admin_username: Username for admin user
             create_admin: Create admin user if not exists
             dry_run: Test import without committing
@@ -107,9 +120,10 @@ class ContentMigrator:
                 if dry_run:
                     print("🧪 DRY RUN: No changes will be committed")
                 
-                # Load import data
-                with open(input_path, 'r') as f:
-                    data = json.load(f)
+                # Load import data - handle both ZIP and JSON formats
+                data, temp_images_dir = self._load_import_data(input_path)
+                if not data:
+                    return False
                 
                 # Display import metadata if available
                 if "_metadata" in data:
@@ -130,6 +144,7 @@ class ContentMigrator:
                     "tags_imported": 0,
                     "instructions_imported": 0,
                     "images_imported": 0,
+                    "image_files_copied": 0,
                     "errors": []
                 }
                 
@@ -149,6 +164,10 @@ class ContentMigrator:
                     success &= self._import_ingredients(data.get("ingredients", []), dry_run)
                     success &= self._import_cookbooks(data.get("cookbooks", []), admin_user.id, dry_run)
                     success &= self._import_recipes(data.get("recipes", []), admin_user.id, dry_run)
+                    
+                    # Import image files if available
+                    if temp_images_dir and not dry_run:
+                        success &= self._import_image_files(temp_images_dir)
                     
                     if success and not dry_run:
                         db.session.commit()
@@ -172,6 +191,10 @@ class ContentMigrator:
                     print("\nFull traceback:")
                     traceback.print_exc()
                     return False
+                finally:
+                    # Clean up temporary directory if created
+                    if temp_images_dir and temp_images_dir.exists():
+                        shutil.rmtree(temp_images_dir)
                 
         except Exception as e:
             print(f"❌ Error during import: {e}")
@@ -249,8 +272,60 @@ class ContentMigrator:
         
         return data
     
+    def _create_zip_export(self, data: Dict, output_path: str) -> bool:
+        """Create zip export with JSON data and image files"""
+        try:
+            images_exported = 0
+            
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Add JSON data
+                json_data = json.dumps(data, indent=2, default=str)
+                zipf.writestr('data.json', json_data)
+                
+                # Add image files
+                print("📸 Collecting image files...")
+                
+                # Create images directory in zip
+                for image_data in data.get("recipe_images", []):
+                    filename = image_data.get('filename')
+                    if filename:
+                        # Try to find the image file in upload directory
+                        image_path = self.upload_dir / filename
+                        if image_path.exists():
+                            # Add to zip with images/ prefix
+                            zipf.write(image_path, f"images/{filename}")
+                            images_exported += 1
+                        else:
+                            print(f"   ⚠️  Image file not found: {filename}")
+                
+                # Also check recipe_images subdirectory
+                recipe_images_dir = self.upload_dir / "recipe_images"
+                if recipe_images_dir.exists():
+                    for image_file in recipe_images_dir.glob("*"):
+                        if image_file.is_file():
+                            zipf.write(image_file, f"images/recipe_images/{image_file.name}")
+                            images_exported += 1
+            
+            # Update metadata with images count
+            self.export_metadata["images_exported"] = images_exported
+            
+            file_size = Path(output_path).stat().st_size / (1024 * 1024)  # MB
+            print(f"✅ Export completed successfully!")
+            print(f"   📁 File: {output_path}")
+            print(f"   📊 Size: {file_size:.2f} MB")
+            print(f"   📈 Records: {self.export_metadata.get('total_records', 0)}")
+            print(f"   📸 Images: {images_exported}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error creating zip export: {e}")
+            import traceback
+            print("\nFull traceback:")
+            traceback.print_exc()
+            return False
+    
     def _write_export_file(self, data: Dict, output_path: str) -> bool:
-        """Write export data to file"""
+        """Write export data to file (legacy JSON format)"""
         try:
             with open(output_path, 'w') as f:
                 json.dump(data, f, indent=2, default=str)
@@ -488,7 +563,8 @@ class ContentMigrator:
                             difficulty=recipe_data.get('difficulty'),
                             page_number=recipe_data.get('page_number'),
                             cookbook_id=cookbook_id,
-                            user_id=admin_user_id  # Assign to admin user
+                            user_id=admin_user_id,  # Assign to admin user
+                            is_public=recipe_data.get('is_public', False)  # Preserve original privacy status
                         )
                         db.session.add(recipe)
                         db.session.flush()
@@ -506,7 +582,7 @@ class ContentMigrator:
                     imported += 1
             
             self.import_stats["recipes_imported"] = imported
-            print(f"   ✅ Imported {imported} new recipes (assigned to admin)")
+            print(f"   ✅ Imported {imported} new recipes (assigned to admin, privacy status preserved)")
             return True
             
         except Exception as e:
@@ -549,6 +625,98 @@ class ContentMigrator:
             db.session.add(image)
             self.import_stats["images_imported"] = self.import_stats.get("images_imported", 0) + 1
     
+    def _load_import_data(self, input_path: str) -> Tuple[Optional[Dict], Optional[Path]]:
+        """
+        Load import data from either ZIP or JSON file
+        Returns (data, temp_images_dir) where temp_images_dir is None for JSON files
+        """
+        input_file = Path(input_path)
+        
+        if input_path.endswith('.zip'):
+            # Handle ZIP file
+            try:
+                import tempfile
+                temp_dir = Path(tempfile.mkdtemp(prefix="cookbook_import_"))
+                
+                with zipfile.ZipFile(input_path, 'r') as zipf:
+                    # Extract all files
+                    zipf.extractall(temp_dir)
+                    
+                    # Load JSON data
+                    json_file = temp_dir / 'data.json'
+                    if not json_file.exists():
+                        print("❌ No data.json found in ZIP file")
+                        return None, None
+                    
+                    with open(json_file, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Check for images directory
+                    images_dir = temp_dir / 'images'
+                    if images_dir.exists():
+                        print(f"📸 Found images directory with {len(list(images_dir.rglob('*')))} files")
+                        return data, images_dir
+                    else:
+                        print("📸 No images directory found in ZIP file")
+                        return data, None
+                        
+            except Exception as e:
+                print(f"❌ Error extracting ZIP file: {e}")
+                return None, None
+        else:
+            # Handle JSON file
+            try:
+                with open(input_path, 'r') as f:
+                    data = json.load(f)
+                return data, None
+            except Exception as e:
+                print(f"❌ Error loading JSON file: {e}")
+                return None, None
+    
+    def _import_image_files(self, images_dir: Path) -> bool:
+        """Copy image files from temp directory to upload directory"""
+        if not images_dir.exists():
+            return True
+            
+        print("📸 Copying image files...")
+        files_copied = 0
+        
+        try:
+            # Ensure upload directory exists
+            self.upload_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Copy all files from images directory
+            for image_file in images_dir.rglob('*'):
+                if image_file.is_file():
+                    # Determine destination path
+                    relative_path = image_file.relative_to(images_dir)
+                    
+                    if str(relative_path).startswith('recipe_images/'):
+                        # Special handling for recipe_images subdirectory
+                        dest_dir = self.upload_dir / "recipe_images"
+                        dest_dir.mkdir(parents=True, exist_ok=True)
+                        dest_path = dest_dir / relative_path.name
+                    else:
+                        # Regular upload directory
+                        dest_path = self.upload_dir / relative_path.name
+                    
+                    # Copy file if it doesn't exist
+                    if not dest_path.exists():
+                        shutil.copy2(image_file, dest_path)
+                        files_copied += 1
+                        print(f"   ✅ Copied: {relative_path}")
+                    else:
+                        print(f"   ↩️  Skipped (exists): {relative_path}")
+            
+            self.import_stats["image_files_copied"] = files_copied
+            print(f"   📸 Total files copied: {files_copied}")
+            return True
+            
+        except Exception as e:
+            self.import_stats["errors"].append(f"Image files copy error: {e}")
+            print(f"   ❌ Error copying image files: {e}")
+            return False
+    
     def _display_import_statistics(self) -> None:
         """Display final import statistics"""
         print(f"\n📊 Import Statistics:")
@@ -558,6 +726,7 @@ class ContentMigrator:
         print(f"   🏷️  Tags imported: {self.import_stats.get('tags_imported', 0)}")
         print(f"   📝 Instructions imported: {self.import_stats.get('instructions_imported', 0)}")
         print(f"   📸 Images imported: {self.import_stats.get('images_imported', 0)}")
+        print(f"   🗂️  Image files copied: {self.import_stats.get('image_files_copied', 0)}")
         
         if self.import_stats.get("errors"):
             print(f"\n⚠️  Errors encountered:")

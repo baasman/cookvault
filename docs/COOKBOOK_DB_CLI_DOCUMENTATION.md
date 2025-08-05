@@ -482,56 +482,56 @@ uv run python -m cookbook_db_utils.cli utils cleanup [--yes]
 - `--yes`, `-y`: Skip confirmation prompt
 
 ### `utils export-all`
-Export all database content including user data and metadata.
+Export all database content including user data, metadata, and image files. Creates a ZIP archive containing both database records and associated image files.
 
 ```bash
 uv run python -m cookbook_db_utils.cli utils export-all [options]
 ```
 
 **Options:**
-- `--output OUTPUT`: Output file path (auto-generated if not provided)
+- `--output OUTPUT`: Output file path (will be .zip, auto-generated if not provided)
 - `--include-users`: Include user-specific data (notes, comments, collections)
 
 **Examples:**
 ```bash
-# Export all content to auto-generated file
+# Export all content to auto-generated ZIP file
 uv run python -m cookbook_db_utils.cli utils export-all
 
-# Export with user data to specific file
-uv run python -m cookbook_db_utils.cli utils export-all --output full_backup.json --include-users
+# Export with user data to specific ZIP file
+uv run python -m cookbook_db_utils.cli utils export-all --output full_backup.zip --include-users
 
 # Export from production environment
-uv run python -m cookbook_db_utils.cli --env production utils export-all --output prod_full_export.json
+uv run python -m cookbook_db_utils.cli --env production utils export-all --output prod_full_export.zip
 ```
 
 ### `utils export-content`
-Export only content data (recipes, cookbooks, ingredients, tags, etc.) without user-specific data. Ideal for migrating content between environments.
+Export only content data (recipes, cookbooks, ingredients, tags, etc.) with associated image files, but without user-specific data. Creates a ZIP archive ideal for migrating content between environments.
 
 ```bash
 uv run python -m cookbook_db_utils.cli utils export-content [options]
 ```
 
 **Options:**
-- `--output OUTPUT`: Output file path (auto-generated if not provided)
+- `--output OUTPUT`: Output file path (will be .zip, auto-generated if not provided)
 
 **Examples:**
 ```bash
 # Export content for environment migration
-uv run python -m cookbook_db_utils.cli utils export-content --output content_export.json
+uv run python -m cookbook_db_utils.cli utils export-content --output content_export.zip
 
 # Export content from production to transfer to development
-uv run python -m cookbook_db_utils.cli --env production utils export-content --output prod_content.json
+uv run python -m cookbook_db_utils.cli --env production utils export-content --output prod_content.zip
 ```
 
 ### `utils import-to-admin`
-Import content from export files and assign ownership to admin user. Perfect for transferring content between environments where users don't exist.
+Import content from export files and assign ownership to admin user. Supports both ZIP files (with images) and legacy JSON files (data only). Perfect for transferring content between environments where users don't exist. Preserves original recipe privacy settings (public/private status) and copies image files to the target environment.
 
 ```bash
 uv run python -m cookbook_db_utils.cli utils import-to-admin input [options]
 ```
 
 **Arguments:**
-- `input`: Input file path (required)
+- `input`: Input file path (.zip or .json) (required)
 
 **Options:**
 - `--admin-username USERNAME`: Username for admin user (default: admin)
@@ -540,17 +540,20 @@ uv run python -m cookbook_db_utils.cli utils import-to-admin input [options]
 
 **Examples:**
 ```bash
-# Import content and assign to existing admin user
-uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json
+# Import content ZIP and assign to existing admin user
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.zip
 
 # Import with custom admin username
-uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json --admin-username cookbook_admin
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.zip --admin-username cookbook_admin
 
 # Import and create admin user if needed
-uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json --create-admin
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.zip --create-admin
 
-# Test import without committing
-uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.json --dry-run --create-admin
+# Test import without committing (includes image file validation)
+uv run python -m cookbook_db_utils.cli utils import-to-admin prod_content.zip --dry-run --create-admin
+
+# Import legacy JSON file (data only, no images)
+uv run python -m cookbook_db_utils.cli utils import-to-admin legacy_export.json --create-admin
 ```
 
 ## Quick Commands
@@ -655,17 +658,19 @@ uv run python -m cookbook_db_utils.cli seed pdf-cookbook cookbook.pdf --dry-run
 uv run python -m cookbook_db_utils.cli seed pdf-cookbook cookbook.pdf --title "My Cookbook" --author "Chef Name"
 ```
 
-#### Content migration between environments:
+#### Content migration between environments (with images):
 ```bash
-# Export content from production
-uv run python -m cookbook_db_utils.cli --env production utils export-content --output prod_content.json
+# Export content from production (creates ZIP with images)
+uv run python -m cookbook_db_utils.cli --env production utils export-content --output prod_content.zip
 
 # Reset development database and import content
 uv run python -m cookbook_db_utils.cli --env development db reset --users-only -y
-uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.json --create-admin
+uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.zip --create-admin
 
-# Test import first with dry-run
-uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.json --dry-run --create-admin
+# Test import first with dry-run (validates images too)
+uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.zip --dry-run --create-admin
+
+# Note: Privacy settings (public/private) and image files are preserved during import
 ```
 
 #### Database maintenance:

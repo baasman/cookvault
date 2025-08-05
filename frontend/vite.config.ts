@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => {
   
   return {
     plugins: [react()],
+    base: '/',
     
     // Development server configuration
     server: {
