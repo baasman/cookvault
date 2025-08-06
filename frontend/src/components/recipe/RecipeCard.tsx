@@ -311,14 +311,26 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
 
             {/* Add to Collection Button */}
             {showAddToCollection && (
-              <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+              <div 
+                className="mt-3" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
                 <AddToCollectionButton recipe={recipe} size="sm" />
               </div>
             )}
 
             {/* Add to Group Button */}
             {showAddToGroup && (
-              <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+              <div 
+                className="mt-3" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
                 <AddToGroupButton recipe={recipe} size="sm" />
               </div>
             )}

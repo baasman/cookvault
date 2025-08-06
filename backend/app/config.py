@@ -166,9 +166,14 @@ class ProductionConfig(Config):
         }
 
         # Production CORS - should be updated with actual frontend domains
-        cors_origins = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else []
-        if cors_origins:
+        cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+        if cors_origins_env:
+            # Clean up origins and remove empty strings
+            cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
             app.config['CORS_ORIGINS'] = cors_origins
+            app.logger.info(f"Production CORS origins loaded from env: {cors_origins}")
+        else:
+            app.logger.warning("No CORS_ORIGINS environment variable set for production!")
 
         # Stricter rate limiting for production
         app.config['RATELIMIT_DEFAULT'] = "60/hour"

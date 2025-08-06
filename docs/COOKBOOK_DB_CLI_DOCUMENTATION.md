@@ -99,7 +99,7 @@ uv run python -m cookbook_db_utils.cli db drop [--yes]
 # Drop all tables with confirmation
 uv run python -m cookbook_db_utils.cli db drop
 
-# Drop all tables without confirmation  
+# Drop all tables without confirmation
 uv run python -m cookbook_db_utils.cli db drop --yes
 ```
 
@@ -611,7 +611,7 @@ The PDF cookbook processing system now includes intelligent metadata extraction 
    - Filters results for cookbook-specific content
 
 2. **Filename Analysis**:
-   - Parses PDF filenames for title and author information  
+   - Parses PDF filenames for title and author information
    - Handles common naming patterns:
      - `Author - Title.pdf`
      - `Title by Author.pdf`
@@ -661,11 +661,11 @@ uv run python -m cookbook_db_utils.cli seed pdf-cookbook cookbook.pdf --title "M
 #### Content migration between environments (with images):
 ```bash
 # Export content from production (creates ZIP with images)
-uv run python -m cookbook_db_utils.cli --env production utils export-content --output prod_content.zip
+uv run python -m cookbook_db_utils.cli --env development utils export-content --output dev_content.zip
 
 # Reset development database and import content
 uv run python -m cookbook_db_utils.cli --env development db reset --users-only -y
-uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.zip --create-admin
+uv run python -m cookbook_db_utils.cli --env production utils import-to-admin dev_content.zip --create-admin
 
 # Test import first with dry-run (validates images too)
 uv run python -m cookbook_db_utils.cli --env development utils import-to-admin prod_content.zip --dry-run --create-admin

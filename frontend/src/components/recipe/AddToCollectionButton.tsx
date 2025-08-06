@@ -1,5 +1,6 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import type { Recipe } from '../../types';
 
 interface AddToCollectionButtonProps {
@@ -34,15 +35,21 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
       queryClient.invalidateQueries({ queryKey: ['discover-recipes'] });
       queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
+      
+      // Show success toast
+      toast.success(data.message || 'Recipe added to collection!');
+      console.log('Recipe added to collection:', recipe.title);
+      
       onSuccess?.();
     },
     onError: (error) => {
       console.error('Error adding recipe to collection:', error);
+      toast.error(error.message || 'Failed to add recipe to collection');
     },
   });
 
@@ -63,23 +70,40 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
       queryClient.invalidateQueries({ queryKey: ['discover-recipes'] });
       queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
+      
+      // Show success toast
+      toast.success(data.message || 'Recipe removed from collection');
+      console.log('Recipe removed from collection:', recipe.title);
+      
       onSuccess?.();
     },
     onError: (error) => {
       console.error('Error removing recipe from collection:', error);
+      toast.error(error.message || 'Failed to remove recipe from collection');
     },
   });
 
   const isInCollection = recipe.is_in_collection || false;
   const isProcessing = addToCollectionMutation.isPending || removeFromCollectionMutation.isPending;
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    // Prevent event bubbling to parent Link component
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (isProcessing) return;
+
+    console.log('AddToCollectionButton clicked:', {
+      recipeId: recipe.id,
+      recipeTitle: recipe.title,
+      isInCollection,
+      isProcessing
+    });
 
     if (isInCollection) {
       removeFromCollectionMutation.mutate();

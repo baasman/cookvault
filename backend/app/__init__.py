@@ -2,7 +2,7 @@ import os
 import logging
 from pathlib import Path
 
-from flask import Flask, send_from_directory, request, session, g
+from flask import Flask, send_from_directory, request, session, g, make_response, jsonify
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_migrate import Migrate
@@ -65,8 +65,21 @@ def create_app(config_name: str | None = None) -> Flask:
         app,
         origins=cors_origins,
         supports_credentials=True,  # Required for cross-origin cookies
-        allow_headers=['Content-Type', 'Authorization'],
-        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+        allow_headers=[
+            'Content-Type', 
+            'Authorization', 
+            'X-Requested-With',
+            'Accept',
+            'Origin',
+            'Access-Control-Request-Method',
+            'Access-Control-Request-Headers'
+        ],
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
+        expose_headers=[
+            'Content-Type',
+            'Authorization'
+        ],
+        max_age=86400  # Cache preflight for 24 hours
     )
     app.logger.info("🔧 CORS configured with credentials support for secure cookies")
 
@@ -174,6 +187,26 @@ def create_app(config_name: str | None = None) -> Flask:
     # Log routes after blueprint registration
     log_routes()
 
+    # Add explicit OPTIONS handler for all API routes to help with CORS preflight
+    @app.before_request
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            # Get the allowed origins
+            cors_origins = app.config.get('CORS_ORIGINS', ["http://localhost:5173", "http://127.0.0.1:5173"])
+            origin = request.headers.get('Origin')
+            
+            # Check if origin is allowed
+            if origin in cors_origins:
+                response = make_response()
+                response.headers.add("Access-Control-Allow-Origin", origin)
+                response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With,Accept,Origin")
+                response.headers.add('Access-Control-Allow-Methods', "GET,POST,PUT,DELETE,OPTIONS,HEAD")
+                response.headers.add('Access-Control-Allow-Credentials', 'true')
+                response.headers.add('Access-Control-Max-Age', '86400')
+                return response
+            else:
+                app.logger.warning(f"CORS preflight blocked for origin: {origin}, allowed: {cors_origins}")
+                
     # Add catch-all route for debugging API calls
     @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def api_catchall(path):
