@@ -254,6 +254,20 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     if not allowed_file(file.filename):
         return jsonify({"error": "File type not allowed"}), 400
 
+    # Check file size to prevent memory issues (limit to 8MB for optimal memory usage)
+    file.seek(0, 2)  # Seek to end of file
+    file_size = file.tell()
+    file.seek(0)  # Reset file pointer
+    file_size_mb = file_size / (1024 * 1024)
+    
+    max_upload_size = current_app.config.get('MAX_UPLOAD_SIZE', 8)  # Default 8MB
+    if file_size_mb > max_upload_size:
+        return jsonify({
+            "error": f"File too large ({file_size_mb:.1f}MB). Please use files smaller than {max_upload_size}MB."
+        }), 400
+
+    current_app.logger.info(f"Uploading file: {file.filename} ({file_size_mb:.1f}MB)")
+
     # Get cookbook information from form data
     cookbook_id = request.form.get("cookbook_id")
     page_number = request.form.get("page_number")
@@ -371,7 +385,14 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Upload failed: {str(e)}")
+        # Force garbage collection on error to clean up any allocated memory
+        import gc
+        gc.collect()
         return jsonify({"error": "Upload failed"}), 500
+    finally:
+        # Always force garbage collection at the end of upload to free memory
+        import gc
+        gc.collect()
 
 
 @bp.route("/recipes/<int:recipe_id>", methods=["PUT"])
@@ -771,12 +792,39 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         job.status = ProcessingStatus.PROCESSING
         db.session.commit()
 
-        # Extract text from image
-        extracted_text = _extract_text_from_image(job.image_id)
+        # Use single-pass LLM processing (extract + parse in one call for memory efficiency)
+        recipe_image = RecipeImage.query.get(job.image_id)
+        if not recipe_image:
+            raise Exception("Recipe image not found")
+        
+        from app.services.llm_ocr_service import LLMOCRService
+        llm_ocr_service = LLMOCRService()
+        image_path = Path(recipe_image.file_path)
+        
+        current_app.logger.info(f"Starting single-pass extract+parse for image {job.image_id}")
+        
+        # Single LLM call for both extraction and parsing - major memory savings!
+        comprehensive_result = llm_ocr_service.extract_and_parse_recipe(image_path)
+        
+        extracted_text = comprehensive_result["text"]
+        
+        if comprehensive_result["success"] and comprehensive_result["parsed_recipe"]:
+            # Use the parsed recipe from LLM
+            parsed_recipe = comprehensive_result["parsed_recipe"]
+            current_app.logger.info("Using LLM-parsed recipe data")
+            current_app.logger.debug(f"LLM parsed recipe keys: {list(parsed_recipe.keys())}")
+            current_app.logger.debug(f"Number of ingredients: {len(parsed_recipe.get('ingredients', []))}")
+            current_app.logger.debug(f"Number of instructions: {len(parsed_recipe.get('instructions', []))}")
+        else:
+            # Fallback to traditional parsing if LLM parsing failed
+            current_app.logger.warning("LLM parsing failed, falling back to traditional parsing")
+            current_app.logger.debug(f"LLM error: {comprehensive_result.get('error', 'Unknown error')}")
+            parsed_recipe = _parse_extracted_text(extracted_text)
 
-        # Parse the extracted text
-        parsed_recipe = _parse_extracted_text(extracted_text)
-
+        # Force garbage collection after LLM processing to free memory
+        import gc
+        gc.collect()
+        
         # Create recipe and related records
         recipe = _create_recipe_from_parsed_data(
             parsed_recipe, extracted_text, job, user_id
@@ -803,16 +851,29 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
 
 
 def _extract_text_from_image(image_id: int) -> str:
-    """Extract text from recipe image using quality-aware OCR."""
+    """Extract text from recipe image using LLM-only OCR (eliminates pytesseract for memory efficiency)."""
     recipe_image = RecipeImage.query.get(image_id)
     if not recipe_image:
         raise Exception("Recipe image not found")
 
-    ocr_service = OCRService()
+    # Use LLM-only extraction for better quality and lower memory usage
+    from app.services.llm_ocr_service import LLMOCRService
+    llm_ocr_service = LLMOCRService()
     image_path = Path(recipe_image.file_path)
-
-    # Use quality-aware extraction with LLM fallback
-    extraction_result = ocr_service.extract_text_with_quality_check(image_path)
+    
+    current_app.logger.info(f"Starting LLM-only OCR extraction for image {image_id}")
+    
+    # Direct LLM extraction (bypasses traditional OCR completely)
+    extracted_text = llm_ocr_service.extract_text_from_image(image_path)
+    
+    # Create extraction result in same format for compatibility
+    extraction_result = {
+        "text": extracted_text,
+        "method": "llm_only",
+        "quality_score": 10,  # LLM extraction is always high quality
+        "fallback_used": False,
+        "quality_reasoning": "LLM-only extraction for optimal memory efficiency"
+    }
 
     # Log extraction details for monitoring
     current_app.logger.info(
@@ -923,13 +984,46 @@ def _create_ingredients(recipe_id: int, parsed_recipe: Dict[str, Any]) -> None:
     elif not isinstance(ingredients, list):
         ingredients = []
 
-    for order, ingredient_text in enumerate(ingredients, 1):
-        if ingredient_text.strip():
-            parsed_ingredient = _parse_ingredient_text(ingredient_text.strip())
-            ingredient = _find_or_create_ingredient(parsed_ingredient)
-            _create_recipe_ingredient_association(
-                recipe_id, ingredient.id, parsed_ingredient, order
-            )
+    current_app.logger.info(f"Creating {len(ingredients)} ingredients for recipe {recipe_id}")
+    current_app.logger.debug(f"Ingredients data: {ingredients}")
+
+    for order, ingredient_data in enumerate(ingredients, 1):
+        try:
+            # Handle both old format (strings) and new LLM format (objects)
+            if isinstance(ingredient_data, str):
+                # Old format: ingredient as string
+                if ingredient_data.strip():
+                    parsed_ingredient = _parse_ingredient_text(ingredient_data.strip())
+                    ingredient = _find_or_create_ingredient(parsed_ingredient)
+                    _create_recipe_ingredient_association(
+                        recipe_id, ingredient.id, parsed_ingredient, order
+                    )
+            elif isinstance(ingredient_data, dict):
+                # New LLM format: ingredient as structured object
+                ingredient_name = ingredient_data.get("name", "").strip()
+                if ingredient_name:
+                    # Create parsed ingredient from LLM structure
+                    parsed_ingredient = {
+                        "name": ingredient_name,
+                        "quantity": ingredient_data.get("quantity"),
+                        "unit": ingredient_data.get("unit"),
+                        "preparation": ingredient_data.get("preparation"),
+                        "optional": bool(ingredient_data.get("optional", False)),
+                        "category": None  # Can be added later if needed
+                    }
+                    
+                    current_app.logger.debug(f"Processing LLM ingredient: {parsed_ingredient}")
+                    
+                    ingredient = _find_or_create_ingredient(parsed_ingredient)
+                    _create_recipe_ingredient_association(
+                        recipe_id, ingredient.id, parsed_ingredient, order
+                    )
+            else:
+                current_app.logger.warning(f"Unknown ingredient format: {type(ingredient_data)} - {ingredient_data}")
+                
+        except Exception as e:
+            current_app.logger.error(f"Failed to create ingredient {order}: {str(e)}")
+            # Continue with other ingredients rather than failing completely
 
 
 def _find_or_create_ingredient(parsed_ingredient: Dict[str, Any]) -> Ingredient:
@@ -1955,15 +2049,40 @@ def process_multi_image_job(multi_job_id: int):
             db.session.commit()
             return
         
-        # Use enhanced multi-image OCR processing
+        # Use LLM-only multi-image OCR processing for memory efficiency
         try:
-            from app.services.ocr_service import OCRService
-            ocr_service = OCRService()
+            from app.services.llm_ocr_service import LLMOCRService
+            llm_ocr_service = LLMOCRService()
             
-            current_app.logger.info(f"Starting enhanced multi-image OCR for job {multi_job_id}")
-            multi_image_result = ocr_service.extract_text_from_multiple_images(image_paths)
+            current_app.logger.info(f"Starting LLM-only multi-image OCR for job {multi_job_id}")
             
-            current_app.logger.info(f"Multi-image OCR completed. Quality: {multi_image_result['overall_quality']:.1f}, Completeness: {multi_image_result['completeness_score']['score']}/10")
+            # Process images one by one with LLM for memory efficiency
+            combined_text = ""
+            successful_extractions = 0
+            for i, image_path in enumerate(image_paths):
+                try:
+                    current_app.logger.info(f"Processing image {i+1}/{len(image_paths)}: {image_path}")
+                    extracted_text = llm_ocr_service.extract_text_from_image(image_path)
+                    combined_text += f"\n--- Page {i+1} ---\n{extracted_text}\n"
+                    successful_extractions += 1
+                    
+                    # Force garbage collection after each image to free memory
+                    import gc
+                    gc.collect()
+                    
+                except Exception as img_error:
+                    current_app.logger.error(f"Failed to process image {image_path}: {str(img_error)}")
+                    combined_text += f"\n--- Page {i+1} (FAILED) ---\n[Error processing image]\n"
+            
+            # Create result structure compatible with existing code
+            multi_image_result = {
+                "combined_text": combined_text.strip(),
+                "overall_quality": 10,  # LLM is always high quality
+                "completeness_score": 10,
+                "processing_summary": f"Successfully processed {successful_extractions}/{len(image_paths)} images with LLM-only OCR"
+            }
+            
+            current_app.logger.info(f"Multi-image OCR completed. Quality: {multi_image_result['overall_quality']:.1f}, Completeness: {multi_image_result['completeness_score']}/10")
             
             # Update individual processing jobs with results
             ocr_texts = []

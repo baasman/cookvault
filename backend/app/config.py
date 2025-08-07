@@ -66,6 +66,11 @@ class Config:
         app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get("PERMANENT_SESSION_LIFETIME", 3600))
         app.config['RATELIMIT_DEFAULT'] = "100/hour"
         app.config['CORS_ORIGINS'] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+        
+        # Image optimization settings (same in all environments)
+        app.config['MAX_IMAGE_DIMENSION'] = int(os.environ.get("MAX_IMAGE_DIMENSION", 1200))
+        app.config['JPEG_QUALITY'] = int(os.environ.get("JPEG_QUALITY", 85))
+        app.config['MAX_UPLOAD_SIZE'] = int(os.environ.get("MAX_UPLOAD_SIZE", 8))  # MB
 
         # Default debug/testing flags (can be overridden by subclasses)
         app.config['DEBUG'] = False
@@ -177,6 +182,14 @@ class ProductionConfig(Config):
 
         # Stricter rate limiting for production
         app.config['RATELIMIT_DEFAULT'] = "60/hour"
+        
+        # Disable heavy image preprocessing in production to save memory
+        app.config['SKIP_IMAGE_PREPROCESSING'] = True
+        
+        # Aggressive image optimization settings for memory reduction
+        app.config['MAX_IMAGE_DIMENSION'] = int(os.environ.get("MAX_IMAGE_DIMENSION", 1200))  # Max 1200px
+        app.config['JPEG_QUALITY'] = int(os.environ.get("JPEG_QUALITY", 85))  # 85% quality
+        app.config['MAX_UPLOAD_SIZE'] = int(os.environ.get("MAX_UPLOAD_SIZE", 8))  # Max 8MB uploads
 
         # Production logging
         app.config['LOG_LEVEL'] = os.environ.get("LOG_LEVEL", "WARNING")

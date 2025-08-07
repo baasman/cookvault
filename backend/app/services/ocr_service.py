@@ -1,6 +1,7 @@
 from pathlib import Path
 import tempfile
 import re
+import gc
 from typing import Dict, Tuple
 
 import pytesseract
@@ -113,53 +114,92 @@ class OCRService:
 
     def preprocess_image(self, image_path: Path) -> Path:
         try:
+            # Check if preprocessing is disabled in production
+            if current_app.config.get('SKIP_IMAGE_PREPROCESSING', False):
+                current_app.logger.info("Image preprocessing disabled in production mode")
+                return image_path
+                
+            # Check file size first - skip processing if too large to prevent memory issues
+            file_size_mb = image_path.stat().st_size / (1024 * 1024)
+            if file_size_mb > 10:  # Skip preprocessing for files larger than 10MB
+                current_app.logger.warning(f"Skipping preprocessing for large file ({file_size_mb:.1f}MB): {image_path}")
+                return image_path
+            
+            # Load image with PIL first to check dimensions
+            with Image.open(image_path) as pil_img:
+                width, height = pil_img.size
+                
+                # Skip processing if image is already very large to prevent memory issues
+                total_pixels = width * height
+                if total_pixels > 4000 * 4000:  # 16 megapixels
+                    current_app.logger.warning(f"Skipping preprocessing for high-resolution image ({width}x{height}): {image_path}")
+                    return image_path
+
             # Load image with scikit-image
             img = io.imread(str(image_path))
             if img is None:
                 return image_path
+            
+            original_shape = img.shape
+            current_app.logger.info(f"Processing image {image_path} with shape {original_shape}")
 
             # Convert to grayscale if needed
             if len(img.shape) == 3:
                 gray = rgb2gray(img)
+                del img  # Explicitly free memory
             else:
                 gray = img
 
             # Apply Gaussian filter to reduce noise
             blurred = filters.gaussian(gray, sigma=1.0)
+            del gray  # Free previous array
 
             # Enhance contrast using adaptive histogram equalization
             enhanced = exposure.equalize_adapthist(blurred, clip_limit=0.03)
+            del blurred  # Free previous array
 
             # Apply threshold for better text contrast
             threshold_val = filters.threshold_otsu(enhanced)
             binary = enhanced > threshold_val
+            del enhanced  # Free previous array
 
             # Remove noise with morphological operations
             disk_elem = morphology.disk(1)
             processed = morphology.closing(binary, disk_elem)
+            del binary  # Free previous array
             processed = morphology.opening(processed, disk_elem)
 
-            # Resize image if too small (OCR works better on larger images)
+            # Only resize if image is small AND won't cause memory issues
             height, width = processed.shape
             if height < 600 or width < 600:
+                # Calculate new dimensions but cap them to prevent memory issues
                 scale_factor = max(600 / height, 600 / width)
-                new_height = int(height * scale_factor)
-                new_width = int(width * scale_factor)
+                new_height = min(int(height * scale_factor), 2000)  # Cap at 2000px
+                new_width = min(int(width * scale_factor), 2000)   # Cap at 2000px
+                
                 processed = transform.resize(
                     processed, (new_height, new_width),
-                    order=3, preserve_range=True, anti_aliasing=True
+                    order=1,  # Use bilinear instead of cubic for speed/memory
+                    preserve_range=True, 
+                    anti_aliasing=False  # Disable anti-aliasing for speed/memory
                 )
 
             # Convert to uint8 for saving
             processed_uint8 = img_as_ubyte(processed)
+            del processed  # Free previous array
 
             # Save processed image to temporary file
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
                 temp_path = Path(tmp_file.name)
                 io.imsave(str(temp_path), processed_uint8)
+                del processed_uint8  # Free final array
+                gc.collect()  # Force garbage collection to free memory
                 return temp_path
 
-        except Exception:
+        except Exception as e:
+            current_app.logger.error(f"Image preprocessing failed: {str(e)}")
+            # Force garbage collection even on error
+            gc.collect()
             # If preprocessing fails, return original image
             return image_path
     
