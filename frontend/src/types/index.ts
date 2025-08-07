@@ -139,6 +139,7 @@ export interface MultiRecipeJob {
 export interface UploadResponse {
   message: string;
   job_id: number;
+  recipe_id?: number;
   image_id?: number;
   cookbook?: Cookbook;
   page_number?: number;

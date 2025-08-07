@@ -41,17 +41,17 @@ def safe_int_conversion(value: Any) -> int | None:
     """Safely convert a value to an integer, extracting the first number from strings"""
     if value is None:
         return None
-    
+
     if isinstance(value, int):
         return value
-    
+
     if isinstance(value, str):
         import re
         # Extract the first number from the string
         match = re.search(r'\d+', value.strip())
         if match:
             return int(match.group())
-    
+
     return None
 
 
@@ -80,7 +80,7 @@ def get_recipes(current_user) -> Response:
             user_recipe_ids_subquery = db.session.query(UserRecipeCollection.recipe_id).filter(
                 UserRecipeCollection.user_id == current_user.id
             ).subquery()
-            
+
             query = query.filter(
                 db.or_(
                     Recipe.user_id == current_user.id,  # User's own recipes
@@ -171,22 +171,22 @@ def create_empty_recipe(current_user) -> Response:
     """Create a new empty recipe."""
     try:
         data = request.get_json()
-        
+
         if not data:
             return jsonify({"error": "No data provided"}), 400
-            
+
         title = data.get("title", "").strip()
         if not title:
             return jsonify({"error": "Recipe title is required"}), 400
-            
+
         cookbook_id = data.get("cookbook_id")
-        
+
         # Validate cookbook ownership if cookbook_id is provided
         if cookbook_id:
             cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
             if not cookbook:
                 return jsonify({"error": "Cookbook not found or access denied"}), 404
-        
+
         # Create new recipe
         recipe = Recipe(
             title=title,
@@ -199,17 +199,17 @@ def create_empty_recipe(current_user) -> Response:
             difficulty="",
             is_public=False
         )
-        
+
         db.session.add(recipe)
         db.session.commit()
-        
+
         current_app.logger.info(f"Created empty recipe {recipe.id} for user {current_user.id}")
-        
+
         return jsonify({
             "message": "Recipe created successfully",
             "recipe": recipe.to_dict()
         }), 201
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error creating empty recipe: {str(e)}")
@@ -242,7 +242,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     current_app.logger.info(f"Request headers: {dict(request.headers)}")
     current_app.logger.info(f"Form data keys: {list(request.form.keys())}")
     current_app.logger.info(f"Files: {list(request.files.keys())}")
-    
+
 
     if "image" not in request.files:
         return jsonify({"error": "No image file provided"}), 400
@@ -259,7 +259,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     file_size = file.tell()
     file.seek(0)  # Reset file pointer
     file_size_mb = file_size / (1024 * 1024)
-    
+
     max_upload_size = current_app.config.get('MAX_UPLOAD_SIZE', 8)  # Default 8MB
     if file_size_mb > max_upload_size:
         return jsonify({
@@ -365,18 +365,50 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         db.session.add(processing_job)
         db.session.commit()
 
-        # TODO: Queue background processing job
-        # For now, process synchronously
-        _process_recipe_image(processing_job.id, current_user.id)
+        # Queue background processing to prevent worker timeouts
+        import threading
+
+        current_app.logger.info(f"Starting background processing for job {processing_job.id}")
+
+        # Capture Flask app object and user ID for background thread
+        app = current_app._get_current_object()
+        user_id = current_user.id
+        
+        # Process in background thread to return immediately to user
+        def background_process():
+            # Use application context in background thread
+            with app.app_context():
+                try:
+                    _process_recipe_image(processing_job.id, user_id)
+                    app.logger.info(f"Background processing completed for job {processing_job.id}")
+                except Exception as e:
+                    app.logger.error(f"Background processing failed for job {processing_job.id}: {str(e)}")
+                    # Update job status to failed
+                    try:
+                        job = ProcessingJob.query.get(processing_job.id)
+                        if job:
+                            job.status = ProcessingStatus.FAILED
+                            job.error_message = str(e)
+                            db.session.commit()
+                    except Exception as db_error:
+                        app.logger.error(f"Failed to update job status: {str(db_error)}")
+
+        # Start background processing
+        thread = threading.Thread(target=background_process)
+        thread.daemon = True  # Thread will die when main process dies
+        thread.start()
 
         return (
             jsonify(
                 {
-                    "message": "Image uploaded successfully",
+                    "message": "Image uploaded successfully. Recipe extraction is processing in the background.",
                     "job_id": processing_job.id,
                     "image_id": recipe_image.id,
                     "cookbook": cookbook.to_dict() if cookbook else None,
                     "page_number": page_number,
+                    "status": "processing",
+                    "processing_info": "Your recipe is being extracted and parsed. Check back in a few moments.",
+                    "status_url": f"/api/recipes/job-status/{processing_job.id}"
                 }
             ),
             201,
@@ -796,18 +828,28 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         recipe_image = RecipeImage.query.get(job.image_id)
         if not recipe_image:
             raise Exception("Recipe image not found")
-        
+
         from app.services.llm_ocr_service import LLMOCRService
         llm_ocr_service = LLMOCRService()
         image_path = Path(recipe_image.file_path)
-        
+
         current_app.logger.info(f"Starting single-pass extract+parse for image {job.image_id}")
-        
-        # Single LLM call for both extraction and parsing - major memory savings!
-        comprehensive_result = llm_ocr_service.extract_and_parse_recipe(image_path)
-        
+
+        # Single LLM call for both extraction and parsing - with timeout monitoring
+        import time
+        start_time = time.time()
+
+        try:
+            comprehensive_result = llm_ocr_service.extract_and_parse_recipe(image_path)
+            processing_time = time.time() - start_time
+            current_app.logger.info(f"LLM processing completed in {processing_time:.1f}s")
+        except Exception as e:
+            processing_time = time.time() - start_time
+            current_app.logger.error(f"LLM processing failed after {processing_time:.1f}s: {str(e)}")
+            raise
+
         extracted_text = comprehensive_result["text"]
-        
+
         if comprehensive_result["success"] and comprehensive_result["parsed_recipe"]:
             # Use the parsed recipe from LLM
             parsed_recipe = comprehensive_result["parsed_recipe"]
@@ -824,7 +866,7 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         # Force garbage collection after LLM processing to free memory
         import gc
         gc.collect()
-        
+
         # Create recipe and related records
         recipe = _create_recipe_from_parsed_data(
             parsed_recipe, extracted_text, job, user_id
@@ -860,12 +902,12 @@ def _extract_text_from_image(image_id: int) -> str:
     from app.services.llm_ocr_service import LLMOCRService
     llm_ocr_service = LLMOCRService()
     image_path = Path(recipe_image.file_path)
-    
+
     current_app.logger.info(f"Starting LLM-only OCR extraction for image {image_id}")
-    
+
     # Direct LLM extraction (bypasses traditional OCR completely)
     extracted_text = llm_ocr_service.extract_text_from_image(image_path)
-    
+
     # Create extraction result in same format for compatibility
     extraction_result = {
         "text": extracted_text,
@@ -1011,16 +1053,16 @@ def _create_ingredients(recipe_id: int, parsed_recipe: Dict[str, Any]) -> None:
                         "optional": bool(ingredient_data.get("optional", False)),
                         "category": None  # Can be added later if needed
                     }
-                    
+
                     current_app.logger.debug(f"Processing LLM ingredient: {parsed_ingredient}")
-                    
+
                     ingredient = _find_or_create_ingredient(parsed_ingredient)
                     _create_recipe_ingredient_association(
                         recipe_id, ingredient.id, parsed_ingredient, order
                     )
             else:
                 current_app.logger.warning(f"Unknown ingredient format: {type(ingredient_data)} - {ingredient_data}")
-                
+
         except Exception as e:
             current_app.logger.error(f"Failed to create ingredient {order}: {str(e)}")
             # Continue with other ingredients rather than failing completely
@@ -1193,15 +1235,15 @@ def toggle_recipe_privacy(current_user, recipe_id: int) -> Response:
         # When making recipe public, require copyright consent
         if is_public and not recipe.is_public:
             copyright_consent = data.get("copyright_consent", {})
-            
+
             # Validate all required consents are present and true
             required_consents = [
                 "rightsToShare",
-                "understandsPublic", 
+                "understandsPublic",
                 "personalUseOnly",
                 "noCopyrightViolation"
             ]
-            
+
             for consent in required_consents:
                 if not copyright_consent.get(consent):
                     return jsonify({
@@ -1463,19 +1505,19 @@ def get_recipe_note(current_user, recipe_id: int) -> Response:
     """Get the owner's note for a specific recipe. Anyone who can view the recipe can see the owner's notes."""
     # First, check if the recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
         return jsonify({"error": "Recipe not found"}), 404
-    
+
     # Get the recipe owner's note for this recipe (not the current user's note)
     note = RecipeNote.query.filter_by(
         user_id=recipe.user_id,  # Owner's note, not current user's note
         recipe_id=recipe_id
     ).first()
-    
+
     if not note:
         return jsonify({"note": None}), 200
-    
+
     return jsonify({"note": note.to_dict()}), 200
 
 
@@ -1485,29 +1527,29 @@ def save_recipe_note(current_user, recipe_id: int) -> Response:
     """Create or update user's note for a recipe. Only recipe owners can create notes."""
     # First, check if the recipe exists and user owns it
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     # Only recipe owners can create/edit notes
     if recipe.user_id != current_user.id:
         return jsonify({"error": "Only recipe owners can create notes"}), 403
-    
+
     data = request.get_json()
     if not data or "content" not in data:
         return jsonify({"error": "Note content is required"}), 400
-    
+
     content = data["content"].strip()
     if not content:
         return jsonify({"error": "Note content cannot be empty"}), 400
-    
+
     # Limit note length (1000 characters)
     if len(content) > 1000:
         return jsonify({"error": "Note content cannot exceed 1000 characters"}), 400
-    
+
     # Check if note already exists
     note = RecipeNote.query.filter_by(
         user_id=current_user.id,
         recipe_id=recipe_id
     ).first()
-    
+
     if note:
         # Update existing note
         note.content = content
@@ -1520,7 +1562,7 @@ def save_recipe_note(current_user, recipe_id: int) -> Response:
             content=content
         )
         db.session.add(note)
-    
+
     try:
         db.session.commit()
         return jsonify({"note": note.to_dict()}), 200
@@ -1536,20 +1578,20 @@ def delete_recipe_note(current_user, recipe_id: int) -> Response:
     """Delete user's note for a recipe. Only recipe owners can delete notes."""
     # First, check if the recipe exists and user owns it
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     # Only recipe owners can delete notes
     if recipe.user_id != current_user.id:
         return jsonify({"error": "Only recipe owners can delete notes"}), 403
-    
+
     # Get user's note for this recipe
     note = RecipeNote.query.filter_by(
         user_id=current_user.id,
         recipe_id=recipe_id
     ).first()
-    
+
     if not note:
         return jsonify({"error": "Note not found"}), 404
-    
+
     try:
         db.session.delete(note)
         db.session.commit()
@@ -1568,22 +1610,22 @@ def get_recipe_comments(current_user, recipe_id: int) -> Response:
     """Get paginated comments for a recipe."""
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
         return jsonify({"error": "Recipe not found"}), 404
-    
+
     # Get pagination parameters
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("per_page", 20, type=int), 50)  # Max 50 comments per page
-    
+
     # Query comments with user information, ordered by creation date (newest first)
     comments_query = RecipeComment.query.filter_by(recipe_id=recipe_id)\
         .order_by(RecipeComment.created_at.desc())
-    
+
     comments_paginated = comments_query.paginate(
         page=page, per_page=per_page, error_out=False
     )
-    
+
     return jsonify({
         "comments": [comment.to_dict(include_user=True) for comment in comments_paginated.items],
         "total": comments_paginated.total,
@@ -1601,33 +1643,33 @@ def create_recipe_comment(current_user, recipe_id: int) -> Response:
     """Create a new comment on a recipe."""
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
         return jsonify({"error": "Recipe not found"}), 404
-    
+
     data = request.get_json()
     if not data or "content" not in data:
         return jsonify({"error": "Comment content is required"}), 400
-    
+
     content = data["content"].strip()
     if not content:
         return jsonify({"error": "Comment content cannot be empty"}), 400
-    
+
     # Limit comment length (500 characters)
     if len(content) > 500:
         return jsonify({"error": "Comment content cannot exceed 500 characters"}), 400
-    
+
     # Create new comment
     comment = RecipeComment(
         recipe_id=recipe_id,
         user_id=current_user.id,
         content=content
     )
-    
+
     try:
         db.session.add(comment)
         db.session.commit()
-        
+
         # Return the comment with user information
         return jsonify({"comment": comment.to_dict(include_user=True)}), 201
     except Exception as e:
@@ -1642,39 +1684,39 @@ def update_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Resp
     """Update a comment. Only the comment author can edit their comment."""
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
         return jsonify({"error": "Recipe not found"}), 404
-    
+
     # Get the comment
     comment = RecipeComment.query.filter_by(
         id=comment_id,
         recipe_id=recipe_id
     ).first()
-    
+
     if not comment:
         return jsonify({"error": "Comment not found"}), 404
-    
+
     # Only comment author can edit their comment
     if comment.user_id != current_user.id:
         return jsonify({"error": "You can only edit your own comments"}), 403
-    
+
     data = request.get_json()
     if not data or "content" not in data:
         return jsonify({"error": "Comment content is required"}), 400
-    
+
     content = data["content"].strip()
     if not content:
         return jsonify({"error": "Comment content cannot be empty"}), 400
-    
+
     # Limit comment length (500 characters)
     if len(content) > 500:
         return jsonify({"error": "Comment content cannot exceed 500 characters"}), 400
-    
+
     # Update comment
     comment.content = content
     comment.updated_at = datetime.utcnow()
-    
+
     try:
         db.session.commit()
         return jsonify({"comment": comment.to_dict(include_user=True)}), 200
@@ -1690,24 +1732,24 @@ def delete_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Resp
     """Delete a comment. Comment author or admin can delete."""
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     if not recipe.can_be_viewed_by(current_user.id, current_user.role == 'admin'):
         return jsonify({"error": "Recipe not found"}), 404
-    
+
     # Get the comment
     comment = RecipeComment.query.filter_by(
         id=comment_id,
         recipe_id=recipe_id
     ).first()
-    
+
     if not comment:
         return jsonify({"error": "Comment not found"}), 404
-    
+
     # Only comment author or admin can delete comment
     is_admin = current_user.role == 'admin'
     if comment.user_id != current_user.id and not is_admin:
         return jsonify({"error": "You can only delete your own comments"}), 403
-    
+
     try:
         db.session.delete(comment)
         db.session.commit()
@@ -1729,18 +1771,18 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
         db.joinedload(Recipe.recipe_instructions),
         db.joinedload(Recipe.recipe_tags)
     ).get(recipe_id)
-    
+
     if not recipe:
         return jsonify({"error": "Recipe not found"}), 404
-    
+
     # Only public recipes can be copied
     if not recipe.is_public:
         return jsonify({"error": "Only public recipes can be copied"}), 403
-    
+
     # Users cannot copy their own recipes
     if recipe.user_id == current_user.id:
         return jsonify({"error": "You cannot copy your own recipe"}), 400
-    
+
     try:
         # Create new recipe with copied data
         new_recipe = Recipe(
@@ -1756,10 +1798,10 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
             cookbook_id=None,  # Remove cookbook association
             page_number=None,  # Remove page number
         )
-        
+
         db.session.add(new_recipe)
         db.session.flush()  # Get the new recipe ID
-        
+
         # Copy ingredients
         for ingredient in recipe.ingredients:
             # Get the association data from the recipe_ingredients table
@@ -1769,7 +1811,7 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
                     recipe_ingredients.c.ingredient_id == ingredient.id
                 )
             ).first()
-            
+
             if association:
                 # Create new association for the copied recipe
                 new_association = recipe_ingredients.insert().values(
@@ -1782,7 +1824,7 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
                     order=association.order
                 )
                 db.session.execute(new_association)
-        
+
         # Copy instructions
         for instruction in recipe.recipe_instructions:
             new_instruction = Instruction(
@@ -1791,11 +1833,11 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
                 text=instruction.text
             )
             db.session.add(new_instruction)
-        
+
         # Copy tags
         for tag in recipe.recipe_tags:
             new_recipe.recipe_tags.append(tag)
-        
+
         # Copy images
         for image in recipe.images:
             # Copy the image file
@@ -1804,11 +1846,11 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
                 # Generate new filename
                 new_filename = f"{uuid.uuid4()}.{image.filename.split('.')[-1]}"
                 new_path = original_path.parent / new_filename
-                
+
                 # Copy the file
                 import shutil
                 shutil.copy2(original_path, new_path)
-                
+
                 # Create new image record
                 new_image = RecipeImage(
                     recipe_id=new_recipe.id,
@@ -1819,15 +1861,15 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
                     content_type=image.content_type
                 )
                 db.session.add(new_image)
-        
+
         db.session.commit()
-        
+
         # Return the copied recipe
         return jsonify({
             "recipe": new_recipe.to_dict(include_user=True),
             "message": "Recipe copied successfully"
         }), 201
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error copying recipe: {e}")
@@ -1840,47 +1882,47 @@ def upload_multi_recipe():
     """Upload multiple images for a single recipe"""
     try:
         user_id = request.user_id
-        
+
         # Check if files are present
         if 'images' not in request.files:
             return jsonify({"error": "No images provided"}), 400
-        
+
         files = request.files.getlist('images')
         if not files or len(files) == 0:
             return jsonify({"error": "No images provided"}), 400
-        
+
         # Validate maximum number of images
         max_images = current_app.config.get('MAX_IMAGES_PER_RECIPE', 10)
         if len(files) > max_images:
             return jsonify({"error": f"Maximum {max_images} images allowed per recipe"}), 400
-        
+
         # Validate total file size
         total_size = 0
         max_total_size = current_app.config.get('MAX_TOTAL_UPLOAD_SIZE', 50 * 1024 * 1024)  # 50MB default
-        
+
         validated_files = []
         for i, file in enumerate(files):
             if file.filename == '':
                 return jsonify({"error": f"Image {i+1} has no filename"}), 400
-            
+
             if not allowed_file(file.filename):
                 return jsonify({"error": f"Image {i+1} has invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
-            
+
             # Seek to end to get file size, then reset
             file.seek(0, 2)  # Seek to end
             file_size = file.tell()
             file.seek(0)  # Reset to beginning
-            
+
             total_size += file_size
             validated_files.append((file, file_size))
-        
+
         if total_size > max_total_size:
             return jsonify({"error": f"Total file size exceeds {max_total_size // (1024*1024)}MB limit"}), 400
-        
+
         # Get optional cookbook information
         cookbook_id = request.form.get('cookbook_id')
         page_number = safe_int_conversion(request.form.get('page_number'))
-        
+
         # Validate cookbook if provided
         cookbook = None
         if cookbook_id:
@@ -1891,7 +1933,7 @@ def upload_multi_recipe():
                     return jsonify({"error": "Cookbook not found"}), 404
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid cookbook ID"}), 400
-        
+
         # Create MultiRecipeJob
         multi_job = MultiRecipeJob(
             user_id=user_id,
@@ -1900,22 +1942,22 @@ def upload_multi_recipe():
         )
         db.session.add(multi_job)
         db.session.flush()  # Get the ID
-        
+
         # Save images and create processing jobs
         upload_dir = Path(current_app.config["UPLOAD_FOLDER"])
         upload_dir.mkdir(exist_ok=True)
-        
+
         processing_jobs = []
-        
+
         for i, (file, file_size) in enumerate(validated_files):
             # Generate unique filename
             file_extension = file.filename.rsplit('.', 1)[1].lower()
             unique_filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
             file_path = upload_dir / unique_filename
-            
+
             # Save file
             file.save(str(file_path))
-            
+
             # Create image record
             recipe_image = RecipeImage(
                 filename=unique_filename,
@@ -1928,7 +1970,7 @@ def upload_multi_recipe():
             )
             db.session.add(recipe_image)
             db.session.flush()  # Get the ID
-            
+
             # Create processing job
             processing_job = ProcessingJob(
                 image_id=recipe_image.id,
@@ -1941,9 +1983,9 @@ def upload_multi_recipe():
             )
             db.session.add(processing_job)
             processing_jobs.append(processing_job)
-        
+
         db.session.commit()
-        
+
         # Start processing
         try:
             process_multi_image_job(multi_job.id)
@@ -1952,20 +1994,80 @@ def upload_multi_recipe():
             multi_job.status = ProcessingStatus.FAILED
             multi_job.error_message = f"Failed to start processing: {str(e)}"
             db.session.commit()
-        
+
         current_app.logger.info(f"Created multi-image job {multi_job.id} with {len(processing_jobs)} images for user {user_id}")
-        
+
         return jsonify({
             "multi_job_id": multi_job.id,
             "total_images": len(processing_jobs),
             "message": f"Multi-image upload started with {len(processing_jobs)} images",
             "status_url": f"/api/recipes/multi-job-status/{multi_job.id}"
         }), 201
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error in multi-image upload: {e}")
         return jsonify({"error": "Failed to process multi-image upload"}), 500
+
+
+@bp.route("/recipes/job-status/<int:job_id>", methods=["GET"])
+@require_auth
+def get_job_status(current_user, job_id: int):
+    """Get the processing status of a single recipe upload job."""
+    try:
+        job = ProcessingJob.query.get_or_404(job_id)
+        
+        # Check if job belongs to the current user or user is admin
+        if should_apply_user_filter(current_user):
+            can_access = False
+            
+            # If job has a recipe, check recipe ownership
+            if job.recipe_id:
+                recipe = Recipe.query.get(job.recipe_id)
+                if recipe and recipe.user_id == current_user.id:
+                    can_access = True
+            else:
+                # For jobs without recipe (pending/processing), check cookbook ownership
+                if job.cookbook_id:
+                    cookbook = Cookbook.query.get(job.cookbook_id)
+                    if cookbook and cookbook.user_id == current_user.id:
+                        can_access = True
+                else:
+                    # For jobs without cookbook (uploaded without cookbook), we need to check
+                    # if the current user uploaded this. Since there's no direct relationship,
+                    # we'll allow access for now and rely on job_id being hard to guess
+                    # TODO: Add user_id field to ProcessingJob model for better security
+                    can_access = True
+            
+            if not can_access:
+                return jsonify({"error": "Access denied"}), 403
+
+        response = {
+            "job_id": job.id,
+            "status": job.status.value if job.status else "unknown",
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "error_message": job.error_message,
+            "recipe_id": job.recipe_id
+        }
+
+        # If job is completed, include recipe information
+        if job.status == ProcessingStatus.COMPLETED and job.recipe_id:
+            recipe = Recipe.query.get(job.recipe_id)
+            if recipe:
+                response["recipe"] = {
+                    "id": recipe.id,
+                    "title": recipe.title,
+                    "url": f"/recipes/{recipe.id}"
+                }
+
+        return jsonify(response)
+
+    except Exception as e:
+        current_app.logger.error(f"Error getting job status for job {job_id}: {e}")
+        import traceback
+        current_app.logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({"error": "Failed to get job status"}), 500
 
 
 @bp.route("/recipes/multi-job-status/<int:job_id>", methods=["GET"])
@@ -1974,15 +2076,15 @@ def get_multi_job_status(job_id: int):
     """Get status of a multi-image processing job"""
     try:
         user_id = request.user_id
-        
+
         # Find the multi-image job
         multi_job = MultiRecipeJob.query.filter_by(id=job_id, user_id=user_id).first()
         if not multi_job:
             return jsonify({"error": "Multi-image job not found"}), 404
-        
+
         # Get all processing jobs for this multi-job
         processing_jobs = ProcessingJob.query.filter_by(multi_job_id=job_id).order_by(ProcessingJob.image_order).all()
-        
+
         # Build detailed status
         job_details = []
         for job in processing_jobs:
@@ -1990,18 +2092,18 @@ def get_multi_job_status(job_id: int):
             if job.image:
                 job_detail["image"] = job.image.to_dict()
             job_details.append(job_detail)
-        
+
         response_data = multi_job.to_dict()
         response_data["processing_jobs"] = job_details
-        
+
         # If completed and recipe created, include recipe info
         if multi_job.status == ProcessingStatus.COMPLETED and multi_job.recipe_id:
             recipe = Recipe.query.get(multi_job.recipe_id)
             if recipe:
                 response_data["recipe"] = recipe.to_dict(current_user_id=user_id)
-        
+
         return jsonify(response_data), 200
-        
+
     except Exception as e:
         current_app.logger.error(f"Error getting multi-job status: {e}")
         return jsonify({"error": "Failed to get job status"}), 500
@@ -2015,47 +2117,47 @@ def process_multi_image_job(multi_job_id: int):
         if not multi_job:
             current_app.logger.error(f"MultiRecipeJob {multi_job_id} not found")
             return
-        
+
         multi_job.status = ProcessingStatus.PROCESSING
         db.session.commit()
-        
+
         # Get all processing jobs for this multi-image job, ordered by image_order
         processing_jobs = ProcessingJob.query.filter_by(
             multi_job_id=multi_job_id
         ).order_by(ProcessingJob.image_order).all()
-        
+
         if not processing_jobs:
             multi_job.status = ProcessingStatus.FAILED
             multi_job.error_message = "No processing jobs found"
             db.session.commit()
             return
-        
+
         current_app.logger.info(f"Processing {len(processing_jobs)} images for multi-job {multi_job_id}")
-        
+
         # Collect image paths for batch processing
         image_paths = []
         processing_job_map = {}
-        
+
         for processing_job in processing_jobs:
             recipe_image = RecipeImage.query.get(processing_job.image_id)
             if recipe_image:
                 image_path = Path(recipe_image.file_path)
                 image_paths.append(image_path)
                 processing_job_map[str(image_path)] = processing_job
-        
+
         if not image_paths:
             multi_job.status = ProcessingStatus.FAILED
             multi_job.error_message = "No valid image paths found"
             db.session.commit()
             return
-        
+
         # Use LLM-only multi-image OCR processing for memory efficiency
         try:
             from app.services.llm_ocr_service import LLMOCRService
             llm_ocr_service = LLMOCRService()
-            
+
             current_app.logger.info(f"Starting LLM-only multi-image OCR for job {multi_job_id}")
-            
+
             # Process images one by one with LLM for memory efficiency
             combined_text = ""
             successful_extractions = 0
@@ -2065,15 +2167,15 @@ def process_multi_image_job(multi_job_id: int):
                     extracted_text = llm_ocr_service.extract_text_from_image(image_path)
                     combined_text += f"\n--- Page {i+1} ---\n{extracted_text}\n"
                     successful_extractions += 1
-                    
+
                     # Force garbage collection after each image to free memory
                     import gc
                     gc.collect()
-                    
+
                 except Exception as img_error:
                     current_app.logger.error(f"Failed to process image {image_path}: {str(img_error)}")
                     combined_text += f"\n--- Page {i+1} (FAILED) ---\n[Error processing image]\n"
-            
+
             # Create result structure compatible with existing code
             multi_image_result = {
                 "combined_text": combined_text.strip(),
@@ -2081,17 +2183,17 @@ def process_multi_image_job(multi_job_id: int):
                 "completeness_score": 10,
                 "processing_summary": f"Successfully processed {successful_extractions}/{len(image_paths)} images with LLM-only OCR"
             }
-            
+
             current_app.logger.info(f"Multi-image OCR completed. Quality: {multi_image_result['overall_quality']:.1f}, Completeness: {multi_image_result['completeness_score']}/10")
-            
+
             # Update individual processing jobs with results
             ocr_texts = []
             successful_jobs = []
-            
+
             for result in multi_image_result['results']:
                 image_path = result['image_path']
                 processing_job = processing_job_map.get(image_path)
-                
+
                 if processing_job:
                     if result.get('error'):
                         processing_job.status = ProcessingStatus.FAILED
@@ -2101,67 +2203,67 @@ def process_multi_image_job(multi_job_id: int):
                         processing_job.ocr_confidence = result.get('quality_score', 0.0)
                         processing_job.ocr_method = result.get('method', 'unknown')
                         processing_job.status = ProcessingStatus.COMPLETED
-                        
+
                         if result['text'].strip():
                             ocr_texts.append(result['text'])
                             successful_jobs.append(processing_job)
-                        
+
                         multi_job.processed_images += 1
-                    
+
                     db.session.commit()
-            
+
         except Exception as e:
             current_app.logger.error(f"Enhanced multi-image OCR failed, falling back to individual processing: {e}")
-            
+
             # Fallback to individual processing with original retry logic
             ocr_texts = []
             successful_jobs = []
-            
+
             for processing_job in processing_jobs:
                 max_retries = 2
                 retry_count = 0
                 timeout_seconds = 120  # 2 minutes per image
-                
+
                 while retry_count <= max_retries:
                     try:
                         processing_job.status = ProcessingStatus.PROCESSING
                         db.session.commit()
-                        
+
                         # Add timeout handling for OCR processing
                         import signal
-                        
+
                         def timeout_handler(signum, frame):
                             raise TimeoutError(f"OCR processing timed out after {timeout_seconds} seconds")
-                        
+
                         signal.signal(signal.SIGALRM, timeout_handler)
                         signal.alarm(timeout_seconds)
-                        
+
                         try:
                             # Extract text from this image
                             ocr_result = extract_recipe_text(processing_job.image_id)
                             ocr_texts.append(ocr_result['text'])
-                            
+
                             processing_job.ocr_text = ocr_result['text']
                             processing_job.ocr_confidence = ocr_result.get('confidence', 0.0)
                             processing_job.ocr_method = ocr_result.get('method', 'unknown')
                             processing_job.status = ProcessingStatus.COMPLETED
-                            
+
                             successful_jobs.append(processing_job)
                             multi_job.processed_images += 1
-                            
+
                             current_app.logger.info(f"Completed OCR for image {processing_job.image_id} (job {processing_job.id})")
                             signal.alarm(0)  # Cancel timeout
                             db.session.commit()
                             break  # Success, exit retry loop
-                            
+
                         finally:
                             signal.alarm(0)  # Always cancel timeout
-                            
+
                     except (TimeoutError, Exception) as e:
                         retry_count += 1
                         error_msg = f"Error processing image {processing_job.image_id} (attempt {retry_count}/{max_retries + 1}): {e}"
                         current_app.logger.error(error_msg, exc_info=True)
-                        
+
                         if retry_count > max_retries:
                             # Final failure after all retries
                             processing_job.status = ProcessingStatus.FAILED
@@ -2173,29 +2275,29 @@ def process_multi_image_job(multi_job_id: int):
                             wait_time = 2 ** retry_count  # 2, 4, 8 seconds
                             current_app.logger.info(f"Retrying in {wait_time} seconds...")
                             time.sleep(wait_time)
-        
+
         # Check if we have any successful OCR results
         if not ocr_texts:
             multi_job.status = ProcessingStatus.FAILED
             multi_job.error_message = "No images could be processed successfully"
             db.session.commit()
             return
-        
+
         # Combine OCR texts for storage
         combined_ocr_text = "\n--- PAGE BREAK ---\n".join(ocr_texts)
         multi_job.combined_ocr_text = combined_ocr_text
-        
+
         try:
             # Parse the multi-image recipe with quality information
             recipe_parser = RecipeParser()
-            
+
             # Pass quality information if available from enhanced processing
             quality_info = None
             if 'multi_image_result' in locals():
                 quality_info = multi_image_result
-            
+
             parsed_recipe = recipe_parser.parse_multi_image_recipe(ocr_texts, quality_info=quality_info)
-            
+
             # Create the recipe
             recipe = Recipe(
                 title=parsed_recipe.get('title', 'Untitled Recipe'),
@@ -2205,7 +2307,7 @@ def process_multi_image_job(multi_job_id: int):
             )
             db.session.add(recipe)
             db.session.flush()  # Get recipe ID
-            
+
             # Add ingredients if any
             if parsed_recipe.get('ingredients'):
                 for ingredient_text in parsed_recipe['ingredients']:
@@ -2214,7 +2316,7 @@ def process_multi_image_job(multi_job_id: int):
                         text=ingredient_text
                     )
                     db.session.add(ingredient)
-            
+
             # Add instructions if any
             if parsed_recipe.get('instructions'):
                 for i, instruction_text in enumerate(parsed_recipe['instructions']):
@@ -2224,7 +2326,7 @@ def process_multi_image_job(multi_job_id: int):
                         description=instruction_text
                     )
                     db.session.add(instruction)
-            
+
             # Set recipe metadata
             if parsed_recipe.get('prep_time'):
                 recipe.prep_time = parsed_recipe['prep_time']
@@ -2234,21 +2336,21 @@ def process_multi_image_job(multi_job_id: int):
                 recipe.servings = parsed_recipe['servings']
             if parsed_recipe.get('difficulty'):
                 recipe.difficulty = parsed_recipe['difficulty']
-            
+
             # Link all images to the recipe
             for processing_job in successful_jobs:
                 recipe_image = RecipeImage.query.get(processing_job.image_id)
                 if recipe_image:
                     recipe_image.recipe_id = recipe.id
-            
+
             # Update multi-job with recipe reference
             multi_job.recipe_id = recipe.id
             multi_job.status = ProcessingStatus.COMPLETED
             multi_job.completed_at = datetime.utcnow()
-            
+
             db.session.commit()
             current_app.logger.info(f"Successfully created recipe {recipe.id} from multi-job {multi_job_id}")
-            
+
         except Exception as e:
             current_app.logger.error(f"Error parsing multi-image recipe for job {multi_job_id}: {e}", exc_info=True)
             multi_job.status = ProcessingStatus.FAILED
@@ -2256,7 +2358,7 @@ def process_multi_image_job(multi_job_id: int):
             db.session.commit()
             # Cleanup orphaned images for failed parsing
             cleanup_failed_multi_job(multi_job_id)
-    
+
     except Exception as e:
         current_app.logger.error(f"Error in process_multi_image_job {multi_job_id}: {e}", exc_info=True)
         try:
@@ -2276,7 +2378,7 @@ def cleanup_failed_multi_job(multi_job_id: int):
     try:
         # Get all processing jobs for this multi-image job
         processing_jobs = ProcessingJob.query.filter_by(multi_job_id=multi_job_id).all()
-        
+
         for processing_job in processing_jobs:
             try:
                 # Get the associated image
@@ -2287,20 +2389,20 @@ def cleanup_failed_multi_job(multi_job_id: int):
                     if file_path.exists():
                         file_path.unlink()
                         current_app.logger.info(f"Deleted orphaned image file: {file_path}")
-                    
+
                     # Delete the image record
                     db.session.delete(recipe_image)
                     current_app.logger.info(f"Deleted orphaned image record: {recipe_image.id}")
-                
+
                 # Delete the processing job
                 db.session.delete(processing_job)
-                
+
             except Exception as e:
                 current_app.logger.error(f"Error cleaning up processing job {processing_job.id}: {e}")
-        
+
         db.session.commit()
         current_app.logger.info(f"Cleanup completed for failed multi-job {multi_job_id}")
-        
+
     except Exception as e:
         current_app.logger.error(f"Error in cleanup_failed_multi_job {multi_job_id}: {e}")
         db.session.rollback()

@@ -17,7 +17,8 @@ class LLMOCRService:
     
     def __init__(self):
         self.client = anthropic.Anthropic(
-            api_key=current_app.config.get("ANTHROPIC_API_KEY")
+            api_key=current_app.config.get("ANTHROPIC_API_KEY"),
+            timeout=90.0  # 90 second timeout for API calls
         )
         self.redis_client = self._init_redis()
         self.cache_ttl = current_app.config.get("OCR_QUALITY_CACHE_TTL", 3600)  # 1 hour default
@@ -174,7 +175,7 @@ CRITICAL REQUIREMENTS:
             # Single LLM call for both extraction and parsing
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=3000,  # Increased for comprehensive response
+                max_tokens=2000,  # Reduced to speed up processing
                 temperature=0.1,
                 system="You are an expert recipe extraction and parsing assistant. Extract text from recipe images and immediately structure it into a standardized recipe format.",
                 messages=[{

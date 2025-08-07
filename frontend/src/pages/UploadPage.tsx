@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UploadForm } from '../components/forms';
+import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { recipesApi } from '../services/recipesApi';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
 
 const UploadPage: React.FC = () => {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<UploadResponse | MultiUploadResponse | null>(null);
   const [multiJobId, setMultiJobId] = useState<number | null>(null);
+  const [processingJobId, setProcessingJobId] = useState<number | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleUpload = async (formData: UploadFormData) => {
     setIsLoading(true);
@@ -87,7 +92,15 @@ const UploadPage: React.FC = () => {
         }
 
         const result: UploadResponse = await response.json();
-        setSuccess(result);
+        
+        // Start processing monitoring for single image upload
+        if (result.job_id) {
+          setProcessingJobId(result.job_id);
+          setIsProcessing(true);
+        } else {
+          // Fallback to old success display if no job_id
+          setSuccess(result);
+        }
       } else {
         throw new Error('Please select at least one image to upload');
       }
@@ -103,10 +116,30 @@ const UploadPage: React.FC = () => {
     setSuccess(null);
     setError(null);
     setMultiJobId(null);
+    setProcessingJobId(null);
+    setIsProcessing(false);
   };
 
   const isMultiUpload = (result: UploadResponse | MultiUploadResponse): result is MultiUploadResponse => {
     return 'multi_job_id' in result;
+  };
+
+  const handleProcessingComplete = (recipeId: number) => {
+    setIsProcessing(false);
+    setProcessingJobId(null);
+    // Set success state with recipe ID for showing success banner
+    const completionResponse: UploadResponse = { 
+      message: 'Recipe processed successfully!', 
+      job_id: processingJobId || 0, 
+      recipe_id: recipeId 
+    };
+    setSuccess(completionResponse);
+  };
+
+  const handleProcessingError = (errorMessage: string) => {
+    setIsProcessing(false);
+    setProcessingJobId(null);
+    setError(errorMessage);
   };
 
   return (
@@ -121,8 +154,19 @@ const UploadPage: React.FC = () => {
         </p>
       </div>
 
+      {/* Processing Progress */}
+      {isProcessing && processingJobId && (
+        <div className="mb-8">
+          <ProcessingProgress
+            jobId={processingJobId}
+            onComplete={handleProcessingComplete}
+            onError={handleProcessingError}
+          />
+        </div>
+      )}
+
       {/* Success Message */}
-      {success && (
+      {success && !isProcessing && (
         <div className="mb-8 p-6 rounded-xl" style={{backgroundColor: '#d1fae5', borderColor: '#10b981'}}>
           <div className="text-center">
             <div className="mb-4">
@@ -139,7 +183,6 @@ const UploadPage: React.FC = () => {
             <div className="mt-4 text-sm" style={{color: '#047857'}}>
               {isMultiUpload(success) ? (
                 <>
-                  <p>Multi-image Job ID: {success.multi_job_id}</p>
                   <p>Total Images: {success.total_images}</p>
                   {multiJobId && (
                     <p className="mt-2 text-xs">
@@ -154,12 +197,21 @@ const UploadPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <p>Job ID: {success.job_id}</p>
                   {'cookbook' in success && success.cookbook && (
                     <p>Added to cookbook: {success.cookbook.title}</p>
                   )}
                   {'page_number' in success && success.page_number && (
                     <p>Page: {success.page_number}</p>
+                  )}
+                  {success.recipe_id && (
+                    <p className="mt-2">
+                      <a 
+                        href={`/recipes/${success.recipe_id}`}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        View your recipe →
+                      </a>
+                    </p>
                   )}
                 </>
               )}
@@ -188,13 +240,41 @@ const UploadPage: React.FC = () => {
         </div>
       )}
 
+      {/* Error Message */}
+      {error && !isProcessing && (
+        <div className="mb-8 p-6 rounded-xl" style={{backgroundColor: '#fee2e2', borderColor: '#dc2626', border: '1px solid'}}>
+          <div className="text-center">
+            <div className="mb-4">
+              <svg className="mx-auto h-12 w-12" style={{color: '#dc2626'}} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold mb-2" style={{color: '#dc2626'}}>
+              Processing Failed
+            </h3>
+            <p className="mb-4" style={{color: '#dc2626'}}>
+              {error}
+            </p>
+            <button
+              onClick={handleNewUpload}
+              className="px-6 py-2 rounded-full font-bold transition-colors"
+              style={{backgroundColor: '#dc2626', color: 'white'}}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b91c1c'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Upload Form */}
-      {!success && (
+      {!success && !isProcessing && !error && (
         <div className="flex justify-center">
           <UploadForm
             onSubmit={handleUpload}
             isLoading={isLoading}
-            error={error || undefined}
+            error={undefined}
           />
         </div>
       )}

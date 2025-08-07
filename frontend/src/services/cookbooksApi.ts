@@ -298,6 +298,13 @@ class CookbooksApi {
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Handle duplicate cookbook case (409 Conflict)
+        if (response.status === 409 && errorData.existing_cookbook) {
+          // Return the existing cookbook instead of throwing an error
+          return errorData.existing_cookbook;
+        }
+        
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 

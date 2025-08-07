@@ -12,7 +12,7 @@ backlog = 2048
 workers = int(os.environ.get('GUNICORN_WORKERS', multiprocessing.cpu_count() * 2 + 1))
 worker_class = "sync"
 worker_connections = 1000
-timeout = 30
+timeout = int(os.environ.get('GUNICORN_TIMEOUT', 120))  # 2 minutes for LLM processing
 keepalive = 2
 
 # Restart workers after this many requests, to help prevent memory leaks

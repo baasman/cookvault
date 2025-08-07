@@ -685,6 +685,35 @@ class RecipesApi {
       throw error;
     }
   }
+
+  async getJobStatus(jobId: number) {
+    try {
+      console.log(`Making request to: ${this.baseUrl}/recipes/job-status/${jobId}`);
+      const response = await fetch(`${this.baseUrl}/recipes/job-status/${jobId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      console.log('Job status response status:', response.status);
+      console.log('Job status response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('Error response body:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('Job status result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error getting job status:', error);
+      throw error;
+    }
+  }
 }
 
 export const recipesApi = new RecipesApi();
