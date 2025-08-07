@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { UploadForm } from '../components/forms';
 import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { recipesApi } from '../services/recipesApi';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
 
 const UploadPage: React.FC = () => {
-  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<UploadResponse | MultiUploadResponse | null>(null);
