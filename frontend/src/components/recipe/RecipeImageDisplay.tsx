@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../../services/recipesApi';
+import { getImageUrl } from '../../utils/imageUtils';
 import type { Recipe } from '../../types';
 
 interface RecipeImageDisplayProps {
@@ -18,7 +19,7 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
 
   // Get the first image from the recipe
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
-  const imageUrl = primaryImage ? `/api/images/${primaryImage.filename}` : null;
+  const imageUrl = primaryImage ? getImageUrl(primaryImage.filename) : null;
 
   // Debug logging
   console.log('RecipeImageDisplay Debug:', {

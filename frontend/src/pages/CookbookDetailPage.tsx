@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button, SearchBar } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
 import { formatTextForDisplay, decodeHtmlEntities } from '../utils/textUtils';
+import { getImageUrl } from '../utils/imageUtils';
 import type { Recipe } from '../types';
 
 const CookbookDetailPage: React.FC = () => {
@@ -224,7 +225,7 @@ const CookbookDetailPage: React.FC = () => {
                     <div className="aspect-[4/3] bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden">
                       {(() => {
                         const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
-                        const imageUrl = primaryImage ? `/api/images/${primaryImage.filename}` : null;
+                        const imageUrl = primaryImage ? getImageUrl(primaryImage.filename) : null;
                         
                         return imageUrl ? (
                           <img

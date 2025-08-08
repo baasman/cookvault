@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AddToCollectionButton } from './AddToCollectionButton';
 import { AddToGroupButton } from './AddToGroupButton';
 import { CopyrightConsentModal } from '../ui';
+import { getImageUrl } from '../../utils/imageUtils';
 import type { Recipe } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -134,7 +135,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
 
   // Get the first image from the recipe and check for multiple images
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
-  const imageUrl = primaryImage ? `/api/images/${primaryImage.filename}` : null;
+  const imageUrl = primaryImage ? getImageUrl(primaryImage.filename) : null;
   const hasMultipleImages = recipe.images && recipe.images.length > 1;
 
   return (

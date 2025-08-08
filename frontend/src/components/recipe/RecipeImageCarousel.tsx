@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getImageUrl } from '../../utils/imageUtils';
 import type { Recipe } from '../../types';
 
 interface RecipeImageCarouselProps {
@@ -99,7 +100,7 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
   }
 
   const currentImage = sortedImages[currentIndex];
-  const imageUrl = `/api/images/${currentImage.filename}`;
+  const imageUrl = getImageUrl(currentImage.filename);
 
   return (
     <>
@@ -220,7 +221,7 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                 tabIndex={index === currentIndex ? 0 : -1}
               >
                 <img
-                  src={`/api/images/${image.filename}`}
+                  src={getImageUrl(image.filename)}
                   alt={`Thumbnail ${index + 1}`}
                   className="w-full h-full object-cover"
                 />
@@ -329,7 +330,7 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                     aria-label={`Go to image ${index + 1}`}
                   >
                     <img
-                      src={`/api/images/${image.filename}`}
+                      src={getImageUrl(image.filename)}
                       alt={`Thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
