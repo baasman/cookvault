@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { UploadForm } from '../components/forms';
 import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { recipesApi } from '../services/recipesApi';
@@ -184,12 +185,12 @@ const UploadPage: React.FC = () => {
                   <p>Total Images: {success.total_images}</p>
                   {multiJobId && (
                     <p className="mt-2 text-xs">
-                      <a 
-                        href={`/recipes/multi-job-status/${multiJobId}`}
+                      <Link 
+                        to={`/recipes/multi-job-status/${multiJobId}`}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         View processing status →
-                      </a>
+                      </Link>
                     </p>
                   )}
                 </>
@@ -203,12 +204,12 @@ const UploadPage: React.FC = () => {
                   )}
                   {success.recipe_id && (
                     <p className="mt-2">
-                      <a 
-                        href={`/recipes/${success.recipe_id}`}
+                      <Link 
+                        to={`/recipes/${success.recipe_id}`}
                         className="text-blue-600 hover:text-blue-800 font-medium"
                       >
                         View your recipe →
-                      </a>
+                      </Link>
                     </p>
                   )}
                 </>

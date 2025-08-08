@@ -18,7 +18,7 @@ def debug_images():
         print(f"Current Working Directory: {Path.cwd()}")
         print(f"Script Location: {Path(__file__).parent}")
         print(f"Config File Location: {Path(__file__).parent / 'app' / 'config.py'}")
-        
+
         # Check what the config construction gives us
         from pathlib import Path as ConfigPath
         import os
@@ -26,49 +26,49 @@ def debug_images():
         print(f"Config construction result: {config_path}")
         print(f"Config construction resolved: {config_path.resolve()}")
         print(f"Config construction exists: {config_path.exists()}")
-        
+
         if Path(app.config['UPLOAD_FOLDER']).exists():
             upload_files = list(Path(app.config['UPLOAD_FOLDER']).iterdir())
             print(f"Files in upload directory: {len(upload_files)}")
             for f in upload_files[:5]:  # Show first 5 files
                 print(f"  - {f.name}")
-        
+
         print("\n=== DATABASE IMAGES ===")
         images = RecipeImage.query.limit(3).all()
         print(f"Total images in DB: {RecipeImage.query.count()}")
-        
+
         for img in images:
             print(f"\nImage ID: {img.id}")
             print(f"  Filename: {img.filename}")
             print(f"  DB file_path: {img.file_path}")
             print(f"  File exists at DB path: {Path(img.file_path).exists()}")
-            
+
             # Check if file exists in upload folder with just filename
             upload_path = Path(app.config['UPLOAD_FOLDER']) / img.filename
             print(f"  Upload folder path: {upload_path}")
             print(f"  File exists in upload folder: {upload_path.exists()}")
-            
+
             # Test what serve_image function would do
             print(f"  serve_image would look for: {upload_path}")
-            
+
             # Check recipe association
             print(f"  Recipe ID: {img.recipe_id}")
             print(f"  Has recipe: {img.recipe is not None}")
-            
+
         print("\n=== SERVE IMAGE SIMULATION ===")
         # Simulate what happens in serve_image
         if images:
             test_filename = images[0].filename
             print(f"Testing with filename: {test_filename}")
-            
+
             upload_folder = Path(app.config["UPLOAD_FOLDER"])
             file_path = upload_folder / test_filename
-            
+
             print(f"serve_image upload_folder: {upload_folder}")
             print(f"serve_image file_path: {file_path}")
             print(f"serve_image file_path resolved: {file_path.resolve()}")
             print(f"serve_image file exists check: {file_path.exists()}")
-            
+
             # Security check simulation
             path_ok = str(file_path.resolve()).startswith(str(upload_folder.resolve()))
             print(f"Security check passes: {path_ok}")
