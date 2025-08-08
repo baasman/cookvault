@@ -765,8 +765,12 @@ def get_processing_job(current_user, job_id: int):
 def serve_image(current_user, filename: str) -> Response:
     """Serve uploaded images (recipe and cookbook images)."""
     try:
+        current_app.logger.info(f"serve_image called for filename: {filename}")
+        current_app.logger.info(f"Upload folder config: {current_app.config['UPLOAD_FOLDER']}")
+        
         # Check if it's a recipe image
         recipe_image = RecipeImage.query.filter_by(filename=filename).first()
+        current_app.logger.info(f"Recipe image found in DB: {recipe_image is not None}")
         if recipe_image:
             # Check if user can access the recipe associated with this image
             if recipe_image.recipe_id and should_apply_user_filter(current_user):
@@ -799,14 +803,30 @@ def serve_image(current_user, filename: str) -> Response:
 
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         file_path = upload_folder / filename
+        
+        current_app.logger.info(f"Upload folder resolved: {upload_folder.resolve()}")
+        current_app.logger.info(f"File path constructed: {file_path}")
+        current_app.logger.info(f"File path resolved: {file_path.resolve()}")
+        current_app.logger.info(f"File exists check: {file_path.exists()}")
 
         # Security check - ensure file is within upload folder
-        if not str(file_path.resolve()).startswith(str(upload_folder.resolve())):
+        security_check = str(file_path.resolve()).startswith(str(upload_folder.resolve()))
+        current_app.logger.info(f"Security check passed: {security_check}")
+        if not security_check:
+            current_app.logger.error(f"Security check failed - file_path: {file_path.resolve()}, upload_folder: {upload_folder.resolve()}")
             return jsonify({"error": "Invalid file path"}), 400
 
         if not file_path.exists():
+            current_app.logger.error(f"File not found at path: {file_path}")
+            # List files in upload directory for debugging
+            try:
+                upload_files = list(upload_folder.glob("*"))[:10]  # Show first 10 files
+                current_app.logger.info(f"Files in upload directory: {[f.name for f in upload_files]}")
+            except Exception as e:
+                current_app.logger.error(f"Could not list upload directory: {e}")
             return jsonify({"error": "Image not found"}), 404
 
+        current_app.logger.info(f"Serving file: {file_path}")
         return send_file(file_path)
 
     except Exception as e:
