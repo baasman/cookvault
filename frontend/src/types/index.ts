@@ -149,13 +149,10 @@ export interface MultiUploadResponse {
   multi_job_id: number;
   total_images: number;
   message: string;
-  status_url: string;
 }
 
-export interface MultiJobStatusResponse {
-  job: MultiRecipeJob;
-  progress_percentage: number;
-  current_step: string;
+export interface MultiJobStatusResponse extends MultiRecipeJob {
+  processing_jobs?: ProcessingJob[];
   recipe?: Recipe;
 }
 

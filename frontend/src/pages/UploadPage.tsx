@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { UploadForm } from '../components/forms';
 import { ProcessingProgress } from '../components/upload/ProcessingProgress';
+import { MultiProcessingProgress } from '../components/upload/MultiProcessingProgress';
 import { recipesApi } from '../services/recipesApi';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
 
@@ -12,12 +13,15 @@ const UploadPage: React.FC = () => {
   const [multiJobId, setMultiJobId] = useState<number | null>(null);
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isMultiProcessing, setIsMultiProcessing] = useState(false);
 
   const handleUpload = async (formData: UploadFormData) => {
     setIsLoading(true);
     setError(null);
     setSuccess(null);
     setMultiJobId(null);
+    setIsProcessing(false);
+    setIsMultiProcessing(false);
 
     try {
       if (formData.isMultiImage && formData.images.length > 0) {
@@ -41,8 +45,8 @@ const UploadPage: React.FC = () => {
           formData.page_number
         );
         
-        setSuccess(result);
         setMultiJobId(result.multi_job_id);
+        setIsMultiProcessing(true);
         
       } else if (!formData.isMultiImage && formData.image) {
         // Handle single image upload (existing logic)
@@ -135,9 +139,27 @@ const UploadPage: React.FC = () => {
     setSuccess(completionResponse);
   };
 
+  const handleMultiProcessingComplete = (recipeId: number) => {
+    setIsMultiProcessing(false);
+    setMultiJobId(null);
+    // Set success state with recipe ID for showing success banner
+    const completionResponse: UploadResponse = { 
+      message: 'Multi-image recipe processed successfully!', 
+      job_id: 0, // Not applicable for multi-image
+      recipe_id: recipeId 
+    };
+    setSuccess(completionResponse);
+  };
+
   const handleProcessingError = (errorMessage: string) => {
     setIsProcessing(false);
     setProcessingJobId(null);
+    setError(errorMessage);
+  };
+
+  const handleMultiProcessingError = (errorMessage: string) => {
+    setIsMultiProcessing(false);
+    setMultiJobId(null);
     setError(errorMessage);
   };
 
@@ -164,8 +186,19 @@ const UploadPage: React.FC = () => {
         </div>
       )}
 
+      {/* Multi-Image Processing Progress */}
+      {isMultiProcessing && multiJobId && (
+        <div className="mb-8">
+          <MultiProcessingProgress
+            multiJobId={multiJobId}
+            onComplete={handleMultiProcessingComplete}
+            onError={handleMultiProcessingError}
+          />
+        </div>
+      )}
+
       {/* Success Message */}
-      {success && !isProcessing && (
+      {success && !isProcessing && !isMultiProcessing && (
         <div className="mb-8 p-6 rounded-xl" style={{backgroundColor: '#d1fae5', borderColor: '#10b981'}}>
           <div className="text-center">
             <div className="mb-4">
@@ -180,21 +213,7 @@ const UploadPage: React.FC = () => {
               {success.message}
             </p>
             <div className="mt-4 text-sm" style={{color: '#047857'}}>
-              {isMultiUpload(success) ? (
-                <>
-                  <p>Total Images: {success.total_images}</p>
-                  {multiJobId && (
-                    <p className="mt-2 text-xs">
-                      <Link 
-                        to={`/recipes/multi-job-status/${multiJobId}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        View processing status →
-                      </Link>
-                    </p>
-                  )}
-                </>
-              ) : (
+              {!isMultiUpload(success) ? (
                 <>
                   {'cookbook' in success && success.cookbook && (
                     <p>Added to cookbook: {success.cookbook.title}</p>
@@ -203,6 +222,24 @@ const UploadPage: React.FC = () => {
                     <p>Page: {success.page_number}</p>
                   )}
                   {success.recipe_id && (
+                    <p className="mt-2">
+                      <Link 
+                        to={`/recipes/${success.recipe_id}`}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        View your recipe →
+                      </Link>
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* For multi-image uploads that haven't completed processing yet */}
+                  {(!('recipe_id' in success) || !success.recipe_id) && (
+                    <p>Images uploaded successfully. Processing will begin shortly...</p>
+                  )}
+                  {/* For completed multi-image uploads */}
+                  {'recipe_id' in success && success.recipe_id && (
                     <p className="mt-2">
                       <Link 
                         to={`/recipes/${success.recipe_id}`}

@@ -1882,10 +1882,10 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
 
 @bp.route("/recipes/upload-multi", methods=["POST"])
 @require_auth
-def upload_multi_recipe():
+def upload_multi_recipe(current_user):
     """Upload multiple images for a single recipe"""
     try:
-        user_id = request.user_id
+        user_id = current_user.id
 
         # Check if files are present
         if 'images' not in request.files:
@@ -2004,8 +2004,7 @@ def upload_multi_recipe():
         return jsonify({
             "multi_job_id": multi_job.id,
             "total_images": len(processing_jobs),
-            "message": f"Multi-image upload started with {len(processing_jobs)} images",
-            "status_url": f"/api/recipes/multi-job-status/{multi_job.id}"
+            "message": f"Multi-image upload started with {len(processing_jobs)} images"
         }), 201
 
     except Exception as e:
@@ -2076,10 +2075,10 @@ def get_job_status(current_user, job_id: int):
 
 @bp.route("/recipes/multi-job-status/<int:job_id>", methods=["GET"])
 @require_auth
-def get_multi_job_status(job_id: int):
+def get_multi_job_status(current_user, job_id: int):
     """Get status of a multi-image processing job"""
     try:
-        user_id = request.user_id
+        user_id = current_user.id
 
         # Find the multi-image job
         multi_job = MultiRecipeJob.query.filter_by(id=job_id, user_id=user_id).first()
@@ -2194,27 +2193,75 @@ def process_multi_image_job(multi_job_id: int):
             ocr_texts = []
             successful_jobs = []
 
-            for result in multi_image_result['results']:
-                image_path = result['image_path']
-                processing_job = processing_job_map.get(image_path)
+            # Check if enhanced multi-image result has the expected structure
+            if 'results' in multi_image_result and isinstance(multi_image_result['results'], list):
+                for result in multi_image_result['results']:
+                    image_path = result['image_path']
+                    processing_job = processing_job_map.get(image_path)
 
-                if processing_job:
-                    if result.get('error'):
-                        processing_job.status = ProcessingStatus.FAILED
-                        processing_job.error_message = result['error']
+                    if processing_job:
+                        if result.get('error'):
+                            processing_job.status = ProcessingStatus.FAILED
+                            processing_job.error_message = result['error']
+                        else:
+                            processing_job.ocr_text = result['text']
+                            processing_job.ocr_confidence = result.get('quality_score', 0.0)
+                            processing_job.ocr_method = result.get('method', 'unknown')
+                            processing_job.status = ProcessingStatus.COMPLETED
+
+                            if result['text'].strip():
+                                ocr_texts.append(result['text'])
+                                successful_jobs.append(processing_job)
+
+                            multi_job.processed_images += 1
+
+                        db.session.commit()
+            else:
+                # Fallback: if multi_image_result doesn't have expected structure, 
+                # assume it contains combined text directly
+                current_app.logger.warning(f"Multi-image result missing 'results' key, falling back to combined text processing")
+                
+                # Check for combined_text key (from LLM OCR service)
+                combined_text_key = 'combined_text' if 'combined_text' in multi_image_result else 'text'
+                
+                if combined_text_key in multi_image_result and multi_image_result[combined_text_key].strip():
+                    # Split the combined text and assign to jobs
+                    combined_text = multi_image_result[combined_text_key]
+                    current_app.logger.info(f"Processing combined text of length: {len(combined_text)}")
+                    
+                    # Split by page markers
+                    if '--- Page ' in combined_text:
+                        # Split by --- Page X --- markers
+                        import re
+                        text_parts = re.split(r'--- Page \d+ ---', combined_text)
+                        # Remove empty parts
+                        text_parts = [part.strip() for part in text_parts if part.strip()]
+                    elif '--- PAGE BREAK ---' in combined_text:
+                        text_parts = combined_text.split('--- PAGE BREAK ---')
+                        text_parts = [part.strip() for part in text_parts if part.strip()]
                     else:
-                        processing_job.ocr_text = result['text']
-                        processing_job.ocr_confidence = result.get('quality_score', 0.0)
-                        processing_job.ocr_method = result.get('method', 'unknown')
-                        processing_job.status = ProcessingStatus.COMPLETED
-
-                        if result['text'].strip():
-                            ocr_texts.append(result['text'])
+                        text_parts = [combined_text.strip()]
+                    
+                    current_app.logger.info(f"Split combined text into {len(text_parts)} parts")
+                    
+                    for i, processing_job in enumerate(processing_jobs):
+                        if i < len(text_parts) and text_parts[i].strip():
+                            processing_job.ocr_text = text_parts[i].strip()
+                            processing_job.ocr_confidence = multi_image_result.get('overall_quality', 10.0) / 10.0  # Convert to 0-1 scale
+                            processing_job.ocr_method = 'llm'
+                            processing_job.status = ProcessingStatus.COMPLETED
+                            
+                            ocr_texts.append(processing_job.ocr_text)
                             successful_jobs.append(processing_job)
-
-                        multi_job.processed_images += 1
-
-                    db.session.commit()
+                            multi_job.processed_images += 1
+                            
+                            current_app.logger.info(f"Successfully processed text for job {processing_job.id}: {len(processing_job.ocr_text)} characters")
+                        else:
+                            current_app.logger.warning(f"No text available for processing job {processing_job.id} (part {i})")
+                        
+                        db.session.commit()
+                else:
+                    current_app.logger.error(f"Multi-image result missing both 'results' and '{combined_text_key}' keys. Available keys: {list(multi_image_result.keys())}")
 
         except Exception as e:
             current_app.logger.error(f"Enhanced multi-image OCR failed, falling back to individual processing: {e}")
@@ -2233,37 +2280,34 @@ def process_multi_image_job(multi_job_id: int):
                         processing_job.status = ProcessingStatus.PROCESSING
                         db.session.commit()
 
-                        # Add timeout handling for OCR processing
-                        import signal
+                        # Use threading timeout instead of signal (works in background threads)
+                        import threading
+                        import time
+                        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+                        
+                        def ocr_task():
+                            return extract_recipe_text(processing_job.image_id)
 
-                        def timeout_handler(signum, frame):
-                            raise TimeoutError(f"OCR processing timed out after {timeout_seconds} seconds")
+                        # Use ThreadPoolExecutor with timeout for thread-safe timeout handling
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(ocr_task)
+                            ocr_result = future.result(timeout=timeout_seconds)
+                        
+                        ocr_texts.append(ocr_result['text'])
 
-                        signal.signal(signal.SIGALRM, timeout_handler)
-                        signal.alarm(timeout_seconds)
+                        processing_job.ocr_text = ocr_result['text']
+                        processing_job.ocr_confidence = ocr_result.get('confidence', 0.0)
+                        processing_job.ocr_method = ocr_result.get('method', 'unknown')
+                        processing_job.status = ProcessingStatus.COMPLETED
 
-                        try:
-                            # Extract text from this image
-                            ocr_result = extract_recipe_text(processing_job.image_id)
-                            ocr_texts.append(ocr_result['text'])
+                        successful_jobs.append(processing_job)
+                        multi_job.processed_images += 1
 
-                            processing_job.ocr_text = ocr_result['text']
-                            processing_job.ocr_confidence = ocr_result.get('confidence', 0.0)
-                            processing_job.ocr_method = ocr_result.get('method', 'unknown')
-                            processing_job.status = ProcessingStatus.COMPLETED
+                        current_app.logger.info(f"Completed OCR for image {processing_job.image_id} (job {processing_job.id})")
+                        db.session.commit()
+                        break  # Success, exit retry loop
 
-                            successful_jobs.append(processing_job)
-                            multi_job.processed_images += 1
-
-                            current_app.logger.info(f"Completed OCR for image {processing_job.image_id} (job {processing_job.id})")
-                            signal.alarm(0)  # Cancel timeout
-                            db.session.commit()
-                            break  # Success, exit retry loop
-
-                        finally:
-                            signal.alarm(0)  # Always cancel timeout
-
-                    except (TimeoutError, Exception) as e:
+                    except (FutureTimeoutError, TimeoutError, Exception) as e:
                         retry_count += 1
                         error_msg = f"Error processing image {processing_job.image_id} (attempt {retry_count}/{max_retries + 1}): {e}"
                         current_app.logger.error(error_msg, exc_info=True)
@@ -2297,15 +2341,52 @@ def process_multi_image_job(multi_job_id: int):
 
             # Pass quality information if available from enhanced processing
             quality_info = None
-            if 'multi_image_result' in locals():
-                quality_info = multi_image_result
+            try:
+                if 'multi_image_result' in locals():
+                    current_app.logger.info(f"multi_image_result type: {type(multi_image_result)}, value: {multi_image_result}")
+                    if isinstance(multi_image_result, dict):
+                        # Only use multi_image_result if it's a dictionary with expected structure
+                        quality_info = multi_image_result
+                        current_app.logger.info(f"Using multi_image_result as quality_info: {quality_info}")
+                    elif isinstance(multi_image_result, (int, float)):
+                        # If multi_image_result is a numeric quality score, wrap it in expected structure
+                        quality_info = {
+                            'overall_quality': multi_image_result,
+                            'completeness_score': {'score': 'Unknown'},
+                            'processing_summary': {'success_rate': 'Unknown'}
+                        }
+                        current_app.logger.info(f"Wrapped numeric multi_image_result as quality_info: {quality_info}")
+                    else:
+                        current_app.logger.warning(f"multi_image_result has unexpected type: {type(multi_image_result)}")
+                else:
+                    current_app.logger.info("multi_image_result not found in locals()")
+            except Exception as e:
+                current_app.logger.error(f"Error setting up quality_info: {e}")
+                quality_info = None
 
             parsed_recipe = recipe_parser.parse_multi_image_recipe(ocr_texts, quality_info=quality_info)
+            current_app.logger.info(f"Parsed recipe result: {parsed_recipe}")
+            
+            # Log what we're about to use for recipe creation
+            current_app.logger.info(f"Recipe title: {parsed_recipe.get('title', 'Untitled Recipe')}")
+            current_app.logger.info(f"Recipe description: {parsed_recipe.get('description')}")
+            current_app.logger.info(f"Recipe ingredients count: {len(parsed_recipe.get('ingredients', []))}")
+            current_app.logger.info(f"Recipe instructions count: {len(parsed_recipe.get('instructions', []))}")
+
+            # Get cookbook_id and page_number from processing jobs if available
+            cookbook_id = None
+            page_number = None
+            if successful_jobs:
+                cookbook_id = successful_jobs[0].cookbook_id
+                page_number = successful_jobs[0].page_number
+                current_app.logger.info(f"Setting recipe cookbook_id to: {cookbook_id}, page_number to: {page_number}")
 
             # Create the recipe
             recipe = Recipe(
                 title=parsed_recipe.get('title', 'Untitled Recipe'),
                 description=parsed_recipe.get('description'),
+                cookbook_id=cookbook_id,
+                page_number=page_number,
                 user_id=multi_job.user_id,
                 is_public=False  # Default to private
             )
@@ -2314,12 +2395,7 @@ def process_multi_image_job(multi_job_id: int):
 
             # Add ingredients if any
             if parsed_recipe.get('ingredients'):
-                for ingredient_text in parsed_recipe['ingredients']:
-                    ingredient = Ingredient(
-                        recipe_id=recipe.id,
-                        text=ingredient_text
-                    )
-                    db.session.add(ingredient)
+                _create_ingredients(recipe.id, parsed_recipe)
 
             # Add instructions if any
             if parsed_recipe.get('instructions'):
@@ -2327,7 +2403,7 @@ def process_multi_image_job(multi_job_id: int):
                     instruction = Instruction(
                         recipe_id=recipe.id,
                         step_number=i + 1,
-                        description=instruction_text
+                        text=instruction_text
                     )
                     db.session.add(instruction)
 

@@ -94,9 +94,8 @@ class RecipeParser:
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            # content = response.content[0].text
-            # parsed_result = self._extract_json_from_response(content)
-            parsed_result = json.loads(response.content[0].json())
+            content = response.content[0].text
+            parsed_result = self._extract_json_from_response(content)
 
             # Post-process the result for multi-image specific improvements
             enhanced_result = self._enhance_multi_image_result(parsed_result, processed_texts)
@@ -196,11 +195,40 @@ class RecipeParser:
 
         quality_context = ""
         if quality_info:
-            quality_context = f"""
+            # Defensive check: ensure quality_info is a dictionary
+            if not isinstance(quality_info, dict):
+                current_app.logger.warning(f"quality_info expected dict but got {type(quality_info)}: {quality_info}")
+                # Convert non-dict quality_info to safe format
+                if isinstance(quality_info, (int, float)):
+                    quality_info = {
+                        'overall_quality': quality_info,
+                        'completeness_score': {'score': 'Unknown'},
+                        'processing_summary': {'success_rate': 'Unknown'}
+                    }
+                else:
+                    quality_info = None
+            
+            if quality_info:
+                # Extract values safely, handling both dict and direct values
+                overall_quality = quality_info.get('overall_quality', 'Unknown')
+                
+                completeness_data = quality_info.get('completeness_score', 'Unknown')
+                if isinstance(completeness_data, dict):
+                    completeness_score = completeness_data.get('score', 'Unknown')
+                else:
+                    completeness_score = completeness_data
+                
+                processing_data = quality_info.get('processing_summary', 'Unknown')
+                if isinstance(processing_data, dict):
+                    success_rate = processing_data.get('success_rate', 'Unknown')
+                else:
+                    success_rate = processing_data
+                
+                quality_context = f"""
 QUALITY ASSESSMENT CONTEXT:
-- Overall Quality: {quality_info.get('overall_quality', 'Unknown')}/10
-- Completeness Score: {quality_info.get('completeness_score', {}).get('score', 'Unknown')}/10
-- Success Rate: {quality_info.get('processing_summary', {}).get('success_rate', 'Unknown')}%
+- Overall Quality: {overall_quality}/10
+- Completeness Score: {completeness_score}/10
+- Success Rate: {success_rate}%
 
 Pay special attention to pages with lower quality scores and be more careful with text interpretation.
 """

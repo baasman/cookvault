@@ -385,18 +385,21 @@ def login() -> Tuple[Response, int]:
         )
         current_app.logger.info(f"Session after login: {dict(session)}")
 
-        response = jsonify(
-            {
-                "message": "Login successful",
-                "user": user.to_dict(),
-                "session_token": user_session.session_token,
-            }
-        )
+        # Log session cookie details for debugging
+        current_app.logger.info("Login successful, setting session data")
+        current_app.logger.info(f"Session cookie domain: {current_app.config.get('SESSION_COOKIE_DOMAIN')}")
+        current_app.logger.info(f"Session cookie secure: {current_app.config.get('SESSION_COOKIE_SECURE')}")
+        current_app.logger.info(f"Session cookie samesite: {current_app.config.get('SESSION_COOKIE_SAMESITE')}")
 
-        current_app.logger.info(
-            f"Login response created - session should be set in cookies"
-        )
-        return response, 200
+        return jsonify({
+            "message": "Login successful",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role.value
+            }
+        }), 200
 
     except Exception as e:
         db.session.rollback()
@@ -425,6 +428,12 @@ def logout(current_user: User) -> Tuple[Response, int]:
         session.clear()
 
         current_app.logger.info(f"User logged out: {current_user.username}")
+
+        # Log session cookie details for debugging
+        current_app.logger.info("Logout successful, clearing session data")
+        current_app.logger.info(f"Session cookie domain: {current_app.config.get('SESSION_COOKIE_DOMAIN')}")
+        current_app.logger.info(f"Session cookie secure: {current_app.config.get('SESSION_COOKIE_SECURE')}")
+        current_app.logger.info(f"Session cookie samesite: {current_app.config.get('SESSION_COOKIE_SAMESITE')}")
 
         return jsonify({"message": "Logout successful"}), 200
 
