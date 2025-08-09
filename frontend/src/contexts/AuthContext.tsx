@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { setAuthContext, apiFetch } from '../utils/apiInterceptor';
+import { setAuthContext, apiFetch, clearAuthErrors } from '../utils/apiInterceptor';
+import { debugAuth, debugCookies } from '../utils/authDebug';
 
 interface User {
   id: string;
@@ -56,7 +57,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check for existing session on mount
     const checkAuth = async () => {
       try {
+        debugAuth('Starting auth check');
+        debugCookies();
+        
         const token = localStorage.getItem('auth_token');
+        debugAuth('Auth token status', token ? 'present' : 'missing');
+        
         if (token) {
           // Validate token with backend
           const apiUrl = import.meta.env.VITE_API_URL || '/api';
@@ -69,6 +75,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (response.ok) {
             const data = await response.json();
+            debugAuth('Auth check successful', { userId: data.user.id, userRole: data.user.role });
+            
             setUser({
               id: data.user.id.toString(),
               email: data.user.email,
@@ -76,12 +84,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               role: data.user.role,
               isAdmin: data.user.role === 'admin',
             });
+            
+            // Clear any authentication error tracking on successful auth
+            clearAuthErrors();
           } else {
+            debugAuth('Auth check failed - invalid token', { status: response.status });
             // Token is invalid, remove it
             localStorage.removeItem('auth_token');
           }
         }
       } catch (error) {
+        debugAuth('Auth check error', error);
         console.error('Auth check failed:', error);
         // Remove invalid token
         localStorage.removeItem('auth_token');
@@ -96,6 +109,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (usernameOrEmail: string, password: string) => {
     setIsLoading(true);
     try {
+      debugAuth('Login attempt', { login: usernameOrEmail });
+      debugCookies();
+      
       const apiUrl = import.meta.env.VITE_API_URL || '/api';
       const response = await apiFetch(`${apiUrl}/auth/login`, {
         method: 'POST',
@@ -111,8 +127,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const data = await response.json();
 
       if (!response.ok) {
+        debugAuth('Login failed', { status: response.status, error: data.error });
         throw new Error(data.error || 'Login failed');
       }
+
+      debugAuth('Login successful', { userId: data.user.id, userRole: data.user.role });
 
       setUser({
         id: data.user.id.toString(),
@@ -123,6 +142,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       localStorage.setItem('auth_token', data.session_token);
+      
+      // Clear any authentication error tracking
+      clearAuthErrors();
       
       // Invalidate all queries to ensure fresh data for the new user
       queryClient.invalidateQueries();
@@ -180,6 +202,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       localStorage.setItem('auth_token', data.session_token);
       
+      // Clear any authentication error tracking
+      clearAuthErrors();
+      
       // Invalidate all queries to ensure fresh data for the new user
       queryClient.invalidateQueries();
     } finally {
@@ -188,6 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    debugAuth('Logout initiated');
     setUser(null);
     localStorage.removeItem('auth_token');
     // Clear all React Query cache to prevent data leakage between users
