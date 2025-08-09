@@ -1,4 +1,5 @@
 import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse } from '../types';
+import { apiFetch } from '../utils/apiInterceptor';
 
 interface FetchRecipesParams {
   page?: number;
@@ -46,12 +47,11 @@ class RecipesApi {
         requestBody.cookbook_id = cookbook_id;
       }
 
-      const response = await fetch(`${this.baseUrl}/recipes`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(requestBody),
       });
 
@@ -83,12 +83,11 @@ class RecipesApi {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/recipes?${searchParams}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Include cookies for session auth
       });
 
       if (!response.ok) {
@@ -105,12 +104,11 @@ class RecipesApi {
 
   async fetchRecipe(id: number): Promise<Recipe> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${id}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -174,10 +172,9 @@ class RecipesApi {
       const formData = new FormData();
       formData.append('image', imageFile);
 
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/images`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/images`, {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -194,12 +191,11 @@ class RecipesApi {
 
   async updateRecipe(recipeId: number, params: UpdateRecipeParams): Promise<Recipe> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(params),
       });
 
@@ -218,12 +214,11 @@ class RecipesApi {
 
   async updateRecipeIngredients(recipeId: number, params: UpdateIngredientsParams): Promise<Recipe> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/ingredients`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/ingredients`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(params),
       });
 
@@ -242,12 +237,11 @@ class RecipesApi {
 
   async updateRecipeInstructions(recipeId: number, params: UpdateInstructionsParams): Promise<Recipe> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/instructions`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/instructions`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(params),
       });
 
@@ -266,12 +260,11 @@ class RecipesApi {
 
   async updateRecipeTags(recipeId: number, params: UpdateTagsParams): Promise<Recipe> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/tags`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/tags`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(params),
       });
 
@@ -298,12 +291,11 @@ class RecipesApi {
         requestBody.copyright_consent = copyrightConsent;
       }
 
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/privacy`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/privacy`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(requestBody),
       });
 
@@ -322,12 +314,11 @@ class RecipesApi {
 
   async publishRecipe(recipeId: number): Promise<Recipe> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/publish`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/publish`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -345,12 +336,11 @@ class RecipesApi {
 
   async unpublishRecipe(recipeId: number): Promise<Recipe> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/unpublish`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/unpublish`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -368,12 +358,11 @@ class RecipesApi {
 
   async addToCollection(recipeId: number): Promise<{ message: string; collection_item: any }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/add-to-collection`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/add-to-collection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -390,12 +379,11 @@ class RecipesApi {
 
   async removeFromCollection(recipeId: number): Promise<{ message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/remove-from-collection`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/remove-from-collection`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -423,12 +411,11 @@ class RecipesApi {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/discover?${searchParams}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/discover?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -445,12 +432,11 @@ class RecipesApi {
   // Recipe Notes Methods
   async getUserNote(recipeId: number): Promise<{ note: RecipeNote | null }> {
     try {
-      const response = await fetch(`/api/recipes/${recipeId}/notes`, {
+      const response = await apiFetch(`/api/recipes/${recipeId}/notes`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -466,12 +452,11 @@ class RecipesApi {
 
   async saveUserNote(recipeId: number, content: string): Promise<{ note: RecipeNote }> {
     try {
-      const response = await fetch(`/api/recipes/${recipeId}/notes`, {
+      const response = await apiFetch(`/api/recipes/${recipeId}/notes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ content }),
       });
 
@@ -489,12 +474,11 @@ class RecipesApi {
 
   async deleteUserNote(recipeId: number): Promise<{ message: string }> {
     try {
-      const response = await fetch(`/api/recipes/${recipeId}/notes`, {
+      const response = await apiFetch(`/api/recipes/${recipeId}/notes`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -519,12 +503,11 @@ class RecipesApi {
     });
 
     try {
-      const response = await fetch(`/api/recipes/${recipeId}/comments?${searchParams}`, {
+      const response = await apiFetch(`/api/recipes/${recipeId}/comments?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -540,12 +523,11 @@ class RecipesApi {
 
   async createComment(recipeId: number, content: string): Promise<{ comment: RecipeComment }> {
     try {
-      const response = await fetch(`/api/recipes/${recipeId}/comments`, {
+      const response = await apiFetch(`/api/recipes/${recipeId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ content }),
       });
 
@@ -563,12 +545,11 @@ class RecipesApi {
 
   async updateComment(recipeId: number, commentId: number, content: string): Promise<{ comment: RecipeComment }> {
     try {
-      const response = await fetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
+      const response = await apiFetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ content }),
       });
 
@@ -586,12 +567,11 @@ class RecipesApi {
 
   async deleteComment(recipeId: number, commentId: number): Promise<{ message: string }> {
     try {
-      const response = await fetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
+      const response = await apiFetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -608,12 +588,11 @@ class RecipesApi {
 
   async copyRecipe(recipeId: number): Promise<{ recipe: Recipe; message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/${recipeId}/copy`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/copy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -646,10 +625,9 @@ class RecipesApi {
         formData.append('page_number', page_number.toString());
       }
 
-      const response = await fetch(`${this.baseUrl}/recipes/upload-multi`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/upload-multi`, {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -666,12 +644,11 @@ class RecipesApi {
 
   async getMultiJobStatus(jobId: number): Promise<MultiJobStatusResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipes/multi-job-status/${jobId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/multi-job-status/${jobId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -689,12 +666,11 @@ class RecipesApi {
   async getJobStatus(jobId: number) {
     try {
       console.log(`Making request to: ${this.baseUrl}/recipes/job-status/${jobId}`);
-      const response = await fetch(`${this.baseUrl}/recipes/job-status/${jobId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/job-status/${jobId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       console.log('Job status response status:', response.status);

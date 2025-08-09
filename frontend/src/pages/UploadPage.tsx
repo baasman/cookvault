@@ -4,6 +4,7 @@ import { UploadForm } from '../components/forms';
 import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { MultiProcessingProgress } from '../components/upload/MultiProcessingProgress';
 import { recipesApi } from '../services/recipesApi';
+import { apiFetch } from '../utils/apiInterceptor';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
 
 const UploadPage: React.FC = () => {
@@ -83,10 +84,9 @@ const UploadPage: React.FC = () => {
         }
 
         const apiUrl = import.meta.env.VITE_API_URL || '/api';
-        const response = await fetch(`${apiUrl}/recipes/upload`, {
+        const response = await apiFetch(`${apiUrl}/recipes/upload`, {
           method: 'POST',
           body: uploadData,
-          credentials: 'include',
         });
 
         if (!response.ok) {

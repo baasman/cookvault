@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { setAuthContext, apiFetch } from '../utils/apiInterceptor';
 
 interface User {
   id: string;
@@ -46,6 +47,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const queryClient = useQueryClient();
 
+  // Register auth context with the API interceptor
+  useEffect(() => {
+    setAuthContext({ logout });
+  }, []);
+
   useEffect(() => {
     // Check for existing session on mount
     const checkAuth = async () => {
@@ -54,12 +60,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (token) {
           // Validate token with backend
           const apiUrl = import.meta.env.VITE_API_URL || '/api';
-          const response = await fetch(`${apiUrl}/auth/me`, {
+          const response = await apiFetch(`${apiUrl}/auth/me`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
             },
-            credentials: 'include',
           });
 
           if (response.ok) {
@@ -92,12 +97,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${apiUrl}/auth/login`, {
+      const response = await apiFetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           login: usernameOrEmail,
           password: password,
@@ -138,13 +142,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('Using API base URL:', apiUrl);
       console.log('Full registration URL:', fullUrl);
       
-      const response = await fetch(fullUrl, {
+      const response = await apiFetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(userData),
-        credentials: 'include',
       });
 
       console.log('Registration response status:', response.status);
@@ -189,6 +192,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('auth_token');
     // Clear all React Query cache to prevent data leakage between users
     queryClient.clear();
+    // Redirect to login page using window.location for better compatibility
+    window.location.href = '/login';
   };
 
   const value = {

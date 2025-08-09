@@ -1,4 +1,5 @@
 import type { Recipe } from '../types';
+import { apiFetch } from '../utils/apiInterceptor';
 
 export interface RecipeGroup {
   id: number;
@@ -53,12 +54,11 @@ class RecipeGroupsApi {
 
   async getRecipeGroups(): Promise<RecipeGroupsResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipe-groups`, {
+      const response = await apiFetch(`${this.baseUrl}/recipe-groups`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -74,12 +74,11 @@ class RecipeGroupsApi {
 
   async createRecipeGroup(params: CreateGroupParams): Promise<{ group: RecipeGroup; message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipe-groups`, {
+      const response = await apiFetch(`${this.baseUrl}/recipe-groups`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(params),
       });
 
@@ -108,12 +107,11 @@ class RecipeGroupsApi {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/recipe-groups/${groupId}?${searchParams}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipe-groups/${groupId}?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -132,12 +130,11 @@ class RecipeGroupsApi {
 
   async updateRecipeGroup(groupId: number, params: UpdateGroupParams): Promise<{ group: RecipeGroup; message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipe-groups/${groupId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipe-groups/${groupId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(params),
       });
 
@@ -155,12 +152,11 @@ class RecipeGroupsApi {
 
   async deleteRecipeGroup(groupId: number): Promise<{ message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipe-groups/${groupId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipe-groups/${groupId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -177,12 +173,11 @@ class RecipeGroupsApi {
 
   async addRecipeToGroup(groupId: number, recipeId: number): Promise<{ message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipe-groups/${groupId}/recipes/${recipeId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipe-groups/${groupId}/recipes/${recipeId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -199,12 +194,11 @@ class RecipeGroupsApi {
 
   async removeRecipeFromGroup(groupId: number, recipeId: number): Promise<{ message: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/recipe-groups/${groupId}/recipes/${recipeId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipe-groups/${groupId}/recipes/${recipeId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {

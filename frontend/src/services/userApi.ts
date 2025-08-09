@@ -1,16 +1,16 @@
 import type { UserProfile } from '../types';
+import { apiFetch } from '../utils/apiInterceptor';
 
 class UserApi {
   private baseUrl = import.meta.env.VITE_API_URL || '/api';
 
   async fetchUserProfile(): Promise<UserProfile> {
     try {
-      const response = await fetch(`${this.baseUrl}/user/profile`, {
+      const response = await apiFetch(`${this.baseUrl}/user/profile`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Include cookies for session auth
       });
 
       if (!response.ok) {

@@ -1,4 +1,5 @@
 import type { Cookbook } from '../types';
+import { apiFetch } from '../utils/apiInterceptor';
 
 interface FetchCookbooksParams {
   page?: number;
@@ -63,12 +64,11 @@ class CookbooksApi {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/cookbooks?${searchParams}`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Include cookies for session auth
       });
 
       if (!response.ok) {
@@ -91,12 +91,11 @@ class CookbooksApi {
       
       const url = `${this.baseUrl}/cookbooks/${id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
       
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -115,12 +114,11 @@ class CookbooksApi {
 
   async createCookbook(data: CreateCookbookData): Promise<Cookbook> {
     try {
-      const response = await fetch(`${this.baseUrl}/cookbooks`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(data),
       });
 
@@ -139,12 +137,11 @@ class CookbooksApi {
 
   async updateCookbook(id: number, data: Partial<CreateCookbookData>): Promise<Cookbook> {
     try {
-      const response = await fetch(`${this.baseUrl}/cookbooks/${id}`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(data),
       });
 
@@ -163,12 +160,11 @@ class CookbooksApi {
 
   async deleteCookbook(id: number): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/cookbooks/${id}`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -187,12 +183,11 @@ class CookbooksApi {
         q: query.trim(),
       });
 
-      const response = await fetch(`${this.baseUrl}/cookbooks/search?${searchParams}`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/search?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -212,10 +207,9 @@ class CookbooksApi {
       const formData = new FormData();
       formData.append('image', imageFile);
 
-      const response = await fetch(`${this.baseUrl}/cookbooks/${cookbookId}/images`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/${cookbookId}/images`, {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -237,12 +231,11 @@ class CookbooksApi {
         max_results: maxResults.toString(),
       });
 
-      const response = await fetch(`${this.baseUrl}/cookbooks/search/google-books?${searchParams}`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/search/google-books?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -259,12 +252,11 @@ class CookbooksApi {
 
   async searchGoogleBooksByIsbn(isbn: string): Promise<GoogleBook | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/cookbooks/search/google-books/isbn/${encodeURIComponent(isbn)}`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/search/google-books/isbn/${encodeURIComponent(isbn)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -285,12 +277,11 @@ class CookbooksApi {
 
   async createCookbookFromGoogleBooks(googleBooksId: string): Promise<Cookbook> {
     try {
-      const response = await fetch(`${this.baseUrl}/cookbooks/from-google-books`, {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/from-google-books`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           google_books_id: googleBooksId,
         }),
