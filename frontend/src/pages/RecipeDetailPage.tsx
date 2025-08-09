@@ -411,12 +411,16 @@ const RecipeDetailPage: React.FC = () => {
 
       {/* Notes Section - Only show when not editing */}
       {!isEditing && (
-        <NotesSection recipe={recipe} />
+        <div className="mt-6">
+          <NotesSection recipe={recipe} />
+        </div>
       )}
 
       {/* Comments Section - Only show when not editing */}
       {!isEditing && (
-        <CommentsSection recipe={recipe} />
+        <div className="mt-6">
+          <CommentsSection recipe={recipe} />
+        </div>
       )}
 
       {/* Recipe Source */}
