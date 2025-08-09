@@ -99,20 +99,20 @@ class Config:
         _session_secure_parsed = _session_secure_env.lower() == "true"
 
         app.config['SESSION_COOKIE_SECURE'] = _session_secure_parsed
-        # Set the session cookie domain for production
-        if app.config['SESSION_COOKIE_SECURE']:
-            app.config['SESSION_COOKIE_DOMAIN'] = os.environ.get(
-                "SESSION_COOKIE_DOMAIN", ".onrender.com"
-            )
+        # Set the session cookie domain for production - only if explicitly provided
+        # For cross-origin to work, the domain must be explicitly set to allow sharing
+        session_cookie_domain_env = os.environ.get("SESSION_COOKIE_DOMAIN")
+        if session_cookie_domain_env:
+            app.config['SESSION_COOKIE_DOMAIN'] = session_cookie_domain_env
+            app.logger.info(f"Session cookie domain set to: {session_cookie_domain_env}")
+        else:
+            # Don't set a domain - let browser use the request domain
+            app.logger.info("SESSION_COOKIE_DOMAIN not set - using request domain")
 
         # Configure session cookie settings
         app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get(
             "SESSION_COOKIE_SAMESITE", "None" if _session_secure_parsed else "Lax"
         )
-        # Only override SESSION_COOKIE_DOMAIN if explicitly set in environment
-        session_cookie_domain_env = os.environ.get("SESSION_COOKIE_DOMAIN")
-        if session_cookie_domain_env is not None:
-            app.config['SESSION_COOKIE_DOMAIN'] = session_cookie_domain_env
 
         # Rate limiting
         app.config['RATELIMIT_STORAGE_URL'] = os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
