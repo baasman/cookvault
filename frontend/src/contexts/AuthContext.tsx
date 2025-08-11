@@ -209,7 +209,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isAdmin: data.user.role === 'admin',
       });
 
-      localStorage.setItem('auth_token', data.session_token);
+      // Store JWT token from registration response (same as login)
+      localStorage.setItem('auth_token', data.access_token);
       
       // Clear any authentication error tracking
       clearAuthErrors();
