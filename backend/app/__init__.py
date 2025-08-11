@@ -49,6 +49,7 @@ def create_app(config_name: str | None = None) -> Flask:
     app.logger.info(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
     app.logger.info(f"  SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}")
     app.logger.info(f"  SESSION_COOKIE_HTTPONLY: {app.config.get('SESSION_COOKIE_HTTPONLY')}")
+    app.logger.info(f"  SESSION_COOKIE_DOMAIN: {app.config.get('SESSION_COOKIE_DOMAIN')}")
     app.logger.info(f"  SESSION_COOKIE_SAMESITE: {app.config.get('SESSION_COOKIE_SAMESITE')}")
     app.logger.info(f"  PERMANENT_SESSION_LIFETIME: {app.config.get('PERMANENT_SESSION_LIFETIME')}")
 

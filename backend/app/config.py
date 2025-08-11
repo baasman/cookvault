@@ -102,12 +102,14 @@ class Config:
         # Set the session cookie domain for production - only if explicitly provided
         # For cross-origin to work, the domain must be explicitly set to allow sharing
         session_cookie_domain_env = os.environ.get("SESSION_COOKIE_DOMAIN")
+        app.logger.info(f"SESSION_COOKIE_DOMAIN env var: '{session_cookie_domain_env}'")
         if session_cookie_domain_env:
             app.config['SESSION_COOKIE_DOMAIN'] = session_cookie_domain_env
-            app.logger.info(f"Session cookie domain set to: {session_cookie_domain_env}")
+            app.logger.info(f"✓ Session cookie domain set to: {session_cookie_domain_env}")
         else:
             # Don't set a domain - let browser use the request domain
-            app.logger.info("SESSION_COOKIE_DOMAIN not set - using request domain")
+            app.logger.warning("⚠️  SESSION_COOKIE_DOMAIN not set - using request domain (may cause cross-origin issues)")
+            app.config['SESSION_COOKIE_DOMAIN'] = None
 
         # Configure session cookie settings
         app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get(
