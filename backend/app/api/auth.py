@@ -334,19 +334,30 @@ def register() -> Tuple[Response, int]:
             )
             raise Exception("User was not saved to database despite successful commit")
 
-        # Create session for the new user
+        # Generate JWT token for the new user (same as login)
+        jwt_token = JWTTokenManager.generate_token(user)
+
+        # Create session for the new user (for backward compatibility and audit)
         user_session = create_user_session(user, request)
 
         current_app.logger.info(
             f"New user registered successfully: {username} (ID: {user.id})"
         )
+        current_app.logger.info(f"JWT token generated for new user {user.id}")
         current_app.logger.info(f"Session after registration: {dict(session)}")
 
         response = jsonify(
             {
                 "message": "User registered successfully",
-                "user": user.to_dict(),
-                "session_token": user_session.session_token,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role.value
+                },
+                "access_token": jwt_token,
+                "token_type": "Bearer",
+                "session_token": user_session.session_token,  # Keep for backward compatibility
             }
         )
 
