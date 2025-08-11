@@ -2013,6 +2013,153 @@ def upload_multi_recipe(current_user):
         return jsonify({"error": "Failed to process multi-image upload"}), 500
 
 
+@bp.route("/recipes/upload-text", methods=["POST"])
+@require_auth
+def upload_recipe_text(current_user) -> Tuple[Response, int]:
+    """Upload recipe text directly for processing (bypassing OCR)."""
+    current_app.logger.info(f"Text recipe upload request from user {current_user.id} ({current_user.username})")
+    
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        # Extract text content
+        recipe_text = data.get("text", "").strip()
+        if not recipe_text:
+            return jsonify({"error": "No recipe text provided"}), 400
+            
+        # Validate text length (reasonable limits)
+        max_text_length = current_app.config.get('MAX_RECIPE_TEXT_LENGTH', 50000)  # 50KB default
+        if len(recipe_text) > max_text_length:
+            return jsonify({
+                "error": f"Recipe text too long ({len(recipe_text)} characters). Maximum {max_text_length} characters allowed."
+            }), 400
+        
+        current_app.logger.info(f"Processing recipe text: {len(recipe_text)} characters")
+        
+        # Get optional cookbook information
+        cookbook_id = data.get("cookbook_id")
+        page_number = data.get("page_number")
+        create_new_cookbook = data.get("create_new_cookbook", False)
+        
+        # Handle new cookbook creation (same logic as image upload)
+        cookbook = None
+        if create_new_cookbook:
+            new_cookbook_title = data.get("new_cookbook_title", "").strip()
+            if not new_cookbook_title:
+                return jsonify({"error": "Cookbook title is required when creating a new cookbook"}), 400
+            
+            try:
+                cookbook = Cookbook(
+                    title=new_cookbook_title,
+                    author=data.get("new_cookbook_author", "").strip() or None,
+                    description=data.get("new_cookbook_description", "").strip() or None,
+                    publisher=data.get("new_cookbook_publisher", "").strip() or None,
+                    isbn=data.get("new_cookbook_isbn", "").strip() or None,
+                    user_id=current_user.id,
+                )
+                
+                publication_date = data.get("new_cookbook_publication_date", "").strip()
+                if publication_date:
+                    try:
+                        from datetime import datetime
+                        cookbook.publication_date = datetime.fromisoformat(publication_date)
+                    except ValueError:
+                        return jsonify({"error": "Invalid publication date format"}), 400
+                
+                db.session.add(cookbook)
+                db.session.flush()
+                cookbook_id = cookbook.id
+                
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Cookbook creation failed: {str(e)}")
+                return jsonify({"error": "Failed to create cookbook"}), 500
+                
+        elif cookbook_id:
+            try:
+                cookbook_id = int(cookbook_id)
+                cookbook = Cookbook.query.get(cookbook_id)
+                if not cookbook:
+                    return jsonify({"error": "Cookbook not found"}), 400
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid cookbook_id"}), 400
+        
+        # Validate page_number if provided
+        if page_number:
+            try:
+                page_number = int(page_number)
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid page_number"}), 400
+        
+        # Process the text directly using the recipe parser
+        recipe_parser = RecipeParser()
+        parsed_recipe = recipe_parser.parse_recipe_text(recipe_text)
+        
+        current_app.logger.info(f"Parsed recipe: {parsed_recipe}")
+        
+        # Create the recipe directly (no background processing needed for text)
+        recipe = Recipe(
+            title=parsed_recipe.get('title', 'Untitled Recipe'),
+            description=parsed_recipe.get('description'),
+            cookbook_id=cookbook_id,
+            page_number=page_number,
+            user_id=current_user.id,
+            is_public=False,  # Default to private
+            prep_time=parsed_recipe.get('prep_time'),
+            cook_time=parsed_recipe.get('cook_time'),
+            servings=parsed_recipe.get('servings'),
+            difficulty=parsed_recipe.get('difficulty')
+        )
+        
+        db.session.add(recipe)
+        db.session.flush()  # Get recipe ID
+        
+        # Add ingredients
+        if parsed_recipe.get('ingredients'):
+            _create_ingredients(recipe.id, parsed_recipe)
+        
+        # Add instructions
+        if parsed_recipe.get('instructions'):
+            _create_instructions(recipe.id, parsed_recipe, recipe_text)
+        
+        # Add tags
+        if parsed_recipe.get('tags'):
+            _create_tags(recipe.id, parsed_recipe)
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Successfully created recipe {recipe.id} from text: '{recipe.title}'")
+        
+        return jsonify({
+            "message": "Recipe created successfully from text",
+            "recipe_id": recipe.id,
+            "recipe": {
+                "id": recipe.id,
+                "title": recipe.title,
+                "description": recipe.description,
+                "cookbook_id": recipe.cookbook_id,
+                "page_number": recipe.page_number,
+                "prep_time": recipe.prep_time,
+                "cook_time": recipe.cook_time,
+                "servings": recipe.servings,
+                "difficulty": recipe.difficulty
+            },
+            "cookbook": cookbook.to_dict() if cookbook else None,
+            "parsing_info": {
+                "confidence": parsed_recipe.get('parsing_confidence', 'unknown'),
+                "notes": parsed_recipe.get('parsing_notes', '')
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Text upload failed: {str(e)}", exc_info=True)
+        return jsonify({"error": "Failed to process recipe text"}), 500
+
+
 @bp.route("/recipes/job-status/<int:job_id>", methods=["GET"])
 @require_auth
 def get_job_status(current_user, job_id: int):
@@ -2114,6 +2261,10 @@ def get_multi_job_status(current_user, job_id: int):
 
 def process_multi_image_job(multi_job_id: int):
     """Process all images in a multi-image job and combine results into a single recipe."""
+    # Initialize ocr_texts at function start to prevent NoneType errors
+    ocr_texts = []
+    successful_jobs = []
+    
     try:
         # Get the multi-image job
         multi_job = MultiRecipeJob.query.get(multi_job_id)
@@ -2190,8 +2341,6 @@ def process_multi_image_job(multi_job_id: int):
             current_app.logger.info(f"Multi-image OCR completed. Quality: {multi_image_result['overall_quality']:.1f}, Completeness: {multi_image_result['completeness_score']}/10")
 
             # Update individual processing jobs with results
-            ocr_texts = []
-            successful_jobs = []
 
             # Check if enhanced multi-image result has the expected structure
             if 'results' in multi_image_result and isinstance(multi_image_result['results'], list):
@@ -2267,6 +2416,7 @@ def process_multi_image_job(multi_job_id: int):
             current_app.logger.error(f"Enhanced multi-image OCR failed, falling back to individual processing: {e}")
 
             # Fallback to individual processing with original retry logic
+            # Reset the lists for fallback processing
             ocr_texts = []
             successful_jobs = []
 
@@ -2331,6 +2481,30 @@ def process_multi_image_job(multi_job_id: int):
             db.session.commit()
             return
 
+        # Validate ocr_texts before proceeding
+        if ocr_texts is None:
+            current_app.logger.error("ocr_texts is None, initializing as empty list")
+            ocr_texts = []
+        
+        if not isinstance(ocr_texts, list):
+            current_app.logger.error(f"ocr_texts is not a list, got {type(ocr_texts)}: {ocr_texts}")
+            ocr_texts = []
+        
+        # Filter out None/empty entries
+        ocr_texts = [text for text in ocr_texts if text and isinstance(text, str) and text.strip()]
+        
+        current_app.logger.info(f"Final ocr_texts validation: {len(ocr_texts)} texts")
+        for i, text in enumerate(ocr_texts):
+            current_app.logger.info(f"  Text {i+1}: {len(text)} characters")
+        
+        # Check if we have any valid OCR texts
+        if not ocr_texts:
+            current_app.logger.error("No valid OCR texts available for parsing")
+            multi_job.status = ProcessingStatus.FAILED
+            multi_job.error_message = "No valid OCR text extracted from images"
+            db.session.commit()
+            return
+        
         # Combine OCR texts for storage
         combined_ocr_text = "\n--- PAGE BREAK ---\n".join(ocr_texts)
         multi_job.combined_ocr_text = combined_ocr_text

@@ -63,14 +63,27 @@ class RecipeParser:
 
     def parse_multi_image_recipe(self, ocr_texts: list[str], use_cache: bool = True, quality_info: Dict = None) -> Dict:
         """Parse recipe from multiple OCR text blocks with enhanced text processing."""
+        # Enhanced validation with better error messages
+        if ocr_texts is None:
+            raise ValueError("ocr_texts cannot be None")
+        
+        if not isinstance(ocr_texts, list):
+            raise ValueError(f"ocr_texts must be a list, got {type(ocr_texts)}")
+        
         if not ocr_texts:
             raise ValueError("At least one OCR text is required")
+        
+        # Filter out None/empty entries
+        valid_texts = [text for text in ocr_texts if text and isinstance(text, str) and text.strip()]
+        
+        if not valid_texts:
+            raise ValueError(f"No valid text found in ocr_texts. Original count: {len(ocr_texts)}, valid count: 0")
 
-        if len(ocr_texts) == 1:
-            return self.parse_recipe_text(ocr_texts[0], use_cache)
+        if len(valid_texts) == 1:
+            return self.parse_recipe_text(valid_texts[0], use_cache)
 
         # Pre-process texts for better combination
-        processed_texts = self._preprocess_multi_image_texts(ocr_texts)
+        processed_texts = self._preprocess_multi_image_texts(valid_texts)
 
         # Combine texts for cache key generation
         combined_text = "\n--- PAGE BREAK ---\n".join(processed_texts)
