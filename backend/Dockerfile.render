@@ -23,6 +23,9 @@ COPY ../README.md ../pyproject.toml ../uv.lock* ./
 # Install Python dependencies using uv
 RUN uv sync --frozen --no-dev
 
+# Remove conflicting JWT package if it exists (keep only PyJWT)
+RUN uv run pip uninstall -y jwt || true
+
 # Copy application code
 COPY backend/ .
 

@@ -70,22 +70,35 @@ def should_apply_user_filter(user: User) -> bool:
 
 def get_current_user() -> Optional[User]:
     """Get the current authenticated user from JWT token or session."""
+    current_app.logger.debug("Getting current user - checking JWT first...")
+    
     # First try JWT authentication (preferred)
     user = get_current_user_jwt()
     if user:
+        current_app.logger.debug(f"JWT authentication successful for user {user.id}")
         return user
         
+    current_app.logger.debug("JWT authentication failed, falling back to session...")
     # Fallback to session authentication for backward compatibility
-    return get_current_user_session()
+    session_user = get_current_user_session()
+    if session_user:
+        current_app.logger.debug(f"Session authentication successful for user {session_user.id}")
+    else:
+        current_app.logger.debug("Session authentication failed")
+    
+    return session_user
 
 
 def get_current_user_jwt() -> Optional[User]:
     """Get the current authenticated user from JWT token."""
+    current_app.logger.debug("Attempting JWT authentication...")
+    
     jwt_token = extract_jwt_from_request()
     if not jwt_token:
         current_app.logger.debug("No JWT token found in request headers")
         return None
         
+    current_app.logger.debug(f"JWT token found, attempting validation...")
     user = JWTTokenManager.get_user_from_token(jwt_token)
     if not user:
         current_app.logger.warning("Invalid or expired JWT token")
@@ -568,6 +581,62 @@ def cookie_test() -> Response:
                 "success": test_value == "cookie_test_123",
             }
         )
+
+
+@bp.route("/auth/jwt-debug", methods=["GET"])
+def jwt_debug() -> Response:
+    """Debug JWT authentication flow."""
+    from flask import request
+    from app.utils.jwt_utils import extract_jwt_from_request, JWTTokenManager
+    
+    debug_info = {
+        "request_headers": dict(request.headers),
+        "authorization_header": request.headers.get('Authorization'),
+        "jwt_extraction_result": None,
+        "jwt_validation_result": None,
+        "current_user_result": None,
+        "errors": []
+    }
+    
+    try:
+        # Test JWT extraction
+        jwt_token = extract_jwt_from_request()
+        debug_info["jwt_extraction_result"] = {
+            "token_found": jwt_token is not None,
+            "token_preview": jwt_token[:20] + "..." if jwt_token else None
+        }
+        
+        if jwt_token:
+            # Test JWT validation
+            try:
+                user = JWTTokenManager.get_user_from_token(jwt_token)
+                debug_info["jwt_validation_result"] = {
+                    "valid": user is not None,
+                    "user_id": user.id if user else None,
+                    "username": user.username if user else None
+                }
+            except Exception as e:
+                debug_info["jwt_validation_result"] = {"error": str(e)}
+                debug_info["errors"].append(f"JWT validation error: {str(e)}")
+        
+        # Test overall current user function
+        try:
+            current_user = get_current_user()
+            debug_info["current_user_result"] = {
+                "user_found": current_user is not None,
+                "user_id": current_user.id if current_user else None,
+                "username": current_user.username if current_user else None,
+                "auth_method": "JWT" if get_current_user_jwt() else "Session"
+            }
+        except Exception as e:
+            debug_info["current_user_result"] = {"error": str(e)}
+            debug_info["errors"].append(f"get_current_user error: {str(e)}")
+            
+    except Exception as e:
+        debug_info["errors"].append(f"Debug function error: {str(e)}")
+    
+    current_app.logger.info(f"JWT Debug Info: {debug_info}")
+    return jsonify(debug_info)
 
 
 @bp.route("/auth/env-check", methods=["GET"])
