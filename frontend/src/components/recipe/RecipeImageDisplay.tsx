@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../../services/recipesApi';
-import { getImageUrl } from '../../utils/imageUtils';
+import { AuthenticatedImage } from '../ui/AuthenticatedImage';
 import type { Recipe } from '../../types';
 
 interface RecipeImageDisplayProps {
@@ -19,13 +19,11 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
 
   // Get the first image from the recipe
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
-  const imageUrl = primaryImage ? getImageUrl(primaryImage.filename) : null;
 
   // Debug logging
   console.log('RecipeImageDisplay Debug:', {
     canEdit,
     hasImages: !!primaryImage,
-    imageUrl,
     recipeId: recipe.id
   });
 
@@ -96,35 +94,29 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
   const handleClick = () => {
     if (isEditMode && canEdit) {
       fileInputRef.current?.click();
-    } else if (imageUrl) {
+    } else if (primaryImage) {
       setShowModal(true);
     }
   };
 
   // Show existing image
-  if (imageUrl && !uploadMutation.isPending && !imagePreview) {
+  if (primaryImage && !uploadMutation.isPending && !imagePreview) {
     return (
       <>
         <div className="relative group">
           <div className="aspect-square bg-gradient-to-br from-background-secondary to-primary-200 rounded-xl overflow-hidden">
-            <img
-              src={imageUrl}
+            <AuthenticatedImage
+              filename={primaryImage.filename}
               alt={recipe.title}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                // Fallback to placeholder if image fails to load
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                target.nextElementSibling?.classList.remove('hidden');
-              }}
+              fallback={
+                <div className="w-full h-full flex items-center justify-center">
+                  <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+              }
             />
-            
-            {/* Placeholder fallback */}
-            <div className="hidden absolute inset-0 flex items-center justify-center">
-              <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-            </div>
           </div>
 
           {/* Edit overlay for recipe owners in edit mode */}
@@ -153,7 +145,7 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
           )}
 
           {/* View overlay hint for non-edit mode */}
-          {!isEditMode && imageUrl && (
+          {!isEditMode && primaryImage && (
             <div 
               onClick={handleClick}
               className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100"
@@ -169,14 +161,14 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
         </div>
 
         {/* Full size image modal */}
-        {showModal && imageUrl && (
+        {showModal && primaryImage && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
             <div className="relative max-w-4xl max-h-screen p-4">
-              <img
-                src={imageUrl}
+              <AuthenticatedImage
+                filename={primaryImage.filename}
                 alt={recipe.title}
                 className="max-w-full max-h-full object-contain"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
               />
               <button
                 onClick={() => setShowModal(false)}

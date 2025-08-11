@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getImageUrl } from '../../utils/imageUtils';
+import { AuthenticatedImage } from '../ui/AuthenticatedImage';
 import type { Recipe } from '../../types';
 
 interface RecipeImageCarouselProps {
@@ -100,7 +100,6 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
   }
 
   const currentImage = sortedImages[currentIndex];
-  const imageUrl = getImageUrl(currentImage.filename);
 
   return (
     <>
@@ -137,24 +136,19 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
           role="img"
           aria-label={`Recipe image ${currentIndex + 1} of ${sortedImages.length}${currentImage.page_number ? `, page ${currentImage.page_number}` : ''}`}
         >
-          <img
-            src={imageUrl}
+          <AuthenticatedImage
+            filename={currentImage.filename}
             alt={`${recipe.title} - Image ${currentIndex + 1}`}
             className="w-full h-full object-cover cursor-pointer"
             onClick={() => setShowModal(true)}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              target.nextElementSibling?.classList.remove('hidden');
-            }}
+            fallback={
+              <div className="w-full h-full flex items-center justify-center">
+                <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </div>
+            }
           />
-          
-          {/* Fallback placeholder */}
-          <div className="hidden absolute inset-0 flex items-center justify-center">
-            <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          </div>
 
           {/* View hint overlay */}
           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100">
@@ -220,8 +214,8 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                 aria-label={`View image ${index + 1}${image.page_number ? ` (Page ${image.page_number})` : ''}`}
                 tabIndex={index === currentIndex ? 0 : -1}
               >
-                <img
-                  src={getImageUrl(image.filename)}
+                <AuthenticatedImage
+                  filename={image.filename}
                   alt={`Thumbnail ${index + 1}`}
                   className="w-full h-full object-cover"
                 />
@@ -274,11 +268,11 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
             </div>
 
             {/* Main modal image */}
-            <img
-              src={imageUrl}
+            <AuthenticatedImage
+              filename={currentImage.filename}
               alt={`${recipe.title} - Image ${currentIndex + 1}`}
               className="max-w-full max-h-full object-contain"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
             />
 
             {/* Navigation arrows in modal */}
@@ -329,8 +323,8 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                     }`}
                     aria-label={`Go to image ${index + 1}`}
                   >
-                    <img
-                      src={getImageUrl(image.filename)}
+                    <AuthenticatedImage
+                      filename={image.filename}
                       alt={`Thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
                     />

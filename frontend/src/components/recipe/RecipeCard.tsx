@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AddToCollectionButton } from './AddToCollectionButton';
 import { AddToGroupButton } from './AddToGroupButton';
 import { CopyrightConsentModal } from '../ui';
-import { getImageUrl } from '../../utils/imageUtils';
+import { AuthenticatedImage } from '../ui/AuthenticatedImage';
 import type { Recipe } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -135,7 +135,6 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
 
   // Get the first image from the recipe and check for multiple images
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
-  const imageUrl = primaryImage ? getImageUrl(primaryImage.filename) : null;
   const hasMultipleImages = recipe.images && recipe.images.length > 1;
 
   return (
@@ -144,26 +143,18 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
         <div className="group bg-white rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden" style={{borderColor: '#e8d7cf'}}>
           {/* Recipe Image */}
           <div className="aspect-video bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden">
-            {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={recipe.title}
-                className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                onError={(e) => {
-                  // Hide the image and show placeholder if loading fails
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  target.nextElementSibling?.classList.remove('hidden');
-                }}
-              />
-            ) : null}
-            
-            {/* Placeholder - shown when no image or image fails to load */}
-            <div className={`absolute inset-0 flex items-center justify-center ${imageUrl ? 'hidden' : ''}`}>
-              <svg className="h-12 w-12 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-            </div>
+            <AuthenticatedImage
+              filename={primaryImage?.filename || null}
+              alt={recipe.title}
+              className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+              fallback={
+                <div className="w-full h-full flex items-center justify-center">
+                  <svg className="h-12 w-12 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+              }
+            />
 
             {/* Multi-image indicator - positioned on the left */}
             {hasMultipleImages && (
