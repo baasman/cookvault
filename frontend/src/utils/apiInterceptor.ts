@@ -59,10 +59,18 @@ export const authenticatedFetch = async (
 ): Promise<Response> => {
   const requestKey = generateRequestKey(url, options);
   
+  // Add JWT token to headers if available
+  const authToken = localStorage.getItem('auth_token');
+  const headers = {
+    ...options.headers,
+    ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+  };
+  
   try {
     const response = await fetch(url, {
       ...options,
-      credentials: 'include', // Always include credentials for cross-origin
+      headers,
+      credentials: 'include', // Keep for backward compatibility with session cookies
     });
 
     // Handle successful responses

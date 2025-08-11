@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional, Tuple
 from flask import Response, current_app, jsonify, request, session
 from sqlalchemy.exc import IntegrityError
 
+from app.utils.jwt_utils import JWTTokenManager, extract_jwt_from_request
+
 from app import db
 from app.api import bp
 
@@ -67,7 +69,34 @@ def should_apply_user_filter(user: User) -> bool:
 
 
 def get_current_user() -> Optional[User]:
-    """Get the current authenticated user from session."""
+    """Get the current authenticated user from JWT token or session."""
+    # First try JWT authentication (preferred)
+    user = get_current_user_jwt()
+    if user:
+        return user
+        
+    # Fallback to session authentication for backward compatibility
+    return get_current_user_session()
+
+
+def get_current_user_jwt() -> Optional[User]:
+    """Get the current authenticated user from JWT token."""
+    jwt_token = extract_jwt_from_request()
+    if not jwt_token:
+        current_app.logger.debug("No JWT token found in request headers")
+        return None
+        
+    user = JWTTokenManager.get_user_from_token(jwt_token)
+    if not user:
+        current_app.logger.warning("Invalid or expired JWT token")
+        return None
+        
+    current_app.logger.debug(f"Successfully authenticated user {user.id} via JWT")
+    return user
+
+
+def get_current_user_session() -> Optional[User]:
+    """Get the current authenticated user from session (legacy)."""
     # Log all session data for debugging
     current_app.logger.debug(f"Session data: {dict(session)}")
     current_app.logger.debug(f"Session permanent: {session.permanent}")
@@ -365,31 +394,21 @@ def login() -> Tuple[Response, int]:
         # Successful login
         user.reset_failed_login()
 
+        # Generate JWT token instead of session
+        jwt_token = JWTTokenManager.generate_token(user)
+
+        # Still create session for backward compatibility and audit purposes
         # Invalidate any existing sessions for this user
         UserSession.query.filter_by(user_id=user.id, is_active=True).update(
             {"is_active": False}
         )
 
-        # Create new session
+        # Create new session (for audit trail)
         user_session = create_user_session(user, request)
 
-        # Store session token in Flask session for subsequent requests
-        session["session_token"] = user_session.session_token
-
         current_app.logger.info(f"User logged in: {user.username}")
-        current_app.logger.info(
-            f"Session created with token: {user_session.session_token[:10]}..."
-        )
-        current_app.logger.info(
-            f"Session cookie secure setting: {current_app.config.get('SESSION_COOKIE_SECURE')}"
-        )
-        current_app.logger.info(f"Session after login: {dict(session)}")
-
-        # Log session cookie details for debugging
-        current_app.logger.info("Login successful, setting session data")
-        current_app.logger.info(f"Session cookie domain: {current_app.config.get('SESSION_COOKIE_DOMAIN')}")
-        current_app.logger.info(f"Session cookie secure: {current_app.config.get('SESSION_COOKIE_SECURE')}")
-        current_app.logger.info(f"Session cookie samesite: {current_app.config.get('SESSION_COOKIE_SAMESITE')}")
+        current_app.logger.info(f"JWT token generated for user {user.id}")
+        current_app.logger.info(f"Session created for audit: {user_session.session_token[:10]}...")
 
         return jsonify({
             "message": "Login successful",
@@ -398,7 +417,9 @@ def login() -> Tuple[Response, int]:
                 "username": user.username,
                 "email": user.email,
                 "role": user.role.value
-            }
+            },
+            "access_token": jwt_token,
+            "token_type": "Bearer"
         }), 200
 
     except Exception as e:
