@@ -128,7 +128,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (!response.ok) {
         debugAuth('Login failed', { status: response.status, error: data.error });
-        throw new Error(data.error || 'Login failed');
+        // Don't modify auth state on login failures - just throw the error
+        // The user remains unauthenticated but we don't trigger logout logic
+        throw new Error(data.error || 'Invalid username/email or password');
       }
 
       debugAuth('Login successful', { userId: data.user.id, userRole: data.user.role });
@@ -148,6 +150,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Invalidate all queries to ensure fresh data for the new user
       queryClient.invalidateQueries();
+    } catch (error) {
+      debugAuth('Login error caught', error);
+      // Re-throw the error for the LoginPage to handle
+      // Don't modify user state or trigger logout - just let the error bubble up
+      throw error;
     } finally {
       setIsLoading(false);
     }

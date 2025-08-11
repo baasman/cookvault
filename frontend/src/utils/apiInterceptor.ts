@@ -76,6 +76,12 @@ export const authenticatedFetch = async (
     if (response.status === 401) {
       debugAuth('401 Unauthorized received', { url, attempt, requestKey });
       
+      // Skip logout logic for login endpoint failures - these are user input errors, not session expiry
+      if (url.includes('/auth/login')) {
+        debugAuth('Login endpoint failure - not triggering logout', { url });
+        return response;
+      }
+      
       // If this is the first attempt, try once more
       if (shouldRetryRequest(response, requestKey, attempt)) {
         debugAuth('Retrying 401 request', { url, attempt });
