@@ -1,6 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { recipesApi } from '../../services/recipesApi';
 import type { Recipe } from '../../types';
 
 interface AddToCollectionButtonProps {
@@ -19,22 +20,7 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
   const queryClient = useQueryClient();
 
   const addToCollectionMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`/api/recipes/${recipe.id}/add-to-collection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add recipe to collection');
-      }
-
-      return response.json();
-    },
+    mutationFn: () => recipesApi.addToCollection(recipe.id),
     onSuccess: (data) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
@@ -54,22 +40,7 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
   });
 
   const removeFromCollectionMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`/api/recipes/${recipe.id}/remove-from-collection`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to remove recipe from collection');
-      }
-
-      return response.json();
-    },
+    mutationFn: () => recipesApi.removeFromCollection(recipe.id),
     onSuccess: (data) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipes'] });

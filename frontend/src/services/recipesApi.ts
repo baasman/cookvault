@@ -432,7 +432,7 @@ class RecipesApi {
   // Recipe Notes Methods
   async getUserNote(recipeId: number): Promise<{ note: RecipeNote | null }> {
     try {
-      const response = await apiFetch(`/api/recipes/${recipeId}/notes`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/notes`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -452,7 +452,7 @@ class RecipesApi {
 
   async saveUserNote(recipeId: number, content: string): Promise<{ note: RecipeNote }> {
     try {
-      const response = await apiFetch(`/api/recipes/${recipeId}/notes`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/notes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -474,7 +474,7 @@ class RecipesApi {
 
   async deleteUserNote(recipeId: number): Promise<{ message: string }> {
     try {
-      const response = await apiFetch(`/api/recipes/${recipeId}/notes`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/notes`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -503,7 +503,7 @@ class RecipesApi {
     });
 
     try {
-      const response = await apiFetch(`/api/recipes/${recipeId}/comments?${searchParams}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/comments?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -523,7 +523,7 @@ class RecipesApi {
 
   async createComment(recipeId: number, content: string): Promise<{ comment: RecipeComment }> {
     try {
-      const response = await apiFetch(`/api/recipes/${recipeId}/comments`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -545,7 +545,7 @@ class RecipesApi {
 
   async updateComment(recipeId: number, commentId: number, content: string): Promise<{ comment: RecipeComment }> {
     try {
-      const response = await apiFetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/comments/${commentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -567,7 +567,7 @@ class RecipesApi {
 
   async deleteComment(recipeId: number, commentId: number): Promise<{ message: string }> {
     try {
-      const response = await apiFetch(`/api/recipes/${recipeId}/comments/${commentId}`, {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/comments/${commentId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
