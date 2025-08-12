@@ -82,6 +82,38 @@ class CookbooksApi {
     }
   }
 
+  async fetchPublicCookbooks(params: FetchCookbooksParams = {}): Promise<CookbooksResponse> {
+    const { page = 1, per_page = 12, search, sort_by = 'title' } = params;
+    
+    const searchParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: per_page.toString(),
+      sort_by,
+    });
+
+    if (search && search.trim()) {
+      searchParams.append('search', search.trim());
+    }
+
+    try {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/public?${searchParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching public cookbooks:', error);
+      throw new Error('Failed to fetch public cookbooks');
+    }
+  }
+
   async fetchCookbook(id: number, search?: string): Promise<Cookbook> {
     try {
       const searchParams = new URLSearchParams();

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { SearchBar } from '../components/ui';
+import { SearchBar, Button } from '../components/ui';
 import { CookbookCard } from '../components/cookbook';
 import { cookbooksApi } from '../services/cookbooksApi';
 import { useAuth } from '../contexts/AuthContext';
 import type { Cookbook } from '../types';
 
 const CookbooksPage: React.FC = () => {
+  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -20,14 +22,26 @@ const CookbooksPage: React.FC = () => {
     error, 
     refetch 
   } = useQuery({
-    queryKey: ['cookbooks', currentPage, searchTerm, sortBy],
-    queryFn: () => cookbooksApi.fetchCookbooks({ 
-      page: currentPage, 
-      per_page: cookbooksPerPage,
-      search: searchTerm,
-      sort_by: sortBy
-    }),
-    enabled: isAuthenticated, // Only fetch if user is authenticated
+    queryKey: ['cookbooks', currentPage, searchTerm, sortBy, isAuthenticated],
+    queryFn: () => {
+      if (!isAuthenticated) {
+        // For unauthenticated users, fetch public cookbooks
+        return cookbooksApi.fetchPublicCookbooks({ 
+          page: currentPage, 
+          per_page: cookbooksPerPage,
+          search: searchTerm,
+          sort_by: sortBy
+        });
+      } else {
+        // For authenticated users, use normal fetching
+        return cookbooksApi.fetchCookbooks({ 
+          page: currentPage, 
+          per_page: cookbooksPerPage,
+          search: searchTerm,
+          sort_by: sortBy
+        });
+      }
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -49,18 +63,7 @@ const CookbooksPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
-          Please log in to view your cookbooks
-        </h2>
-        <p style={{color: '#9b644b'}}>
-          Sign in to access your cookbook collection.
-        </p>
-      </div>
-    );
-  }
+  // Allow unauthenticated users to browse public cookbooks
 
   if (error) {
     return (
@@ -86,10 +89,13 @@ const CookbooksPage: React.FC = () => {
       {/* Page Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{color: '#1c120d'}}>
-          Cookbooks
+          {isAuthenticated ? 'Your Cookbooks' : 'Browse Cookbooks'}
         </h1>
         <p style={{color: '#9b644b'}}>
-          Discover and browse cookbook collections from the community
+          {isAuthenticated 
+            ? 'Browse, search, and organize your recipe collections'
+            : 'Discover amazing cookbook collections shared by the community'
+          }
         </p>
       </div>
 
@@ -119,18 +125,47 @@ const CookbooksPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Add Cookbook Button */}
-      <div className="flex justify-end mb-6">
-        <button
-          className="px-4 py-2 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
-          onClick={() => {
-            // TODO: Open create cookbook modal
-            console.log('Create cookbook modal would open here');
-          }}
-        >
-          + Add Cookbook
-        </button>
-      </div>
+      {/* Add Cookbook Button - Only show for authenticated users */}
+      {isAuthenticated && (
+        <div className="flex justify-end mb-6">
+          <button
+            className="px-4 py-2 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+            onClick={() => {
+              // TODO: Open create cookbook modal
+              console.log('Create cookbook modal would open here');
+            }}
+          >
+            + Add Cookbook
+          </button>
+        </div>
+      )}
+
+      {/* Login prompt for unauthenticated users */}
+      {!isAuthenticated && (
+        <div className="mb-8 bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">
+            Want to create your own cookbooks?
+          </h3>
+          <p className="text-blue-700 mb-4">
+            Sign up to create and organize your own cookbook collections, upload recipes, and share them with others!
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button 
+              onClick={() => navigate('/register')}
+              className="bg-blue-700 text-white hover:bg-blue-800 border-blue-700"
+            >
+              Create Free Account
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => navigate('/login')}
+              className="bg-white text-blue-700 border-white hover:bg-blue-50"
+            >
+              Sign In
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading && (

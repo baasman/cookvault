@@ -9,6 +9,7 @@ import { RecipeEditForm } from '../components/recipe/RecipeEditForm';
 import { AddToCollectionButton } from '../components/recipe/AddToCollectionButton';
 import { CopyRecipeButton } from '../components/recipe/CopyRecipeButton';
 import { AddToGroupButton } from '../components/recipe/AddToGroupButton';
+import { MakePublicButton } from '../components/recipe/MakePublicButton';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import type { Recipe } from '../types';
@@ -28,7 +29,7 @@ const RecipeDetailPage: React.FC = () => {
   } = useQuery({
     queryKey: ['recipe', recipeId],
     queryFn: () => recipeId ? recipesApi.fetchRecipe(recipeId) : Promise.reject('No recipe ID'),
-    enabled: isAuthenticated && !!recipeId,
+    enabled: !!recipeId, // Allow fetching for both authenticated and unauthenticated users
   });
 
   const canEdit = Boolean(
@@ -94,18 +95,7 @@ const RecipeDetailPage: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
-          Please log in to view this recipe
-        </h2>
-        <Button onClick={() => navigate('/login')}>
-          Sign In
-        </Button>
-      </div>
-    );
-  }
+  // Allow unauthenticated users to view public recipes
 
   if (!recipeId) {
     return (
@@ -132,17 +122,43 @@ const RecipeDetailPage: React.FC = () => {
   }
 
   if (error || !recipe) {
+    // Check if this might be a private recipe and user is not authenticated
+    const isLikelyPrivateRecipe = error && !isAuthenticated;
+    
     return (
       <div className="text-center py-12">
         <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
-          Recipe not found
+          {isLikelyPrivateRecipe ? 'Please log in to view this recipe' : 'Recipe not found'}
         </h2>
         <p className="mb-4" style={{color: '#9b644b'}}>
-          The recipe you're looking for doesn't exist or you don't have permission to view it.
+          {isLikelyPrivateRecipe 
+            ? 'This recipe may be private. Please log in to access it.'
+            : 'The recipe you\'re looking for doesn\'t exist or you don\'t have permission to view it.'
+          }
         </p>
-        <Button onClick={() => navigate('/recipes')}>
-          Back to Recipes
-        </Button>
+        <div className="flex justify-center gap-3">
+          {isLikelyPrivateRecipe ? (
+            <>
+              <Button 
+                onClick={() => navigate('/login')}
+                className="bg-blue-700 text-white hover:bg-blue-800 border-blue-700"
+              >
+                Sign In
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={() => navigate('/recipes')}
+                className="bg-white text-blue-700 border-white hover:bg-blue-50"
+              >
+                Browse Public Recipes
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => navigate('/recipes')}>
+              Back to Recipes
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -175,6 +191,11 @@ const RecipeDetailPage: React.FC = () => {
           {/* Copy Recipe Button - show for public recipes not owned by current user */}
           {recipe && !isOwnRecipe && recipe.is_public && !isEditing && (
             <CopyRecipeButton recipe={recipe} size="sm" />
+          )}
+          
+          {/* Make Public Button - show for recipes owned by current user */}
+          {recipe && isOwnRecipe && !isEditing && (
+            <MakePublicButton recipe={recipe} size="sm" />
           )}
           
           {/* Edit Button */}
@@ -409,14 +430,41 @@ const RecipeDetailPage: React.FC = () => {
         </>
       )}
 
-      {/* Notes Section - Only show when not editing */}
-      {!isEditing && (
+      {/* Login prompt for unauthenticated users */}
+      {!isAuthenticated && (
+        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">
+            Want to do more with recipes?
+          </h3>
+          <p className="text-blue-700 mb-4">
+            Sign in to add recipes to your collection, leave comments, create your own recipes, and more!
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button 
+              onClick={() => navigate('/register')}
+              className="bg-blue-700 text-white hover:bg-blue-800 border-blue-700"
+            >
+              Create Free Account
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => navigate('/login')}
+              className="bg-white text-blue-700 border-white hover:bg-blue-50"
+            >
+              Sign In
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Section - Only show for authenticated users when not editing */}
+      {isAuthenticated && !isEditing && (
         <div className="mt-6">
           <NotesSection recipe={recipe} />
         </div>
       )}
 
-      {/* Comments Section - Only show when not editing */}
+      {/* Comments Section - Show for all users when not editing, but functionality limited by authentication */}
       {!isEditing && (
         <div className="mt-6">
           <CommentsSection recipe={recipe} />

@@ -104,12 +104,23 @@ class RecipesApi {
 
   async fetchRecipe(id: number): Promise<Recipe> {
     try {
-      const response = await apiFetch(`${this.baseUrl}/recipes/${id}`, {
+      // First try with apiFetch (for authenticated users)
+      let response = await apiFetch(`${this.baseUrl}/recipes/${id}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
+
+      // If apiFetch fails (likely due to no auth), try regular fetch for public recipes
+      if (!response.ok && response.status === 401) {
+        response = await fetch(`${this.baseUrl}/recipes/${id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -411,7 +422,8 @@ class RecipesApi {
     }
 
     try {
-      const response = await apiFetch(`${this.baseUrl}/recipes/discover?${searchParams}`, {
+      // Use regular fetch instead of apiFetch for public access
+      const response = await fetch(`${this.baseUrl}/recipes/discover?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

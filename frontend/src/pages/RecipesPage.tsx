@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SearchBar, Button, Modal } from '../components/ui';
 import { RecipeCard } from '../components/recipe';
@@ -12,6 +13,7 @@ import toast from 'react-hot-toast';
 type RecipeFilter = 'collection' | 'discover' | 'mine' | 'groups';
 
 const RecipesPage: React.FC = () => {
+  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,21 +24,33 @@ const RecipesPage: React.FC = () => {
   const [newGroupDescription, setNewGroupDescription] = useState('');
   const recipesPerPage = 12;
 
-  // Fetch recipes using React Query
+  // Fetch recipes using React Query - different behavior for authenticated vs unauthenticated users
   const { 
     data: recipesData, 
     isLoading, 
     error, 
     refetch 
   } = useQuery({
-    queryKey: ['recipes', currentPage, searchTerm, activeFilter],
-    queryFn: () => recipesApi.fetchRecipes({ 
-      page: currentPage, 
-      per_page: recipesPerPage,
-      search: searchTerm,
-      filter: activeFilter === 'groups' ? 'mine' : activeFilter
-    }),
-    enabled: isAuthenticated && activeFilter !== 'groups', // Only fetch if user is authenticated and not viewing groups
+    queryKey: ['recipes', currentPage, searchTerm, activeFilter, isAuthenticated],
+    queryFn: () => {
+      if (!isAuthenticated) {
+        // For unauthenticated users, always show discover recipes
+        return recipesApi.fetchDiscoverRecipes({ 
+          page: currentPage, 
+          per_page: recipesPerPage,
+          search: searchTerm,
+        });
+      } else {
+        // For authenticated users, use normal filtering
+        return recipesApi.fetchRecipes({ 
+          page: currentPage, 
+          per_page: recipesPerPage,
+          search: searchTerm,
+          filter: activeFilter === 'groups' ? 'mine' : activeFilter
+        });
+      }
+    },
+    enabled: activeFilter !== 'groups', // Only disabled when viewing groups (authenticated only)
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -57,6 +71,13 @@ const RecipesPage: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, activeFilter]);
+
+  // Set appropriate filter for unauthenticated users
+  useEffect(() => {
+    if (!isAuthenticated && activeFilter !== 'discover') {
+      setActiveFilter('discover');
+    }
+  }, [isAuthenticated, activeFilter]);
 
   // Recipes are now filtered on the backend, so just use them directly
   const filteredRecipes = recipesData?.recipes || [];
@@ -135,9 +156,9 @@ const RecipesPage: React.FC = () => {
         };
       case 'discover':
         return {
-          title: 'Discover Recipes',
-          description: 'Browse and search all public recipes',
-          searchPlaceholder: 'Search all public recipes...'
+          title: isAuthenticated ? 'Discover Recipes' : 'Browse Recipes',
+          description: isAuthenticated ? 'Browse and search all public recipes' : 'Discover amazing recipes shared by the community',
+          searchPlaceholder: 'Search recipes...'
         };
       case 'groups':
         return {
@@ -157,18 +178,7 @@ const RecipesPage: React.FC = () => {
 
   const pageContent = getPageContent();
 
-  if (!isAuthenticated) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
-          Please log in to view your recipes
-        </h2>
-        <p style={{color: '#9b644b'}}>
-          Sign in to access your personalized recipe collection.
-        </p>
-      </div>
-    );
-  }
+  // Allow unauthenticated users to browse public recipes
 
   if (error || groupsError) {
     return (
@@ -204,11 +214,13 @@ const RecipesPage: React.FC = () => {
       {/* Filter Tabs */}
       <div className="flex justify-center mb-6">
         <div className="flex bg-background-secondary rounded-lg p-1">
-          {([
+          {(isAuthenticated ? [
             { key: 'discover', label: 'Discover' },
             { key: 'collection', label: 'My Collection' },
             { key: 'mine', label: 'My Uploads' },
             { key: 'groups', label: 'Recipe Groups' }
+          ] : [
+            { key: 'discover', label: 'Browse Recipes' }
           ] as const).map(({ key, label }) => (
             <button
               key={key}
@@ -235,6 +247,33 @@ const RecipesPage: React.FC = () => {
         />
       </div>
 
+      {/* Login prompt for unauthenticated users */}
+      {!isAuthenticated && (
+        <div className="mb-8 bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">
+            Want to save and organize recipes?
+          </h3>
+          <p className="text-blue-700 mb-4">
+            Sign up to create your own recipe collection, upload your recipes, and keep notes on your favorites!
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button 
+              onClick={() => navigate('/register')}
+              className="bg-blue-700 text-white hover:bg-blue-800 border-blue-700"
+            >
+              Create Free Account
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => navigate('/login')}
+              className="bg-white text-blue-700 border-white hover:bg-blue-50"
+            >
+              Sign In
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Loading State */}
       {(isLoading || isLoadingGroups) && (
         <div className="flex justify-center py-12">
@@ -245,8 +284,8 @@ const RecipesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Recipe Groups Content */}
-      {activeFilter === 'groups' && !isLoadingGroups && (
+      {/* Recipe Groups Content - Only show for authenticated users */}
+      {isAuthenticated && activeFilter === 'groups' && !isLoadingGroups && (
         <>
           {/* Create Group Button */}
           <div className="flex justify-center mb-8">

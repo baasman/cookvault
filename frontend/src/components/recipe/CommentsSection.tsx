@@ -271,7 +271,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
       {/* Content */}
       {isExpanded && (
         <div className="px-6 pb-6">
-          {/* New comment form */}
+          {/* New comment form - only for authenticated users */}
           {user && (
             <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex items-center space-x-2 mb-3">
@@ -305,6 +305,19 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
                   {createCommentMutation.isPending ? 'Posting...' : 'Post Comment'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Login prompt for unauthenticated users */}
+          {!user && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+              <p className="text-blue-700 mb-3">
+                <a href="/login" className="font-medium text-blue-800 hover:underline">
+                  Sign in
+                </a> or <a href="/register" className="font-medium text-blue-800 hover:underline">
+                  create an account
+                </a> to join the conversation!
+              </p>
             </div>
           )}
 
