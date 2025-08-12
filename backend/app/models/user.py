@@ -26,37 +26,37 @@ class User(db.Model):
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    
+
     # Profile information
     first_name: Mapped[Optional[str]] = mapped_column(String(50))
     last_name: Mapped[Optional[str]] = mapped_column(String(50))
     bio: Mapped[Optional[str]] = mapped_column(Text)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
-    
+
     # Account status and role
     role: Mapped[UserRole] = mapped_column(default=UserRole.USER)
     status: Mapped[UserStatus] = mapped_column(default=UserStatus.PENDING_VERIFICATION)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Email verification
     email_verification_token: Mapped[Optional[str]] = mapped_column(String(255))
     email_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Password reset
     password_reset_token: Mapped[Optional[str]] = mapped_column(String(255))
     password_reset_expires: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Security
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Relationships
     passwords: Mapped[List["Password"]] = relationship(
         "Password", back_populates="user", cascade="all, delete-orphan"
@@ -64,9 +64,7 @@ class User(db.Model):
     cookbooks: Mapped[List["Cookbook"]] = relationship(
         "Cookbook", back_populates="user"
     )
-    recipes: Mapped[List["Recipe"]] = relationship(
-        "Recipe", back_populates="user"
-    )
+    recipes: Mapped[List["Recipe"]] = relationship("Recipe", back_populates="user")
     user_sessions: Mapped[List["UserSession"]] = relationship(
         "UserSession", back_populates="user", cascade="all, delete-orphan"
     )
@@ -88,7 +86,7 @@ class User(db.Model):
 
     def set_password(self, password: str) -> None:
         """Hash and set the user's password."""
-        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
     def check_password(self, password: str) -> bool:
         """Check if the provided password matches the user's password."""
@@ -116,6 +114,7 @@ class User(db.Model):
     def generate_verification_token(self) -> str:
         """Generate a new email verification token."""
         import secrets
+
         token = secrets.token_urlsafe(32)
         self.email_verification_token = token
         return token
@@ -124,6 +123,7 @@ class User(db.Model):
         """Generate a new password reset token."""
         import secrets
         from datetime import timedelta
+
         token = secrets.token_urlsafe(32)
         self.password_reset_token = token
         self.password_reset_expires = datetime.utcnow() + timedelta(hours=24)
@@ -157,31 +157,38 @@ class User(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_login": self.last_login.isoformat() if self.last_login else None,
         }
-        
+
         if include_sensitive:
-            data.update({
-                "failed_login_attempts": self.failed_login_attempts,
-                "is_locked": self.is_account_locked(),
-                "email_verified_at": self.email_verified_at.isoformat() if self.email_verified_at else None,
-            })
-        
+            data.update(
+                {
+                    "failed_login_attempts": self.failed_login_attempts,
+                    "is_locked": self.is_account_locked(),
+                    "email_verified_at": (
+                        self.email_verified_at.isoformat()
+                        if self.email_verified_at
+                        else None
+                    ),
+                }
+            )
+
         return data
 
 
 class Password(db.Model):
     """Model to track password history for security purposes."""
+
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    
+
     # Optional: Track password strength/quality
     strength_score: Mapped[Optional[int]] = mapped_column(Integer)  # 0-100
-    
+
     # Track if password was compromised (e.g., found in breached password lists)
     is_compromised: Mapped[bool] = mapped_column(Boolean, default=False)
     compromised_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="passwords")
 
@@ -196,30 +203,33 @@ class Password(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "strength_score": self.strength_score,
             "is_compromised": self.is_compromised,
-            "compromised_at": self.compromised_at.isoformat() if self.compromised_at else None,
+            "compromised_at": (
+                self.compromised_at.isoformat() if self.compromised_at else None
+            ),
         }
 
 
 class UserSession(db.Model):
     """Model to track user sessions for security and analytics."""
+
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     session_token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    
+
     # Session metadata
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))  # IPv6 compatible
     user_agent: Mapped[Optional[str]] = mapped_column(Text)
     device_info: Mapped[Optional[str]] = mapped_column(String(255))
-    
+
     # Session lifecycle
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_activity: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    
+
     # Session status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     logout_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="user_sessions")
 
@@ -239,6 +249,7 @@ class UserSession(db.Model):
     def extend_session(self, hours: int = 24) -> None:
         """Extend the session expiration time."""
         from datetime import timedelta
+
         self.expires_at = datetime.utcnow() + timedelta(hours=hours)
         self.last_activity = datetime.utcnow()
 
@@ -249,7 +260,9 @@ class UserSession(db.Model):
             "ip_address": self.ip_address,
             "device_info": self.device_info,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "last_activity": self.last_activity.isoformat() if self.last_activity else None,
+            "last_activity": (
+                self.last_activity.isoformat() if self.last_activity else None
+            ),
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "is_active": self.is_active,
             "logout_at": self.logout_at.isoformat() if self.logout_at else None,
@@ -258,23 +271,26 @@ class UserSession(db.Model):
 
 class CopyrightConsent(db.Model):
     """Model to track copyright consent for recipe uploads and publications."""
+
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     recipe_id: Mapped[Optional[int]] = mapped_column(ForeignKey("recipe.id"))
-    
+
     # Consent details
     consent_data: Mapped[dict] = mapped_column(JSON, nullable=False)
-    consent_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'upload' or 'publish'
-    
+    consent_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # 'upload' or 'publish'
+
     # Tracking
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))  # IPv6 compatible
     user_agent: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    
+
     # Status
     is_valid: Mapped[bool] = mapped_column(Boolean, default=True)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="copyright_consents")
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe")

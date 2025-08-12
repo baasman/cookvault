@@ -178,8 +178,8 @@ const RecipeDetailPage: React.FC = () => {
         </button>
         
         <div className="flex items-center space-x-3">
-          {/* Add to Collection Button - show for public recipes not owned by current user */}
-          {recipe && !isOwnRecipe && recipe.is_public && !isEditing && (
+          {/* Add to Collection Button - show for authenticated users viewing public recipes not owned by them */}
+          {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && !isEditing && (
             <AddToCollectionButton recipe={recipe} />
           )}
           
@@ -188,8 +188,8 @@ const RecipeDetailPage: React.FC = () => {
             <AddToGroupButton recipe={recipe} size="sm" />
           )}
           
-          {/* Copy Recipe Button - show for public recipes not owned by current user */}
-          {recipe && !isOwnRecipe && recipe.is_public && !isEditing && (
+          {/* Copy Recipe Button - show for authenticated users viewing public recipes not owned by them */}
+          {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && !isEditing && (
             <CopyRecipeButton recipe={recipe} size="sm" />
           )}
           

@@ -20,9 +20,24 @@ const CookbookDetailPage: React.FC = () => {
     isLoading, 
     error 
   } = useQuery({
-    queryKey: ['cookbook', cookbookId, searchTerm],
-    queryFn: () => cookbookId ? cookbooksApi.fetchCookbook(cookbookId, searchTerm) : Promise.reject('No cookbook ID'),
-    enabled: isAuthenticated && !!cookbookId,
+    queryKey: ['cookbook', cookbookId, searchTerm, isAuthenticated],
+    queryFn: async () => {
+      if (!cookbookId) throw new Error('No cookbook ID');
+      
+      if (isAuthenticated) {
+        // Authenticated users can see all cookbooks they have access to
+        return cookbooksApi.fetchCookbook(cookbookId, searchTerm);
+      } else {
+        // Unauthenticated users can only see public cookbook with public recipes
+        const cookbookData = await cookbooksApi.fetchPublicCookbook(cookbookId);
+        const recipesData = await cookbooksApi.fetchPublicCookbookRecipes(cookbookId, { search: searchTerm });
+        return {
+          ...cookbookData,
+          recipes: recipesData.recipes
+        };
+      }
+    },
+    enabled: !!cookbookId,
   });
 
   const formatTime = (minutes: number | undefined) => {
@@ -47,19 +62,7 @@ const CookbookDetailPage: React.FC = () => {
   };
 
 
-  // Note: Cookbooks are now publicly viewable, but require auth for search functionality
-  if (!isAuthenticated) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-4" style={{color: '#1c120d'}}>
-          Please log in to view this cookbook
-        </h2>
-        <Button onClick={() => navigate('/login')}>
-          Sign In
-        </Button>
-      </div>
-    );
-  }
+  // Cookbooks are now publicly viewable for unauthenticated users (showing only public recipes)
 
   if (!cookbookId) {
     return (
@@ -92,7 +95,10 @@ const CookbookDetailPage: React.FC = () => {
           Cookbook not found
         </h2>
         <p className="mb-4" style={{color: '#9b644b'}}>
-          The cookbook you're looking for doesn't exist or you don't have permission to view it.
+          {isAuthenticated 
+            ? "The cookbook you're looking for doesn't exist or you don't have permission to view it."
+            : "This cookbook doesn't exist or has no public recipes available."
+          }
         </p>
         <Button onClick={() => navigate('/cookbooks')}>
           Back to Cookbooks
@@ -179,11 +185,43 @@ const CookbookDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Login prompt for unauthenticated users */}
+      {!isAuthenticated && (
+        <div className="mb-8 bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">
+            Enjoying this cookbook?
+          </h3>
+          <p className="text-blue-700 mb-4">
+            Create an account to save recipes to your collection, add personal notes, and access your own recipe management tools!
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button 
+              onClick={() => navigate('/register')}
+              className="bg-blue-700 text-white hover:bg-blue-800 border-blue-700"
+            >
+              Create Free Account
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => navigate('/login')}
+              className="bg-white text-blue-700 border-white hover:bg-blue-50"
+            >
+              Sign In
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Recipes Section */}
       <div className="bg-white rounded-xl shadow-sm border p-8" style={{borderColor: '#e8d7cf'}}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold" style={{color: '#1c120d'}}>
             Recipes ({recipes.length})
+            {!isAuthenticated && recipes.length > 0 && (
+              <span className="text-sm font-normal text-blue-600 ml-2">
+                (showing public recipes only)
+              </span>
+            )}
           </h2>
         </div>
 
@@ -295,11 +333,42 @@ const CookbookDetailPage: React.FC = () => {
             <svg className="h-16 w-16 mx-auto text-text-secondary mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m5 0v-9a2 2 0 00-2-2H7a2 2 0 00-2 2v9m14 0h2" />
             </svg>
-            <h3 className="text-lg font-medium text-text-primary mb-2">No recipes yet</h3>
-            <p className="text-text-secondary mb-4">This cookbook doesn't have any imported recipes yet.</p>
-            <Button onClick={() => navigate('/upload')}>
-              Import Recipes
-            </Button>
+            <h3 className="text-lg font-medium text-text-primary mb-2">
+              {searchTerm ? 'No matching recipes found' : 'No recipes available'}
+            </h3>
+            <p className="text-text-secondary mb-4">
+              {searchTerm 
+                ? `No recipes match "${searchTerm}" in this cookbook.`
+                : isAuthenticated 
+                ? "This cookbook doesn't have any recipes yet."
+                : "This cookbook has no public recipes available."
+              }
+            </p>
+            {searchTerm ? (
+              <Button onClick={() => setSearchTerm('')}>
+                Clear Search
+              </Button>
+            ) : isAuthenticated ? (
+              <Button onClick={() => navigate('/upload')}>
+                Import Recipes
+              </Button>
+            ) : (
+              <div className="flex justify-center gap-3">
+                <Button 
+                  onClick={() => navigate('/register')}
+                  className="bg-blue-700 text-white hover:bg-blue-800 border-blue-700"
+                >
+                  Create Free Account
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => navigate('/login')}
+                  className="bg-white text-blue-700 border-white hover:bg-blue-50"
+                >
+                  Sign In
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

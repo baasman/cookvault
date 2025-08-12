@@ -96,7 +96,8 @@ class CookbooksApi {
     }
 
     try {
-      const response = await apiFetch(`${this.baseUrl}/cookbooks/public?${searchParams}`, {
+      // Use regular fetch instead of apiFetch for public access
+      const response = await fetch(`${this.baseUrl}/public/cookbooks?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -140,6 +141,63 @@ class CookbooksApi {
       return await response.json();
     } catch (error) {
       console.error('Error fetching cookbook:', error);
+      throw error;
+    }
+  }
+
+  async fetchPublicCookbook(id: number): Promise<Cookbook> {
+    try {
+      const response = await fetch(`${this.baseUrl}/public/cookbooks/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Public cookbook not found');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching public cookbook:', error);
+      throw error;
+    }
+  }
+
+  async fetchPublicCookbookRecipes(id: number, params: FetchCookbooksParams = {}): Promise<{ cookbook: Cookbook; recipes: any[]; pagination: any }> {
+    const { page = 1, per_page = 12, search } = params;
+    
+    const searchParams = new URLSearchParams({
+      page: page.toString(),
+      per_page: per_page.toString(),
+    });
+
+    if (search && search.trim()) {
+      searchParams.append('search', search.trim());
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/public/cookbooks/${id}/recipes?${searchParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Public cookbook recipes not found');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching public cookbook recipes:', error);
       throw error;
     }
   }
