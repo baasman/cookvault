@@ -44,7 +44,7 @@ class RecipeParser:
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2000,
-                temperature=0.1,
+                temperature=0.0,
                 system="You are a recipe parsing assistant.",
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -102,7 +102,7 @@ class RecipeParser:
             response = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4000,  # Increased for complex multi-page recipes
-                temperature=0.1,
+                temperature=0.0,
                 system="You are an expert recipe parsing assistant specialized in combining multi-page recipes with advanced text processing capabilities.",
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -345,22 +345,31 @@ If any information is not available or unclear, use null for that field.
 
     def _build_parsing_prompt(self, ocr_text: str) -> str:
         return f"""
-Please parse this recipe text and extract structured information in JSON format:
+Please parse this recipe text and extract structured information with EXACT text preservation.
 
+ORIGINAL TEXT:
 {ocr_text}
 
-Return a JSON object with these fields:
-- title: recipe name
-- description: brief description (if any)
-- ingredients: array of ingredient strings
-- instructions: array of instruction steps
-- prep_time: preparation time in minutes (if mentioned)
-- cook_time: cooking time in minutes (if mentioned)
-- servings: number of servings (if mentioned)
-- difficulty: easy/medium/hard (if mentioned or can be inferred)
-- tags: array of relevant tags/categories
+FIDELITY REQUIREMENTS:
+1. Preserve ALL text exactly as written - do not rephrase or improve
+2. Maintain original spelling, punctuation, and capitalization  
+3. Keep quantities and measurements exactly as shown (1/2, not 0.5)
+4. Use ingredient text verbatim - do not standardize names
+5. Copy instruction steps word-for-word
+6. Use null for missing information - do not infer or add content
 
-If any information is not available or unclear, use null for that field.
+Return a JSON object with these fields:
+- title: exact recipe name from text or null
+- description: exact description text or null
+- ingredients: array of exact ingredient strings as written
+- instructions: array of exact instruction steps as written
+- prep_time: time in minutes only if explicitly stated, otherwise null
+- cook_time: time in minutes only if explicitly stated, otherwise null
+- servings: exact servings text/number as written or null
+- difficulty: only if explicitly stated, otherwise null
+- tags: array of relevant tags from text (do not infer)
+
+Return ONLY valid JSON, no markdown, no additional text.
 """
 
     def _build_multi_image_parsing_prompt(self, ocr_texts: list[str]) -> str:

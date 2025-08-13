@@ -41,6 +41,32 @@ def require_auth(f):
     return decorated_function
 
 
+def optional_auth(f):
+    """Decorator that allows both authenticated and unauthenticated access.
+    
+    Passes the current user (or None) as the first argument to the decorated function.
+    Used for endpoints that have different behavior for authenticated vs unauthenticated users,
+    such as serving public recipe images.
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = get_current_user()
+        
+        # If user is authenticated, check if account is active
+        if user:
+            if user.is_account_locked():
+                return jsonify({"error": "Account is locked"}), 423
+
+            if user.status != UserStatus.ACTIVE:
+                return jsonify({"error": "Account is not active"}), 403
+        
+        # Pass user (or None) to the function
+        return f(user, *args, **kwargs)
+
+    return decorated_function
+
+
 def require_admin(f):
     """Decorator to require admin role for endpoints."""
 

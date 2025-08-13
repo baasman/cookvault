@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.api import bp
-from app.api.auth import require_auth, should_apply_user_filter
+from app.api.auth import require_auth, optional_auth, should_apply_user_filter
 from app.models import (
     Cookbook,
     Ingredient,
@@ -792,7 +792,7 @@ def get_processing_job(current_user, job_id: int):
 
 
 @bp.route("/images/<string:filename>", methods=["GET"])
-@require_auth
+@optional_auth  # Changed to optional_auth to allow public access
 def serve_image(current_user, filename: str) -> Response:
     """Serve uploaded images (recipe and cookbook images)."""
     try:
@@ -802,16 +802,24 @@ def serve_image(current_user, filename: str) -> Response:
         recipe_image = RecipeImage.query.filter_by(filename=filename).first()
         if recipe_image:
             # Check if user can access the recipe associated with this image
-            if recipe_image.recipe_id and should_apply_user_filter(current_user):
+            if recipe_image.recipe_id:
                 recipe = Recipe.query.get(recipe_image.recipe_id)
                 if not recipe:
                     return jsonify({"error": "Recipe not found"}), 404
 
-                # Allow access if user owns recipe OR if recipe is public
-                can_access = (
-                    recipe.user_id == current_user.id  # User owns the recipe
-                    or recipe.is_public  # Recipe is public
-                )
+                # Allow access if recipe is public OR if user is authenticated and owns the recipe
+                if recipe.is_public:
+                    # Public recipes are accessible to everyone
+                    can_access = True
+                elif current_user:
+                    # Private recipes only accessible to owner or admin
+                    can_access = (
+                        recipe.user_id == current_user.id
+                        or (hasattr(current_user, 'role') and current_user.role == UserRole.ADMIN)
+                    )
+                else:
+                    # Unauthenticated users can't access private recipes
+                    can_access = False
 
                 if not can_access:
                     return jsonify({"error": "Access denied"}), 403
@@ -821,11 +829,26 @@ def serve_image(current_user, filename: str) -> Response:
                 Cookbook.cover_image_url.like(f"%{filename}")
             ).first()
             if cookbook:
-                # Check if user owns the cookbook (admins can access all)
-                if (
-                    should_apply_user_filter(current_user)
-                    and cookbook.user_id != current_user.id
-                ):
+                # Check if cookbook has public recipes (making it viewable publicly)
+                has_public_recipes = Recipe.query.filter_by(
+                    cookbook_id=cookbook.id,
+                    is_public=True
+                ).first() is not None
+                
+                if has_public_recipes:
+                    # Cookbook with public recipes is accessible to everyone
+                    can_access = True
+                elif current_user:
+                    # Private cookbooks only accessible to owner or admin
+                    can_access = (
+                        cookbook.user_id == current_user.id
+                        or (hasattr(current_user, 'role') and current_user.role == UserRole.ADMIN)
+                    )
+                else:
+                    # Unauthenticated users can't access private cookbook images
+                    can_access = False
+                
+                if not can_access:
                     return jsonify({"error": "Access denied"}), 403
             else:
                 return jsonify({"error": "Image not found"}), 404

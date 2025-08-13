@@ -35,57 +35,64 @@ class LLMOCRService:
             # Fall back to None if Redis is unavailable
             return None
             
-    def _build_comprehensive_recipe_prompt(self) -> str:
-        """Build a comprehensive prompt that extracts AND parses recipe in one step."""
+    def _build_literal_extraction_prompt(self) -> str:
+        """Build a prompt focused purely on literal text extraction."""
         return """
-Please analyze this recipe image and provide a comprehensive extraction and parsing in JSON format.
+You are a text transcription specialist. Your ONLY job is to extract every visible word from this recipe image with perfect accuracy.
 
-Extract all text from the image first, then immediately parse it into the structured format below.
+EXTRACTION RULES:
+1. Transcribe EVERY word exactly as written - preserve spelling, punctuation, capitalization
+2. Maintain the visual layout and structure (line breaks, sections)
+3. Do NOT interpret, correct, or modify any text
+4. Do NOT add explanations, formatting, or structure
+5. Include ALL text: titles, ingredients, instructions, notes, times, etc.
+6. Preserve numbers and fractions exactly (1/2, 2-3, etc.)
 
-Return your response as a JSON object with this exact structure:
-
-{
-    "extracted_text": "The complete text you can see in the image...",
-    "recipe": {
-        "title": "Recipe name",
-        "description": "Brief description or null",
-        "prep_time": minutes_as_number_or_null,
-        "cook_time": minutes_as_number_or_null,
-        "total_time": minutes_as_number_or_null,
-        "servings": number_or_null,
-        "difficulty": "easy/medium/hard or null",
-        "ingredients": [
-            {
-                "name": "ingredient name",
-                "quantity": number_or_null,
-                "unit": "unit or null",
-                "preparation": "preparation method or null",
-                "optional": false
-            }
-        ],
-        "instructions": [
-            "Step 1 instructions",
-            "Step 2 instructions"
-        ],
-        "tags": ["tag1", "tag2"],
-        "source": "source information or null"
-    }
-}
-
-CRITICAL REQUIREMENTS:
-- Extract ALL visible text first in the "extracted_text" field
-- Parse times into minutes (convert hours to minutes: 1h 30m = 90)
-- Keep ingredient quantities as numbers when possible
-- ingredients MUST be an array of objects, even if empty: []
-- instructions MUST be an array of strings, even if empty: []
-- tags MUST be an array of strings, even if empty: []
-- Preserve the original instruction order
-- Return ONLY valid JSON, no markdown, no additional text
-- If you cannot parse something, use null for that field
+Return ONLY the raw extracted text, exactly as you see it in the image. No JSON, no formatting, just the literal text.
 """
 
-    def _parse_comprehensive_response(self, response_text: str) -> dict:
-        """Parse the comprehensive LLM response into structured data."""
+    def _build_minimal_parsing_prompt(self, extracted_text: str) -> str:
+        """Build a prompt for minimal parsing of already-extracted text."""
+        return f"""
+You have been given text that was literally extracted from a recipe image. Your job is to organize it into a structured format with MINIMAL changes.
+
+EXTRACTED TEXT:
+{extracted_text}
+
+STRUCTURING RULES:
+1. Use the text EXACTLY as provided - do not rephrase or improve
+2. Only add structure (JSON format) - preserve all original wording
+3. Split into logical sections (title, ingredients, instructions) based on context
+4. Maintain exact quantities, measurements, and ingredient names
+5. Keep instruction text word-for-word from the extraction
+6. Use null for any missing information - do not infer or add content
+
+Return a JSON object with this structure:
+{{
+    "title": "exact title from text or null",
+    "description": "exact description from text or null", 
+    "prep_time": time_in_minutes_if_explicitly_stated_or_null,
+    "cook_time": time_in_minutes_if_explicitly_stated_or_null,
+    "total_time": time_in_minutes_if_explicitly_stated_or_null,
+    "servings": "exact_servings_text_or_null",
+    "difficulty": "only_if_explicitly_stated_or_null",
+    "ingredients": [
+        "exact ingredient line 1 as extracted",
+        "exact ingredient line 2 as extracted"
+    ],
+    "instructions": [
+        "exact instruction step 1 as extracted", 
+        "exact instruction step 2 as extracted"
+    ],
+    "tags": [],
+    "source": "source_if_visible_or_null"
+}}
+
+Return ONLY valid JSON, no markdown, no additional text.
+"""
+
+    def _parse_minimal_response(self, response_text: str) -> dict:
+        """Parse the minimal parsing LLM response into structured data."""
         import json
         import re
         
@@ -98,13 +105,7 @@ CRITICAL REQUIREMENTS:
                 json_text = re.sub(r'\s*```$', '', json_text)
             
             # Parse JSON response
-            parsed_response = json.loads(json_text)
-            
-            # Validate structure
-            if "extracted_text" not in parsed_response or "recipe" not in parsed_response:
-                raise ValueError("Response missing required fields")
-                
-            recipe_data = parsed_response["recipe"]
+            recipe_data = json.loads(json_text)
             
             # Ensure ingredients is a list
             if "ingredients" in recipe_data and not isinstance(recipe_data["ingredients"], list):
@@ -116,35 +117,34 @@ CRITICAL REQUIREMENTS:
                 current_app.logger.warning("LLM returned instructions in wrong format, converting to list")
                 recipe_data["instructions"] = []
                 
-            current_app.logger.info(f"LLM returned {len(recipe_data.get('ingredients', []))} ingredients and {len(recipe_data.get('instructions', []))} instructions")
+            current_app.logger.info(f"Minimal parsing returned {len(recipe_data.get('ingredients', []))} ingredients and {len(recipe_data.get('instructions', []))} instructions")
                 
-            # Return structured result
-            return {
-                "text": parsed_response["extracted_text"],
-                "parsed_recipe": recipe_data,
-                "method": "llm_comprehensive",
-                "quality_score": 10,
-                "success": True
-            }
+            return recipe_data
             
         except (json.JSONDecodeError, ValueError) as e:
-            current_app.logger.error(f"Failed to parse comprehensive LLM response: {str(e)}")
+            current_app.logger.error(f"Failed to parse minimal LLM response: {str(e)}")
             current_app.logger.error(f"Raw response: {response_text[:500]}...")
             
-            # Fallback: return raw text for manual processing
+            # Fallback: return minimal structure
             return {
-                "text": response_text,
-                "parsed_recipe": None,
-                "method": "llm_comprehensive_fallback", 
-                "quality_score": 5,
-                "success": False,
-                "error": str(e)
+                "title": None,
+                "description": None,
+                "ingredients": [],
+                "instructions": [],
+                "prep_time": None,
+                "cook_time": None,
+                "total_time": None,
+                "servings": None,
+                "difficulty": None,
+                "tags": [],
+                "source": None,
+                "parsing_error": str(e)
             }
 
     def extract_and_parse_recipe(self, image_path: Path, use_cache: bool = True) -> dict:
         """
-        Extract text from image AND parse it into recipe structure in a single LLM call.
-        This dramatically reduces memory usage and processing time by eliminating the second LLM call.
+        Extract text from image using true two-step approach: literal extraction first, then minimal parsing.
+        This ensures maximum fidelity to the source text.
         
         Args:
             image_path: Path to the image file
@@ -155,62 +155,94 @@ CRITICAL REQUIREMENTS:
         """
         try:
             # Generate cache key from image content
-            cache_key = f"recipe_extract_parse_{self._generate_cache_key(image_path)}"
+            cache_key = f"recipe_extract_parse_v2_{self._generate_cache_key(image_path)}"
             
             # Check cache if enabled and Redis is available
             if use_cache and self.redis_client:
                 cached_result = self._get_from_cache(cache_key)
                 if cached_result:
-                    current_app.logger.info("Using cached LLM extract+parse result")
+                    current_app.logger.info("Using cached two-step extract+parse result")
                     return cached_result
 
-            # Prepare optimized image for LLM
-            image_data = self._prepare_image_for_llm(image_path)
+            # STEP 1: Pure literal text extraction
+            current_app.logger.info("Step 1: Starting literal text extraction")
+            extracted_text = self._extract_literal_text(image_path)
             
-            # Single comprehensive prompt that extracts AND parses in one call
-            prompt = self._build_comprehensive_recipe_prompt()
-
-            current_app.logger.info("Starting single-pass LLM extract+parse operation")
-
-            # Single LLM call for both extraction and parsing
-            response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=2000,  # Reduced to speed up processing
-                temperature=0.1,
-                system="You are an expert recipe extraction and parsing assistant. Extract text from recipe images and immediately structure it into a standardized recipe format.",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": image_data["media_type"],
-                                "data": image_data["data"]
-                            }
-                        },
-                        {
-                            "type": "text",
-                            "text": prompt
-                        }
-                    ]
-                }]
-            )
-
-            # Parse the comprehensive response
-            response_text = response.content[0].text.strip()
-            result = self._parse_comprehensive_response(response_text)
+            # STEP 2: Minimal parsing of extracted text
+            current_app.logger.info("Step 2: Starting minimal parsing of extracted text")
+            parsed_recipe = self._parse_extracted_text(extracted_text)
+            
+            # Combine results
+            result = {
+                "text": extracted_text,
+                "parsed_recipe": parsed_recipe,
+                "method": "two_step_literal",
+                "quality_score": 10,
+                "success": True
+            }
             
             # Cache the result if caching is enabled and Redis is available
             if use_cache and self.redis_client:
                 self._set_in_cache(cache_key, result)
                 
-            current_app.logger.info("Single-pass LLM extract+parse completed successfully")
+            current_app.logger.info("Two-step extract+parse completed successfully")
             return result
 
         except Exception as e:
-            current_app.logger.error(f"LLM extract+parse failed: {str(e)}")
-            raise OCRExtractionError(f"LLM extract+parse failed: {str(e)}", e) from e
+            current_app.logger.error(f"Two-step extract+parse failed: {str(e)}")
+            raise OCRExtractionError(f"Two-step extract+parse failed: {str(e)}", e) from e
+            
+    def _extract_literal_text(self, image_path: Path) -> str:
+        """Step 1: Extract literal text with no interpretation."""
+        # Prepare optimized image for LLM
+        image_data = self._prepare_image_for_llm(image_path)
+        
+        # Literal extraction prompt
+        prompt = self._build_literal_extraction_prompt()
+
+        # LLM call for pure text extraction
+        response = self.client.messages.create(
+            model="claude-3-5-sonnet-20241022",  # Best vision model
+            max_tokens=2000,
+            temperature=0.0,  # Maximum determinism
+            system="You are a text transcription specialist. Extract every visible word exactly as written.",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": image_data["media_type"],
+                            "data": image_data["data"]
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }]
+        )
+
+        return response.content[0].text.strip()
+        
+    def _parse_extracted_text(self, extracted_text: str) -> dict:
+        """Step 2: Minimally parse the already-extracted text."""
+        # Minimal parsing prompt
+        prompt = self._build_minimal_parsing_prompt(extracted_text)
+
+        # LLM call for minimal parsing
+        response = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            temperature=0.0,  # Maximum determinism
+            system="You are a recipe structuring assistant. Organize extracted text with minimal changes.",
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        response_text = response.content[0].text.strip()
+        return self._parse_minimal_response(response_text)
 
     def extract_text_from_image(self, image_path: Path, use_cache: bool = True) -> str:
         """
@@ -241,7 +273,7 @@ CRITICAL REQUIREMENTS:
             response = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",  # High-quality vision model
                 max_tokens=2000,
-                temperature=0.1,
+                temperature=0.0,
                 system="You are an expert at extracting text from recipe images with high accuracy and attention to detail.",
                 messages=[{
                     "role": "user",
