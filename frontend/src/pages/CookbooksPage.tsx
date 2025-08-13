@@ -130,10 +130,7 @@ const CookbooksPage: React.FC = () => {
         <div className="flex justify-end mb-6">
           <button
             className="px-4 py-2 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
-            onClick={() => {
-              // TODO: Open create cookbook modal
-              console.log('Create cookbook modal would open here');
-            }}
+            onClick={() => navigate('/upload')}
           >
             + Add Cookbook
           </button>
@@ -293,10 +290,7 @@ const CookbooksPage: React.FC = () => {
                     Start organizing your recipes by creating your first cookbook!
                   </p>
                   <button
-                    onClick={() => {
-                      // TODO: Open create cookbook modal
-                      console.log('Create cookbook modal would open here');
-                    }}
+                    onClick={() => navigate('/upload')}
                     className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
                   >
                     Create Your First Cookbook

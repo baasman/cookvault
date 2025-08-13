@@ -33,7 +33,6 @@ const MakePublicButton: React.FC<MakePublicButtonProps> = ({
       // Show success toast
       const message = updatedRecipe.is_public ? 'Recipe made public!' : 'Recipe made private!';
       toast.success(message);
-      console.log('Recipe privacy updated:', recipe.title);
       
       onSuccess?.();
     },
@@ -49,12 +48,7 @@ const MakePublicButton: React.FC<MakePublicButtonProps> = ({
     
     if (togglePrivacyMutation.isPending) return;
 
-    console.log('MakePublicButton clicked:', {
-      recipeId: recipe.id,
-      recipeTitle: recipe.title,
-      currentlyPublic: recipe.is_public,
-      isPending: togglePrivacyMutation.isPending
-    });
+    // MakePublicButton clicked - debug info removed for production
 
     // If making public, show copyright modal first
     if (!recipe.is_public) {
