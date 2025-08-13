@@ -16,8 +16,15 @@ class LLMOCRService:
     """Service for LLM-based text extraction from images using Anthropic Claude."""
     
     def __init__(self):
+        api_key = current_app.config.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            current_app.logger.error("ANTHROPIC_API_KEY not configured!")
+            raise ValueError("ANTHROPIC_API_KEY is required for LLM OCR service")
+        
+        current_app.logger.info(f"Initializing Anthropic client with API key: {api_key[:10]}...{api_key[-4:] if len(api_key) > 10 else 'short'}")
+        
         self.client = anthropic.Anthropic(
-            api_key=current_app.config.get("ANTHROPIC_API_KEY"),
+            api_key=api_key,
             timeout=90.0  # 90 second timeout for API calls
         )
         self.redis_client = self._init_redis()
@@ -194,38 +201,59 @@ Return ONLY valid JSON, no markdown, no additional text.
             
     def _extract_literal_text(self, image_path: Path) -> str:
         """Step 1: Extract literal text with no interpretation."""
-        # Prepare optimized image for LLM
-        image_data = self._prepare_image_for_llm(image_path)
-        
-        # Literal extraction prompt
-        prompt = self._build_literal_extraction_prompt()
+        try:
+            current_app.logger.info(f"Starting literal text extraction for: {image_path}")
+            
+            # Prepare optimized image for LLM
+            image_data = self._prepare_image_for_llm(image_path)
+            
+            # Literal extraction prompt
+            prompt = self._build_literal_extraction_prompt()
 
-        # LLM call for pure text extraction
-        response = self.client.messages.create(
-            model="claude-3-5-sonnet-20241022",  # Best vision model
-            max_tokens=2000,
-            temperature=0.0,  # Maximum determinism
-            system="You are a text transcription specialist. Extract every visible word exactly as written.",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": image_data["media_type"],
-                            "data": image_data["data"]
-                        }
-                    },
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ]
-            }]
-        )
+            current_app.logger.info("Making LLM API call for literal text extraction")
+            
+            # LLM call for pure text extraction
+            try:
+                response = self.client.messages.create(
+                    model="claude-3-5-sonnet-20241022",  # Best vision model
+                    max_tokens=2000,
+                    temperature=0.0,  # Maximum determinism
+                    system="You are a text transcription specialist. Extract every visible word exactly as written.",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": image_data["media_type"],
+                                    "data": image_data["data"]
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }]
+                )
+            except Exception as api_error:
+                current_app.logger.error(f"Anthropic API call failed: {str(api_error)}")
+                if hasattr(api_error, 'status_code'):
+                    current_app.logger.error(f"API status code: {api_error.status_code}")
+                if hasattr(api_error, 'response'):
+                    current_app.logger.error(f"API response: {api_error.response}")
+                raise
 
-        return response.content[0].text.strip()
+            extracted_text = response.content[0].text.strip()
+            current_app.logger.info(f"Literal extraction completed. Text length: {len(extracted_text)} characters")
+            current_app.logger.info(f"First 200 chars of extracted text: {extracted_text[:200]}...")
+            
+            return extracted_text
+            
+        except Exception as e:
+            current_app.logger.error(f"Literal text extraction failed: {str(e)}", exc_info=True)
+            raise
         
     def _parse_extracted_text(self, extracted_text: str) -> dict:
         """Step 2: Minimally parse the already-extracted text."""
@@ -335,8 +363,9 @@ Return ONLY valid JSON, no markdown, no additional text.
                 if img.mode in ('RGBA', 'LA', 'P'):
                     img = img.convert('RGB')
                 
-                # Aggressive resizing - use smaller max size to dramatically reduce memory
-                max_size = current_app.config.get('MAX_IMAGE_DIMENSION', 1200)  # Default 1200px instead of 1568
+                # Get max size from config (production may have different settings)
+                max_size = current_app.config.get('MAX_IMAGE_DIMENSION', 1568)  # Keep higher default for better OCR
+                current_app.logger.info(f"Using MAX_IMAGE_DIMENSION: {max_size}px")
                 if img.width > max_size or img.height > max_size:
                     # Calculate new dimensions maintaining aspect ratio
                     ratio = min(max_size / img.width, max_size / img.height)
@@ -349,7 +378,8 @@ Return ONLY valid JSON, no markdown, no additional text.
                 
                 # Compress as JPEG with configurable quality to reduce file size
                 img_buffer = io.BytesIO()
-                jpeg_quality = current_app.config.get('JPEG_QUALITY', 85)  # Default 85% quality
+                jpeg_quality = current_app.config.get('JPEG_QUALITY', 95)  # Use higher quality for better OCR
+                current_app.logger.info(f"Using JPEG_QUALITY: {jpeg_quality}%")
                 img.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
                 
                 # Get compressed size for logging

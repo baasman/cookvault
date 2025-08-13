@@ -198,9 +198,9 @@ class ProductionConfig(Config):
         # Disable heavy image preprocessing in production to save memory
         app.config['SKIP_IMAGE_PREPROCESSING'] = True
         
-        # Aggressive image optimization settings for memory reduction
-        app.config['MAX_IMAGE_DIMENSION'] = int(os.environ.get("MAX_IMAGE_DIMENSION", 1200))  # Max 1200px
-        app.config['JPEG_QUALITY'] = int(os.environ.get("JPEG_QUALITY", 85))  # 85% quality
+        # Balanced image optimization settings for OCR quality vs memory
+        app.config['MAX_IMAGE_DIMENSION'] = int(os.environ.get("MAX_IMAGE_DIMENSION", 1568))  # Higher for better OCR
+        app.config['JPEG_QUALITY'] = int(os.environ.get("JPEG_QUALITY", 95))  # Higher quality for better text recognition
         app.config['MAX_UPLOAD_SIZE'] = int(os.environ.get("MAX_UPLOAD_SIZE", 8))  # Max 8MB uploads
 
         # Production logging
