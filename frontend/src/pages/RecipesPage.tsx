@@ -224,7 +224,7 @@ const RecipesPage: React.FC = () => {
           ] as const).map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => handleFilterChange(key)}
+              onClick={() => handleFilterChange(key as RecipeFilter)}
               className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
                 activeFilter === key
                   ? 'bg-white text-text-primary shadow-sm'

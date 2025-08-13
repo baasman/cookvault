@@ -24,14 +24,14 @@ const MakePublicButton: React.FC<MakePublicButtonProps> = ({
   const togglePrivacyMutation = useMutation({
     mutationFn: (params: { isPublic: boolean; consents?: Record<string, boolean> }) => 
       recipesApi.toggleRecipePrivacy(recipe.id, params.isPublic, params.consents),
-    onSuccess: (data) => {
+    onSuccess: (updatedRecipe: Recipe) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
       queryClient.invalidateQueries({ queryKey: ['discover-recipes'] });
       
       // Show success toast
-      const message = data.recipe.is_public ? 'Recipe made public!' : 'Recipe made private!';
+      const message = updatedRecipe.is_public ? 'Recipe made public!' : 'Recipe made private!';
       toast.success(message);
       console.log('Recipe privacy updated:', recipe.title);
       
