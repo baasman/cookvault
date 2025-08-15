@@ -114,15 +114,8 @@ Return ONLY valid JSON, no markdown, no additional text.
             # Parse JSON response
             recipe_data = json.loads(json_text)
             
-            # Ensure ingredients is a list
-            if "ingredients" in recipe_data and not isinstance(recipe_data["ingredients"], list):
-                current_app.logger.warning("LLM returned ingredients in wrong format, converting to list")
-                recipe_data["ingredients"] = []
-            
-            # Ensure instructions is a list  
-            if "instructions" in recipe_data and not isinstance(recipe_data["instructions"], list):
-                current_app.logger.warning("LLM returned instructions in wrong format, converting to list")
-                recipe_data["instructions"] = []
+            # Validate and clean up critical fields to prevent database constraint violations
+            recipe_data = self._validate_and_clean_recipe_data(recipe_data)
                 
             current_app.logger.info(f"Minimal parsing returned {len(recipe_data.get('ingredients', []))} ingredients and {len(recipe_data.get('instructions', []))} instructions")
                 
@@ -132,21 +125,71 @@ Return ONLY valid JSON, no markdown, no additional text.
             current_app.logger.error(f"Failed to parse minimal LLM response: {str(e)}")
             current_app.logger.error(f"Raw response: {response_text[:500]}...")
             
-            # Fallback: return minimal structure
-            return {
-                "title": None,
-                "description": None,
-                "ingredients": [],
-                "instructions": [],
-                "prep_time": None,
-                "cook_time": None,
-                "total_time": None,
-                "servings": None,
-                "difficulty": None,
-                "tags": [],
-                "source": None,
-                "parsing_error": str(e)
-            }
+            # Fallback: return minimal but valid structure
+            return self._get_fallback_recipe_structure(str(e))
+    
+    def _validate_and_clean_recipe_data(self, recipe_data: dict) -> dict:
+        """Validate and clean recipe data to prevent database constraint violations."""
+        # Ensure title is never None or empty
+        title = recipe_data.get("title")
+        if not title or not str(title).strip():
+            current_app.logger.warning("LLM returned null/empty title, will be handled by fallback logic")
+            recipe_data["title"] = None  # Let the calling code handle this with fallbacks
+        
+        # Ensure ingredients is a list
+        if "ingredients" in recipe_data and not isinstance(recipe_data["ingredients"], list):
+            current_app.logger.warning("LLM returned ingredients in wrong format, converting to list")
+            recipe_data["ingredients"] = []
+        
+        # Ensure instructions is a list  
+        if "instructions" in recipe_data and not isinstance(recipe_data["instructions"], list):
+            current_app.logger.warning("LLM returned instructions in wrong format, converting to list")
+            recipe_data["instructions"] = []
+        
+        # Clean up text fields to prevent issues
+        text_fields = ["title", "description", "difficulty", "source"]
+        for field in text_fields:
+            if field in recipe_data and recipe_data[field] is not None:
+                # Ensure it's a string and clean it up
+                value = str(recipe_data[field]).strip()
+                recipe_data[field] = value if value else None
+        
+        # Validate numeric fields
+        numeric_fields = ["prep_time", "cook_time", "total_time", "servings"]
+        for field in numeric_fields:
+            if field in recipe_data and recipe_data[field] is not None:
+                try:
+                    # Try to convert to int, set to None if invalid
+                    recipe_data[field] = int(recipe_data[field])
+                except (ValueError, TypeError):
+                    current_app.logger.warning(f"Invalid {field} value: {recipe_data[field]}, setting to None")
+                    recipe_data[field] = None
+        
+        # Ensure tags is a list
+        if "tags" not in recipe_data or not isinstance(recipe_data["tags"], list):
+            recipe_data["tags"] = []
+        
+        return recipe_data
+    
+    def _get_fallback_recipe_structure(self, error_msg: str = None) -> dict:
+        """Return a minimal but valid recipe structure for fallback."""
+        from datetime import datetime
+        fallback_title = f"Recipe extracted on {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        return {
+            "title": fallback_title,
+            "description": "Recipe extracted from image" + (f" (Error: {error_msg})" if error_msg else ""),
+            "ingredients": [],
+            "instructions": [],
+            "prep_time": None,
+            "cook_time": None,
+            "total_time": None,
+            "servings": None,
+            "difficulty": None,
+            "tags": [],
+            "source": None,
+            "parsing_error": error_msg
+        }
 
     def extract_and_parse_recipe(self, image_path: Path, use_cache: bool = True) -> dict:
         """
@@ -167,9 +210,12 @@ Return ONLY valid JSON, no markdown, no additional text.
             # Check cache if enabled and Redis is available
             if use_cache and self.redis_client:
                 cached_result = self._get_from_cache(cache_key)
-                if cached_result:
+                if cached_result and self._validate_cached_result(cached_result):
                     current_app.logger.info("Using cached two-step extract+parse result")
                     return cached_result
+                elif cached_result:
+                    current_app.logger.warning("Cached result failed validation, invalidating cache")
+                    self._invalidate_cache(cache_key)
 
             # STEP 1: Pure literal text extraction
             current_app.logger.info("Step 1: Starting literal text extraction")
@@ -457,6 +503,58 @@ Return ONLY valid JSON, no markdown, no additional text.
             )
         except Exception:
             pass
+    
+    def _validate_cached_result(self, cached_result: dict) -> bool:
+        """Validate cached result to ensure it won't cause database constraint violations."""
+        try:
+            # Check if it's a valid recipe result structure
+            if not isinstance(cached_result, dict):
+                current_app.logger.warning("Cached result is not a dictionary")
+                return False
+            
+            # Check for required top-level keys
+            required_keys = ["text", "parsed_recipe", "method", "success"]
+            for key in required_keys:
+                if key not in cached_result:
+                    current_app.logger.warning(f"Cached result missing required key: {key}")
+                    return False
+            
+            # If parsing was successful, validate the parsed recipe
+            if cached_result.get("success") and cached_result.get("parsed_recipe"):
+                parsed_recipe = cached_result["parsed_recipe"]
+                
+                # Check if title would cause database constraint violation
+                title = parsed_recipe.get("title")
+                if title is None or (isinstance(title, str) and not title.strip()):
+                    current_app.logger.warning("Cached result has null/empty title, would cause database constraint violation")
+                    return False
+                
+                # Check that ingredients and instructions are lists (if present)
+                ingredients = parsed_recipe.get("ingredients")
+                if ingredients is not None and not isinstance(ingredients, list):
+                    current_app.logger.warning("Cached result has invalid ingredients format")
+                    return False
+                
+                instructions = parsed_recipe.get("instructions") 
+                if instructions is not None and not isinstance(instructions, list):
+                    current_app.logger.warning("Cached result has invalid instructions format")
+                    return False
+            
+            current_app.logger.debug("Cached result passed validation")
+            return True
+            
+        except Exception as e:
+            current_app.logger.error(f"Error validating cached result: {str(e)}")
+            return False
+    
+    def _invalidate_cache(self, cache_key: str) -> None:
+        """Remove invalid cached result."""
+        try:
+            if self.redis_client:
+                self.redis_client.delete(cache_key)
+                current_app.logger.info(f"Invalidated cached result for key: {cache_key}")
+        except Exception as e:
+            current_app.logger.error(f"Failed to invalidate cache key {cache_key}: {str(e)}")
 
     def _build_extraction_prompt(self) -> str:
         """Build the prompt for LLM-based text extraction."""

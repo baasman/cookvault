@@ -963,10 +963,33 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         db.session.commit()
 
     except Exception as e:
-        job.status = ProcessingStatus.FAILED
-        job.error_message = str(e)
-        db.session.commit()
-        current_app.logger.error(f"Processing failed for job {job_id}: {str(e)}")
+        current_app.logger.error(f"Processing failed for job {job_id}: {str(e)}", exc_info=True)
+        
+        # Handle database session rollback properly
+        try:
+            db.session.rollback()
+            current_app.logger.info("Database session rolled back successfully")
+            
+            # Re-fetch the job in a clean session to update status
+            job = ProcessingJob.query.get(job_id)
+            if job:
+                job.status = ProcessingStatus.FAILED
+                job.error_message = str(e)[:500]  # Limit error message length
+                db.session.commit()
+                current_app.logger.info(f"Job {job_id} status updated to FAILED")
+            else:
+                current_app.logger.error(f"Could not find job {job_id} to update status")
+                
+        except Exception as rollback_error:
+            current_app.logger.error(f"Failed to rollback and update job status: {str(rollback_error)}", exc_info=True)
+            # As a last resort, try to create a new session
+            try:
+                from app import db as fresh_db
+                fresh_db.session.rollback()
+                fresh_db.session.close()
+                current_app.logger.info("Created fresh database session after rollback failure")
+            except Exception as fresh_error:
+                current_app.logger.critical(f"Complete database session failure: {str(fresh_error)}")
 
 
 def _extract_text_from_image(image_id: int) -> str:
@@ -1025,6 +1048,45 @@ def _parse_extracted_text(extracted_text: str) -> Dict[str, Any]:
     return recipe_parser.parse_recipe_text(extracted_text)
 
 
+def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, job: ProcessingJob) -> str:
+    """Generate a robust title with smart fallbacks to ensure never null."""
+    # Try to get title from parsed recipe
+    title = parsed_recipe.get("title")
+    if title and title.strip():
+        current_app.logger.info(f"Using parsed title: {title}")
+        return title.strip()
+    
+    # Fallback 1: Extract first line/sentence from extracted text
+    if extracted_text and extracted_text.strip():
+        lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
+        if lines:
+            # Take first non-empty line, limit to reasonable title length
+            first_line = lines[0][:100]  # Limit to 100 characters
+            current_app.logger.warning(f"Title was null, using first line as fallback: {first_line}")
+            return first_line
+    
+    # Fallback 2: Try to get filename from job's associated image
+    try:
+        if job and job.images:
+            image = job.images[0]  # Get first image
+            filename = image.original_filename
+            if filename:
+                # Remove extension and create readable title
+                name_without_ext = filename.rsplit('.', 1)[0]
+                title = f"Recipe from {name_without_ext}"
+                current_app.logger.warning(f"Using filename-based fallback: {title}")
+                return title
+    except (AttributeError, IndexError):
+        pass
+    
+    # Fallback 3: Use timestamp-based title
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    title = f"Recipe from {timestamp}"
+    current_app.logger.error(f"All title extraction failed, using timestamp fallback: {title}")
+    return title
+
+
 def _create_recipe_from_parsed_data(
     parsed_recipe: Dict[str, Any],
     extracted_text: str,
@@ -1039,9 +1101,12 @@ def _create_recipe_from_parsed_data(
         if cookbook:
             user_id = cookbook.user_id
 
+    # Generate robust title with smart fallbacks
+    title = _generate_recipe_title(parsed_recipe, extracted_text, job)
+    
     # Create base recipe
     recipe = Recipe(
-        title=parsed_recipe.get("title", "Extracted Recipe"),
+        title=title,
         description=parsed_recipe.get("description"),
         cookbook_id=job.cookbook_id,
         page_number=job.page_number,
