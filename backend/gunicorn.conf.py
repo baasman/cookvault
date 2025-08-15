@@ -8,16 +8,16 @@ import multiprocessing
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 backlog = 2048
 
-# Worker processes
-workers = int(os.environ.get('GUNICORN_WORKERS', multiprocessing.cpu_count() * 2 + 1))
+# Worker processes - reduce for memory-intensive image processing
+workers = int(os.environ.get('GUNICORN_WORKERS', min(multiprocessing.cpu_count(), 2)))  # Cap at 2 workers for memory
 worker_class = "sync"
 worker_connections = 1000
-timeout = int(os.environ.get('GUNICORN_TIMEOUT', 120))  # 2 minutes for LLM processing
+timeout = int(os.environ.get('GUNICORN_TIMEOUT', 180))  # 3 minutes for heavy LLM+image processing
 keepalive = 2
 
-# Restart workers after this many requests, to help prevent memory leaks
-max_requests = 1000
-max_requests_jitter = 100
+# Restart workers more frequently to prevent memory leaks from image processing
+max_requests = 100  # Restart after fewer requests due to memory-intensive operations
+max_requests_jitter = 50
 
 # Preload app for better performance
 preload_app = True

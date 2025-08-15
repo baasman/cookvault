@@ -51,9 +51,9 @@ def safe_int_conversion(value: Any) -> int | None:
         if not value_str:
             return None
         
-        # Handle range values like "8-10", "4-6 servings", "2-3 hours"
-        # Look for patterns like "8-10", "4-6", etc.
-        range_match = re.search(r'(\d+)\s*[-–—]\s*(\d+)', value_str)
+        # Handle range values like "8-10", "4-6 servings", "2-3 hours", "2 to 4 servings"
+        # Look for patterns like "8-10", "4-6", "2 to 4", etc.
+        range_match = re.search(r'(\d+)\s*(?:[-–—]|to)\s*(\d+)', value_str)
         if range_match:
             start_val = int(range_match.group(1))
             end_val = int(range_match.group(2))
@@ -2540,16 +2540,17 @@ def process_multi_image_job(multi_job_id: int):
             f"Processing {len(processing_jobs)} images for multi-job {multi_job_id}"
         )
 
-        # Collect image paths for batch processing
+        # Collect image paths for batch processing (use no_autoflush to prevent premature flush)
         image_paths = []
         processing_job_map = {}
 
-        for processing_job in processing_jobs:
-            recipe_image = RecipeImage.query.get(processing_job.image_id)
-            if recipe_image:
-                image_path = Path(recipe_image.file_path)
-                image_paths.append(image_path)
-                processing_job_map[str(image_path)] = processing_job
+        with db.session.no_autoflush:
+            for processing_job in processing_jobs:
+                recipe_image = RecipeImage.query.get(processing_job.image_id)
+                if recipe_image:
+                    image_path = Path(recipe_image.file_path)
+                    image_paths.append(image_path)
+                    processing_job_map[str(image_path)] = processing_job
 
         if not image_paths:
             multi_job.status = ProcessingStatus.FAILED
@@ -2921,11 +2922,12 @@ def process_multi_image_job(multi_job_id: int):
             if parsed_recipe.get("difficulty"):
                 recipe.difficulty = parsed_recipe["difficulty"]
 
-            # Link all images to the recipe
-            for processing_job in successful_jobs:
-                recipe_image = RecipeImage.query.get(processing_job.image_id)
-                if recipe_image:
-                    recipe_image.recipe_id = recipe.id
+            # Link all images to the recipe (use no_autoflush to prevent premature flush)
+            with db.session.no_autoflush:
+                for processing_job in successful_jobs:
+                    recipe_image = RecipeImage.query.get(processing_job.image_id)
+                    if recipe_image:
+                        recipe_image.recipe_id = recipe.id
 
             # Update multi-job with recipe reference
             multi_job.recipe_id = recipe.id
@@ -2972,8 +2974,9 @@ def cleanup_failed_multi_job(multi_job_id: int):
 
         for processing_job in processing_jobs:
             try:
-                # Get the associated image
-                recipe_image = RecipeImage.query.get(processing_job.image_id)
+                # Get the associated image (use no_autoflush for safety)
+                with db.session.no_autoflush:
+                    recipe_image = RecipeImage.query.get(processing_job.image_id)
                 if recipe_image and recipe_image.recipe_id is None:
                     # Only cleanup orphaned images (not linked to a recipe)
                     file_path = Path(recipe_image.file_path)

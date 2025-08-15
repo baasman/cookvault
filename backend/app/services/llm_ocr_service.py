@@ -142,9 +142,9 @@ Return ONLY valid JSON, no markdown, no additional text.
             if not value_str:
                 return None
             
-            # Handle range values like "8-10", "4-6 servings", "2-3 hours"
-            # Look for patterns like "8-10", "4-6", etc.
-            range_match = re.search(r'(\d+)\s*[-–—]\s*(\d+)', value_str)
+            # Handle range values like "8-10", "4-6 servings", "2-3 hours", "2 to 4 servings"
+            # Look for patterns like "8-10", "4-6", "2 to 4", etc.
+            range_match = re.search(r'(\d+)\s*(?:[-–—]|to)\s*(\d+)', value_str)
             if range_match:
                 start_val = int(range_match.group(1))
                 end_val = int(range_match.group(2))
