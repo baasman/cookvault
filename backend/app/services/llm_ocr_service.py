@@ -1,8 +1,9 @@
 import base64
 import hashlib
 import json
+import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import anthropic
 import redis
@@ -100,8 +101,6 @@ Return ONLY valid JSON, no markdown, no additional text.
 
     def _parse_minimal_response(self, response_text: str) -> dict:
         """Parse the minimal parsing LLM response into structured data."""
-        import json
-        import re
         
         try:
             # Clean up response text - sometimes LLM adds markdown formatting
@@ -127,6 +126,46 @@ Return ONLY valid JSON, no markdown, no additional text.
             
             # Fallback: return minimal but valid structure
             return self._get_fallback_recipe_structure(str(e))
+    
+    def _safe_int_conversion(self, value, field_name: str) -> Optional[int]:
+        """Safely convert a value to integer, handling ranges and special cases."""
+        if value is None:
+            return None
+        
+        try:
+            # If already an integer, return it
+            if isinstance(value, int):
+                return value
+            
+            # Convert to string and clean up
+            value_str = str(value).strip()
+            if not value_str:
+                return None
+            
+            # Handle range values like "8-10", "4-6 servings", "2-3 hours"
+            # Look for patterns like "8-10", "4-6", etc.
+            range_match = re.search(r'(\d+)\s*[-–—]\s*(\d+)', value_str)
+            if range_match:
+                start_val = int(range_match.group(1))
+                end_val = int(range_match.group(2))
+                # Take the average of the range, rounded down
+                result = (start_val + end_val) // 2
+                current_app.logger.info(f"Converted range '{value_str}' to {result} for field '{field_name}'")
+                return result
+            
+            # Look for single numbers (ignoring text like "servings", "minutes", etc.)
+            number_match = re.search(r'(\d+)', value_str)
+            if number_match:
+                result = int(number_match.group(1))
+                current_app.logger.debug(f"Extracted number {result} from '{value_str}' for field '{field_name}'")
+                return result
+            
+            # Try direct conversion as fallback
+            return int(value_str)
+            
+        except (ValueError, TypeError, AttributeError) as e:
+            current_app.logger.warning(f"Could not convert '{value}' to integer for field '{field_name}': {str(e)}")
+            return None
     
     def _validate_and_clean_recipe_data(self, recipe_data: dict) -> dict:
         """Validate and clean recipe data to prevent database constraint violations."""
@@ -154,16 +193,11 @@ Return ONLY valid JSON, no markdown, no additional text.
                 value = str(recipe_data[field]).strip()
                 recipe_data[field] = value if value else None
         
-        # Validate numeric fields
+        # Validate numeric fields with improved range handling
         numeric_fields = ["prep_time", "cook_time", "total_time", "servings"]
         for field in numeric_fields:
             if field in recipe_data and recipe_data[field] is not None:
-                try:
-                    # Try to convert to int, set to None if invalid
-                    recipe_data[field] = int(recipe_data[field])
-                except (ValueError, TypeError):
-                    current_app.logger.warning(f"Invalid {field} value: {recipe_data[field]}, setting to None")
-                    recipe_data[field] = None
+                recipe_data[field] = self._safe_int_conversion(recipe_data[field], field)
         
         # Ensure tags is a list
         if "tags" not in recipe_data or not isinstance(recipe_data["tags"], list):
