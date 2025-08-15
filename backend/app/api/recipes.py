@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -38,7 +39,7 @@ def allowed_file(filename: str) -> bool:
 
 
 def safe_int_conversion(value: Any) -> int | None:
-    """Safely convert a value to an integer, extracting the first number from strings"""
+    """Safely convert a value to an integer, handling ranges and extracting numbers from text"""
     if value is None:
         return None
 
@@ -46,14 +47,33 @@ def safe_int_conversion(value: Any) -> int | None:
         return value
 
     if isinstance(value, str):
-        import re
+        value_str = value.strip()
+        if not value_str:
+            return None
+        
+        # Handle range values like "8-10", "4-6 servings", "2-3 hours"
+        # Look for patterns like "8-10", "4-6", etc.
+        range_match = re.search(r'(\d+)\s*[-–—]\s*(\d+)', value_str)
+        if range_match:
+            start_val = int(range_match.group(1))
+            end_val = int(range_match.group(2))
+            # Take the average of the range, rounded down
+            result = (start_val + end_val) // 2
+            current_app.logger.info(f"Converted range '{value_str}' to {result} for servings field")
+            return result
+        
+        # Look for single numbers (ignoring text like "servings", "minutes", etc.)
+        number_match = re.search(r'(\d+)', value_str)
+        if number_match:
+            result = int(number_match.group(1))
+            current_app.logger.debug(f"Extracted number {result} from '{value_str}' for servings field")
+            return result
 
-        # Extract the first number from the string
-        match = re.search(r"\d+", value.strip())
-        if match:
-            return int(match.group())
-
-    return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        current_app.logger.warning(f"Could not convert '{value}' to integer for servings field")
+        return None
 
 
 @bp.route("/recipes", methods=["GET"])
@@ -489,13 +509,13 @@ def update_recipe(current_user, recipe_id: int) -> Response:
             )
 
         if "prep_time" in data:
-            recipe.prep_time = data["prep_time"] if data["prep_time"] else None
+            recipe.prep_time = safe_int_conversion(data["prep_time"]) if data["prep_time"] else None
 
         if "cook_time" in data:
-            recipe.cook_time = data["cook_time"] if data["cook_time"] else None
+            recipe.cook_time = safe_int_conversion(data["cook_time"]) if data["cook_time"] else None
 
         if "servings" in data:
-            recipe.servings = data["servings"] if data["servings"] else None
+            recipe.servings = safe_int_conversion(data["servings"]) if data["servings"] else None
 
         if "difficulty" in data:
             recipe.difficulty = data["difficulty"] if data["difficulty"] else None
@@ -2322,9 +2342,9 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             page_number=page_number,
             user_id=current_user.id,
             is_public=False,  # Default to private
-            prep_time=parsed_recipe.get("prep_time"),
-            cook_time=parsed_recipe.get("cook_time"),
-            servings=parsed_recipe.get("servings"),
+            prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
+            cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
+            servings=safe_int_conversion(parsed_recipe.get("servings")),
             difficulty=parsed_recipe.get("difficulty"),
         )
 
@@ -2893,11 +2913,11 @@ def process_multi_image_job(multi_job_id: int):
 
             # Set recipe metadata
             if parsed_recipe.get("prep_time"):
-                recipe.prep_time = parsed_recipe["prep_time"]
+                recipe.prep_time = safe_int_conversion(parsed_recipe["prep_time"])
             if parsed_recipe.get("cook_time"):
-                recipe.cook_time = parsed_recipe["cook_time"]
+                recipe.cook_time = safe_int_conversion(parsed_recipe["cook_time"])
             if parsed_recipe.get("servings"):
-                recipe.servings = parsed_recipe["servings"]
+                recipe.servings = safe_int_conversion(parsed_recipe["servings"])
             if parsed_recipe.get("difficulty"):
                 recipe.difficulty = parsed_recipe["difficulty"]
 
