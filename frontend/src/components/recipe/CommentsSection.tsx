@@ -184,12 +184,18 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
   const [newComment, setNewComment] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Fetch comments
+  // Always fetch first page to check if there are comments
   const { data: commentsData, isLoading } = useQuery({
     queryKey: ['recipe-comments', recipe.id, currentPage],
     queryFn: () => recipesApi.getRecipeComments(recipe.id, { page: currentPage }),
-    enabled: isExpanded,
   });
+
+  // Auto-expand if there are comments (but allow manual collapse)
+  React.useEffect(() => {
+    if (commentsData && commentsData.total > 0 && !isExpanded) {
+      setIsExpanded(true);
+    }
+  }, [commentsData, isExpanded]);
 
   // Create comment mutation
   const createCommentMutation = useMutation({
