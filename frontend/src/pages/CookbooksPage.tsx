@@ -142,7 +142,7 @@ const CookbooksPage: React.FC = () => {
             style={{backgroundColor: '#f15f1c'}}
             onClick={() => navigate('/upload')}
           >
-            + Upload Recipe Images
+            + Add Recipe
           </button>
         </div>
       )}
