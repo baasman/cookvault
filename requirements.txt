@@ -23,3 +23,5 @@ flask-limiter>=3.5.0
 pdfplumber>=0.10.0
 pdf2image>=1.16.0
 pyjwt>=2.8.0
+stripe>=7.0.0
+flask-jwt-extended>=4.7.1

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
+import { PremiumUpgradeModal } from '../payments/PremiumUpgradeModal';
+import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import type { NavItem } from '../../types';
 
 interface HeaderProps {
@@ -16,10 +18,32 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const { isAuthenticated, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const loadSubscription = async () => {
+        try {
+          const subData = await paymentsApi.getUserSubscription();
+          setSubscription(subData);
+        } catch (err) {
+          console.error('Failed to load subscription:', err);
+        }
+      };
+      loadSubscription();
+    }
+  }, [isAuthenticated]);
 
   const handleLogout = () => {
     logout();
     setIsMobileMenuOpen(false);
+  };
+
+  const handleUpgradeSuccess = () => {
+    // Refresh subscription data
+    setSubscription(prev => prev ? { ...prev, tier: 'premium', is_premium: true } : null);
+    setShowUpgradeModal(false);
   };
 
   // Add Profile to navigation only when authenticated
@@ -59,6 +83,23 @@ const Header: React.FC<HeaderProps> = ({
               {isAuthenticated ? (
                 <>
                   <div className="flex items-center space-x-2">
+                    {/* Show upgrade button if not premium */}
+                    {subscription && !subscription.is_premium && (
+                      <Button 
+                        variant="primary" 
+                        size="sm"
+                        onClick={() => setShowUpgradeModal(true)}
+                        className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white"
+                      >
+                        ⭐ Upgrade to Premium
+                      </Button>
+                    )}
+                    {/* Show premium badge if premium */}
+                    {subscription && subscription.is_premium && (
+                      <span className="px-3 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
+                        ⭐ Premium
+                      </span>
+                    )}
                     <Link to="/recipes/create">
                       <Button variant="secondary" size="md">
                         Create Recipe
@@ -126,6 +167,28 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="pt-4 border-t" style={{borderColor: '#e8d7cf'}}>
                   {isAuthenticated ? (
                     <div className="space-y-2">
+                      {/* Show upgrade button if not premium */}
+                      {subscription && !subscription.is_premium && (
+                        <Button 
+                          variant="primary" 
+                          size="md"
+                          onClick={() => {
+                            setShowUpgradeModal(true);
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white"
+                        >
+                          ⭐ Upgrade to Premium
+                        </Button>
+                      )}
+                      {/* Show premium badge if premium */}
+                      {subscription && subscription.is_premium && (
+                        <div className="text-center py-2">
+                          <span className="px-3 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
+                            ⭐ Premium Member
+                          </span>
+                        </div>
+                      )}
                       <Link
                         to="/recipes/create"
                         className="block w-full"
@@ -175,6 +238,13 @@ const Header: React.FC<HeaderProps> = ({
             </div>
           )}
         </div>
+        
+        {/* Premium Upgrade Modal */}
+        <PremiumUpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          onSuccess={handleUpgradeSuccess}
+        />
       </header>
   );
 };

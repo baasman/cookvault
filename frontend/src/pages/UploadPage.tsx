@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { UploadForm } from '../components/forms';
 import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { MultiProcessingProgress } from '../components/upload/MultiProcessingProgress';
+import { UploadLimitWarning, useCanUpload } from '../components/payments';
 import { recipesApi } from '../services/recipesApi';
 import { apiFetch } from '../utils/apiInterceptor';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
@@ -15,6 +16,8 @@ const UploadPage: React.FC = () => {
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMultiProcessing, setIsMultiProcessing] = useState(false);
+  
+  const { canUpload, isLoading: isLoadingLimits } = useCanUpload();
 
   const handleUpload = async (formData: UploadFormData) => {
     setIsLoading(true);
@@ -175,6 +178,13 @@ const UploadPage: React.FC = () => {
         </p>
       </div>
 
+      {/* Upload Limit Warning */}
+      {!isLoadingLimits && !canUpload && (
+        <div className="mb-8">
+          <UploadLimitWarning />
+        </div>
+      )}
+
       {/* Processing Progress */}
       {isProcessing && processingJobId && (
         <div className="mb-8">
@@ -305,7 +315,7 @@ const UploadPage: React.FC = () => {
       )}
 
       {/* Upload Form */}
-      {!success && !isProcessing && !error && (
+      {!success && !isProcessing && !error && !isLoadingLimits && canUpload && (
         <div className="flex justify-center">
           <UploadForm
             onSubmit={handleUpload}

@@ -181,7 +181,7 @@ def get_recipes(current_user) -> Response:
     return jsonify(
         {
             "recipes": [
-                recipe.to_dict(current_user_id=current_user.id)
+                recipe.to_dict(current_user_id=current_user.id, is_admin=not should_apply_user_filter(current_user))
                 for recipe in recipes.items
             ],
             "total": recipes.total,
@@ -266,7 +266,7 @@ def get_recipe(current_user, recipe_id: int) -> Response:
     if not can_view:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
-    return jsonify(recipe.to_dict(include_user=True, current_user_id=current_user.id))
+    return jsonify(recipe.to_dict(include_user=True, current_user_id=current_user.id, is_admin=is_admin))
 
 
 @bp.route("/recipes/upload", methods=["POST"])
@@ -1453,7 +1453,7 @@ def toggle_recipe_privacy(current_user, recipe_id: int) -> Response:
             f"Recipe {recipe_id} privacy changed to {'public' if is_public else 'private'} by user {current_user.id}"
         )
 
-        return jsonify({"message": message, "recipe": recipe.to_dict()})
+        return jsonify({"message": message, "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=not should_apply_user_filter(current_user))})
 
     except Exception as e:
         db.session.rollback()
@@ -1665,7 +1665,7 @@ def discover_recipes(current_user) -> Response:
     return jsonify(
         {
             "recipes": [
-                recipe.to_dict(include_user=True, current_user_id=current_user.id)
+                recipe.to_dict(include_user=True, current_user_id=current_user.id, is_admin=not should_apply_user_filter(current_user))
                 for recipe in recipes.items
             ],
             "total": recipes.total,
@@ -2498,7 +2498,7 @@ def get_multi_job_status(current_user, job_id: int):
         if multi_job.status == ProcessingStatus.COMPLETED and multi_job.recipe_id:
             recipe = Recipe.query.get(multi_job.recipe_id)
             if recipe:
-                response_data["recipe"] = recipe.to_dict(current_user_id=user_id)
+                response_data["recipe"] = recipe.to_dict(current_user_id=user_id, is_admin=False)
 
         return jsonify(response_data), 200
 

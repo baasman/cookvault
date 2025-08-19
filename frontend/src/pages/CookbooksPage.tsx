@@ -127,12 +127,22 @@ const CookbooksPage: React.FC = () => {
 
       {/* Add Cookbook Button - Only show for authenticated users */}
       {isAuthenticated && (
-        <div className="flex justify-end mb-6">
+        <div className="flex justify-end mb-6 space-x-3">
           <button
-            className="px-4 py-2 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+            className="px-4 py-2 text-white rounded-lg font-medium transition-colors"
+            style={{backgroundColor: '#3b82f6'}}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+            onClick={() => navigate('/cookbooks/create')}
+          >
+            + Create New Cookbook
+          </button>
+          <button
+            className="px-4 py-2 text-white rounded-lg font-medium transition-opacity hover:opacity-90"
+            style={{backgroundColor: '#f15f1c'}}
             onClick={() => navigate('/upload')}
           >
-            + Add Cookbook
+            + Upload Recipe Images
           </button>
         </div>
       )}

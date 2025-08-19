@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
 
@@ -13,6 +14,7 @@ from sqlalchemy import (
     Table,
     Column,
     text,
+    Numeric,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -77,6 +79,11 @@ class Cookbook(db.Model):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
     
+    # Purchase-related fields
+    is_purchasable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    purchase_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
     # User relationship
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
     
@@ -86,9 +93,20 @@ class Cookbook(db.Model):
     user: Mapped[Optional["User"]] = relationship(
         "User", back_populates="cookbooks"
     )
+    purchases: Mapped[List["CookbookPurchase"]] = relationship(
+        "CookbookPurchase", back_populates="cookbook", cascade="all, delete-orphan"
+    )
     
-    def to_dict(self) -> dict:
-        return {
+    def is_available_for_purchase(self) -> bool:
+        """Check if cookbook is available for purchase."""
+        return self.is_purchasable and self.price is not None and self.price > 0
+
+    def increment_purchase_count(self) -> None:
+        """Increment the purchase count when a purchase is made."""
+        self.purchase_count += 1
+
+    def to_dict(self, current_user_id: Optional[int] = None) -> dict:
+        result = {
             "id": self.id,
             "title": self.title,
             "description": self.description,
@@ -97,10 +115,24 @@ class Cookbook(db.Model):
             "isbn": self.isbn,
             "publisher": self.publisher,
             "cover_image_url": self.cover_image_url,
+            "is_purchasable": self.is_purchasable,
+            "price": float(self.price) if self.price else None,
+            "purchase_count": self.purchase_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "recipe_count": len(self.recipes)
         }
+        
+        # Include purchase status if current user is provided
+        if current_user_id and self.is_purchasable:
+            has_purchased = any(
+                purchase.user_id == current_user_id and purchase.has_access()
+                for purchase in self.purchases
+            )
+            result["has_purchased"] = has_purchased
+            result["is_available_for_purchase"] = self.is_available_for_purchase() and not has_purchased
+        
+        return result
 
 
 class RecipeGroup(db.Model):
@@ -341,8 +373,45 @@ class Recipe(db.Model):
         if is_admin:
             return True
         
-        # Private recipes can only be viewed by their owner
-        return self.user_id == user_id if user_id else False
+        # Recipe owner can always view their own recipes
+        if self.user_id == user_id:
+            return True
+        
+        # If recipe belongs to a purchasable cookbook, check purchase status
+        if self.cookbook and self.cookbook.is_purchasable and user_id:
+            from app.models.user import User
+            user = User.query.get(user_id)
+            if user and user.has_purchased_cookbook(self.cookbook.id):
+                return True
+        
+        # Private recipes can only be viewed by their owner (already checked above)
+        return False
+    
+    def has_full_access(self, user_id: Optional[int] = None, is_admin: bool = False) -> bool:
+        """Check if a user has full access to recipe content (vs preview access)."""
+        # Admins have full access to everything
+        if is_admin:
+            return True
+        
+        # Recipe owner always has full access
+        if self.user_id == user_id:
+            return True
+        
+        # Public recipes have full access for everyone
+        if self.is_public:
+            return True
+        
+        # For purchasable cookbook recipes, check if user has purchased
+        if self.cookbook and self.cookbook.is_purchasable and user_id:
+            from app.models.user import User
+            user = User.query.get(user_id)
+            if user and user.has_purchased_cookbook(self.cookbook.id):
+                return True
+            # User can see the recipe exists but doesn't have full access
+            return False
+        
+        # For non-purchasable cookbook recipes, if they can view it, they have full access
+        return self.can_be_viewed_by(user_id, is_admin)
     
     def is_in_user_collection(self, user_id: int) -> bool:
         """Check if this recipe is in a user's collection."""
@@ -412,19 +481,17 @@ class Recipe(db.Model):
             for row in result
         ]
 
-    def to_dict(self, include_user: bool = False, current_user_id: Optional[int] = None) -> dict:
+    def to_dict(self, include_user: bool = False, current_user_id: Optional[int] = None, is_admin: bool = False) -> dict:
+        # Check if user has full access to recipe content
+        has_full_access = self.has_full_access(current_user_id, is_admin)
+        
+        # Base recipe information (always available)
         result = {
             "id": self.id,
             "title": self.title,
             "description": self.description,
-            "cookbook": self.cookbook.to_dict() if self.cookbook else None,
+            "cookbook": self.cookbook.to_dict(current_user_id) if self.cookbook else None,
             "page_number": self.page_number,
-            "ingredients": self.get_recipe_ingredients(),
-            "instructions": [
-                instruction.to_dict() for instruction in self.recipe_instructions
-            ],
-            "tags": [tag.to_dict() for tag in self.recipe_tags],
-            "images": [image.to_dict() for image in self.images],
             "status": self.get_status(),
             "prep_time": self.prep_time,
             "cook_time": self.cook_time,
@@ -436,7 +503,28 @@ class Recipe(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "user_id": self.user_id,
+            "has_full_access": has_full_access,
         }
+        
+        # Restricted content (only for users with full access)
+        if has_full_access:
+            result.update({
+                "ingredients": self.get_recipe_ingredients(),
+                "instructions": [
+                    instruction.to_dict() for instruction in self.recipe_instructions
+                ],
+                "tags": [tag.to_dict() for tag in self.recipe_tags],
+                "images": [image.to_dict() for image in self.images],
+            })
+        else:
+            # Limited preview content for paywall
+            result.update({
+                "ingredients": [],  # Empty for paywall
+                "instructions": [],  # Empty for paywall
+                "tags": [tag.to_dict() for tag in self.recipe_tags],  # Tags still visible
+                "images": [image.to_dict() for image in self.images[:1]] if self.images else [],  # Only first image
+                "paywall_message": f"Purchase the cookbook '{self.cookbook.title}' to view the full recipe including ingredients and instructions." if self.cookbook and self.cookbook.is_purchasable else None
+            })
         
         # Include user information for public recipes or when explicitly requested
         if include_user and self.user:

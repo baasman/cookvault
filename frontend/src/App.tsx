@@ -5,6 +5,8 @@ import { Layout } from './components/layout/Layout';
 import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { CookbookPurchaseSuccessPage } from './pages/CookbookPurchaseSuccessPage';
+import { CreateCookbookPage } from './pages/CreateCookbookPage';
 import CopyrightPolicyPage from './pages/CopyrightPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 
@@ -23,7 +25,9 @@ function App() {
               <Route path="/recipes/:id" element={<RecipeDetailPage />} />
               <Route path="/recipe-groups/:id" element={<RecipeGroupDetailPage />} />
               <Route path="/cookbooks" element={<CookbooksPage />} />
+              <Route path="/cookbooks/create" element={<CreateCookbookPage />} />
               <Route path="/cookbooks/:id" element={<CookbookDetailPage />} />
+              <Route path="/cookbooks/:cookbookId/purchase-success" element={<CookbookPurchaseSuccessPage />} />
               <Route path="/upload" element={<UploadPage />} />
               <Route path="/recipes/create" element={<CreateRecipePage />} />
               <Route path="/profile" element={<UserPage />} />

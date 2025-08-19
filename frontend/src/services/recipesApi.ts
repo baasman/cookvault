@@ -102,6 +102,27 @@ class RecipesApi {
     }
   }
 
+  async fetchRecipesByCookbook(cookbookId: number): Promise<RecipesResponse> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/cookbooks/${cookbookId}/recipes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching cookbook recipes:', error);
+      throw new Error('Failed to fetch cookbook recipes');
+    }
+  }
+
   async fetchRecipe(id: number): Promise<Recipe> {
     try {
       // First try with apiFetch (for authenticated users)

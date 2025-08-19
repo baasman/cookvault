@@ -14,6 +14,12 @@ export interface Cookbook {
   created_at: string;
   updated_at: string;
   recipes?: Recipe[]; // Only populated in detail view
+  // Purchase-related fields
+  is_purchasable?: boolean;
+  price?: number;
+  purchase_count?: number;
+  has_purchased?: boolean;
+  is_available_for_purchase?: boolean;
 }
 
 export interface Ingredient {
@@ -105,6 +111,8 @@ export interface Recipe {
     name: string;
     description?: string;
   }[];
+  has_full_access?: boolean;
+  paywall_message?: string;
 }
 
 export interface ProcessingJob {

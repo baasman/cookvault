@@ -12,6 +12,7 @@ import { AddToGroupButton } from '../components/recipe/AddToGroupButton';
 import { MakePublicButton } from '../components/recipe/MakePublicButton';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
+import { PaywallMessage } from '../components/recipe/PaywallMessage';
 import type { Recipe } from '../types';
 
 const RecipeDetailPage: React.FC = () => {
@@ -366,7 +367,13 @@ const RecipeDetailPage: React.FC = () => {
                 <h2 className="text-xl font-bold mb-4" style={{color: '#1c120d'}}>
                   Ingredients
                 </h2>
-                {recipe.ingredients && recipe.ingredients.length > 0 ? (
+                {recipe.has_full_access === false ? (
+                  <PaywallMessage 
+                    type="ingredients" 
+                    cookbook={recipe.cookbook}
+                    message={recipe.paywall_message}
+                  />
+                ) : recipe.ingredients && recipe.ingredients.length > 0 ? (
                   <ul className="space-y-3">
                     {recipe.ingredients
                       .sort((a, b) => a.order - b.order)
@@ -406,7 +413,13 @@ const RecipeDetailPage: React.FC = () => {
                 <h2 className="text-xl font-bold mb-4" style={{color: '#1c120d'}}>
                   Instructions
                 </h2>
-                {recipe.instructions && recipe.instructions.length > 0 ? (
+                {recipe.has_full_access === false ? (
+                  <PaywallMessage 
+                    type="instructions" 
+                    cookbook={recipe.cookbook}
+                    message={recipe.paywall_message}
+                  />
+                ) : recipe.instructions && recipe.instructions.length > 0 ? (
                   <ol className="space-y-4">
                     {recipe.instructions
                       .sort((a, b) => a.step_number - b.step_number)

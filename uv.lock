@@ -65,6 +65,7 @@ dependencies = [
     { name = "flask" },
     { name = "flask-bcrypt" },
     { name = "flask-cors" },
+    { name = "flask-jwt-extended" },
     { name = "flask-limiter" },
     { name = "flask-migrate" },
     { name = "flask-sqlalchemy" },
@@ -82,6 +83,7 @@ dependencies = [
     { name = "redis" },
     { name = "requests" },
     { name = "scikit-image" },
+    { name = "stripe" },
     { name = "werkzeug" },
 ]
 
@@ -103,6 +105,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.0.0" },
     { name = "flask-bcrypt", specifier = ">=1.0.1" },
     { name = "flask-cors", specifier = ">=4.0.0" },
+    { name = "flask-jwt-extended", specifier = ">=4.7.1" },
     { name = "flask-limiter", specifier = ">=3.5.0" },
     { name = "flask-migrate", specifier = ">=4.0.0" },
     { name = "flask-sqlalchemy", specifier = ">=3.1.0" },
@@ -127,6 +130,7 @@ requires-dist = [
     { name = "scikit-image", specifier = ">=0.25.2" },
     { name = "sqlalchemy", marker = "extra == 'dev'", specifier = ">=2.0.41" },
     { name = "sqlalchemy-stubs", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "stripe", specifier = ">=12.4.0" },
     { name = "werkzeug", specifier = ">=3.0.0" },
 ]
 
@@ -459,6 +463,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/20/e7/b3c6afdd984672b55dff07482699c688af6c01bd7fd5dd55f9c9d1a88d1c/flask_cors-6.0.0.tar.gz", hash = "sha256:4592c1570246bf7beee96b74bc0adbbfcb1b0318f6ba05c412e8909eceec3393", size = 11875 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/f0/0ee29090016345938f016ee98aa8b5de1c500ee93491dc0c76495848fca1/flask_cors-6.0.0-py3-none-any.whl", hash = "sha256:6332073356452343a8ccddbfec7befdc3fdd040141fe776ec9b94c262f058657", size = 11549 },
+]
+
+[[package]]
+name = "flask-jwt-extended"
+version = "4.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flask" },
+    { name = "pyjwt" },
+    { name = "werkzeug" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/51/16/96b101f18cba17ecce3225ab07bc4c8f23e6befd8552dbbed87482e7c7fb/flask_jwt_extended-4.7.1.tar.gz", hash = "sha256:8085d6757505b6f3291a2638c84d207e8f0ad0de662d1f46aa2f77e658a0c976", size = 34411 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/34/9a91da47b1565811ab4aa5fb134632c8d1757960bfa7d457f486947c4d75/Flask_JWT_Extended-4.7.1-py2.py3-none-any.whl", hash = "sha256:52f35bf0985354d7fb7b876e2eb0e0b141aaff865a22ff6cc33d9a18aa987978", size = 22588 },
 ]
 
 [[package]]
@@ -1477,6 +1495,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/81/60/db082788267740b17eac2c00666bbea1c8c5a94b569e8b1ea76b0cf42d57/sqlalchemy-stubs-0.4.tar.gz", hash = "sha256:c665d6dd4482ef642f01027fa06c3d5e91befabb219dc71fc2a09e7d7695f7ae", size = 70682 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/ae/cb215ab25b76228bc90c90444b87e323ffba58c212321a53d5bc92903098/sqlalchemy_stubs-0.4-py3-none-any.whl", hash = "sha256:5eec7aa110adf9b957b631799a72fef396b23ff99fe296df726645d01e312aa5", size = 116067 },
+]
+
+[[package]]
+name = "stripe"
+version = "12.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ed/48/98caed87572968a6f4077507080b64d21763e2b6109c26e7e994a65dbcb2/stripe-12.4.0.tar.gz", hash = "sha256:1cd1f5b0579867923081bacf594959d1f403f218223a06dc38273beb07d01567", size = 1414724 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/75/a513c6e3262e31d55b93d073629aaf6667c39ca3c00ff3d2e3cfc2d5cff1/stripe-12.4.0-py2.py3-none-any.whl", hash = "sha256:10720fcbf075a0b4e3eefb209a005c94564ac0f6166d284ff3164439f39af86c", size = 1654255 },
 ]
 
 [[package]]

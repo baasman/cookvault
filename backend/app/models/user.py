@@ -57,6 +57,9 @@ class User(db.Model):
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Stripe integration
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
+
     # Relationships
     passwords: Mapped[List["Password"]] = relationship(
         "Password", back_populates="user", cascade="all, delete-orphan"
@@ -82,6 +85,15 @@ class User(db.Model):
     )
     copyright_consents: Mapped[List["CopyrightConsent"]] = relationship(
         "CopyrightConsent", back_populates="user", cascade="all, delete-orphan"
+    )
+    subscription: Mapped[Optional["Subscription"]] = relationship(
+        "Subscription", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment", back_populates="user", cascade="all, delete-orphan"
+    )
+    cookbook_purchases: Mapped[List["CookbookPurchase"]] = relationship(
+        "CookbookPurchase", back_populates="user", cascade="all, delete-orphan"
     )
 
     def set_password(self, password: str) -> None:
@@ -139,6 +151,43 @@ class User(db.Model):
         """Clear password reset token and expiration."""
         self.password_reset_token = None
         self.password_reset_expires = None
+
+    def get_or_create_subscription(self) -> "Subscription":
+        """Get user's subscription or create a default free one."""
+        if not self.subscription:
+            from app.models.payment import Subscription, SubscriptionTier, SubscriptionStatus
+            subscription = Subscription(
+                user_id=self.id,
+                tier=SubscriptionTier.FREE,
+                status=SubscriptionStatus.ACTIVE
+            )
+            from app import db
+            db.session.add(subscription)
+            self.subscription = subscription
+        return self.subscription
+
+    def is_premium(self) -> bool:
+        """Check if user has active premium subscription."""
+        if not self.subscription:
+            return False
+        return self.subscription.is_premium()
+
+    def can_upload_recipe(self) -> bool:
+        """Check if user can upload another recipe based on their plan."""
+        subscription = self.get_or_create_subscription()
+        return subscription.can_upload_recipe()
+
+    def get_remaining_uploads(self) -> int:
+        """Get remaining uploads for current period."""
+        subscription = self.get_or_create_subscription()
+        return subscription.get_remaining_uploads()
+
+    def has_purchased_cookbook(self, cookbook_id: int) -> bool:
+        """Check if user has purchased access to a specific cookbook."""
+        for purchase in self.cookbook_purchases:
+            if purchase.cookbook_id == cookbook_id and purchase.has_access():
+                return True
+        return False
 
     def to_dict(self, include_sensitive: bool = False) -> dict:
         """Convert user to dictionary representation."""

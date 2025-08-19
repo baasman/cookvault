@@ -26,6 +26,9 @@ interface CreateCookbookData {
   publisher?: string;
   cover_image_url?: string;
   publication_date?: string;
+  // Paywall fields
+  is_purchasable?: boolean;
+  price?: number;
 }
 
 interface GoogleBook {

@@ -203,6 +203,16 @@ def create_cookbook(current_user) -> Response:
     title = data.get("title", "").strip()
     if not title:
         return jsonify({"error": "Title is required"}), 400
+    
+    # Validate paywall settings
+    is_purchasable = data.get("is_purchasable", False)
+    price = data.get("price")
+    
+    if is_purchasable and (price is None or price <= 0):
+        return jsonify({"error": "Price is required and must be greater than 0 for purchasable cookbooks"}), 400
+    
+    if not is_purchasable and price is not None:
+        return jsonify({"error": "Price should not be set for non-purchasable cookbooks"}), 400
 
     try:
         cookbook = Cookbook(
@@ -213,6 +223,9 @@ def create_cookbook(current_user) -> Response:
             publisher=data.get("publisher", "").strip() or None,
             cover_image_url=data.get("cover_image_url", "").strip() or None,
             user_id=current_user.id,
+            # Paywall settings
+            is_purchasable=data.get("is_purchasable", False),
+            price=data.get("price") if data.get("is_purchasable") else None,
         )
 
         # Handle publication_date if provided
@@ -285,6 +298,23 @@ def update_cookbook(current_user, cookbook_id: int) -> Response:
 
         if "cover_image_url" in data:
             cookbook.cover_image_url = data["cover_image_url"].strip() or None
+
+        # Update paywall settings
+        if "is_purchasable" in data:
+            cookbook.is_purchasable = bool(data["is_purchasable"])
+            
+        if "price" in data:
+            if cookbook.is_purchasable and data["price"] is not None:
+                try:
+                    from decimal import Decimal
+                    price = Decimal(str(data["price"]))
+                    if price < 0:
+                        return jsonify({"error": "Price cannot be negative"}), 400
+                    cookbook.price = price
+                except (ValueError, TypeError):
+                    return jsonify({"error": "Invalid price format"}), 400
+            else:
+                cookbook.price = None
 
         if "publication_date" in data:
             publication_date = data["publication_date"]

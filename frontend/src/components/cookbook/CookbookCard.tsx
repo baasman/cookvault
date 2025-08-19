@@ -3,13 +3,20 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Cookbook } from '../../types';
 import { decodeHtmlEntities } from '../../utils/textUtils';
+import { CookbookPurchaseButton } from '../payments';
 
 interface CookbookCardProps {
-  cookbook: Cookbook;
+  cookbook: Cookbook & {
+    is_purchasable?: boolean;
+    price?: number;
+    has_purchased?: boolean;
+    is_available_for_purchase?: boolean;
+  };
   onClick?: () => void;
+  showPurchaseButton?: boolean;
 }
 
-const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick }) => {
+const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick, showPurchaseButton = false }) => {
   const { user } = useAuth();
   
   const handleClick = () => {
@@ -74,11 +81,20 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick }) => {
           </div>
           
           {/* Recipe count badge */}
-          <div className="absolute top-3 right-3">
+          <div className="absolute top-3 left-3">
             <span className="px-2 py-1 text-xs font-medium text-white rounded-full bg-accent">
               {cookbook.recipe_count} recipe{cookbook.recipe_count !== 1 ? 's' : ''}
             </span>
           </div>
+
+          {/* Price badge */}
+          {cookbook.is_purchasable && cookbook.price && cookbook.price > 0 && (
+            <div className="absolute top-3 right-3">
+              <span className="px-2 py-1 text-xs font-medium text-white rounded-full bg-green-600">
+                ${cookbook.price.toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Cookbook Content */}
@@ -131,6 +147,27 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick }) => {
               </div>
             )}
           </div>
+
+          {/* Purchase Button */}
+          {showPurchaseButton && cookbook.is_purchasable && !isOwnCookbook && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <CookbookPurchaseButton
+                cookbook={{
+                  id: cookbook.id,
+                  title: cookbook.title,
+                  price: cookbook.price || 0,
+                  is_purchasable: cookbook.is_purchasable || false,
+                  has_purchased: cookbook.has_purchased,
+                  is_available_for_purchase: cookbook.is_available_for_purchase,
+                }}
+                size="sm"
+                onPurchaseSuccess={() => {
+                  // Refresh the page or update the cookbook state
+                  window.location.reload();
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </Link>

@@ -89,6 +89,13 @@ class Config:
         app.config['ANTHROPIC_API_KEY'] = os.environ.get("ANTHROPIC_API_KEY")
         app.config['GOOGLE_BOOKS_API_KEY'] = os.environ.get("GOOGLE_BOOKS_API_KEY")
 
+        # Stripe payment settings
+        app.config['STRIPE_SECRET_KEY'] = os.environ.get("STRIPE_SECRET_KEY")
+        app.config['STRIPE_PUBLISHABLE_KEY'] = os.environ.get("STRIPE_PUBLISHABLE_KEY")
+        app.config['STRIPE_WEBHOOK_SECRET'] = os.environ.get("STRIPE_WEBHOOK_SECRET")
+        app.config['STRIPE_PREMIUM_PRICE'] = int(os.environ.get("STRIPE_PREMIUM_PRICE", 299))  # $2.99 in cents
+        app.config['FREE_TIER_UPLOAD_LIMIT'] = int(os.environ.get("FREE_TIER_UPLOAD_LIMIT", 10))
+
         # OCR Quality and LLM fallback settings
         app.config['OCR_QUALITY_THRESHOLD'] = int(os.environ.get("OCR_QUALITY_THRESHOLD", 8))
         app.config['OCR_ENABLE_LLM_FALLBACK'] = os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"

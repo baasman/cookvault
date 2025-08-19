@@ -1,8 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
+  // Load env file from parent directory
+  const env = loadEnv(mode, path.resolve(__dirname, '..'), '')
   
   return {
     plugins: [react()],
@@ -58,6 +61,9 @@ export default defineConfig(({ mode }) => {
     // Environment variables
     define: {
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
+      // Pass VITE_ prefixed env vars from parent directory
+      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
+      'import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY': JSON.stringify(env.VITE_STRIPE_PUBLISHABLE_KEY),
     },
     
     // Preview server (for production builds)
