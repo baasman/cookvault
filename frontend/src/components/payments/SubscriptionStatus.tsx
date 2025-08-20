@@ -90,7 +90,7 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
   }
 
   const isPremium = subscription.is_premium;
-  const isCanceled = subscription.canceled_at !== null;
+  // const isCanceled = subscription.canceled_at !== null;
   const willCancel = subscription.cancel_at_period_end;
 
   return (

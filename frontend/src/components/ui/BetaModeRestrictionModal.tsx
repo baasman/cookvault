@@ -34,7 +34,7 @@ export const BetaModeRestrictionModal: React.FC<BetaModeRestrictionModalProps> =
   const { title, description } = getFeatureText();
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Beta Mode">
+    <Modal isOpen={isOpen} onClose={onClose}>
       <div className="p-6">
         {/* Beta Icon */}
         <div className="flex justify-center mb-6">

@@ -28,7 +28,7 @@ export const PaymentStatusHandler: React.FC<PaymentStatusHandlerProps> = ({
       try {
         // Get URL parameters
         const paymentIntent = searchParams.get('payment_intent');
-        const paymentIntentClientSecret = searchParams.get('payment_intent_client_secret');
+        // const paymentIntentClientSecret = searchParams.get('payment_intent_client_secret');
         const redirectStatus = searchParams.get('redirect_status');
         const cookbookId = searchParams.get('cookbook');
 

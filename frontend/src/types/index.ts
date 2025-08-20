@@ -295,6 +295,9 @@ export interface InputProps {
   type?: 'text' | 'email' | 'password' | 'number' | 'search' | 'date';
   icon?: React.ReactNode;
   className?: string;
+  step?: string;
+  min?: string;
+  max?: string;
 }
 
 export interface TextareaProps {

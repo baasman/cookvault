@@ -114,7 +114,7 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'overview' | 'payment' | 'processing' | 'success' | 'error'>('overview');
 
