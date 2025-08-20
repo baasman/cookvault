@@ -34,18 +34,13 @@ export function getImageUrl(filename: string): string {
   
   const imageUrl = `${apiUrl}/images/${filename}`;
   
-  // Debug logging to help diagnose production issues
-  console.log('Image URL Debug:', {
-    filename,
-    VITE_API_URL: import.meta.env.VITE_API_URL,
-    hostname: window.location.hostname,
-    apiUrl,
-    imageUrl,
-    isDev: import.meta.env.DEV,
-    isProd: import.meta.env.PROD,
-    mode: import.meta.env.MODE,
-    allEnvVars: import.meta.env
-  });
+  // Only log in development or if there's an issue
+  if (import.meta.env.DEV) {
+    console.log('Image URL Debug:', {
+      filename,
+      imageUrl
+    });
+  }
   
   return imageUrl;
 }

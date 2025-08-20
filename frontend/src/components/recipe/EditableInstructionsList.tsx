@@ -4,13 +4,21 @@ import { Button } from '../ui';
 interface EditableInstructionsListProps {
   instructions: string[];
   onChange: (instructions: string[]) => void;
+  editingIndex?: number | null;
+  onEditingIndexChange?: (index: number | null) => void;
 }
 
 export const EditableInstructionsList: React.FC<EditableInstructionsListProps> = ({
   instructions,
   onChange,
+  editingIndex: externalEditingIndex,
+  onEditingIndexChange,
 }) => {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [internalEditingIndex, setInternalEditingIndex] = useState<number | null>(null);
+  
+  // Use external editing index if provided, otherwise use internal state
+  const editingIndex = externalEditingIndex !== undefined ? externalEditingIndex : internalEditingIndex;
+  const setEditingIndex = onEditingIndexChange || setInternalEditingIndex;
 
   const addInstruction = () => {
     onChange([...instructions, '']);

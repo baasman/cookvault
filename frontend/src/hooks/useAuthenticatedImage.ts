@@ -18,12 +18,14 @@ export function useAuthenticatedImage(filename: string | null): UseAuthenticated
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const currentFilename = useRef<string | null>(null);
+  const prevSrc = useRef<string | null>(null);
 
   useEffect(() => {
     if (!filename) {
       setSrc(null);
       setLoading(false);
       setError(false);
+      prevSrc.current = null;
       return;
     }
 
@@ -35,15 +37,22 @@ export function useAuthenticatedImage(filename: string | null): UseAuthenticated
     currentFilename.current = filename;
     setLoading(true);
     setError(false);
-    setSrc(null);
+    // Don't clear src immediately - keep showing old image while loading new one
+    // This prevents the flicker
 
     loadAuthenticatedImage(filename)
       .then((blobUrl) => {
         if (currentFilename.current === filename) {
           if (blobUrl) {
+            // Revoke the previous blob URL to free memory
+            if (prevSrc.current && prevSrc.current !== blobUrl) {
+              URL.revokeObjectURL(prevSrc.current);
+            }
             setSrc(blobUrl);
+            prevSrc.current = blobUrl;
             setError(false);
           } else {
+            setSrc(null);
             setError(true);
           }
         }
@@ -51,6 +60,7 @@ export function useAuthenticatedImage(filename: string | null): UseAuthenticated
       .catch((err) => {
         console.error('Failed to load authenticated image:', err);
         if (currentFilename.current === filename) {
+          setSrc(null);
           setError(true);
         }
       })
@@ -66,7 +76,7 @@ export function useAuthenticatedImage(filename: string | null): UseAuthenticated
         currentFilename.current = null;
       }
     };
-  }, [filename, src]);
+  }, [filename]); // Remove 'src' from dependencies to prevent re-fetching
 
   return { src, loading, error };
 }

@@ -12,13 +12,21 @@ type EditableIngredient = {
 interface EditableIngredientsListProps {
   ingredients: EditableIngredient[];
   onChange: (ingredients: EditableIngredient[]) => void;
+  editingIndex?: number | null;
+  onEditingIndexChange?: (index: number | null) => void;
 }
 
 export const EditableIngredientsList: React.FC<EditableIngredientsListProps> = ({
   ingredients,
   onChange,
+  editingIndex: externalEditingIndex,
+  onEditingIndexChange,
 }) => {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [internalEditingIndex, setInternalEditingIndex] = useState<number | null>(null);
+  
+  // Use external editing index if provided, otherwise use internal state
+  const editingIndex = externalEditingIndex !== undefined ? externalEditingIndex : internalEditingIndex;
+  const setEditingIndex = onEditingIndexChange || setInternalEditingIndex;
 
   const addIngredient = () => {
     const newIngredient: EditableIngredient = {

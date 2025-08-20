@@ -139,10 +139,10 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
 
   return (
     <>
-      <Link to={`/recipes/${recipe.id}`} onClick={handleClick}>
-        <div className="group bg-white rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden" style={{borderColor: '#e8d7cf'}}>
+      <Link to={`/recipes/${recipe.id}`} onClick={handleClick} className="h-full">
+        <div className="group bg-white rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden h-full flex flex-col" style={{borderColor: '#e8d7cf'}}>
           {/* Recipe Image */}
-          <div className="aspect-video bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden">
+          <div className="aspect-video bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden flex-shrink-0">
             <AuthenticatedImage
               filename={primaryImage?.filename || null}
               alt={recipe.title}
@@ -235,18 +235,20 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
           </div>
 
           {/* Recipe Content */}
-          <div className="p-4">
+          <div className="p-4 flex flex-col flex-grow">
             {/* Recipe Title */}
             <h3 className="text-lg font-semibold text-text-primary group-hover:text-accent transition-colors line-clamp-2 mb-2">
               {recipe.title}
             </h3>
 
             {/* Recipe Description */}
-            {recipe.description && (
-              <p className="text-sm text-text-secondary line-clamp-2 mb-3">
-                {recipe.description}
-              </p>
-            )}
+            <div className="mb-3">
+              {recipe.description && (
+                <p className="text-sm text-text-secondary line-clamp-2">
+                  {recipe.description}
+                </p>
+              )}
+            </div>
 
             {/* Recipe Metadata */}
             <div className="flex items-center justify-between text-xs text-text-secondary mb-3">
@@ -281,7 +283,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
             </div>
 
             {/* Recipe Tags */}
-            <div className="flex flex-wrap gap-1 min-h-[28px]">
+            <div className="flex flex-wrap gap-1 min-h-[28px] mb-3">
               {recipe.tags && recipe.tags.length > 0 && (
                 <>
                   {recipe.tags.slice(0, 3).map((tag) => (
@@ -301,64 +303,70 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
               )}
             </div>
 
-            {/* Add to Collection Button */}
-            {showAddToCollection && (
-              <div 
-                className="mt-3" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-              >
-                <AddToCollectionButton recipe={recipe} size="sm" />
-              </div>
-            )}
+            {/* Spacer to push footer content to bottom */}
+            <div className="flex-grow"></div>
 
-            {/* Add to Group Button */}
-            {showAddToGroup && (
-              <div 
-                className="mt-3" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-              >
-                <AddToGroupButton recipe={recipe} size="sm" />
-              </div>
-            )}
+            {/* Footer Content - positioned at bottom */}
+            <div className="mt-auto">
+              {/* Add to Collection Button */}
+              {showAddToCollection && (
+                <div 
+                  className="mb-3" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  <AddToCollectionButton recipe={recipe} size="sm" />
+                </div>
+              )}
 
-            {/* User info for public recipes */}
-            {recipe.is_public && recipe.user && (
-              <div className="mt-3 pt-3 border-t border-primary-200">
-                <p className="text-xs text-text-secondary">
-                  By: <span className="font-medium text-text-primary">
-                    {recipe.user.first_name && recipe.user.last_name 
-                      ? `${recipe.user.first_name} ${recipe.user.last_name}` 
-                      : recipe.user.username}
-                  </span>
-                  {recipe.published_at && (
-                    <span className="ml-2">
-                      • Published {new Date(recipe.published_at).toLocaleDateString()}
+              {/* Add to Group Button */}
+              {showAddToGroup && (
+                <div 
+                  className="mb-3" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  <AddToGroupButton recipe={recipe} size="sm" />
+                </div>
+              )}
+
+              {/* User info for public recipes */}
+              {recipe.is_public && recipe.user && (
+                <div className="pt-3 border-t border-primary-200">
+                  <p className="text-xs text-text-secondary">
+                    By: <span className="font-medium text-text-primary">
+                      {recipe.user.first_name && recipe.user.last_name 
+                        ? `${recipe.user.first_name} ${recipe.user.last_name}` 
+                        : recipe.user.username}
                     </span>
-                  )}
-                </p>
-              </div>
-            )}
+                    {recipe.published_at && (
+                      <span className="ml-2">
+                        • Published {new Date(recipe.published_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
 
-            {/* Cookbook info */}
-            {recipe.cookbook && (
-              <div className={`mt-3 pt-3 border-t border-primary-200 ${recipe.is_public && recipe.user ? 'mt-2 pt-2' : ''}`}>
-                <p className="text-xs text-text-secondary">
-                  From: <button 
-                    onClick={handleCookbookClick}
-                    className="font-medium text-text-primary hover:text-accent transition-colors underline cursor-pointer bg-transparent border-none p-0"
-                  >
-                    {recipe.cookbook.title}
-                  </button>
-                  {recipe.page_number && ` • Page ${recipe.page_number}`}
-                </p>
-              </div>
-            )}
+              {/* Cookbook info */}
+              {recipe.cookbook && (
+                <div className={`pt-3 border-t border-primary-200 ${recipe.is_public && recipe.user ? 'pt-2' : ''}`}>
+                  <p className="text-xs text-text-secondary">
+                    From: <button 
+                      onClick={handleCookbookClick}
+                      className="font-medium text-text-primary hover:text-accent transition-colors underline cursor-pointer bg-transparent border-none p-0"
+                    >
+                      {recipe.cookbook.title}
+                    </button>
+                    {recipe.page_number && ` • Page ${recipe.page_number}`}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </Link>

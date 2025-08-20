@@ -41,6 +41,10 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
     difficulty: recipe.difficulty || '',
   });
 
+  // State to control editing modes in child components
+  const [ingredientsEditingIndex, setIngredientsEditingIndex] = useState<number | null>(null);
+  const [instructionsEditingIndex, setInstructionsEditingIndex] = useState<number | null>(null);
+
   const [ingredients, setIngredients] = useState<EditableIngredient[]>(
     recipe.ingredients?.map(ing => ({
       name: ing.name,
@@ -88,6 +92,8 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
       const updatedRecipe = await recipesApi.updateRecipeIngredients(recipe.id, {
         ingredients
       });
+      // Reset ingredients editing state on successful save
+      setIngredientsEditingIndex(null);
       onSave(updatedRecipe);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update ingredients');
@@ -104,6 +110,8 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
       const updatedRecipe = await recipesApi.updateRecipeInstructions(recipe.id, {
         instructions
       });
+      // Reset instructions editing state on successful save
+      setInstructionsEditingIndex(null);
       onSave(updatedRecipe);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update instructions');
@@ -301,6 +309,8 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
           <EditableIngredientsList
             ingredients={ingredients}
             onChange={setIngredients}
+            editingIndex={ingredientsEditingIndex}
+            onEditingIndexChange={setIngredientsEditingIndex}
           />
         )}
 
@@ -308,6 +318,8 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
           <EditableInstructionsList
             instructions={instructions}
             onChange={setInstructions}
+            editingIndex={instructionsEditingIndex}
+            onEditingIndexChange={setInstructionsEditingIndex}
           />
         )}
 
