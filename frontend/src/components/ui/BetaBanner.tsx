@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const BetaBanner: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
-  const STORAGE_KEY = 'cookvault-beta-banner-dismissed';
+  const STORAGE_KEY = 'cookle-beta-banner-dismissed';
 
   useEffect(() => {
     // Check if banner was previously dismissed
@@ -29,7 +29,7 @@ const BetaBanner: React.FC = () => {
         <div className="flex-1 flex items-center justify-center gap-2">
           <span className="text-amber-600 font-semibold">🚀 Beta Version</span>
           <span className="text-amber-800 text-sm md:text-base">
-            Welcome to CookVault! We're actively developing new features. Things may change as we improve the experience.
+            Welcome to Cookle! We're actively developing new features. Things may change as we improve the experience.
           </span>
         </div>
         <button

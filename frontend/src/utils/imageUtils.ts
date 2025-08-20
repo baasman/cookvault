@@ -18,9 +18,9 @@ export function getImageUrl(filename: string): string {
   // Auto-detect backend URL in production if VITE_API_URL is not set
   if (!apiUrl && import.meta.env.PROD) {
     const currentHost = window.location.hostname;
-    if (currentHost.includes('cookvault-frontend')) {
+    if (currentHost.includes('cookle-frontend')) {
       // Use your actual backend URL
-      apiUrl = 'https://cookvault-exaq.onrender.com/api';
+      apiUrl = 'https://cookle-backend.onrender.com/api';
     } else if (currentHost.includes('onrender.com')) {
       // Generic fallback for other Render deployments
       const backendHost = currentHost.replace('frontend', 'backend');

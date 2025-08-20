@@ -64,7 +64,7 @@ const RegisterPage: React.FC = () => {
           Create Account
         </h1>
         <p style={{color: '#9b644b'}}>
-          Join CookVault to start digitizing your recipes
+          Join Cookle to start digitizing your recipes
         </p>
       </div>
 

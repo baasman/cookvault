@@ -13,7 +13,7 @@ const HomePage: React.FC = () => {
         <div className="container">
           <div className="features-header">
             <h2>Core Features</h2>
-            <p>CookVault combines the best of digital and physical cookbook experiences, offering unique capabilities for cookbook enthusiasts.</p>
+            <p>Cookle combines the best of digital and physical cookbook experiences, offering unique capabilities for cookbook enthusiasts.</p>
           </div>
           <div className="features-grid">
             <div className="feature-card">
@@ -47,7 +47,7 @@ const HomePage: React.FC = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl lg:text-4xl font-bold text-text-primary mb-4">Two Ways to Build Your Library</h2>
             <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-              Whether you want to preserve your own recipes or discover new ones from professionals, CookVault has you covered.
+              Whether you want to preserve your own recipes or discover new ones from professionals, Cookle has you covered.
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">

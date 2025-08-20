@@ -1,7 +1,7 @@
 services:
   # Backend API Service
   - type: web
-    name: cookvault-backend
+    name: cookle-backend
     runtime: docker
     plan: starter
     dockerfilePath: ./backend/Dockerfile.render
@@ -41,7 +41,7 @@ services:
 
   # Frontend Static Site  
   - type: web
-    name: cookvault-frontend
+    name: cookle-frontend
     runtime: static
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
@@ -69,4 +69,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://cookvault-exaq.onrender.com/api
+        value: https://cookle-backend.onrender.com/api

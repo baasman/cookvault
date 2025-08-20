@@ -288,7 +288,7 @@ const CreateCookbookPage: React.FC = () => {
                   </h3>
                   <p className="text-blue-800 mb-4 leading-relaxed">
                     Want to monetize your recipes and create a premium cookbook experience? 
-                    We offer cookbook paywall features for qualified creators who want to sell their content through CookVault.
+                    We offer cookbook paywall features for qualified creators who want to sell their content through Cookle.
                   </p>
                   
                   <div className="space-y-3">
@@ -301,14 +301,14 @@ const CreateCookbookPage: React.FC = () => {
                     
                     <div className="bg-white rounded-lg p-4 border border-blue-300">
                       <a 
-                        href="mailto:admin@cookvault.com?subject=Interest in Cookbook Paywall Features"
+                        href="mailto:admin@cookle.food?subject=Interest in Cookbook Paywall Features"
                         className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium"
                       >
                         <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                           <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                         </svg>
-                        <span>admin@cookvault.com</span>
+                        <span>admin@cookle.food</span>
                       </a>
                     </div>
                     

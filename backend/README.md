@@ -1,6 +1,6 @@
-# CookVault Backend
+# Cookle Backend
 
-Backend API for the CookVault application - OCR and recipe digitization platform.
+Backend API for the Cookle application - OCR and recipe digitization platform.
 
 ## Setup
 
