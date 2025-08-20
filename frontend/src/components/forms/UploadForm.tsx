@@ -114,11 +114,23 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
 
         if (processedCount === validFiles.length) {
           // All files processed, update state
-          setImagePreviews(prev => [...prev, ...newPreviews]);
+          const newTotalFiles = [...imagePreviews, ...newPreviews];
+          const newTotalFileList = [...formData.images, ...validFiles];
+          
+          setImagePreviews(newTotalFiles);
           setFormData(prev => ({ 
             ...prev, 
-            images: [...prev.images, ...validFiles] 
+            images: newTotalFileList,
+            image: null // Clear single image when we have multiple
           }));
+          
+          // Automatically set mode based on total file count
+          setAutomaticMode(newTotalFileList.length);
+          
+          // Clear single image preview if we're now in multi mode
+          if (newTotalFileList.length > 1) {
+            setImagePreview(null);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -139,9 +151,18 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       return;
     }
 
-    setFormData(prev => ({ ...prev, image: file }));
+    // Clear any existing multi-image data and set single image mode
+    setFormData(prev => ({ 
+      ...prev, 
+      image: file,
+      images: [], // Clear multi-image array
+      isMultiImage: false // Single file = single image mode
+    }));
     
-    // Create preview
+    // Clear multi-image previews
+    setImagePreviews([]);
+    
+    // Create single image preview
     const reader = new FileReader();
     reader.onload = (e) => {
       setImagePreview(e.target?.result as string);
@@ -165,34 +186,28 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     setDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      if (formData.isMultiImage || e.dataTransfer.files.length > 1) {
-        // Switch to multi-image mode if multiple files dropped
-        if (!formData.isMultiImage) {
-          setFormData(prev => ({ ...prev, isMultiImage: true, image: null }));
-          setImagePreview(null);
-        }
-        handleMultipleFiles(e.dataTransfer.files);
-      } else {
+      if (e.dataTransfer.files.length === 1) {
+        // Single file dropped - use single image mode
         handleFileSelect(e.dataTransfer.files[0]);
+      } else {
+        // Multiple files dropped - use multi-image mode
+        handleMultipleFiles(e.dataTransfer.files);
       }
     }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      if (formData.isMultiImage) {
-        handleMultipleFiles(e.target.files);
-      } else {
+      if (e.target.files.length === 1) {
+        // Single file selected - use single image mode
         handleFileSelect(e.target.files[0]);
+      } else {
+        // Multiple files selected - use multi-image mode
+        handleMultipleFiles(e.target.files);
       }
     }
   };
 
-  const handleMultiFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleMultipleFiles(e.target.files);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,7 +255,11 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
   };
 
   const clearImage = () => {
-    setFormData(prev => ({ ...prev, image: null }));
+    setFormData(prev => ({ 
+      ...prev, 
+      image: null,
+      isMultiImage: false 
+    }));
     setImagePreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -257,7 +276,36 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       const imageToRemove = imagePreviews.find(img => img.id === imageId);
       if (imageToRemove) {
         const filteredFiles = prev.images.filter(file => file !== imageToRemove.file);
-        return { ...prev, images: filteredFiles };
+        
+        // Automatically adjust mode based on remaining file count
+        if (filteredFiles.length === 1) {
+          // Switch to single image mode
+          const remainingFile = filteredFiles[0];
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            setImagePreview(e.target?.result as string);
+          };
+          reader.readAsDataURL(remainingFile);
+          
+          return { 
+            ...prev, 
+            images: [], 
+            image: remainingFile,
+            isMultiImage: false 
+          };
+        } else if (filteredFiles.length === 0) {
+          // No files left - reset both modes
+          setImagePreview(null);
+          return { 
+            ...prev, 
+            images: [], 
+            image: null,
+            isMultiImage: false 
+          };
+        } else {
+          // Still multiple files - stay in multi mode
+          return { ...prev, images: filteredFiles };
+        }
       }
       return prev;
     });
@@ -265,7 +313,11 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
 
   const clearAllImages = () => {
     setImagePreviews([]);
-    setFormData(prev => ({ ...prev, images: [] }));
+    setFormData(prev => ({ 
+      ...prev, 
+      images: [],
+      isMultiImage: false 
+    }));
     if (multiFileInputRef.current) {
       multiFileInputRef.current.value = '';
     }
@@ -291,75 +343,26 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     });
   };
 
-  const toggleUploadMode = () => {
-    const newIsMultiImage = !formData.isMultiImage;
-    
-    if (newIsMultiImage) {
-      // Switching to multi-image mode
-      if (formData.image) {
-        // Convert single image to multi-image format
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const preview: ImagePreview = {
-            file: formData.image!,
-            preview: e.target?.result as string,
-            id: generateImageId(),
-            order: 0
-          };
-          setImagePreviews([preview]);
-        };
-        reader.readAsDataURL(formData.image);
-        setFormData(prev => ({ 
-          ...prev, 
-          isMultiImage: true, 
-          images: [prev.image!], 
-          image: null 
-        }));
-        setImagePreview(null);
-      } else {
-        setFormData(prev => ({ ...prev, isMultiImage: true }));
-      }
-    } else {
-      // Switching to single-image mode
-      if (imagePreviews.length > 0) {
-        const firstImage = imagePreviews[0];
-        setFormData(prev => ({ 
-          ...prev, 
-          isMultiImage: false, 
-          image: firstImage.file, 
-          images: [] 
-        }));
-        setImagePreview(firstImage.preview);
-        setImagePreviews([]);
-      } else {
-        setFormData(prev => ({ ...prev, isMultiImage: false, images: [] }));
-      }
-    }
+  const setAutomaticMode = (fileCount: number) => {
+    const shouldBeMultiImage = fileCount > 1;
+    setFormData(prev => ({ ...prev, isMultiImage: shouldBeMultiImage }));
   };
+
 
   return (
     <div className="flex flex-col w-full max-w-[512px] mx-auto">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6 px-4 py-3">
         {/* Image Upload Area */}
         <div className="flex flex-col">
-          <div className="flex items-center justify-between pb-2">
+          <div className="pb-2">
             <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
               Recipe Image{formData.isMultiImage ? 's' : ''} *
             </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleUploadMode}
-                className="text-sm px-3 py-1 rounded-full border transition-colors"
-                style={{
-                  borderColor: '#e8d7cf',
-                  backgroundColor: formData.isMultiImage ? '#f15f1c' : '#fcf9f8',
-                  color: formData.isMultiImage ? 'white' : '#1c120d'
-                }}
-              >
-                {formData.isMultiImage ? 'Multi-page' : 'Single page'}
-              </button>
-            </div>
+            {formData.isMultiImage && formData.images.length > 0 && (
+              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
+                Multi-page mode: {formData.images.length} page{formData.images.length > 1 ? 's' : ''} selected
+              </p>
+            )}
           </div>
           
           {formData.isMultiImage ? (
@@ -386,7 +389,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   type="file"
                   accept="image/png,image/jpg,image/jpeg,image/gif,image/bmp,image/tiff"
                   multiple
-                  onChange={handleMultiFileInput}
+                  onChange={handleFileInput}
                   className="hidden"
                 />
                 
@@ -395,10 +398,10 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                   <p className="text-sm font-medium mb-1" style={{color: '#1c120d'}}>
-                    Drop multiple recipe images here
+                    Drop your recipe images here
                   </p>
                   <p className="text-xs" style={{color: '#9b644b'}}>
-                    or click to browse files
+                    or click to browse files (1+ files automatically switches to multi-page)
                   </p>
                   <p className="text-xs mt-1" style={{color: '#9b644b'}}>
                     PNG, JPG, JPEG, GIF, BMP, TIFF • Max 10 images • 50MB total
@@ -495,12 +498,13 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              onClick={() => formData.isMultiImage ? multiFileInputRef.current?.click() : fileInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
             >
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpg,image/jpeg,image/gif,image/bmp,image/tiff"
+                multiple
                 onChange={handleFileInput}
                 className="hidden"
               />
@@ -532,13 +536,13 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <p className="text-sm font-medium mb-1" style={{color: '#1c120d'}}>
-                  Drop your recipe image here
+                  Drop your recipe image(s) here
                 </p>
                 <p className="text-xs" style={{color: '#9b644b'}}>
-                  or click to browse files
+                  or click to browse files (multiple files will switch to multi-page automatically)
                 </p>
                 <p className="text-xs mt-1" style={{color: '#9b644b'}}>
-                  PNG, JPG, JPEG, GIF, BMP, TIFF up to 10MB
+                  PNG, JPG, JPEG, GIF, BMP, TIFF up to 10MB each
                 </p>
               </div>
             )}

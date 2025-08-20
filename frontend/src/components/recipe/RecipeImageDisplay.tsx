@@ -91,7 +91,12 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
     }
   };
 
-  const handleClick = () => {
+  const handleClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (isEditMode && canEdit) {
       fileInputRef.current?.click();
     } else if (primaryImage) {
@@ -130,7 +135,7 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
                 className="hidden"
               />
               <div 
-                onClick={handleClick}
+                onClick={(e) => handleClick(e)}
                 className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-xl cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100"
               >
                 <div className="text-white text-center">
@@ -147,7 +152,7 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
           {/* View overlay hint for non-edit mode */}
           {!isEditMode && primaryImage && (
             <div 
-              onClick={handleClick}
+              onClick={(e) => handleClick(e)}
               className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100"
             >
               <div className="text-white text-center">

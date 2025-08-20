@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { PremiumUpgradeModal } from '../payments/PremiumUpgradeModal';
+import { BetaModeRestrictionModal } from '../ui/BetaModeRestrictionModal';
+import { useBetaModeRestriction } from '../../hooks/useBetaModeRestriction';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import type { NavItem } from '../../types';
 
@@ -20,6 +22,9 @@ const Header: React.FC<HeaderProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  
+  // Beta mode restriction hook
+  const { checkBetaRestriction, betaModalState, closeBetaModal } = useBetaModeRestriction();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -88,7 +93,12 @@ const Header: React.FC<HeaderProps> = ({
                       <Button 
                         variant="primary" 
                         size="sm"
-                        onClick={() => setShowUpgradeModal(true)}
+                        onClick={() => {
+                          if (checkBetaRestriction('premium')) {
+                            return; // Beta modal will be shown by hook
+                          }
+                          setShowUpgradeModal(true);
+                        }}
                         className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white"
                       >
                         ⭐ Upgrade to Premium
@@ -173,6 +183,10 @@ const Header: React.FC<HeaderProps> = ({
                           variant="primary" 
                           size="md"
                           onClick={() => {
+                            if (checkBetaRestriction('premium')) {
+                              setIsMobileMenuOpen(false);
+                              return; // Beta modal will be shown by hook
+                            }
                             setShowUpgradeModal(true);
                             setIsMobileMenuOpen(false);
                           }}
@@ -244,6 +258,15 @@ const Header: React.FC<HeaderProps> = ({
           isOpen={showUpgradeModal}
           onClose={() => setShowUpgradeModal(false)}
           onSuccess={handleUpgradeSuccess}
+        />
+        
+        {/* Beta Mode Restriction Modal */}
+        <BetaModeRestrictionModal
+          isOpen={betaModalState.isOpen}
+          onClose={closeBetaModal}
+          feature={betaModalState.feature}
+          cookbookTitle={betaModalState.cookbookTitle}
+          price={betaModalState.price}
         />
       </header>
   );

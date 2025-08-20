@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Button } from '../ui/Button';
+import { BetaModeRestrictionModal } from '../ui/BetaModeRestrictionModal';
+import { useBetaModeRestriction } from '../../hooks/useBetaModeRestriction';
 import { paymentsApi, type PaymentIntent } from '../../services/paymentsApi';
 
 interface CookbookPurchaseButtonProps {
@@ -27,8 +29,19 @@ export const CookbookPurchaseButton: React.FC<CookbookPurchaseButtonProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Beta mode restriction hook
+  const { checkBetaRestriction, betaModalState, closeBetaModal } = useBetaModeRestriction();
 
   const handlePurchase = async () => {
+    // Check beta restriction first
+    if (checkBetaRestriction('cookbook', { 
+      cookbookTitle: cookbook.title, 
+      price: cookbook.price 
+    })) {
+      return; // Beta modal will be shown by hook
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -128,6 +141,15 @@ export const CookbookPurchaseButton: React.FC<CookbookPurchaseButtonProps> = ({
           {error}
         </div>
       )}
+      
+      {/* Beta Mode Restriction Modal */}
+      <BetaModeRestrictionModal
+        isOpen={betaModalState.isOpen}
+        onClose={closeBetaModal}
+        feature={betaModalState.feature}
+        cookbookTitle={betaModalState.cookbookTitle}
+        price={betaModalState.price}
+      />
     </div>
   );
 };

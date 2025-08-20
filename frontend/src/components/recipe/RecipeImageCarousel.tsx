@@ -140,7 +140,11 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
             filename={currentImage.filename}
             alt={`${recipe.title} - Image ${currentIndex + 1}`}
             className="w-full h-full object-cover cursor-pointer"
-            onClick={() => setShowModal(true)}
+            onClick={(e: React.MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowModal(true);
+            }}
             fallback={
               <div className="w-full h-full flex items-center justify-center">
                 <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
@@ -151,7 +155,14 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
           />
 
           {/* View hint overlay */}
-          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100 z-10"
+            onClick={(e: React.MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowModal(true);
+            }}
+          >
             <div className="text-white text-center">
               <svg className="h-8 w-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
