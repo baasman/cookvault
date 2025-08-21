@@ -2,6 +2,7 @@
  * Utility functions for handling authenticated image loading
  */
 import { apiFetch } from './apiInterceptor';
+import { getApiUrl } from './getApiUrl';
 
 // Cache for blob URLs to avoid re-fetching images
 const imageBlobCache = new Map<string, string>();
@@ -13,25 +14,7 @@ const loadingImages = new Set<string>();
  * Get the correct image URL for a given filename
  */
 export function getImageUrl(filename: string): string {
-  let apiUrl = import.meta.env.VITE_API_URL;
-  
-  // Auto-detect backend URL in production if VITE_API_URL is not set
-  if (!apiUrl && import.meta.env.PROD) {
-    const currentHost = window.location.hostname;
-    if (currentHost.includes('cookle-frontend')) {
-      // Use your actual backend URL
-      apiUrl = 'https://cookle-backend.onrender.com/api';
-    } else if (currentHost.includes('onrender.com')) {
-      // Generic fallback for other Render deployments
-      const backendHost = currentHost.replace('frontend', 'backend');
-      apiUrl = `https://${backendHost}/api`;
-    } else {
-      apiUrl = '/api'; // fallback to relative URL
-    }
-  } else if (!apiUrl) {
-    apiUrl = '/api'; // development fallback
-  }
-  
+  const apiUrl = getApiUrl();
   const imageUrl = `${apiUrl}/images/${filename}`;
   
   // Only log in development or if there's an issue

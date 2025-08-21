@@ -1,5 +1,6 @@
 import type { Recipe } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
+import { getApiUrl } from '../utils/getApiUrl';
 
 export interface RecipeGroup {
   id: number;
@@ -50,7 +51,7 @@ interface GetGroupParams {
 }
 
 class RecipeGroupsApi {
-  private baseUrl = import.meta.env.VITE_API_URL || '/api';
+  private baseUrl = getApiUrl();
 
   async getRecipeGroups(): Promise<RecipeGroupsResponse> {
     try {

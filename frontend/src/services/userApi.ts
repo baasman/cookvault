@@ -1,8 +1,9 @@
 import type { UserProfile } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
+import { getApiUrl } from '../utils/getApiUrl';
 
 class UserApi {
-  private baseUrl = import.meta.env.VITE_API_URL || '/api';
+  private baseUrl = getApiUrl();
 
   async fetchUserProfile(): Promise<UserProfile> {
     try {

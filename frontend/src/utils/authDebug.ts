@@ -2,6 +2,8 @@
  * Authentication debugging utilities for production troubleshooting
  */
 
+import { getApiUrl } from './getApiUrl';
+
 const isDevelopment = import.meta.env.DEV;
 const isProduction = import.meta.env.PROD;
 
@@ -45,7 +47,7 @@ export const debugCookies = () => {
  * Test if we can reach the backend
  */
 export const debugBackendConnection = async () => {
-  const apiUrl = import.meta.env.VITE_API_URL || '/api';
+  const apiUrl = getApiUrl();
   
   try {
     debugAuth('Testing backend connection', `${apiUrl}/health`);
@@ -94,7 +96,7 @@ export const disableProductionDebug = () => {
 export const getAuthDebugInfo = () => {
   const info = {
     environment: isDevelopment ? 'development' : 'production',
-    apiUrl: import.meta.env.VITE_API_URL || '/api',
+    apiUrl: getApiUrl(),
     authToken: localStorage.getItem('auth_token') ? 'present' : 'missing',
     sessionStorage: Object.keys(sessionStorage).filter(k => k.includes('auth')),
     cookies: document.cookie.split(';').map(c => c.trim()),

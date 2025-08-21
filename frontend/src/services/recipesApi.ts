@@ -1,5 +1,6 @@
 import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
+import { getApiUrl } from '../utils/getApiUrl';
 
 interface FetchRecipesParams {
   page?: number;
@@ -38,7 +39,7 @@ interface UpdateTagsParams {
 }
 
 class RecipesApi {
-  private baseUrl = import.meta.env.VITE_API_URL || '/api';
+  private baseUrl = getApiUrl();
 
   async createEmptyRecipe(title: string, cookbook_id?: number): Promise<Recipe> {
     try {

@@ -1,5 +1,6 @@
 import type { Cookbook } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
+import { getApiUrl } from '../utils/getApiUrl';
 
 interface FetchCookbooksParams {
   page?: number;
@@ -51,7 +52,7 @@ interface GoogleBooksResponse {
 }
 
 class CookbooksApi {
-  private baseUrl = import.meta.env.VITE_API_URL || '/api';
+  private baseUrl = getApiUrl();
 
   async fetchCookbooks(params: FetchCookbooksParams = {}): Promise<CookbooksResponse> {
     const { page = 1, per_page = 12, search, sort_by = 'title' } = params;
