@@ -11,6 +11,7 @@ from app.api import bp
 from app.api.auth import require_auth, should_apply_user_filter
 from app.models import Cookbook, Recipe
 from app.services.google_books_service import GoogleBooksService, GoogleBooksAPIError
+from app.services.cloudinary_service import cloudinary_service
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "tiff"}
 
@@ -508,22 +509,49 @@ def upload_cookbook_image(current_user, cookbook_id: int) -> Response:
         return jsonify({"error": "Invalid file type"}), 400
 
     try:
-        # Generate unique filename
-        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        file_path = upload_folder / filename
-
-        # Save file
-        file.save(str(file_path))
+        # Read file data
+        file.seek(0)
+        file_data = file.read()
+        file.seek(0)
+        
+        image_url = None
+        
+        # Try Cloudinary first if enabled
+        if cloudinary_service.is_enabled():
+            try:
+                current_app.logger.info("Uploading cookbook image to Cloudinary...")
+                cloudinary_result = cloudinary_service.upload_image(
+                    file_data, 
+                    file.filename, 
+                    folder="cookbook-covers",
+                    generate_thumbnail=True
+                )
+                image_url = cloudinary_result['url']
+                current_app.logger.info(f"Successfully uploaded cookbook image to Cloudinary: {cloudinary_result['public_id']}")
+                
+            except Exception as e:
+                current_app.logger.error(f"Cloudinary upload failed, falling back to local storage: {str(e)}")
+        
+        # Local storage fallback if Cloudinary failed or not enabled
+        if not image_url:
+            filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
+            upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+            file_path = upload_folder / filename
+            
+            # Save file locally
+            with open(file_path, 'wb') as f:
+                f.write(file_data)
+            
+            image_url = f"/api/images/{filename}"
+            current_app.logger.info(f"Saved cookbook image locally: {file_path}")
 
         # Update cookbook with new image URL
-        cookbook.cover_image_url = f"/api/images/{filename}"
+        cookbook.cover_image_url = image_url
         db.session.commit()
 
         return jsonify(
             {
                 "message": "Cookbook image uploaded successfully",
-                "filename": filename,
                 "image_url": cookbook.cover_image_url,
             }
         )

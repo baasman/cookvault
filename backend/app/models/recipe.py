@@ -578,8 +578,20 @@ class RecipeImage(db.Model):
 
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
+    # Cloudinary fields
+    cloudinary_public_id: Mapped[Optional[str]] = mapped_column(String(255))
+    cloudinary_url: Mapped[Optional[str]] = mapped_column(String(500))
+    cloudinary_thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500))
+    cloudinary_width: Mapped[Optional[int]] = mapped_column(Integer)
+    cloudinary_height: Mapped[Optional[int]] = mapped_column(Integer)
+    cloudinary_format: Mapped[Optional[str]] = mapped_column(String(10))
+    cloudinary_bytes: Mapped[Optional[int]] = mapped_column(Integer)
+    
     # Add index for recipe_id + image_order for efficient ordering queries
-    __table_args__ = (db.Index('idx_recipe_image_order', 'recipe_id', 'image_order'),)
+    __table_args__ = (
+        db.Index('idx_recipe_image_order', 'recipe_id', 'image_order'),
+        db.Index('idx_recipe_image_cloudinary_public_id', 'cloudinary_public_id'),
+    )
 
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe", back_populates="images")
 
@@ -594,6 +606,14 @@ class RecipeImage(db.Model):
             "image_order": self.image_order,
             "page_number": self.page_number,
             "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+            # Cloudinary fields
+            "cloudinary_public_id": self.cloudinary_public_id,
+            "cloudinary_url": self.cloudinary_url,
+            "cloudinary_thumbnail_url": self.cloudinary_thumbnail_url,
+            "cloudinary_width": self.cloudinary_width,
+            "cloudinary_height": self.cloudinary_height,
+            "cloudinary_format": self.cloudinary_format,
+            "cloudinary_bytes": self.cloudinary_bytes,
         }
 
 

@@ -30,12 +30,122 @@ from app.models import (
 from app.models.recipe import recipe_ingredients
 from app.services.ocr_service import OCRService
 from app.services.recipe_parser import RecipeParser
+from app.services.cloudinary_service import cloudinary_service
+import requests
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "tiff"}
 
 
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def process_and_save_image(file, original_filename: str, folder: str = "recipes") -> RecipeImage:
+    """
+    Process and save an image file, using Cloudinary if enabled, otherwise local storage.
+    
+    Args:
+        file: The uploaded file object
+        original_filename: The original filename from the user
+        folder: The Cloudinary folder to upload to (if using Cloudinary)
+        
+    Returns:
+        RecipeImage: The created RecipeImage object
+    """
+    filename = secure_filename(f"{uuid.uuid4().hex}_{original_filename}")
+    
+    # Read file data for Cloudinary upload
+    file.seek(0)
+    file_data = file.read()
+    file.seek(0)  # Reset for local save if needed
+    
+    recipe_image = RecipeImage(
+        filename=filename,
+        original_filename=original_filename,
+        file_size=len(file_data),
+        content_type=file.content_type or "image/jpeg",
+    )
+    
+    # Try Cloudinary first if enabled
+    if cloudinary_service.is_enabled():
+        try:
+            current_app.logger.info("Uploading image to Cloudinary...")
+            cloudinary_result = cloudinary_service.upload_image(
+                file_data, 
+                original_filename, 
+                folder=folder,
+                generate_thumbnail=True
+            )
+            
+            # Store Cloudinary information
+            recipe_image.cloudinary_public_id = cloudinary_result['public_id']
+            recipe_image.cloudinary_url = cloudinary_result['url']
+            recipe_image.cloudinary_thumbnail_url = cloudinary_result.get('thumbnail_url')
+            recipe_image.cloudinary_width = cloudinary_result['width']
+            recipe_image.cloudinary_height = cloudinary_result['height']
+            recipe_image.cloudinary_format = cloudinary_result['format']
+            recipe_image.cloudinary_bytes = cloudinary_result['bytes']
+            
+            # For Cloudinary images, we don't need local file path
+            recipe_image.file_path = f"cloudinary:{cloudinary_result['public_id']}"
+            
+            current_app.logger.info(f"Successfully uploaded to Cloudinary: {cloudinary_result['public_id']}")
+            
+        except Exception as e:
+            current_app.logger.error(f"Cloudinary upload failed, falling back to local storage: {str(e)}")
+            # Fall through to local storage
+    
+    # Local storage fallback (or primary if Cloudinary not enabled)
+    if not recipe_image.cloudinary_public_id:
+        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
+        file_path = upload_folder / filename
+        
+        # Save file locally
+        with open(file_path, 'wb') as f:
+            f.write(file_data)
+        
+        recipe_image.file_path = str(file_path)
+        current_app.logger.info(f"Saved image locally: {file_path}")
+    
+    return recipe_image
+
+
+def get_image_data_for_ocr(recipe_image: RecipeImage) -> bytes:
+    """
+    Get image data for OCR processing, handling both Cloudinary and local images.
+    
+    Args:
+        recipe_image: RecipeImage object
+        
+    Returns:
+        bytes: Image data
+        
+    Raises:
+        Exception: If image cannot be retrieved
+    """
+    # Check if it's a Cloudinary image
+    if recipe_image.file_path.startswith('cloudinary:'):
+        if not recipe_image.cloudinary_url:
+            raise Exception("Cloudinary image has no URL")
+        
+        current_app.logger.info(f"Downloading Cloudinary image for OCR: {recipe_image.cloudinary_url}")
+        
+        try:
+            response = requests.get(recipe_image.cloudinary_url, timeout=30)
+            response.raise_for_status()
+            return response.content
+        except Exception as e:
+            current_app.logger.error(f"Failed to download Cloudinary image: {e}")
+            raise Exception(f"Failed to download Cloudinary image: {str(e)}")
+    
+    # Local image
+    else:
+        image_path = Path(recipe_image.file_path)
+        if not image_path.exists():
+            raise Exception(f"Local image file not found: {image_path}")
+        
+        current_app.logger.info(f"Reading local image for OCR: {image_path}")
+        return image_path.read_bytes()
 
 
 def safe_int_conversion(value: Any) -> int | None:
@@ -380,20 +490,9 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
             return jsonify({"error": "Invalid page_number"}), 400
 
     try:
-        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        file_path = upload_folder / filename
-
-        file.save(file_path)
-
-        recipe_image = RecipeImage(
-            filename=filename,
-            original_filename=file.filename,
-            file_path=str(file_path),
-            file_size=file_path.stat().st_size,
-            content_type=file.content_type or "image/jpeg",
-        )
-
+        # Use the new helper function to handle image processing
+        recipe_image = process_and_save_image(file, file.filename, folder="recipes")
+        
         db.session.add(recipe_image)
         db.session.flush()
 
@@ -746,24 +845,10 @@ def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
         return jsonify({"error": "File type not allowed"}), 400
 
     try:
-        # Generate secure filename
-        filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        file_path = upload_folder / filename
-
-        # Save the file
-        file.save(file_path)
-
-        # Create recipe image record
-        recipe_image = RecipeImage(
-            recipe_id=recipe.id,
-            filename=filename,
-            original_filename=file.filename,
-            file_path=str(file_path),
-            file_size=file_path.stat().st_size,
-            content_type=file.content_type or "image/jpeg",
-        )
-
+        # Use the new helper function to handle image processing
+        recipe_image = process_and_save_image(file, file.filename, folder="recipes")
+        recipe_image.recipe_id = recipe.id
+        
         db.session.add(recipe_image)
         db.session.commit()
 
@@ -775,14 +860,7 @@ def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
             jsonify(
                 {
                     "message": "Image uploaded successfully",
-                    "image": {
-                        "id": recipe_image.id,
-                        "filename": recipe_image.filename,
-                        "original_filename": recipe_image.original_filename,
-                        "file_size": recipe_image.file_size,
-                        "content_type": recipe_image.content_type,
-                        "uploaded_at": recipe_image.uploaded_at.isoformat(),
-                    },
+                    "image": recipe_image.to_dict(),
                 }
             ),
             201,
@@ -843,6 +921,11 @@ def serve_image(current_user, filename: str) -> Response:
 
                 if not can_access:
                     return jsonify({"error": "Access denied"}), 403
+            
+            # If image is stored in Cloudinary, redirect to Cloudinary URL
+            if recipe_image.cloudinary_url:
+                from flask import redirect
+                return redirect(recipe_image.cloudinary_url)
         else:
             # Check if it's a cookbook cover image
             cookbook = Cookbook.query.filter(
@@ -910,7 +993,14 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         from app.services.llm_ocr_service import LLMOCRService
 
         llm_ocr_service = LLMOCRService()
-        image_path = Path(recipe_image.file_path)
+        
+        # Get image data (handles both Cloudinary and local images)
+        try:
+            image_data = get_image_data_for_ocr(recipe_image)
+            source_info = f"job_{job.id}_image_{recipe_image.id}"
+        except Exception as e:
+            current_app.logger.error(f"Failed to get image data for OCR: {e}")
+            raise
 
         current_app.logger.info(
             f"Starting single-pass extract+parse for image {job.image_id}"
@@ -922,7 +1012,7 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         start_time = time.time()
 
         try:
-            comprehensive_result = llm_ocr_service.extract_and_parse_recipe(image_path)
+            comprehensive_result = llm_ocr_service.extract_and_parse_recipe(image_data, source_info)
             processing_time = time.time() - start_time
             current_app.logger.info(
                 f"LLM processing completed in {processing_time:.1f}s"
@@ -1022,12 +1112,19 @@ def _extract_text_from_image(image_id: int) -> str:
     from app.services.llm_ocr_service import LLMOCRService
 
     llm_ocr_service = LLMOCRService()
-    image_path = Path(recipe_image.file_path)
+    
+    # Get image data (handles both Cloudinary and local images)
+    try:
+        image_data = get_image_data_for_ocr(recipe_image)
+        source_info = f"image_{recipe_image.id}"
+    except Exception as e:
+        current_app.logger.error(f"Failed to get image data for OCR: {e}")
+        raise
 
     current_app.logger.info(f"Starting LLM-only OCR extraction for image {image_id}")
 
     # Direct LLM extraction (bypasses traditional OCR completely)
-    extracted_text = llm_ocr_service.extract_text_from_image(image_path)
+    extracted_text = llm_ocr_service.extract_text_from_image(image_data, source_info)
 
     # Create extraction result in same format for compatibility
     extraction_result = {
@@ -2576,7 +2673,24 @@ def process_multi_image_job(multi_job_id: int):
                     current_app.logger.info(
                         f"Processing image {i+1}/{len(image_paths)}: {image_path}"
                     )
-                    extracted_text = llm_ocr_service.extract_text_from_image(image_path)
+                    
+                    # Get the RecipeImage object to determine if it's Cloudinary or local
+                    recipe_image = db.session.get(RecipeImage, image_path)
+                    if recipe_image:
+                        # Use helper function to get image data (handles both Cloudinary and local)
+                        image_data = get_image_data_for_ocr(recipe_image)
+                        source_info = recipe_image.file_path
+                    else:
+                        # Fallback: treat as local file path (legacy behavior)
+                        try:
+                            with open(image_path, 'rb') as f:
+                                image_data = f.read()
+                            source_info = str(image_path)
+                        except Exception as read_error:
+                            current_app.logger.error(f"Failed to read local image file {image_path}: {str(read_error)}")
+                            raise
+                    
+                    extracted_text = llm_ocr_service.extract_text_from_image(image_data, source_info)
                     combined_text += f"\n--- Page {i+1} ---\n{extracted_text}\n"
                     successful_extractions += 1
 

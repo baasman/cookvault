@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import re
+import time
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -42,6 +43,48 @@ class LLMOCRService:
         except Exception:
             # Fall back to None if Redis is unavailable
             return None
+    
+    def _make_api_call_with_retry(self, api_call_func, max_retries: int = 3, base_delay: float = 1.0):
+        """
+        Make an API call with exponential backoff retry logic.
+        
+        Args:
+            api_call_func: Function that makes the API call
+            max_retries: Maximum number of retries (default: 3)
+            base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+            
+        Returns:
+            API response
+            
+        Raises:
+            OCRExtractionError: If all retries are exhausted
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                return api_call_func()
+            except Exception as e:
+                # Check if it's a retryable error (overloaded, rate limit, timeout)
+                is_retryable = False
+                error_message = str(e).lower()
+                
+                if hasattr(e, 'status_code'):
+                    # HTTP status codes that should be retried
+                    retryable_status_codes = {429, 500, 502, 503, 504, 529}
+                    is_retryable = e.status_code in retryable_status_codes
+                elif any(keyword in error_message for keyword in ['overloaded', 'rate limit', 'timeout', 'connection']):
+                    is_retryable = True
+                
+                # If this is the last attempt or error is not retryable, raise the exception
+                if attempt == max_retries or not is_retryable:
+                    current_app.logger.error(f"API call failed after {attempt + 1} attempts: {str(e)}")
+                    raise
+                
+                # Calculate delay with exponential backoff and jitter
+                delay = base_delay * (2 ** attempt) + (time.time() % 1)  # Add jitter
+                current_app.logger.warning(
+                    f"API call failed (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay:.1f}s: {str(e)}"
+                )
+                time.sleep(delay)
             
     def _build_literal_extraction_prompt(self) -> str:
         """Build a prompt focused purely on literal text extraction."""
@@ -225,7 +268,7 @@ Return ONLY valid JSON, no markdown, no additional text.
             "parsing_error": error_msg
         }
 
-    def extract_and_parse_recipe(self, image_path: Path, use_cache: bool = True) -> dict:
+    def extract_and_parse_recipe(self, image_data: bytes, source_info: str = "", use_cache: bool = True) -> dict:
         """
         Extract text from image using true two-step approach: literal extraction first, then minimal parsing.
         This ensures maximum fidelity to the source text.
@@ -239,7 +282,7 @@ Return ONLY valid JSON, no markdown, no additional text.
         """
         try:
             # Generate cache key from image content
-            cache_key = f"recipe_extract_parse_v2_{self._generate_cache_key(image_path)}"
+            cache_key = f"recipe_extract_parse_v2_{self._generate_cache_key_from_data(image_data)}"
             
             # Check cache if enabled and Redis is available
             if use_cache and self.redis_client:
@@ -253,7 +296,7 @@ Return ONLY valid JSON, no markdown, no additional text.
 
             # STEP 1: Pure literal text extraction
             current_app.logger.info("Step 1: Starting literal text extraction")
-            extracted_text = self._extract_literal_text(image_path)
+            extracted_text = self._extract_literal_text(image_data, source_info)
             
             # STEP 2: Minimal parsing of extracted text
             current_app.logger.info("Step 2: Starting minimal parsing of extracted text")
@@ -279,22 +322,22 @@ Return ONLY valid JSON, no markdown, no additional text.
             current_app.logger.error(f"Two-step extract+parse failed: {str(e)}")
             raise OCRExtractionError(f"Two-step extract+parse failed: {str(e)}", e) from e
             
-    def _extract_literal_text(self, image_path: Path) -> str:
+    def _extract_literal_text(self, image_data: bytes, source_info: str = "") -> str:
         """Step 1: Extract literal text with no interpretation."""
         try:
-            current_app.logger.info(f"Starting literal text extraction for: {image_path}")
+            current_app.logger.info(f"Starting literal text extraction for: {source_info}")
             
             # Prepare optimized image for LLM
-            image_data = self._prepare_image_for_llm(image_path)
+            prepared_image = self._prepare_image_for_llm(image_data, source_info)
             
             # Literal extraction prompt
             prompt = self._build_literal_extraction_prompt()
 
             current_app.logger.info("Making LLM API call for literal text extraction")
             
-            # LLM call for pure text extraction
-            try:
-                response = self.client.messages.create(
+            # LLM call for pure text extraction with retry logic
+            def make_api_call():
+                return self.client.messages.create(
                     model="claude-3-5-sonnet-20241022",  # Best vision model
                     max_tokens=2000,
                     temperature=0.0,  # Maximum determinism
@@ -306,8 +349,8 @@ Return ONLY valid JSON, no markdown, no additional text.
                                 "type": "image",
                                 "source": {
                                     "type": "base64",
-                                    "media_type": image_data["media_type"],
-                                    "data": image_data["data"]
+                                    "media_type": prepared_image["media_type"],
+                                    "data": prepared_image["data"]
                                 }
                             },
                             {
@@ -317,8 +360,11 @@ Return ONLY valid JSON, no markdown, no additional text.
                         ]
                     }]
                 )
+            
+            try:
+                response = self._make_api_call_with_retry(make_api_call)
             except Exception as api_error:
-                current_app.logger.error(f"Anthropic API call failed: {str(api_error)}")
+                current_app.logger.error(f"Anthropic API call failed after all retries: {str(api_error)}")
                 if hasattr(api_error, 'status_code'):
                     current_app.logger.error(f"API status code: {api_error.status_code}")
                 if hasattr(api_error, 'response'):
@@ -340,19 +386,21 @@ Return ONLY valid JSON, no markdown, no additional text.
         # Minimal parsing prompt
         prompt = self._build_minimal_parsing_prompt(extracted_text)
 
-        # LLM call for minimal parsing
-        response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
-            temperature=0.0,  # Maximum determinism
-            system="You are a recipe structuring assistant. Organize extracted text with minimal changes.",
-            messages=[{"role": "user", "content": prompt}]
-        )
-
+        # LLM call for minimal parsing with retry logic
+        def make_api_call():
+            return self.client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=2000,
+                temperature=0.0,  # Maximum determinism
+                system="You are a recipe structuring assistant. Organize extracted text with minimal changes.",
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        response = self._make_api_call_with_retry(make_api_call)
         response_text = response.content[0].text.strip()
         return self._parse_minimal_response(response_text)
 
-    def extract_text_from_image(self, image_path: Path, use_cache: bool = True) -> str:
+    def extract_text_from_image(self, image_data: bytes, source_info: str = "", use_cache: bool = True) -> str:
         """
         Extract text from image using Claude vision capabilities.
         
@@ -365,7 +413,7 @@ Return ONLY valid JSON, no markdown, no additional text.
         """
         try:
             # Generate cache key from image content
-            cache_key = self._generate_cache_key(image_path)
+            cache_key = self._generate_cache_key_from_data(image_data)
 
             # Check cache if enabled and Redis is available
             if use_cache and self.redis_client:
@@ -374,33 +422,37 @@ Return ONLY valid JSON, no markdown, no additional text.
                     return cached_result
 
             # Convert image to base64
-            image_data = self._prepare_image_for_llm(image_path)
+            prepared_image = self._prepare_image_for_llm(image_data, source_info)
             
             prompt = self._build_extraction_prompt()
 
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",  # High-quality vision model
-                max_tokens=2000,
-                temperature=0.0,
-                system="You are an expert at extracting text from recipe images with high accuracy and attention to detail.",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": image_data["media_type"],
-                                "data": image_data["data"]
+            # LLM call with retry logic
+            def make_api_call():
+                return self.client.messages.create(
+                    model="claude-3-5-sonnet-20241022",  # High-quality vision model
+                    max_tokens=2000,
+                    temperature=0.0,
+                    system="You are an expert at extracting text from recipe images with high accuracy and attention to detail.",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": prepared_image["media_type"],
+                                    "data": prepared_image["data"]
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
                             }
-                        },
-                        {
-                            "type": "text",
-                            "text": prompt
-                        }
-                    ]
-                }]
-            )
+                        ]
+                    }]
+                )
+            
+            response = self._make_api_call_with_retry(make_api_call)
 
             extracted_text = response.content[0].text.strip()
 
@@ -414,12 +466,13 @@ Return ONLY valid JSON, no markdown, no additional text.
             current_app.logger.error(f"LLM OCR extraction failed: {str(e)}")
             raise OCRExtractionError(f"LLM OCR extraction failed: {str(e)}", e) from e
 
-    def _prepare_image_for_llm(self, image_path: Path) -> Dict[str, str]:
+    def _prepare_image_for_llm(self, image_data: bytes, source_info: str = "") -> Dict[str, str]:
         """
         Prepare image for LLM processing with aggressive optimization to reduce memory usage.
         
         Args:
-            image_path: Path to the image file
+            image_data: Image data as bytes
+            source_info: Optional string for logging (path or URL)
             
         Returns:
             Dictionary with base64 data and media type
@@ -428,14 +481,14 @@ Return ONLY valid JSON, no markdown, no additional text.
         import gc
         
         try:
-            current_app.logger.info(f"Preparing image for LLM: {image_path}")
+            current_app.logger.info(f"Preparing image for LLM: {source_info}")
             
             # Get original file size for logging
-            original_size_mb = image_path.stat().st_size / (1024 * 1024)
+            original_size_mb = len(image_data) / (1024 * 1024)
             current_app.logger.info(f"Original image size: {original_size_mb:.1f}MB")
             
             # Open and aggressively optimize image to reduce memory usage
-            with Image.open(image_path) as img:
+            with Image.open(io.BytesIO(image_data)) as img:
                 original_dimensions = img.size
                 current_app.logger.info(f"Original dimensions: {original_dimensions[0]}x{original_dimensions[1]}")
                 
@@ -503,6 +556,11 @@ Return ONLY valid JSON, no markdown, no additional text.
             current_app.logger.error(f"Failed to prepare image for LLM: {str(e)}")
             raise OCRExtractionError(f"Failed to prepare image for LLM: {str(e)}", e) from e
 
+    def _generate_cache_key_from_data(self, image_data: bytes) -> str:
+        """Generate a hash-based cache key from image data."""
+        hash_key = hashlib.sha256(image_data).hexdigest()
+        return f"llm_ocr:{hash_key}"
+
     def _generate_cache_key(self, image_path: Path) -> str:
         """Generate a hash-based cache key from the image file."""
         try:
@@ -510,8 +568,7 @@ Return ONLY valid JSON, no markdown, no additional text.
             with open(image_path, 'rb') as f:
                 image_content = f.read()
             
-            hash_key = hashlib.sha256(image_content).hexdigest()
-            return f"llm_ocr:{hash_key}"
+            return self._generate_cache_key_from_data(image_content)
         except Exception:
             # Fallback to path-based key if file reading fails
             hash_key = hashlib.sha256(str(image_path).encode('utf-8')).hexdigest()

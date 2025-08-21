@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../../services/recipesApi';
-import { AuthenticatedImage } from '../ui/AuthenticatedImage';
+import { CloudinaryImage } from '../ui/CloudinaryImage';
 import type { Recipe } from '../../types';
 
 interface RecipeImageDisplayProps {
@@ -110,10 +110,13 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
       <>
         <div className="relative group">
           <div className="aspect-square bg-gradient-to-br from-background-secondary to-primary-200 rounded-xl overflow-hidden">
-            <AuthenticatedImage
+            <CloudinaryImage
+              cloudinaryUrl={primaryImage.cloudinary_url}
+              thumbnailUrl={primaryImage.cloudinary_thumbnail_url}
               filename={primaryImage.filename}
               alt={recipe.title}
               className="w-full h-full object-cover"
+              preferThumbnail={true}
               fallback={
                 <div className="w-full h-full flex items-center justify-center">
                   <svg className="h-16 w-16 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
@@ -169,7 +172,8 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
         {showModal && primaryImage && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
             <div className="relative max-w-4xl max-h-screen p-4">
-              <AuthenticatedImage
+              <CloudinaryImage
+                cloudinaryUrl={primaryImage.cloudinary_url}
                 filename={primaryImage.filename}
                 alt={recipe.title}
                 className="max-w-full max-h-full object-contain"

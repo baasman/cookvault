@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AddToCollectionButton } from './AddToCollectionButton';
 import { AddToGroupButton } from './AddToGroupButton';
 import { CopyrightConsentModal } from '../ui';
-import { AuthenticatedImage } from '../ui/AuthenticatedImage';
+import { CloudinaryImage } from '../ui/CloudinaryImage';
 import type { Recipe } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -143,10 +143,13 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
         <div className="group bg-white rounded-xl shadow-sm border transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden h-full flex flex-col" style={{borderColor: '#e8d7cf'}}>
           {/* Recipe Image */}
           <div className="aspect-video bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden flex-shrink-0">
-            <AuthenticatedImage
+            <CloudinaryImage
+              cloudinaryUrl={primaryImage?.cloudinary_url}
+              thumbnailUrl={primaryImage?.cloudinary_thumbnail_url}
               filename={primaryImage?.filename || null}
               alt={recipe.title}
               className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+              preferThumbnail={true}
               fallback={
                 <div className="w-full h-full flex items-center justify-center">
                   <svg className="h-12 w-12 text-primary-300" fill="currentColor" viewBox="0 0 24 24">

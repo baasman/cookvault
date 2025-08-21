@@ -96,6 +96,12 @@ class Config:
         app.config['STRIPE_PREMIUM_PRICE'] = int(os.environ.get("STRIPE_PREMIUM_PRICE", 299))  # $2.99 in cents
         app.config['FREE_TIER_UPLOAD_LIMIT'] = int(os.environ.get("FREE_TIER_UPLOAD_LIMIT", 10))
 
+        # Cloudinary settings for image storage
+        app.config['CLOUDINARY_CLOUD_NAME'] = os.environ.get("CLOUDINARY_CLOUD_NAME")
+        app.config['CLOUDINARY_API_KEY'] = os.environ.get("CLOUDINARY_API_KEY") 
+        app.config['CLOUDINARY_API_SECRET'] = os.environ.get("CLOUDINARY_API_SECRET")
+        app.config['USE_CLOUDINARY'] = os.environ.get("USE_CLOUDINARY", "false").lower() == "true"
+
         # OCR Quality and LLM fallback settings
         app.config['OCR_QUALITY_THRESHOLD'] = int(os.environ.get("OCR_QUALITY_THRESHOLD", 8))
         app.config['OCR_ENABLE_LLM_FALLBACK'] = os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"

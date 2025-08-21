@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AuthenticatedImage } from '../ui/AuthenticatedImage';
+import { CloudinaryImage } from '../ui/CloudinaryImage';
 import type { Recipe } from '../../types';
 
 interface RecipeImageCarouselProps {
@@ -136,10 +136,13 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
           role="img"
           aria-label={`Recipe image ${currentIndex + 1} of ${sortedImages.length}${currentImage.page_number ? `, page ${currentImage.page_number}` : ''}`}
         >
-          <AuthenticatedImage
+          <CloudinaryImage
+            cloudinaryUrl={currentImage.cloudinary_url}
+            thumbnailUrl={currentImage.cloudinary_thumbnail_url}
             filename={currentImage.filename}
             alt={`${recipe.title} - Image ${currentIndex + 1}`}
             className="w-full h-full object-cover cursor-pointer"
+            preferThumbnail={true}
             onClick={(e: React.MouseEvent) => {
               e.preventDefault();
               e.stopPropagation();
@@ -225,10 +228,13 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                 aria-label={`View image ${index + 1}${image.page_number ? ` (Page ${image.page_number})` : ''}`}
                 tabIndex={index === currentIndex ? 0 : -1}
               >
-                <AuthenticatedImage
+                <CloudinaryImage
+                  cloudinaryUrl={image.cloudinary_url}
+                  thumbnailUrl={image.cloudinary_thumbnail_url}
                   filename={image.filename}
                   alt={`Thumbnail ${index + 1}`}
                   className="w-full h-full object-cover"
+                  preferThumbnail={true}
                 />
                 {image.page_number && (
                   <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 text-white text-xs text-center py-1">
@@ -279,7 +285,8 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
             </div>
 
             {/* Main modal image */}
-            <AuthenticatedImage
+            <CloudinaryImage
+              cloudinaryUrl={currentImage.cloudinary_url}
               filename={currentImage.filename}
               alt={`${recipe.title} - Image ${currentIndex + 1}`}
               className="max-w-full max-h-full object-contain"
@@ -334,10 +341,13 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                     }`}
                     aria-label={`Go to image ${index + 1}`}
                   >
-                    <AuthenticatedImage
+                    <CloudinaryImage
+                      cloudinaryUrl={image.cloudinary_url}
+                      thumbnailUrl={image.cloudinary_thumbnail_url}
                       filename={image.filename}
                       alt={`Thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
+                      preferThumbnail={true}
                     />
                   </button>
                 ))}

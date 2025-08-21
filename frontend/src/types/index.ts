@@ -52,6 +52,14 @@ export interface RecipeImage {
   uploaded_at: string;
   image_order?: number;
   page_number?: number;
+  // Cloudinary fields
+  cloudinary_public_id?: string | null;
+  cloudinary_url?: string | null;
+  cloudinary_thumbnail_url?: string | null;
+  cloudinary_width?: number | null;
+  cloudinary_height?: number | null;
+  cloudinary_format?: string | null;
+  cloudinary_bytes?: number | null;
 }
 
 export interface RecipeNote {

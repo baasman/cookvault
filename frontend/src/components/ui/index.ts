@@ -6,3 +6,4 @@ export { SearchBar } from './SearchBar';
 export { Modal } from './Modal';
 export { CopyrightConsentModal } from './CopyrightConsentModal';
 export { AuthenticatedImage } from './AuthenticatedImage';
+export { CloudinaryImage } from './CloudinaryImage';
