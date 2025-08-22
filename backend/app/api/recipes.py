@@ -2257,30 +2257,17 @@ def upload_multi_recipe(current_user):
         db.session.flush()  # Get the ID
 
         # Save images and create processing jobs
-        upload_dir = Path(current_app.config["UPLOAD_FOLDER"])
-        upload_dir.mkdir(exist_ok=True)
-
         processing_jobs = []
 
         for i, (file, file_size) in enumerate(validated_files):
-            # Generate unique filename
-            file_extension = file.filename.rsplit(".", 1)[1].lower()
-            unique_filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
-            file_path = upload_dir / unique_filename
-
-            # Save file
-            file.save(str(file_path))
-
-            # Create image record
-            recipe_image = RecipeImage(
-                filename=unique_filename,
-                original_filename=file.filename,
-                file_path=str(file_path),
-                file_size=file_size,
-                content_type=file.content_type,
-                image_order=i,  # Set order based on upload sequence
-                page_number=page_number + i if page_number else i + 1,
-            )
+            # Use the same image processing function as single upload (includes Cloudinary)
+            file.seek(0)  # Reset file pointer
+            recipe_image = process_and_save_image(file, file.filename, folder="recipes/multi")
+            
+            # Set multi-image specific fields
+            recipe_image.image_order = i  # Set order based on upload sequence
+            recipe_image.page_number = page_number + i if page_number else i + 1
+            
             db.session.add(recipe_image)
             db.session.flush()  # Get the ID
 
