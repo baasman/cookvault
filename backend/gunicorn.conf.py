@@ -33,7 +33,9 @@ proc_name = 'cookbook-creator'
 
 # Server mechanics
 daemon = False
-pidfile = '/tmp/gunicorn.pid'
+# Don't use PID file in containerized environments to avoid stale PID issues
+# pidfile = '/tmp/gunicorn.pid'
+pidfile = None
 user = None
 group = None
 tmp_upload_dir = None

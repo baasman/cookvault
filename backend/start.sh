@@ -110,6 +110,12 @@ fi
 # Create logs directory
 mkdir -p logs
 
+# Clean up any stale PID file from previous runs
+if [ -f /tmp/gunicorn.pid ]; then
+    echo "Removing stale PID file..."
+    rm -f /tmp/gunicorn.pid
+fi
+
 # Start the application with Gunicorn
 echo "Starting Gunicorn server on port $PORT with $GUNICORN_WORKERS workers..."
 
@@ -129,9 +135,6 @@ exec "$UV_EXEC_PATH" run gunicorn \
     --bind 0.0.0.0:$PORT \
     --workers $GUNICORN_WORKERS \
     --worker-class sync \
-    --timeout 30 \
-    --max-requests 1000 \
-    --max-requests-jitter 100 \
     --preload \
     --access-logfile - \
     --error-logfile - \
