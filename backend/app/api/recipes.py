@@ -26,6 +26,7 @@ from app.models import (
     Tag,
     UserRecipeCollection,
     CopyrightConsent,
+    UserRole,
 )
 from app.models.recipe import recipe_ingredients
 from app.services.ocr_service import OCRService
@@ -918,6 +919,17 @@ def serve_image(current_user, filename: str) -> Response:
                 else:
                     # Unauthenticated users can't access private recipes
                     can_access = False
+                
+                # Additional check: if this image is used as a recipe group cover
+                # and the user owns the group, allow access
+                if not can_access and current_user:
+                    from app.models import RecipeGroup
+                    group_using_image = RecipeGroup.query.filter(
+                        RecipeGroup.cover_image_url.like(f"%{filename}%"),
+                        RecipeGroup.user_id == current_user.id
+                    ).first()
+                    if group_using_image:
+                        can_access = True
 
                 if not can_access:
                     return jsonify({"error": "Access denied"}), 403
@@ -2674,8 +2686,12 @@ def process_multi_image_job(multi_job_id: int):
                         f"Processing image {i+1}/{len(image_paths)}: {image_path}"
                     )
                     
-                    # Get the RecipeImage object to determine if it's Cloudinary or local
-                    recipe_image = db.session.get(RecipeImage, image_path)
+                    # Get the RecipeImage object from the processing job map
+                    processing_job = processing_job_map.get(str(image_path))
+                    recipe_image = None
+                    if processing_job:
+                        recipe_image = RecipeImage.query.get(processing_job.image_id)
+                    
                     if recipe_image:
                         # Use helper function to get image data (handles both Cloudinary and local)
                         image_data = get_image_data_for_ocr(recipe_image)
@@ -3002,9 +3018,15 @@ def process_multi_image_job(multi_job_id: int):
                     f"Setting recipe cookbook_id to: {cookbook_id}, page_number to: {page_number}"
                 )
 
+            # Ensure we have a valid title
+            recipe_title = parsed_recipe.get("title")
+            if not recipe_title or recipe_title.strip() == "":
+                recipe_title = "Untitled Recipe"
+                current_app.logger.warning(f"Recipe title was empty, using default: {recipe_title}")
+            
             # Create the recipe
             recipe = Recipe(
-                title=parsed_recipe.get("title", "Untitled Recipe"),
+                title=recipe_title,
                 description=parsed_recipe.get("description"),
                 cookbook_id=cookbook_id,
                 page_number=page_number,
@@ -3058,9 +3080,13 @@ def process_multi_image_job(multi_job_id: int):
                 f"Error parsing multi-image recipe for job {multi_job_id}: {e}",
                 exc_info=True,
             )
-            multi_job.status = ProcessingStatus.FAILED
-            multi_job.error_message = f"Recipe parsing failed: {str(e)}"
-            db.session.commit()
+            # Rollback any pending changes before updating status
+            db.session.rollback()
+            multi_job = MultiRecipeJob.query.get(multi_job_id)
+            if multi_job:
+                multi_job.status = ProcessingStatus.FAILED
+                multi_job.error_message = f"Recipe parsing failed: {str(e)}"
+                db.session.commit()
             # Cleanup orphaned images for failed parsing
             cleanup_failed_multi_job(multi_job_id)
 
@@ -3069,6 +3095,8 @@ def process_multi_image_job(multi_job_id: int):
             f"Error in process_multi_image_job {multi_job_id}: {e}", exc_info=True
         )
         try:
+            # Rollback any pending changes before updating status
+            db.session.rollback()
             multi_job = MultiRecipeJob.query.get(multi_job_id)
             if multi_job:
                 multi_job.status = ProcessingStatus.FAILED
@@ -3078,6 +3106,11 @@ def process_multi_image_job(multi_job_id: int):
                 cleanup_failed_multi_job(multi_job_id)
         except Exception as commit_error:
             current_app.logger.error(f"Error updating job status: {commit_error}")
+            # Final rollback to ensure clean state
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
 
 
 def cleanup_failed_multi_job(multi_job_id: int):

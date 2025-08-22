@@ -23,8 +23,26 @@ def get_recipe_groups(current_user) -> Response:
             RecipeGroup.updated_at.desc()
         ).all()
         
+        # For each group without a cover image, try to set it to the first recipe's image
+        groups_data = []
+        for group in groups:
+            group_dict = group.to_dict()
+            
+            # If no cover image, try to get the first recipe's image
+            if not group_dict.get('cover_image_url') and group.recipes:
+                first_recipe = group.recipes[0]
+                if first_recipe.images:
+                    # Use Cloudinary URL if available, otherwise fall back to local file
+                    first_image = first_recipe.images[0]
+                    if first_image.cloudinary_url:
+                        group_dict['cover_image_url'] = first_image.cloudinary_url
+                    else:
+                        group_dict['cover_image_url'] = f"/api/images/{first_image.filename}"
+            
+            groups_data.append(group_dict)
+        
         return jsonify({
-            "groups": [group.to_dict() for group in groups],
+            "groups": groups_data,
             "total": len(groups)
         }), 200
         
@@ -133,8 +151,21 @@ def get_recipe_group(current_user, group_id: int) -> Response:
             # Add group-specific metadata if needed
             recipes_data.append(recipe_dict)
         
+        group_dict = group.to_dict()
+        
+        # If no cover image, try to get the first recipe's image
+        if not group_dict.get('cover_image_url') and recipes_paginated.items:
+            first_recipe = recipes_paginated.items[0]
+            if first_recipe.images:
+                # Use Cloudinary URL if available, otherwise fall back to local file
+                first_image = first_recipe.images[0]
+                if first_image.cloudinary_url:
+                    group_dict['cover_image_url'] = first_image.cloudinary_url
+                else:
+                    group_dict['cover_image_url'] = f"/api/images/{first_image.filename}"
+        
         return jsonify({
-            "group": group.to_dict(),
+            "group": group_dict,
             "recipes": recipes_data,
             "pagination": {
                 "page": page,
@@ -290,7 +321,11 @@ def add_recipe_to_group(current_user, group_id: int, recipe_id: int) -> Response
         if recipe.images and len(recipe.images) > 0:
             # Use the first image of the recipe as the group cover image
             primary_image = recipe.images[0]
-            group.cover_image_url = f"/api/images/{primary_image.filename}"
+            # Use Cloudinary URL if available, otherwise fall back to local file
+            if primary_image.cloudinary_url:
+                group.cover_image_url = primary_image.cloudinary_url
+            else:
+                group.cover_image_url = f"/api/images/{primary_image.filename}"
         
         db.session.commit()
         
@@ -339,7 +374,7 @@ def remove_recipe_from_group(current_user, group_id: int, recipe_id: int) -> Res
         # Find the most recently added recipe in the group that has an image
         most_recent_recipe_with_image = db.session.execute(
             db.text("""
-                SELECT r.id, ri.filename 
+                SELECT r.id, ri.filename, ri.cloudinary_url 
                 FROM recipe r
                 JOIN recipe_group_memberships rgm ON r.id = rgm.recipe_id
                 JOIN recipe_image ri ON r.id = ri.recipe_id
@@ -351,8 +386,11 @@ def remove_recipe_from_group(current_user, group_id: int, recipe_id: int) -> Res
         ).first()
         
         if most_recent_recipe_with_image:
-            # Update to the most recent recipe's image
-            group.cover_image_url = f"/api/images/{most_recent_recipe_with_image.filename}"
+            # Use Cloudinary URL if available, otherwise fall back to local file
+            if most_recent_recipe_with_image.cloudinary_url:
+                group.cover_image_url = most_recent_recipe_with_image.cloudinary_url
+            else:
+                group.cover_image_url = f"/api/images/{most_recent_recipe_with_image.filename}"
         else:
             # No recipes with images left, clear the cover image
             group.cover_image_url = None
