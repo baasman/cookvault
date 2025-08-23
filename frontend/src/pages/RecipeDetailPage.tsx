@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { recipesApi } from '../services/recipesApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
@@ -22,6 +22,7 @@ const RecipeDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
   const recipeId = id ? parseInt(id, 10) : null;
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { 
     data: recipe, 
@@ -31,6 +32,20 @@ const RecipeDetailPage: React.FC = () => {
     queryKey: ['recipe', recipeId],
     queryFn: () => recipeId ? recipesApi.fetchRecipe(recipeId) : Promise.reject('No recipe ID'),
     enabled: !!recipeId, // Allow fetching for both authenticated and unauthenticated users
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => recipesApi.deleteRecipe(id),
+    onSuccess: () => {
+      // Invalidate and refetch recipes list
+      queryClient.invalidateQueries({ queryKey: ['recipes'] });
+      // Navigate to recipes page
+      navigate('/recipes');
+    },
+    onError: (error: any) => {
+      console.error('Error deleting recipe:', error);
+      alert('Failed to delete recipe. Please try again.');
+    }
   });
 
   const canEdit = Boolean(
@@ -77,6 +92,21 @@ const RecipeDetailPage: React.FC = () => {
 
   const handleCancelEdit = () => {
     setIsEditing(false);
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (recipeId) {
+      deleteMutation.mutate(recipeId);
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
   };
 
   const formatTime = (minutes: number | undefined) => {
@@ -206,6 +236,21 @@ const RecipeDetailPage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               Edit Recipe
+            </Button>
+          )}
+          
+          {/* Delete Button */}
+          {canEdit && !isEditing && (
+            <Button 
+              onClick={handleDeleteClick} 
+              variant="secondary" 
+              size="sm"
+              className="ml-2 bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete Recipe
             </Button>
           )}
         </div>
@@ -490,6 +535,36 @@ const RecipeDetailPage: React.FC = () => {
           <p className="text-sm text-text-secondary">
             <span className="font-medium">Source:</span> {recipe.source}
           </p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Delete Recipe</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{recipe?.title}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                onClick={handleDeleteCancel}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteConfirm}
+                variant="primary"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

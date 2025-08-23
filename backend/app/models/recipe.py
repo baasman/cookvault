@@ -596,6 +596,9 @@ class RecipeImage(db.Model):
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe", back_populates="images")
 
     def to_dict(self) -> dict:
+        # Determine the best URL to display the image
+        display_url = self.cloudinary_url if self.cloudinary_url else f"/api/images/{self.filename}"
+        
         return {
             "id": self.id,
             "recipe_id": self.recipe_id,
@@ -614,6 +617,8 @@ class RecipeImage(db.Model):
             "cloudinary_height": self.cloudinary_height,
             "cloudinary_format": self.cloudinary_format,
             "cloudinary_bytes": self.cloudinary_bytes,
+            # Helper field for frontend
+            "display_url": display_url,
         }
 
 

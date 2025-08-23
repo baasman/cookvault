@@ -342,7 +342,7 @@ const CreateCookbookPage: React.FC = () => {
           <Button
             type="submit"
             disabled={createCookbookMutation.isPending}
-            className="bg-accent text-white hover:opacity-90"
+            className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400"
           >
             {createCookbookMutation.isPending ? (
               <div className="flex items-center">

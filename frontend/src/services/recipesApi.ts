@@ -724,6 +724,27 @@ class RecipesApi {
       throw error;
     }
   }
+
+  async deleteRecipe(recipeId: number): Promise<{ message: string }> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting recipe:', error);
+      throw error;
+    }
+  }
 }
 
 export const recipesApi = new RecipesApi();

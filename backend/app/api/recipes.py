@@ -380,6 +380,55 @@ def get_recipe(current_user, recipe_id: int) -> Response:
     return jsonify(recipe.to_dict(include_user=True, current_user_id=current_user.id, is_admin=is_admin))
 
 
+@bp.route("/recipes/<int:recipe_id>", methods=["DELETE"])
+@require_auth
+def delete_recipe(current_user, recipe_id: int) -> Response:
+    """Delete a recipe and all associated data."""
+    try:
+        # Get the recipe and verify ownership/permissions
+        recipe = Recipe.query.get(recipe_id)
+        if not recipe:
+            return jsonify({"error": "Recipe not found"}), 404
+
+        # Check if user can delete this recipe (only owner or admin)
+        is_admin = not should_apply_user_filter(current_user)
+        if not is_admin and recipe.user_id != current_user.id:
+            return jsonify({"error": "Access denied"}), 403
+
+        current_app.logger.info(f"Deleting recipe {recipe_id} by user {current_user.id}")
+
+        # Delete associated images from Cloudinary and local storage
+        for image in recipe.images:
+            try:
+                # Delete from Cloudinary if exists
+                if image.cloudinary_public_id and cloudinary_service.is_enabled():
+                    cloudinary_service.delete_image(image.cloudinary_public_id)
+                    current_app.logger.info(f"Deleted Cloudinary image: {image.cloudinary_public_id}")
+                
+                # Delete local file if exists
+                if image.file_path:
+                    file_path = Path(image.file_path)
+                    if file_path.exists():
+                        file_path.unlink()
+                        current_app.logger.info(f"Deleted local image file: {file_path}")
+                
+            except Exception as e:
+                current_app.logger.error(f"Error deleting image {image.id}: {e}")
+                # Continue with deletion even if image cleanup fails
+
+        # Delete recipe (cascade will handle related data like ingredients, instructions, etc.)
+        db.session.delete(recipe)
+        db.session.commit()
+
+        current_app.logger.info(f"Successfully deleted recipe {recipe_id}")
+        return jsonify({"message": "Recipe deleted successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting recipe {recipe_id}: {e}")
+        return jsonify({"error": "Failed to delete recipe"}), 500
+
+
 @bp.route("/recipes/upload", methods=["POST"])
 @require_auth
 def upload_recipe(current_user) -> Tuple[Response, int]:
@@ -553,6 +602,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
                     "message": "Image uploaded successfully. Recipe extraction is processing in the background.",
                     "job_id": processing_job.id,
                     "image_id": recipe_image.id,
+                    "image": recipe_image.to_dict(),  # Include image data for immediate preview
                     "cookbook": cookbook.to_dict() if cookbook else None,
                     "page_number": page_number,
                     "status": "processing",
@@ -933,6 +983,12 @@ def serve_image(current_user, filename: str) -> Response:
 
                 if not can_access:
                     return jsonify({"error": "Access denied"}), 403
+            else:
+                # Image doesn't have recipe_id yet (probably just uploaded, processing)
+                # Allow access if user is authenticated (they likely just uploaded it)
+                if not current_user:
+                    return jsonify({"error": "Access denied"}), 403
+                can_access = True
             
             # If image is stored in Cloudinary, redirect to Cloudinary URL
             if recipe_image.cloudinary_url:
@@ -2301,11 +2357,19 @@ def upload_multi_recipe(current_user):
             f"Created multi-image job {multi_job.id} with {len(processing_jobs)} images for user {user_id}"
         )
 
+        # Collect image data for immediate preview
+        images_data = []
+        for processing_job in processing_jobs:
+            recipe_image = RecipeImage.query.get(processing_job.image_id)
+            if recipe_image:
+                images_data.append(recipe_image.to_dict())
+        
         return (
             jsonify(
                 {
                     "multi_job_id": multi_job.id,
                     "total_images": len(processing_jobs),
+                    "images": images_data,  # Include image data for immediate preview
                     "message": f"Multi-image upload started with {len(processing_jobs)} images",
                 }
             ),
