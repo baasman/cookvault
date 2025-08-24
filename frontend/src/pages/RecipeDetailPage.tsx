@@ -13,6 +13,8 @@ import { MakePublicButton } from '../components/recipe/MakePublicButton';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import { PaywallMessage } from '../components/recipe/PaywallMessage';
+import { RecipeScaler } from '../components/recipe/RecipeScaler';
+import { scaleQuantity, isScalableQuantity } from '../utils/recipeScaling';
 import type { Recipe } from '../types';
 
 const RecipeDetailPage: React.FC = () => {
@@ -23,6 +25,8 @@ const RecipeDetailPage: React.FC = () => {
   const recipeId = id ? parseInt(id, 10) : null;
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const [desiredServings, setDesiredServings] = useState<number | undefined>(undefined);
 
   const { 
     data: recipe, 
@@ -107,6 +111,11 @@ const RecipeDetailPage: React.FC = () => {
 
   const handleDeleteCancel = () => {
     setShowDeleteConfirm(false);
+  };
+
+  const handleScaleChange = (newScaleFactor: number, newDesiredServings: number) => {
+    setScaleFactor(newScaleFactor);
+    setDesiredServings(newDesiredServings);
   };
 
   const formatTime = (minutes: number | undefined) => {
@@ -301,7 +310,18 @@ const RecipeDetailPage: React.FC = () => {
 
                   <div className="text-center p-3 bg-background-secondary rounded-lg">
                     <div className="text-sm text-text-secondary mb-1">Servings</div>
-                    <div className="font-medium text-text-primary">{recipe.servings || 'Not specified'}</div>
+                    <div className="font-medium text-text-primary">
+                      {scaleFactor !== 1 && desiredServings ? (
+                        <>
+                          <span className="text-blue-600">{desiredServings}</span>
+                          <span className="text-xs text-text-secondary ml-1">
+                            (from {recipe.servings})
+                          </span>
+                        </>
+                      ) : (
+                        recipe.servings || 'Not specified'
+                      )}
+                    </div>
                   </div>
 
                   <div className="text-center p-3 bg-background-secondary rounded-lg">
@@ -408,10 +428,24 @@ const RecipeDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Ingredients */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl shadow-sm border p-6" style={{borderColor: '#e8d7cf'}}>
+              <div className="bg-white rounded-xl shadow-sm border p-6 overflow-hidden" style={{borderColor: '#e8d7cf'}}>
                 <h2 className="text-xl font-bold mb-4" style={{color: '#1c120d'}}>
                   Ingredients
+                  {scaleFactor !== 1 && (
+                    <span className="ml-2 text-sm font-normal text-blue-600">
+                      (Scaled)
+                    </span>
+                  )}
                 </h2>
+                
+                {/* Recipe Scaler Component */}
+                {recipe.has_full_access !== false && !isEditing && (
+                  <RecipeScaler
+                    originalServings={recipe.servings}
+                    onScaleChange={handleScaleChange}
+                  />
+                )}
+                
                 {recipe.has_full_access === false ? (
                   <PaywallMessage 
                     type="ingredients" 
@@ -422,29 +456,35 @@ const RecipeDetailPage: React.FC = () => {
                   <ul className="space-y-3">
                     {recipe.ingredients
                       .sort((a, b) => a.order - b.order)
-                      .map((ingredient) => (
-                        <li key={ingredient.id} className="flex items-start space-x-3">
-                          <div className="w-2 h-2 bg-accent rounded-full mt-2 flex-shrink-0"></div>
-                          <div className="flex-1">
-                            <span className="text-text-primary">
-                              {ingredient.quantity && ingredient.unit ? (
-                                <span className="font-medium">
-                                  {ingredient.quantity} {ingredient.unit}{' '}
-                                </span>
-                              ) : ingredient.quantity ? (
-                                <span className="font-medium">{ingredient.quantity} </span>
-                              ) : null}
-                              {ingredient.name}
-                              {ingredient.preparation && (
-                                <span className="text-text-secondary">, {ingredient.preparation}</span>
-                              )}
-                              {Boolean(ingredient.optional) && (
-                                <span className="text-text-secondary italic"> (optional)</span>
-                              )}
+                      .map((ingredient) => {
+                        const scaledQuantity = ingredient.quantity && isScalableQuantity(ingredient.quantity)
+                          ? scaleQuantity(ingredient.quantity, scaleFactor)
+                          : ingredient.quantity?.toString();
+                        
+                        return (
+                          <li key={ingredient.id} className="flex items-start space-x-3">
+                            <div className="w-2 h-2 bg-accent rounded-full mt-2 flex-shrink-0"></div>
+                            <div className="flex-1">
+                              <span className="text-text-primary">
+                                {scaledQuantity && ingredient.unit ? (
+                                  <span className="font-medium">
+                                    {scaledQuantity} {ingredient.unit}{' '}
+                                  </span>
+                                ) : scaledQuantity ? (
+                                  <span className="font-medium">{scaledQuantity} </span>
+                                ) : null}
+                                {ingredient.name}
+                                {ingredient.preparation && (
+                                  <span className="text-text-secondary">, {ingredient.preparation}</span>
+                                )}
+                                {Boolean(ingredient.optional) && (
+                                  <span className="text-text-secondary italic"> (optional)</span>
+                                )}
                             </span>
                           </div>
                         </li>
-                      ))}
+                        );
+                      })}
                   </ul>
                 ) : (
                   <p className="text-text-secondary">No ingredients listed</p>
