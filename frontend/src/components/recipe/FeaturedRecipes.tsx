@@ -58,7 +58,18 @@ export const FeaturedRecipes: React.FC = () => {
     );
   }
 
-  if (error || !data?.recipes || data.recipes.length === 0) {
+  if (error) {
+    console.error('Featured recipes error:', error);
+    return (
+      <section className="py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-red-600">Failed to load featured recipes: {error.message}</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!data?.recipes || data.recipes.length === 0) {
     return null; // Don't show section if no featured recipes
   }
 
