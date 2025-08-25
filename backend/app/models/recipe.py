@@ -299,6 +299,10 @@ class Recipe(db.Model):
     # Privacy settings
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    
+    # Featured recipe settings
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    featured_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # User relationship
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
@@ -500,6 +504,8 @@ class Recipe(db.Model):
             "source": self.source,
             "is_public": self.is_public,
             "published_at": self.published_at.isoformat() if self.published_at else None,
+            "is_featured": self.is_featured,
+            "featured_at": self.featured_at.isoformat() if self.featured_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "user_id": self.user_id,

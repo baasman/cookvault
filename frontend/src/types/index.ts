@@ -52,6 +52,7 @@ export interface RecipeImage {
   uploaded_at: string;
   image_order?: number;
   page_number?: number;
+  display_url?: string;
   // Cloudinary fields
   cloudinary_public_id?: string | null;
   cloudinary_url?: string | null;
@@ -100,6 +101,8 @@ export interface Recipe {
   user_id?: number;
   is_public: boolean;
   published_at?: string;
+  is_featured: boolean;
+  featured_at?: string;
   user?: {
     id: number;
     username: string;

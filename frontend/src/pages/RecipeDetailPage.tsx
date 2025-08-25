@@ -10,6 +10,7 @@ import { AddToCollectionButton } from '../components/recipe/AddToCollectionButto
 import { CopyRecipeButton } from '../components/recipe/CopyRecipeButton';
 import { AddToGroupButton } from '../components/recipe/AddToGroupButton';
 import { MakePublicButton } from '../components/recipe/MakePublicButton';
+import { FeatureToggleButton } from '../components/recipe/FeatureToggleButton';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import { PaywallMessage } from '../components/recipe/PaywallMessage';
@@ -236,6 +237,16 @@ const RecipeDetailPage: React.FC = () => {
           {/* Make Public Button - show for recipes owned by current user */}
           {recipe && isOwnRecipe && !isEditing && (
             <MakePublicButton recipe={recipe} size="sm" />
+          )}
+
+          {/* Feature Toggle Button - show for admins only */}
+          {recipe && !isEditing && (
+            <FeatureToggleButton 
+              recipe={recipe} 
+              onUpdate={(updatedRecipe) => {
+                queryClient.setQueryData(['recipe', recipeId], updatedRecipe);
+              }} 
+            />
           )}
           
           {/* Edit Button */}

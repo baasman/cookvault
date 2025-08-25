@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.api import bp
-from app.api.auth import require_auth, optional_auth, should_apply_user_filter
+from app.api.auth import require_auth, require_admin, optional_auth, should_apply_user_filter
 from app.models import (
     Cookbook,
     Ingredient,
@@ -427,6 +427,78 @@ def delete_recipe(current_user, recipe_id: int) -> Response:
         db.session.rollback()
         current_app.logger.error(f"Error deleting recipe {recipe_id}: {e}")
         return jsonify({"error": "Failed to delete recipe"}), 500
+
+
+@bp.route("/admin/recipes/<int:recipe_id>/feature", methods=["POST"])
+@require_admin
+def feature_recipe(current_user, recipe_id: int) -> Response:
+    """Feature a recipe (admin only). Max 3 featured recipes allowed."""
+    try:
+        # Get the recipe
+        recipe = Recipe.query.get(recipe_id)
+        if not recipe:
+            return jsonify({"error": "Recipe not found"}), 404
+
+        # Check if recipe is already featured
+        if recipe.is_featured:
+            return jsonify({"error": "Recipe is already featured"}), 400
+
+        # Check featured recipe limit (max 3)
+        featured_count = Recipe.query.filter_by(is_featured=True).count()
+        if featured_count >= 3:
+            # Find the oldest featured recipe and unfeature it
+            oldest_featured = Recipe.query.filter_by(is_featured=True).order_by(Recipe.featured_at).first()
+            if oldest_featured:
+                oldest_featured.is_featured = False
+                oldest_featured.featured_at = None
+                current_app.logger.info(f"Auto-unfeatured oldest recipe {oldest_featured.id} to make room")
+
+        # Feature the recipe
+        recipe.is_featured = True
+        recipe.featured_at = datetime.utcnow()
+        db.session.commit()
+
+        current_app.logger.info(f"Recipe {recipe_id} featured by admin {current_user.id}")
+        return jsonify({
+            "message": "Recipe featured successfully",
+            "recipe": recipe.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error featuring recipe {recipe_id}: {e}")
+        return jsonify({"error": "Failed to feature recipe"}), 500
+
+
+@bp.route("/admin/recipes/<int:recipe_id>/feature", methods=["DELETE"])
+@require_admin
+def unfeature_recipe(current_user, recipe_id: int) -> Response:
+    """Unfeature a recipe (admin only)."""
+    try:
+        # Get the recipe
+        recipe = Recipe.query.get(recipe_id)
+        if not recipe:
+            return jsonify({"error": "Recipe not found"}), 404
+
+        # Check if recipe is featured
+        if not recipe.is_featured:
+            return jsonify({"error": "Recipe is not featured"}), 400
+
+        # Unfeature the recipe
+        recipe.is_featured = False
+        recipe.featured_at = None
+        db.session.commit()
+
+        current_app.logger.info(f"Recipe {recipe_id} unfeatured by admin {current_user.id}")
+        return jsonify({
+            "message": "Recipe unfeatured successfully",
+            "recipe": recipe.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error unfeaturing recipe {recipe_id}: {e}")
+        return jsonify({"error": "Failed to unfeature recipe"}), 500
 
 
 @bp.route("/recipes/upload", methods=["POST"])
@@ -1850,7 +1922,7 @@ def get_recipe_note(current_user, recipe_id: int) -> Response:
     # First, check if the recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
 
-    if not recipe.can_be_viewed_by(current_user.id, current_user.role == "admin"):
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role.value == "admin"):
         return jsonify({"error": "Recipe not found"}), 404
 
     # Get the recipe owner's note for this recipe (not the current user's note)
@@ -1950,7 +2022,7 @@ def get_recipe_comments(current_user, recipe_id: int) -> Response:
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
 
-    if not recipe.can_be_viewed_by(current_user.id, current_user.role == "admin"):
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role.value == "admin"):
         return jsonify({"error": "Recipe not found"}), 404
 
     # Get pagination parameters
@@ -1994,7 +2066,7 @@ def create_recipe_comment(current_user, recipe_id: int) -> Response:
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
 
-    if not recipe.can_be_viewed_by(current_user.id, current_user.role == "admin"):
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role.value == "admin"):
         return jsonify({"error": "Recipe not found"}), 404
 
     data = request.get_json()
@@ -2033,7 +2105,7 @@ def update_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Resp
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
 
-    if not recipe.can_be_viewed_by(current_user.id, current_user.role == "admin"):
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role.value == "admin"):
         return jsonify({"error": "Recipe not found"}), 404
 
     # Get the comment
@@ -2078,7 +2150,7 @@ def delete_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Resp
     # Check if recipe exists and user can view it
     recipe = Recipe.query.get_or_404(recipe_id)
 
-    if not recipe.can_be_viewed_by(current_user.id, current_user.role == "admin"):
+    if not recipe.can_be_viewed_by(current_user.id, current_user.role.value == "admin"):
         return jsonify({"error": "Recipe not found"}), 404
 
     # Get the comment
@@ -2088,7 +2160,7 @@ def delete_recipe_comment(current_user, recipe_id: int, comment_id: int) -> Resp
         return jsonify({"error": "Comment not found"}), 404
 
     # Only comment author or admin can delete comment
-    is_admin = current_user.role == "admin"
+    is_admin = current_user.role.value == "admin"
     if comment.user_id != current_user.id and not is_admin:
         return jsonify({"error": "You can only delete your own comments"}), 403
 

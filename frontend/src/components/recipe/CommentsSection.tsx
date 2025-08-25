@@ -184,10 +184,11 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
   const [newComment, setNewComment] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Always fetch first page to check if there are comments
+  // Only fetch comments if user is authenticated
   const { data: commentsData, isLoading } = useQuery({
     queryKey: ['recipe-comments', recipe.id, currentPage],
     queryFn: () => recipesApi.getRecipeComments(recipe.id, { page: currentPage }),
+    enabled: !!user, // Only run query when user is authenticated
   });
 
   // Auto-expand if there are comments (but allow manual collapse)

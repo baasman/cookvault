@@ -2,11 +2,14 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ScanIcon, BookIcon, CollectionIcon } from '../components/icons'; // Assuming these exist or will be created
 import { HeroSection } from '../components/homepage';
+import { FeaturedRecipes } from '../components/recipe/FeaturedRecipes';
 
 const HomePage: React.FC = () => {
   return (
     <>
       <HeroSection />
+
+      <FeaturedRecipes />
 
       {/* Features Section */}
       <section className="features" id="features">

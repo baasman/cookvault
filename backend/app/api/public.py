@@ -146,14 +146,13 @@ def get_user_public_recipes(user_id):
 
 @bp.route("/public/recipes/featured", methods=["GET"])
 def get_featured_recipes():
-    """Get featured public recipes (most recently published)."""
+    """Get featured public recipes."""
     try:
-        limit = min(request.args.get('limit', 10, type=int), 50)  # Max 50 featured
-        
-        # Get most recently published recipes
+        # Get actually featured recipes ordered by featured_at (most recent first)
         recipes = Recipe.query.filter(
-            Recipe.is_public == True
-        ).order_by(desc(Recipe.published_at)).limit(limit).all()
+            Recipe.is_public == True,
+            Recipe.is_featured == True
+        ).order_by(desc(Recipe.featured_at)).all()
         
         recipes_data = []
         for recipe in recipes:

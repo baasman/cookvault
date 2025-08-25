@@ -126,17 +126,32 @@ class RecipesApi {
 
   async fetchRecipe(id: number): Promise<Recipe> {
     try {
-      // First try with apiFetch (for authenticated users)
-      let response = await apiFetch(`${this.baseUrl}/recipes/${id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Check if user is authenticated by looking for auth token
+      const authToken = localStorage.getItem('auth_token');
+      
+      let response: Response;
+      
+      if (authToken) {
+        // If authenticated, try private API first, fallback to public if needed
+        response = await apiFetch(`${this.baseUrl}/recipes/${id}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
-      // If apiFetch fails (likely due to no auth), try regular fetch for public recipes
-      if (!response.ok && response.status === 401) {
-        response = await fetch(`${this.baseUrl}/recipes/${id}`, {
+        // If private API fails with 401, try public API
+        if (!response.ok && response.status === 401) {
+          response = await fetch(`${this.baseUrl}/public/recipes/${id}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+        }
+      } else {
+        // If not authenticated, go directly to public API
+        response = await fetch(`${this.baseUrl}/public/recipes/${id}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -742,6 +757,51 @@ class RecipesApi {
       return await response.json();
     } catch (error) {
       console.error('Error deleting recipe:', error);
+      throw error;
+    }
+  }
+
+  // Featured recipes admin methods
+  async featureRecipe(recipeId: number): Promise<Recipe> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/admin/recipes/${recipeId}/feature`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error featuring recipe:', error);
+      throw error;
+    }
+  }
+
+  async unfeatureRecipe(recipeId: number): Promise<Recipe> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/admin/recipes/${recipeId}/feature`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error unfeaturing recipe:', error);
       throw error;
     }
   }
