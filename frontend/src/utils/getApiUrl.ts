@@ -13,8 +13,8 @@ export function getApiUrl(): string {
     
     // Check for custom domain first
     if (currentHost === 'cookle.food' || currentHost === 'www.cookle.food') {
-      // Use the backend's custom domain
-      return 'https://api.cookle.food/api';
+      // Use the actual backend URL that's still running
+      return 'https://cookvault-exaq.onrender.com/api';
     } else if (currentHost.includes('cookle-frontend')) {
       // Fallback to direct Render URL if using cookle-frontend subdomain
       return 'https://cookle-backend.onrender.com/api';
