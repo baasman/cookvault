@@ -36,6 +36,12 @@ export interface Instruction {
   id: number;
   step_number: number;
   text: string;
+  // Optional image fields for step illustrations
+  image_filename?: string | null;
+  image_url?: string | null;
+  cloudinary_public_id?: string | null;
+  cloudinary_url?: string | null;
+  cloudinary_thumbnail_url?: string | null;
 }
 
 export interface Tag {

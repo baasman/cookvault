@@ -745,8 +745,9 @@ def update_recipe(current_user, recipe_id: int) -> Response:
         db.session.commit()
         current_app.logger.info(f"Recipe {recipe_id} updated by user {current_user.id}")
 
+        is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Recipe updated successfully", "recipe": recipe.to_dict()}
+            {"message": "Recipe updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
         )
 
     except Exception as e:
@@ -823,8 +824,9 @@ def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
             f"Ingredients updated for recipe {recipe_id} by user {current_user.id}"
         )
 
+        is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Ingredients updated successfully", "recipe": recipe.to_dict()}
+            {"message": "Ingredients updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
         )
 
     except Exception as e:
@@ -858,10 +860,14 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
         if not isinstance(instructions_data, list):
             return jsonify({"error": "Instructions must be a list"}), 400
 
-        # Remove existing instructions
-        Instruction.query.filter_by(recipe_id=recipe_id).delete()
-
-        # Add new instructions
+        # Get existing instructions to preserve their IDs and image data
+        existing_instructions = Instruction.query.filter_by(recipe_id=recipe_id).order_by(Instruction.step_number).all()
+        
+        # Create a mapping of current instructions for efficient lookup
+        existing_by_step = {inst.step_number: inst for inst in existing_instructions}
+        
+        # Update or create instructions while preserving image data
+        updated_instructions = []
         for step_number, instruction_text in enumerate(instructions_data, 1):
             if not isinstance(instruction_text, str):
                 return jsonify({"error": "Invalid instruction data"}), 400
@@ -870,18 +876,34 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
             if not instruction_text:
                 return jsonify({"error": "Instruction text cannot be empty"}), 400
 
-            instruction = Instruction(
-                recipe_id=recipe_id, step_number=step_number, text=instruction_text
-            )
-            db.session.add(instruction)
+            # Check if instruction exists at this step number
+            if step_number in existing_by_step:
+                # Update existing instruction (preserves ID and image data)
+                instruction = existing_by_step[step_number]
+                instruction.text = instruction_text
+                instruction.step_number = step_number
+            else:
+                # Create new instruction
+                instruction = Instruction(
+                    recipe_id=recipe_id, step_number=step_number, text=instruction_text
+                )
+                db.session.add(instruction)
+            
+            updated_instructions.append(instruction)
+        
+        # Remove any instructions that are no longer needed (step numbers beyond the new list)
+        for step_number in existing_by_step:
+            if step_number > len(instructions_data):
+                db.session.delete(existing_by_step[step_number])
 
         db.session.commit()
         current_app.logger.info(
             f"Instructions updated for recipe {recipe_id} by user {current_user.id}"
         )
 
+        is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Instructions updated successfully", "recipe": recipe.to_dict()}
+            {"message": "Instructions updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
         )
 
     except Exception as e:
@@ -933,8 +955,9 @@ def update_recipe_tags(current_user, recipe_id: int) -> Response:
             f"Tags updated for recipe {recipe_id} by user {current_user.id}"
         )
 
+        is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Tags updated successfully", "recipe": recipe.to_dict()}
+            {"message": "Tags updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
         )
 
     except Exception as e:
@@ -3280,3 +3303,114 @@ def cleanup_failed_multi_job(multi_job_id: int):
             f"Error in cleanup_failed_multi_job {multi_job_id}: {e}"
         )
         db.session.rollback()
+
+
+# Instruction Image Endpoints
+
+@bp.route("/recipes/<int:recipe_id>/instructions/<int:instruction_id>/image", methods=["POST"])
+@require_auth
+def upload_instruction_image(current_user, recipe_id: int, instruction_id: int) -> Response:
+    """Upload an image for a specific instruction step."""
+    # Verify recipe exists and user has edit permission
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    # Check if user can edit this recipe (only owner or admin)
+    is_admin = current_user.role.value == "admin"
+    if not is_admin and recipe.user_id != current_user.id:
+        return jsonify({"error": "Permission denied"}), 403
+    
+    # Verify instruction exists and belongs to recipe
+    instruction = Instruction.query.filter_by(
+        id=instruction_id, recipe_id=recipe_id
+    ).first()
+    
+    if not instruction:
+        return jsonify({"error": "Instruction not found"}), 404
+
+    # Check if file is provided
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files["image"]
+    if file.filename == "":
+        return jsonify({"error": "No image selected"}), 400
+
+    if not allowed_file(file.filename):
+        return (
+            jsonify({"error": "Invalid file type. Only images are allowed"}),
+            400,
+        )
+
+    try:
+        # Process and upload image (similar to recipe images)
+        image_record = process_and_save_image(file, file.filename, folder="instructions")
+        
+        # Update instruction with image information
+        instruction.image_filename = image_record.filename
+        instruction.image_url = image_record.file_path
+        instruction.cloudinary_public_id = image_record.cloudinary_public_id
+        instruction.cloudinary_url = image_record.cloudinary_url
+        instruction.cloudinary_thumbnail_url = image_record.cloudinary_thumbnail_url
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Instruction image uploaded successfully",
+            "instruction": instruction.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error uploading instruction image: {e}")
+        return jsonify({"error": "Failed to upload image"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/instructions/<int:instruction_id>/image", methods=["DELETE"])
+@require_auth
+def remove_instruction_image(current_user, recipe_id: int, instruction_id: int) -> Response:
+    """Remove image from a specific instruction step."""
+    # Verify recipe exists and user has edit permission
+    recipe = Recipe.query.get_or_404(recipe_id)
+    
+    # Check if user can edit this recipe (only owner or admin)
+    is_admin = current_user.role.value == "admin"
+    if not is_admin and recipe.user_id != current_user.id:
+        return jsonify({"error": "Permission denied"}), 403
+    
+    # Verify instruction exists and belongs to recipe
+    instruction = Instruction.query.filter_by(
+        id=instruction_id, recipe_id=recipe_id
+    ).first()
+    
+    if not instruction:
+        return jsonify({"error": "Instruction not found"}), 404
+    
+    if not instruction.image_filename:
+        return jsonify({"error": "No image to remove"}), 400
+
+    try:
+        # Clean up Cloudinary image if it exists
+        if instruction.cloudinary_public_id:
+            try:
+                cloudinary_service.delete_image(instruction.cloudinary_public_id)
+            except Exception as e:
+                current_app.logger.warning(f"Failed to delete Cloudinary image: {e}")
+        
+        # Clear image fields
+        instruction.image_filename = None
+        instruction.image_url = None
+        instruction.cloudinary_public_id = None
+        instruction.cloudinary_url = None
+        instruction.cloudinary_thumbnail_url = None
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Instruction image removed successfully",
+            "instruction": instruction.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error removing instruction image: {e}")
+        return jsonify({"error": "Failed to remove image"}), 500

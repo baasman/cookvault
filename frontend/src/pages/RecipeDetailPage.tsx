@@ -95,6 +95,11 @@ const RecipeDetailPage: React.FC = () => {
     setIsEditing(false);
   };
 
+  const handleRecipeUpdate = (updatedRecipe: Recipe) => {
+    // Update the query cache with the new recipe data but stay in editing mode
+    queryClient.setQueryData(['recipe', recipeId], updatedRecipe);
+  };
+
   const handleCancelEdit = () => {
     setIsEditing(false);
   };
@@ -282,6 +287,7 @@ const RecipeDetailPage: React.FC = () => {
           recipe={recipe}
           onSave={handleSaveEdit}
           onCancel={handleCancelEdit}
+          onRecipeUpdate={handleRecipeUpdate}
         />
       ) : (
         <>
@@ -525,7 +531,25 @@ const RecipeDetailPage: React.FC = () => {
                             {instruction.step_number}
                           </div>
                           <div className="flex-1 pt-1">
-                            <p className="text-text-primary leading-relaxed">{instruction.text}</p>
+                            <p className="text-text-primary leading-relaxed mb-3">{instruction.text}</p>
+                            
+                            {/* Step image if available */}
+                            {(instruction.cloudinary_thumbnail_url || instruction.image_url) && (
+                              <div className="mt-3">
+                                <img
+                                  src={instruction.cloudinary_thumbnail_url || instruction.image_url}
+                                  alt={`Step ${instruction.step_number} illustration`}
+                                  className="max-w-sm h-48 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => {
+                                    // Open larger image in new tab/window
+                                    const fullImageUrl = instruction.cloudinary_url || instruction.image_url;
+                                    if (fullImageUrl) {
+                                      window.open(fullImageUrl, '_blank');
+                                    }
+                                  }}
+                                />
+                              </div>
+                            )}
                           </div>
                         </li>
                       ))}

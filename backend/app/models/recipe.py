@@ -189,12 +189,28 @@ class Instruction(db.Model):
     step_number: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Optional image fields for step illustrations
+    image_filename: Mapped[Optional[str]] = mapped_column(String(255))
+    image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    cloudinary_public_id: Mapped[Optional[str]] = mapped_column(String(255))
+    cloudinary_url: Mapped[Optional[str]] = mapped_column(String(500))
+    cloudinary_thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500))
+
     recipe: Mapped["Recipe"] = relationship(
         "Recipe", back_populates="recipe_instructions"
     )
 
     def to_dict(self) -> dict:
-        return {"id": self.id, "step_number": self.step_number, "text": self.text}
+        return {
+            "id": self.id, 
+            "step_number": self.step_number, 
+            "text": self.text,
+            "image_filename": self.image_filename,
+            "image_url": self.image_url,
+            "cloudinary_public_id": self.cloudinary_public_id,
+            "cloudinary_url": self.cloudinary_url,
+            "cloudinary_thumbnail_url": self.cloudinary_thumbnail_url,
+        }
 
 
 class ProcessingStatus(Enum):

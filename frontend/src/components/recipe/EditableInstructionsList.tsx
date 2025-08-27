@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { Button } from '../ui';
+import { InstructionImageUpload } from './InstructionImageUpload';
+import type { Instruction } from '../../types';
 
 interface EditableInstructionsListProps {
   instructions: string[];
   onChange: (instructions: string[]) => void;
   editingIndex?: number | null;
   onEditingIndexChange?: (index: number | null) => void;
+  // New optional props for image support
+  recipeId?: number;
+  instructionObjects?: Instruction[];
+  onInstructionUpdate?: (instruction: Instruction) => void;
 }
 
 export const EditableInstructionsList: React.FC<EditableInstructionsListProps> = ({
@@ -13,6 +19,9 @@ export const EditableInstructionsList: React.FC<EditableInstructionsListProps> =
   onChange,
   editingIndex: externalEditingIndex,
   onEditingIndexChange,
+  recipeId,
+  instructionObjects,
+  onInstructionUpdate,
 }) => {
   const [internalEditingIndex, setInternalEditingIndex] = useState<number | null>(null);
   
@@ -129,7 +138,32 @@ export const EditableInstructionsList: React.FC<EditableInstructionsListProps> =
                   placeholder="Describe what to do in this step..."
                   required
                 />
-                <div className="mt-2 flex justify-end space-x-2">
+                
+                {/* Image upload for instruction steps */}
+                {recipeId && instructionObjects && instructionObjects[index] && instructionObjects[index].id && onInstructionUpdate && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-text-secondary mb-2">
+                      Step Image (optional)
+                    </label>
+                    <InstructionImageUpload
+                      recipeId={recipeId}
+                      instruction={instructionObjects[index]}
+                      onImageUpdate={onInstructionUpdate}
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+                
+                {/* Show message if image upload not available yet */}
+                {recipeId && (!instructionObjects || !instructionObjects[index] || !instructionObjects[index].id) && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-500 italic">
+                      Save the recipe first to enable step images
+                    </p>
+                  </div>
+                )}
+                
+                <div className="mt-3 flex justify-end space-x-2">
                   <button
                     onClick={() => setEditingIndex(null)}
                     className="px-3 py-1 text-sm text-text-secondary hover:text-text-primary"
@@ -139,11 +173,26 @@ export const EditableInstructionsList: React.FC<EditableInstructionsListProps> =
                 </div>
               </div>
             ) : (
-              <div className="text-text-primary leading-relaxed">
-                {instruction || (
-                  <span className="text-text-secondary italic">
-                    Click edit to add instruction text
-                  </span>
+              <div>
+                <div className="text-text-primary leading-relaxed mb-3">
+                  {instruction || (
+                    <span className="text-text-secondary italic">
+                      Click edit to add instruction text
+                    </span>
+                  )}
+                </div>
+                
+                {/* Show step image if available */}
+                {instructionObjects && instructionObjects[index] && (
+                  instructionObjects[index].cloudinary_thumbnail_url || instructionObjects[index].image_url
+                ) && (
+                  <div className="mt-2">
+                    <img
+                      src={instructionObjects[index].cloudinary_thumbnail_url || instructionObjects[index].image_url}
+                      alt={`Step ${index + 1} illustration`}
+                      className="max-w-xs h-32 object-cover rounded-lg border border-gray-200"
+                    />
+                  </div>
                 )}
               </div>
             )}

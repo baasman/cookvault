@@ -1,4 +1,4 @@
-import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse } from '../types';
+import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse, Instruction } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
 import { getApiUrl } from '../utils/getApiUrl';
 
@@ -802,6 +802,52 @@ class RecipesApi {
       return data.recipe;
     } catch (error) {
       console.error('Error unfeaturing recipe:', error);
+      throw error;
+    }
+  }
+
+  // Instruction Image Methods
+  async uploadInstructionImage(recipeId: number, instructionId: number, imageFile: File): Promise<Instruction> {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/instructions/${instructionId}/image`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.instruction;
+    } catch (error) {
+      console.error('Error uploading instruction image:', error);
+      throw error;
+    }
+  }
+
+  async removeInstructionImage(recipeId: number, instructionId: number): Promise<Instruction> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/instructions/${instructionId}/image`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.instruction;
+    } catch (error) {
+      console.error('Error removing instruction image:', error);
       throw error;
     }
   }

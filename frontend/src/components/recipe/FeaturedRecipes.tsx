@@ -10,33 +10,18 @@ interface FeaturedRecipesResponse {
 
 const fetchFeaturedRecipes = async (): Promise<FeaturedRecipesResponse> => {
   const baseUrl = getApiUrl();
-  const url = `${baseUrl}/public/recipes/featured`;
-  console.log('Fetching featured recipes from:', url);
-  
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+  const response = await fetch(`${baseUrl}/public/recipes/featured`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
 
-    console.log('Featured recipes response status:', response.status);
-    console.log('Featured recipes response ok:', response.ok);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Featured recipes error response:', errorText);
-      throw new Error(`Failed to fetch featured recipes: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log('Featured recipes data:', data);
-    return data;
-  } catch (error) {
-    console.error('Featured recipes fetch error:', error);
-    throw error;
+  if (!response.ok) {
+    throw new Error('Failed to fetch featured recipes');
   }
+
+  return await response.json();
 };
 
 export const FeaturedRecipes: React.FC = () => {

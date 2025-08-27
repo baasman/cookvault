@@ -18,6 +18,7 @@ interface RecipeEditFormProps {
   recipe: Recipe;
   onSave: (updatedRecipe: Recipe) => void;
   onCancel: () => void;
+  onRecipeUpdate?: (updatedRecipe: Recipe) => void; // For updates that shouldn't trigger navigation
 }
 
 type TabType = 'metadata' | 'ingredients' | 'instructions' | 'tags';
@@ -26,6 +27,7 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
   recipe,
   onSave,
   onCancel,
+  onRecipeUpdate,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('metadata');
   const [loading, setLoading] = useState(false);
@@ -92,9 +94,16 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
       const updatedRecipe = await recipesApi.updateRecipeIngredients(recipe.id, {
         ingredients
       });
-      // Reset ingredients editing state on successful save
-      setIngredientsEditingIndex(null);
+      // Update local state with the saved recipe data
+      setIngredients(updatedRecipe.ingredients?.map(ing => ({
+        name: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+        preparation: ing.preparation,
+        optional: ing.optional
+      })) || []);
       onSave(updatedRecipe);
+      // Note: Don't reset editing index so user can continue editing
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update ingredients');
     } finally {
@@ -110,9 +119,10 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
       const updatedRecipe = await recipesApi.updateRecipeInstructions(recipe.id, {
         instructions
       });
-      // Reset instructions editing state on successful save
-      setInstructionsEditingIndex(null);
+      // Update local state with the saved recipe data
+      setInstructions(updatedRecipe.instructions?.map(inst => inst.text) || []);
       onSave(updatedRecipe);
+      // Note: Don't reset editing index so user can continue editing
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update instructions');
     } finally {
@@ -320,6 +330,24 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
             onChange={setInstructions}
             editingIndex={instructionsEditingIndex}
             onEditingIndexChange={setInstructionsEditingIndex}
+            recipeId={recipe.id}
+            instructionObjects={recipe.instructions}
+            onInstructionUpdate={(updatedInstruction) => {
+              console.log('Instruction updated:', updatedInstruction);
+              // Update the recipe's instruction objects when an image is added/removed
+              const updatedRecipe = {
+                ...recipe,
+                instructions: recipe.instructions?.map(inst => 
+                  inst.id === updatedInstruction.id ? updatedInstruction : inst
+                ) || []
+              };
+              console.log('Updated recipe:', updatedRecipe);
+              
+              // Use onRecipeUpdate to update data without triggering navigation
+              if (onRecipeUpdate) {
+                onRecipeUpdate(updatedRecipe);
+              }
+            }}
           />
         )}
 
