@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pappardelle al Ragù di Coniglio - Modern Cookbook Style</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Matching app's color system */
+            --page-bg: #fcf9f8;
+            --paper-bg: #ffffff;
+            --text-primary: #1c120d;
+            --text-secondary: #9b644b;
+            --text-muted: #8b7969;
+            --accent-primary: #f15f1c;
+            --accent-secondary: #f1ece9;
+            --accent-warm: #c49484;
+            --accent-gold: #d4af37;
+            --border-soft: #e8d7cf;
+            --shadow-paper: 0 4px 20px rgba(28, 18, 13, 0.08);
+            
+            /* Typography */
+            --font-serif: 'Crimson Text', serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-serif);
+            background: var(--page-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        /* Header Integration */
+        .app-header {
+            background: var(--page-bg);
+            border-bottom: 1px solid var(--border-soft);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            padding: 0 1rem;
+        }
+
+        .header-content {
+            max-width: 1152px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 4rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-family: var(--font-sans);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+            font-family: var(--font-sans);
+        }
+
+        .nav-link:hover {
+            color: var(--accent-primary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Button Styles matching app */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-sans);
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: var(--accent-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-sm {
+            height: 2rem;
+            padding: 0 1rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-md {
+            height: 2.5rem;
+            padding: 0 1rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        /* Recipe Book Page */
+        .recipe-page {
+            background: var(--paper-bg);
+            border-radius: 0;
+            box-shadow: var(--shadow-paper);
+            padding: 3rem 2.5rem;
+            margin: 2rem 0;
+            position: relative;
+            min-height: 100vh;
+        }
+
+
+        /* Header with title and description */
+        .recipe-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--accent-warm);
+            position: relative;
+        }
+
+        .recipe-title {
+            font-family: var(--font-serif);
+            font-size: 2.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .recipe-subtitle {
+            font-style: italic;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        .recipe-intro {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            text-align: justify;
+            margin-top: 1rem;
+            font-family: var(--font-serif);
+        }
+
+        /* Recipe Meta Information */
+        .recipe-meta {
+            display: flex;
+            gap: 2rem;
+            margin: 1.5rem 0;
+            padding: 1rem 0;
+            border-top: 1px solid var(--border-soft);
+            border-bottom: 1px solid var(--border-soft);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+        }
+
+        .meta-item {
+            text-align: center;
+        }
+
+        .meta-label {
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.75rem;
+        }
+
+        .meta-value {
+            color: var(--text-primary);
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        /* Main Content Layout - Traditional Two Column */
+        .recipe-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            margin-top: 2rem;
+        }
+
+        /* Ingredients Section - Left Column */
+        .ingredients-section {
+            padding-right: 1rem;
+        }
+
+        .section-title {
+            font-family: var(--font-serif);
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            text-transform: capitalize;
+            letter-spacing: -0.01em;
+        }
+
+        .ingredients-list {
+            list-style: none;
+            margin-bottom: 2rem;
+        }
+
+        .ingredients-list li {
+            display: flex;
+            align-items: baseline;
+            padding: 0.4rem 0;
+            border-bottom: 1px dotted var(--border-soft);
+            font-size: 0.95rem;
+        }
+
+        .ingredients-list li:last-child {
+            border-bottom: none;
+        }
+
+        .ingredient-amount {
+            font-family: var(--font-sans);
+            font-weight: 500;
+            color: var(--accent-warm);
+            min-width: 80px;
+            margin-right: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .ingredient-name {
+            flex: 1;
+            color: var(--text-primary);
+        }
+
+        /* Special Ingredients Subsection */
+        .ingredient-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .ingredient-group-title {
+            font-style: italic;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Instructions Section - Right Column */
+        .instructions-section {
+            padding-left: 1rem;
+        }
+
+        .instructions-list {
+            list-style: none;
+            counter-reset: step-counter;
+        }
+
+        .instructions-list li {
+            counter-increment: step-counter;
+            margin-bottom: 1.25rem;
+            position: relative;
+            padding-left: 2.5rem;
+            text-align: justify;
+        }
+
+        .instructions-list li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 2rem;
+            height: 2rem;
+            background: var(--accent-gold);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .instructions-list li p {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        /* Additional ingredients subsection */
+        .additional-ingredients {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-soft);
+        }
+
+        .additional-ingredients .section-title {
+            font-size: 1.2rem;
+            font-style: italic;
+            margin-bottom: 1rem;
+        }
+
+        /* Recipe Image */
+        .recipe-image {
+            grid-column: 1 / -1;
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .recipe-image img {
+            max-width: 100%;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .image-caption {
+            font-style: italic;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 0.75rem;
+            text-align: center;
+        }
+
+        /* Page Number */
+        .page-number {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: var(--font-sans);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* Mobile Menu Styles */
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        .mobile-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--page-bg);
+            border-top: 1px solid var(--border-soft);
+            padding: 1rem;
+        }
+
+        .mobile-menu.active {
+            display: block;
+        }
+
+        .mobile-nav-links {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .mobile-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-soft);
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .nav-links,
+            .header-actions {
+                display: none;
+            }
+            
+            .mobile-menu-btn {
+                display: block;
+            }
+            
+            .container {
+                padding: 1rem 0.5rem;
+            }
+            
+            .recipe-page {
+                padding: 2rem 1.5rem;
+                margin: 1rem 0;
+            }
+            
+            
+            .recipe-title {
+                font-size: 1.8rem;
+            }
+            
+            .recipe-content {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            
+            .ingredients-section,
+            .instructions-section {
+                padding: 0;
+            }
+            
+            .recipe-meta {
+                flex-wrap: wrap;
+                gap: 1rem;
+                justify-content: center;
+            }
+            
+            .meta-item {
+                min-width: 120px;
+            }
+            
+            .instructions-list li {
+                padding-left: 3rem;
+            }
+            
+            .instructions-list li::before {
+                width: 2.5rem;
+                height: 2.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .recipe-page {
+                padding: 1.5rem 1rem;
+            }
+            
+            .recipe-title {
+                font-size: 1.6rem;
+            }
+            
+            .recipe-intro {
+                font-size: 0.95rem;
+            }
+        }
+
+        /* Hover and Interactive States */
+        .recipe-page {
+            transition: all 0.3s ease;
+        }
+
+        .recipe-page:hover {
+            box-shadow: 0 8px 30px rgba(44, 24, 16, 0.12);
+        }
+
+        /* Print Styles */
+        @media print {
+            .recipe-page {
+                box-shadow: none;
+                margin: 0;
+                padding: 2rem;
+            }
+            
+            .page-number {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header matching the app -->
+    <header class="app-header">
+        <div class="header-content">
+            <a href="/" class="logo">Cookle</a>
+            
+            <nav class="nav-links">
+                <a href="/recipes" class="nav-link">Recipes</a>
+                <a href="/cookbooks" class="nav-link">Cookbooks</a>
+                <a href="/profile" class="nav-link">Profile</a>
+            </nav>
+            
+            <div class="header-actions">
+                <a href="/recipes/create" class="btn btn-secondary btn-md">Create Recipe</a>
+                <a href="/upload" class="btn btn-primary btn-md">Upload Recipe</a>
+                <button class="btn btn-secondary btn-sm">Logout</button>
+            </div>
+            
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            
+            <div class="mobile-menu" id="mobileMenu">
+                <div class="mobile-nav-links">
+                    <a href="/recipes" class="nav-link">Recipes</a>
+                    <a href="/cookbooks" class="nav-link">Cookbooks</a>
+                    <a href="/profile" class="nav-link">Profile</a>
+                </div>
+                <div class="mobile-actions">
+                    <a href="/recipes/create" class="btn btn-secondary btn-md">Create Recipe</a>
+                    <a href="/upload" class="btn btn-primary btn-md">Upload Recipe</a>
+                    <button class="btn btn-secondary btn-sm">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Recipe Action Bar -->
+        <div style="margin: 2rem 0 1rem 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="/recipes" class="btn btn-secondary btn-md" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Recipes
+                </a>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Add to Group
+                </button>
+                
+                <button class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 0.5rem; background: #10b981; color: white;">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Make Private
+                </button>
+                
+                <button class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Recipe
+                </button>
+                
+                <button class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 0.5rem; color: #dc2626;">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Recipe
+                </button>
+            </div>
+        </div>
+
+        <article class="recipe-page">
+            <!-- Recipe Images Section -->
+            <div class="recipe-image">
+                <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+                    <img src="https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=800&h=400&fit=crop&crop=center" alt="Pappardelle al Ragù di Coniglio served in a rustic ceramic bowl" style="border-radius: 8px;">
+                    
+                    <!-- Image navigation overlay -->
+                    <div style="position: absolute; top: 1rem; right: 1rem; background: rgba(0,0,0,0.7); color: white; padding: 0.5rem 1rem; border-radius: 9999px; font-family: var(--font-sans); font-size: 0.875rem; font-weight: 500;">
+                        📄 1 of 2 • Page 2
+                    </div>
+                </div>
+                
+                <!-- Image thumbnails -->
+                <div style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1rem;">
+                    <img src="https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=100&h=80&fit=crop&crop=center" alt="Recipe page 1" style="width: 80px; height: 60px; object-fit: cover; border-radius: 4px; border: 2px solid var(--accent-warm); cursor: pointer;">
+                    <img src="https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=100&h=80&fit=crop&crop=center" alt="Recipe page 2" style="width: 80px; height: 60px; object-fit: cover; border-radius: 4px; border: 2px solid var(--border-soft); cursor: pointer;">
+                </div>
+                
+                <p class="image-caption">Fresh pappardelle tossed with slow-braised rabbit ragù, finished with Parmigiano-Reggiano</p>
+            </div>
+
+            <header class="recipe-header">
+                <h1 class="recipe-title">Pappardelle al Ragù di Coniglio</h1>
+                <p class="recipe-subtitle">Pasta with Braised Rabbit Ragù</p>
+                
+                <div class="recipe-meta">
+                    <div class="meta-item">
+                        <div class="meta-label">Yields</div>
+                        <div class="meta-value">4 to 6 servings</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Prep Time</div>
+                        <div class="meta-value">45 minutes</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Cook Time</div>
+                        <div class="meta-value">3 hours</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Region</div>
+                        <div class="meta-value">Tuscany</div>
+                    </div>
+                </div>
+                
+                <p class="recipe-intro">
+                    If you asked me to peg a single pasta as capturing the essence of Tuscany, it's a near tie between pici with wild boar (page 333) and pappardelle with rabbit. The latter has the narrow edge primarily because it's the dish I find myself gravitating to most at home—partly because of availability and partly because I just love cooking rabbit. (Note: In Tuscany and other regions of central Italy, especially Umbria, ragù al coniglio is often made with wild hare, a much gamier version of the rabbit we know and love in the States. While it does make for a richer, funkier ragù, I prefer the cleaner flavors of rabbit here.)
+                </p>
+                
+                <!-- Recipe Attribution -->
+                <div style="margin: 1.5rem 0; padding: 1rem; background: rgba(241, 236, 233, 0.3); border-radius: 8px; border-left: 4px solid var(--accent-warm);">
+                    <div style="font-family: var(--font-sans); font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                        <strong>Uploaded by:</strong> Gordon Chef<br>
+                        <strong>Date:</strong> August 20, 2025
+                    </div>
+                    <div style="font-family: var(--font-sans); font-size: 0.9rem; color: var(--text-secondary);">
+                        <strong>From Cookbook:</strong> <a href="/cookbooks/italian-american" style="color: var(--accent-warm); text-decoration: underline;">Italian American</a><br>
+                        <strong>by</strong> Angie Rito • Page 1
+                    </div>
+                </div>
+            </header>
+
+
+            <div class="recipe-content">
+                <section class="ingredients-section">
+                    <h2 class="section-title">Rabbit Ragù</h2>
+                    <ul class="ingredients-list">
+                        <li>
+                            <span class="ingredient-amount">6</span>
+                            <span class="ingredient-name">rabbit legs, 228g / 8 oz each, or 1 (1.4kg / 3 lb) whole rabbit, cut into six pieces</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">36g / ¼ cup</span>
+                            <span class="ingredient-name">salt, plus more q.b.</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">450g / 3</span>
+                            <span class="ingredient-name">large carrots</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">400g / 1</span>
+                            <span class="ingredient-name">large fennel bulb</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">370g / 1</span>
+                            <span class="ingredient-name">large onion</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">56g / ¼ cup</span>
+                            <span class="ingredient-name">olive oil, plus 28g / 2 Tbsp</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">25g / 5</span>
+                            <span class="ingredient-name">cloves garlic, thinly sliced</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">440g / 2 cups</span>
+                            <span class="ingredient-name">dry red wine</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">1 large</span>
+                            <span class="ingredient-name">(794g / 28 oz) can whole San Marzano tomatoes, crushed by hand</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">15g / ¼ bunch</span>
+                            <span class="ingredient-name">parsley</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">2 sprigs</span>
+                            <span class="ingredient-name">rosemary</span>
+                        </li>
+                        <li>
+                            <span class="ingredient-amount">6g / 1 Tbsp</span>
+                            <span class="ingredient-name">juniper berries, coarsely crushed</span>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="instructions-section">
+                    <h2 class="section-title">Method</h2>
+                    <ol class="instructions-list">
+                        <li>
+                            <p>To make the ragù, season the rabbit on all sides with the salt and let sit to absorb for 30 to 40 minutes.</p>
+                        </li>
+                        <li>
+                            <p>Fit your meat grinder with the small die. Peel the carrots. Core the fennel and remove the fronds and stems. Chop the fennel, carrots, and onion into ¼- to 1-inch pieces. Put the carrots, fennel, and onion through the grinder. Once all are ground, gather them in cheesecloth and wring to squeeze out the excess liquid. This is your soffritto.</p>
+                        </li>
+                        <li>
+                            <p>Place a large, heavy sauce pot or Dutch oven over medium heat and add the 56g / ¼ cup olive oil. Add the rabbit pieces (you can do this in batches if they don't all fit without crowding) and sear, turning as needed, until golden brown, 3 to 5 minutes on each side. Transfer the rabbit to a plate and keep warm.</p>
+                        </li>
+                        <li>
+                            <p>If a lot of brown bits from the rabbit are left in the pot, wipe out the pot and return it to the heat and add the remaining 28g / 2 Tbsp olive oil. Add the soffritto, turn down the heat to low, and gently cook, stirring frequently, until softened but without color, 6 to 8 minutes.</p>
+                        </li>
+                        <li>
+                            <p>Toward the very end of cooking, add the garlic and gently cook until aromatic but without color, 10 to 15 seconds. Add the wine and simmer until reduced by half, 3 to 5 minutes.</p>
+                        </li>
+                        <li>
+                            <p>Add the rabbit back to the pot. Add the tomatoes and their juice and, if necessary, enough water just to cover the rabbit.</p>
+                        </li>
+                        <li>
+                            <p>Make a sachet with cheesecloth for the parsley, rosemary, and juniper and add to the pot. Cover the pot and gently simmer until the rabbit is tender and falling off the bone, 2 to 3 hours.</p>
+                        </li>
+                    </ol>
+                </section>
+
+                    <div class="additional-ingredients">
+                        <h3 class="section-title">To Finish</h3>
+                        <ul class="ingredients-list">
+                            <li>
+                                <span class="ingredient-amount">1 batch</span>
+                                <span class="ingredient-name">egg dough (page 18)</span>
+                            </li>
+                            <li>
+                                <span class="ingredient-amount">1g / 1 tsp</span>
+                                <span class="ingredient-name">ground juniper berries</span>
+                            </li>
+                            <li>
+                                <span class="ingredient-amount">22g / ¼ cup</span>
+                                <span class="ingredient-name">finely grated Parmigiano-Reggiano</span>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
+            </div>
+
+            <div class="page-number">226</div>
+        </article>
+    </div>
+    
+    <script>
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            menu.classList.toggle('active');
+        }
+        
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('mobileMenu');
+            const btn = document.querySelector('.mobile-menu-btn');
+            
+            if (!menu.contains(event.target) && !btn.contains(event.target)) {
+                menu.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
