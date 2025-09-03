@@ -115,6 +115,7 @@ class Cookbook(db.Model):
             "isbn": self.isbn,
             "publisher": self.publisher,
             "cover_image_url": self.cover_image_url,
+            "user_id": self.user_id,  # Include owner information for permissions
             "is_purchasable": self.is_purchasable,
             "price": float(self.price) if self.price else None,
             "purchase_count": self.purchase_count,

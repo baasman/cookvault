@@ -114,7 +114,7 @@ export const InstructionImageUpload: React.FC<InstructionImageUploadProps> = ({
     return (
       <div className={`relative inline-block ${className}`}>
         <img
-          src={imageUrl}
+          src={imageUrl || undefined}
           alt={`Step ${instruction.step_number} illustration`}
           className="max-w-full h-32 object-cover rounded-lg border border-gray-200"
         />

@@ -5,6 +5,7 @@ import { cookbooksApi } from '../services/cookbooksApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, SearchBar, CloudinaryImage } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
+import { ExportButton } from '../components/export';
 import { formatTextForDisplay, decodeHtmlEntities } from '../utils/textUtils';
 import type { Recipe } from '../types';
 
@@ -181,6 +182,23 @@ const CookbookDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Export Button - only show for owners, purchasers, or admins */}
+            {isAuthenticated && recipes.length > 0 && (
+              cookbook.user_id === parseInt(user?.id || '0') || 
+              cookbook.has_purchased || 
+              user?.role === 'admin'
+            ) && (
+              <div className="flex justify-center mb-6">
+                <ExportButton
+                  type="cookbook"
+                  cookbookId={cookbookId}
+                  buttonText="Export Cookbook to PDF"
+                  showOptions={true}
+                  className="bg-green-600 hover:bg-green-700"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

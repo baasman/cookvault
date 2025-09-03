@@ -188,7 +188,7 @@ export const EditableInstructionsList: React.FC<EditableInstructionsListProps> =
                 ) && (
                   <div className="mt-2">
                     <img
-                      src={instructionObjects[index].cloudinary_thumbnail_url || instructionObjects[index].image_url}
+                      src={instructionObjects[index].cloudinary_thumbnail_url || instructionObjects[index].image_url || undefined}
                       alt={`Step ${index + 1} illustration`}
                       className="max-w-xs h-32 object-cover rounded-lg border border-gray-200"
                     />

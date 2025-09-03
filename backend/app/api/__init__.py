@@ -2,4 +2,7 @@ from flask import Blueprint
 
 bp = Blueprint("api", __name__)
 
-from app.api import recipes, auth, cookbooks, public, recipe_groups, payments
+from app.api import recipes, auth, cookbooks, public, recipe_groups, payments, exports
+
+# Register sub-blueprints
+bp.register_blueprint(exports.bp)

@@ -15,6 +15,7 @@ import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import { PaywallMessage } from '../components/recipe/PaywallMessage';
 import { RecipeScaler } from '../components/recipe/RecipeScaler';
+import { ExportButton } from '../components/export';
 import { scaleQuantity, isScalableQuantity } from '../utils/recipeScaling';
 import type { Recipe } from '../types';
 
@@ -262,6 +263,17 @@ const RecipeDetailPage: React.FC = () => {
               </svg>
               Edit Recipe
             </Button>
+          )}
+          
+          {/* Export Button */}
+          {recipe.has_full_access && (
+            <ExportButton
+              type="recipe"
+              recipeId={recipeId}
+              buttonText="Export PDF"
+              showOptions={true}
+              className="ml-2"
+            />
           )}
           
           {/* Delete Button */}
@@ -537,7 +549,7 @@ const RecipeDetailPage: React.FC = () => {
                             {(instruction.cloudinary_thumbnail_url || instruction.image_url) && (
                               <div className="mt-3">
                                 <img
-                                  src={instruction.cloudinary_thumbnail_url || instruction.image_url}
+                                  src={instruction.cloudinary_thumbnail_url || instruction.image_url || undefined}
                                   alt={`Step ${instruction.step_number} illustration`}
                                   className="max-w-sm h-48 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
                                   onClick={() => {

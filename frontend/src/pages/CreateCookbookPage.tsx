@@ -26,7 +26,7 @@ const CreateCookbookPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const createCookbookMutation = useMutation({
-    mutationFn: cookbooksApi.createCookbook,
+    mutationFn: (data: any) => cookbooksApi.createCookbook(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['cookbooks'] });
       navigate(`/cookbooks/${data.id}`);

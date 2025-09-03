@@ -95,6 +95,7 @@ class Config:
         app.config['STRIPE_WEBHOOK_SECRET'] = os.environ.get("STRIPE_WEBHOOK_SECRET")
         app.config['STRIPE_PREMIUM_PRICE'] = int(os.environ.get("STRIPE_PREMIUM_PRICE", 299))  # $2.99 in cents
         app.config['FREE_TIER_UPLOAD_LIMIT'] = int(os.environ.get("FREE_TIER_UPLOAD_LIMIT", 10))
+        app.config['PREMIUM_COOKBOOK_DISCOUNT_PERCENT'] = int(os.environ.get("PREMIUM_COOKBOOK_DISCOUNT_PERCENT", 20))  # 20% discount for premium users
 
         # Cloudinary settings for image storage
         app.config['CLOUDINARY_CLOUD_NAME'] = os.environ.get("CLOUDINARY_CLOUD_NAME")

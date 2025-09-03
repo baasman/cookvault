@@ -310,6 +310,21 @@ def get_recipes(current_user) -> Response:
 def create_empty_recipe(current_user) -> Response:
     """Create a new empty recipe."""
     try:
+        # Check upload limit for free users
+        if not current_user.can_upload_recipe():
+            subscription = current_user.get_or_create_subscription()
+            current_app.logger.warning(
+                f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
+            return jsonify({
+                "error": "Upload limit reached",
+                "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                "remaining_uploads": 0,
+                "monthly_upload_count": subscription.monthly_upload_count,
+                "is_premium": False,
+                "upgrade_required": True
+            }), 403
+
         data = request.get_json()
 
         if not data:
@@ -344,6 +359,15 @@ def create_empty_recipe(current_user) -> Response:
 
         db.session.add(recipe)
         db.session.commit()
+
+        # Increment upload count for free users after successful upload
+        if not current_user.is_premium():
+            subscription = current_user.get_or_create_subscription()
+            subscription.increment_upload_count()
+            db.session.commit()
+            current_app.logger.info(
+                f"Upload count incremented for user {current_user.id}: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
 
         current_app.logger.info(
             f"Created empty recipe {recipe.id} for user {current_user.id}"
@@ -512,6 +536,21 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     current_app.logger.info(f"Form data keys: {list(request.form.keys())}")
     current_app.logger.info(f"Files: {list(request.files.keys())}")
 
+    # Check upload limit for free users
+    if not current_user.can_upload_recipe():
+        subscription = current_user.get_or_create_subscription()
+        current_app.logger.warning(
+            f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+        )
+        return jsonify({
+            "error": "Upload limit reached",
+            "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+            "remaining_uploads": 0,
+            "monthly_upload_count": subscription.monthly_upload_count,
+            "is_premium": False,
+            "upgrade_required": True
+        }), 403
+
     if "image" not in request.files:
         return jsonify({"error": "No image file provided"}), 400
 
@@ -626,6 +665,15 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
 
         db.session.add(processing_job)
         db.session.commit()
+
+        # Increment upload count for free users after successful upload
+        if not current_user.is_premium():
+            subscription = current_user.get_or_create_subscription()
+            subscription.increment_upload_count()
+            db.session.commit()
+            current_app.logger.info(
+                f"Upload count incremented for user {current_user.id}: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
 
         # Queue background processing to prevent worker timeouts
         import threading
@@ -2324,6 +2372,21 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
 def upload_multi_recipe(current_user):
     """Upload multiple images for a single recipe"""
     try:
+        # Check upload limit for free users
+        if not current_user.can_upload_recipe():
+            subscription = current_user.get_or_create_subscription()
+            current_app.logger.warning(
+                f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
+            return jsonify({
+                "error": "Upload limit reached",
+                "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                "remaining_uploads": 0,
+                "monthly_upload_count": subscription.monthly_upload_count,
+                "is_premium": False,
+                "upgrade_required": True
+            }), 403
+
         user_id = current_user.id
 
         # Check if files are present
@@ -2437,6 +2500,15 @@ def upload_multi_recipe(current_user):
 
         db.session.commit()
 
+        # Increment upload count for free users after successful upload
+        if not current_user.is_premium():
+            subscription = current_user.get_or_create_subscription()
+            subscription.increment_upload_count()
+            db.session.commit()
+            current_app.logger.info(
+                f"Upload count incremented for user {current_user.id}: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
+
         # Start processing
         try:
             process_multi_image_job(multi_job.id)
@@ -2486,6 +2558,20 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
     )
 
     try:
+        # Check upload limit for free users
+        if not current_user.can_upload_recipe():
+            subscription = current_user.get_or_create_subscription()
+            current_app.logger.warning(
+                f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
+            return jsonify({
+                "error": "Upload limit reached",
+                "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                "remaining_uploads": 0,
+                "monthly_upload_count": subscription.monthly_upload_count,
+                "is_premium": False,
+                "upgrade_required": True
+            }), 403
         # Get JSON data from request
         data = request.get_json()
         if not data:
@@ -2619,6 +2705,15 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             _create_tags(recipe.id, parsed_recipe)
 
         db.session.commit()
+
+        # Increment upload count for free users after successful upload
+        if not current_user.is_premium():
+            subscription = current_user.get_or_create_subscription()
+            subscription.increment_upload_count()
+            db.session.commit()
+            current_app.logger.info(
+                f"Upload count incremented for user {current_user.id}: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
 
         current_app.logger.info(
             f"Successfully created recipe {recipe.id} from text: '{recipe.title}'"

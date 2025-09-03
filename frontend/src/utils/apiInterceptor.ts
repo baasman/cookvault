@@ -59,6 +59,10 @@ export const authenticatedFetch = async (
 ): Promise<Response> => {
   const requestKey = generateRequestKey(url, options);
   
+  // Log the actual URL being requested
+  console.debug('authenticatedFetch - Requesting URL:', url);
+  console.debug('authenticatedFetch - Method:', options.method || 'GET');
+  
   // Add JWT token to headers if available
   const authToken = localStorage.getItem('auth_token');
   const headers = {

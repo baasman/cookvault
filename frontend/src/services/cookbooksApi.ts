@@ -52,7 +52,19 @@ interface GoogleBooksResponse {
 }
 
 class CookbooksApi {
-  private baseUrl = getApiUrl();
+  private _baseUrl: string | undefined;
+  
+  private get baseUrl(): string {
+    if (!this._baseUrl) {
+      this._baseUrl = getApiUrl();
+      if (!this._baseUrl || this._baseUrl === undefined) {
+        console.error('WARNING: API URL is undefined, defaulting to /api');
+        this._baseUrl = '/api';
+      }
+      console.debug('CookbooksApi baseUrl resolved to:', this._baseUrl);
+    }
+    return this._baseUrl;
+  }
 
   async fetchCookbooks(params: FetchCookbooksParams = {}): Promise<CookbooksResponse> {
     const { page = 1, per_page = 12, search, sort_by = 'title' } = params;
@@ -208,7 +220,12 @@ class CookbooksApi {
 
   async createCookbook(data: CreateCookbookData): Promise<Cookbook> {
     try {
-      const response = await apiFetch(`${this.baseUrl}/cookbooks`, {
+      const url = `${this.baseUrl}/cookbooks`;
+      console.log('Creating cookbook with URL:', url);
+      console.log('Base URL is:', this.baseUrl);
+      console.log('Request data:', data);
+      
+      const response = await apiFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -217,8 +234,22 @@ class CookbooksApi {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } else {
+            const textContent = await response.text();
+            if (textContent) {
+              console.warn('Non-JSON error response:', textContent.substring(0, 200));
+            }
+          }
+        } catch (parseError) {
+          console.warn('Error parsing error response:', parseError);
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

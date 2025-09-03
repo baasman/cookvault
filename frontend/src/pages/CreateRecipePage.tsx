@@ -5,6 +5,7 @@ import { RecipeForm } from '../components/recipe/RecipeForm';
 import { Button, Input } from '../components/ui';
 import { CookbookSearch } from '../components/cookbook/CookbookSearch';
 import { GoogleBooksSearch } from '../components/cookbook/GoogleBooksSearch';
+import { UploadLimitWarning, useCanUpload } from '../components/payments';
 import { cookbooksApi, type GoogleBook } from '../services/cookbooksApi';
 import type { Recipe } from '../types';
 
@@ -14,6 +15,8 @@ const CreateRecipePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
+  
+  const { canUpload, isLoading: isLoadingLimits } = useCanUpload();
   
   // Initial creation form state
   const [initialData, setInitialData] = useState({
@@ -152,7 +155,15 @@ const CreateRecipePage: React.FC = () => {
         </p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border p-6" style={{borderColor: '#e8d7cf'}}>
+      {/* Upload Limit Warning */}
+      {!isLoadingLimits && !canUpload && (
+        <div className="mb-8">
+          <UploadLimitWarning />
+        </div>
+      )}
+
+      {!isLoadingLimits && canUpload && (
+        <div className="bg-white rounded-xl shadow-sm border p-6" style={{borderColor: '#e8d7cf'}}>
         <form onSubmit={handleInitialSubmit} className="space-y-6">
           {/* Recipe Title */}
           <div>
@@ -393,7 +404,8 @@ const CreateRecipePage: React.FC = () => {
             </Button>
           </div>
         </form>
-      </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -185,6 +185,10 @@ def create_app(config_name: str | None = None) -> Flask:
     from app.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix="/api")
 
+    # Initialize CLI commands
+    from app import commands
+    commands.init_app(app)
+
     # Log routes after blueprint registration
     log_routes()
 

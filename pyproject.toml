@@ -31,6 +31,8 @@ dependencies = [
     "flask-jwt-extended>=4.7.1",
     "stripe>=12.4.0",
     "cloudinary>=1.44.1",
+    "reportlab>=4.0.0",
+    "pypdf>=3.17.0",
 ]
 
 [project.optional-dependencies]

@@ -122,43 +122,86 @@ class StripeService:
                 raise ValueError("User has already purchased this cookbook")
             
             customer_id = self.get_or_create_customer(user)
-            amount_cents = int(cookbook.price * 100)  # Convert to cents
+            
+            # Calculate price with premium discount if applicable
+            final_price = cookbook.price
+            discount_applied = False
+            
+            if user.is_premium():
+                from flask import current_app
+                discount_percent = current_app.config.get('PREMIUM_COOKBOOK_DISCOUNT_PERCENT', 20)
+                discount_amount = cookbook.price * (discount_percent / 100)
+                final_price = cookbook.price - discount_amount
+                discount_applied = True
+                logger.info(f"Applied {discount_percent}% premium discount to cookbook {cookbook.id} for user {user.id}: ${cookbook.price:.2f} -> ${final_price:.2f}")
+            
+            amount_cents = int(final_price * 100)  # Convert to cents
+            
+            metadata = {
+                'user_id': str(user.id),
+                'cookbook_id': str(cookbook.id),
+                'payment_type': PaymentType.COOKBOOK.value,
+                'original_price': str(cookbook.price),
+                'final_price': str(final_price)
+            }
+            
+            if discount_applied:
+                discount_percent = current_app.config.get('PREMIUM_COOKBOOK_DISCOUNT_PERCENT', 20)
+                metadata['discount_applied'] = 'true'
+                metadata['discount_percent'] = str(discount_percent)
+                metadata['is_premium_purchase'] = 'true'
             
             payment_intent = stripe.PaymentIntent.create(
                 amount=amount_cents,
                 currency='usd',
                 customer=customer_id,
-                metadata={
-                    'user_id': str(user.id),
-                    'cookbook_id': str(cookbook.id),
-                    'payment_type': PaymentType.COOKBOOK.value
-                },
+                metadata=metadata,
                 automatic_payment_methods={'enabled': True}
             )
             
             # Create payment record
+            description = f"Purchase of cookbook '{cookbook.title}' by {user.username}"
+            if discount_applied:
+                discount_percent = current_app.config.get('PREMIUM_COOKBOOK_DISCOUNT_PERCENT', 20)
+                description += f" (Premium discount: {discount_percent}% off)"
+            
             payment = Payment(
                 user_id=user.id,
                 cookbook_id=cookbook.id,
                 stripe_payment_intent_id=payment_intent.id,
                 payment_type=PaymentType.COOKBOOK,
                 status=PaymentStatus.PENDING,
-                amount=cookbook.price,
+                amount=final_price,  # Use discounted price
                 currency='usd',
-                description=f"Purchase of cookbook '{cookbook.title}' by {user.username}"
+                description=description
             )
             db.session.add(payment)
             db.session.commit()
             
             logger.info(f"Created cookbook payment intent {payment_intent.id} for user {user.id}, cookbook {cookbook.id}")
             
-            return {
+            response_data = {
                 'client_secret': payment_intent.client_secret,
                 'payment_intent_id': payment_intent.id,
                 'amount': amount_cents,
                 'currency': 'usd',
-                'cookbook': cookbook.to_dict()
+                'cookbook': cookbook.to_dict(),
+                'original_price': cookbook.price,
+                'final_price': final_price
             }
+            
+            if discount_applied:
+                discount_percent = current_app.config.get('PREMIUM_COOKBOOK_DISCOUNT_PERCENT', 20)
+                response_data.update({
+                    'discount_applied': True,
+                    'discount_percent': discount_percent,
+                    'discount_amount': cookbook.price - final_price,
+                    'is_premium_purchase': True
+                })
+            else:
+                response_data['discount_applied'] = False
+            
+            return response_data
             
         except stripe.error.StripeError as e:
             logger.error(f"Failed to create cookbook payment intent for user {user.id}, cookbook {cookbook.id}: {str(e)}")

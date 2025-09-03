@@ -4,6 +4,7 @@
 export function getApiUrl(): string {
   // First check if VITE_API_URL is explicitly set
   if (import.meta.env.VITE_API_URL) {
+    console.debug('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
 
@@ -26,8 +27,12 @@ export function getApiUrl(): string {
       const backendHost = currentHost.replace('frontend', 'backend');
       return `https://${backendHost}/api`;
     }
+    // If we're in production but don't match any known patterns, still return /api
+    console.warn('Production mode but no matching URL pattern, defaulting to /api');
+    return '/api';
   }
 
   // Default to relative URL for development or unknown environments
+  console.debug('Development mode or unknown environment, using /api');
   return '/api';
 }
