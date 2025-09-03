@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import { getApiUrl } from '../../utils/getApiUrl';
+import { apiFetch } from '../../utils/apiInterceptor';
 
 interface ExportButtonProps {
   type: 'recipe' | 'cookbook' | 'collection';
@@ -41,7 +42,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       let filename: string;
 
       if (type === 'recipe' && recipeId) {
-        const response = await fetch(
+        const response = await apiFetch(
           `${getApiUrl()}/recipes/${recipeId}/export/pdf?` + new URLSearchParams({
             template: exportOptions.template,
             page_size: exportOptions.pageSize,
@@ -50,7 +51,6 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
           }),
           {
             method: 'GET',
-            credentials: 'include',
             headers: {
               'Accept': 'application/pdf'
             }
@@ -73,7 +73,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
           }
         }
       } else if (type === 'cookbook' && cookbookId) {
-        const response = await fetch(
+        const response = await apiFetch(
           `${getApiUrl()}/cookbooks/${cookbookId}/export/pdf?` + new URLSearchParams({
             template: exportOptions.template,
             page_size: exportOptions.pageSize,
@@ -84,7 +84,6 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
           }),
           {
             method: 'GET',
-            credentials: 'include',
             headers: {
               'Accept': 'application/pdf'
             }
@@ -106,9 +105,8 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
           }
         }
       } else if (type === 'collection' && recipeIds.length > 0) {
-        const response = await fetch(`${getApiUrl()}/recipes/export/pdf`, {
+        const response = await apiFetch(`${getApiUrl()}/recipes/export/pdf`, {
           method: 'POST',
-          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/pdf'
