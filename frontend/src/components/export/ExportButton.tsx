@@ -224,6 +224,20 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700">Template Style</label>
+            <select
+              value={options.template}
+              onChange={(e) => onChange({ ...options, template: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <option value="classic">Classic</option>
+              <option value="book">Book Style (Elegant, Two-Column)</option>
+              <option value="modern">Modern (Coming Soon)</option>
+              <option value="minimalist">Minimalist (Coming Soon)</option>
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Include</label>
             <div className="space-y-2">
               <label className="flex items-center">

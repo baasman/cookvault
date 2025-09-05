@@ -55,10 +55,18 @@ def export_recipe_pdf(recipe_id):
         include_images = request.args.get('include_images', 'true').lower() == 'true'
         include_notes = request.args.get('include_notes', 'true').lower() == 'true'
         
+        # Map template string to enum
+        template_map = {
+            'classic': PDFTemplate.CLASSIC,
+            'modern': PDFTemplate.MODERN,
+            'minimalist': PDFTemplate.MINIMALIST,
+            'book': PDFTemplate.BOOK
+        }
+        
         # Create PDF config
         config = PDFConfig(
             page_size=PageSize.LETTER if page_size == 'letter' else PageSize.A4,
-            template=PDFTemplate.CLASSIC,  # For now, only classic is implemented
+            template=template_map.get(template, PDFTemplate.CLASSIC),
             include_images=include_images,
             include_notes=include_notes
         )
@@ -127,10 +135,18 @@ def export_cookbook_pdf(cookbook_id):
         include_toc = request.args.get('include_toc', 'true').lower() == 'true'
         include_index = request.args.get('include_index', 'false').lower() == 'true'
         
+        # Map template string to enum
+        template_map = {
+            'classic': PDFTemplate.CLASSIC,
+            'modern': PDFTemplate.MODERN,
+            'minimalist': PDFTemplate.MINIMALIST,
+            'book': PDFTemplate.BOOK
+        }
+        
         # Create PDF config
         config = PDFConfig(
             page_size=PageSize.LETTER if page_size == 'letter' else PageSize.A4,
-            template=PDFTemplate.CLASSIC,
+            template=template_map.get(template, PDFTemplate.CLASSIC),
             include_images=include_images,
             include_notes=include_notes,
             include_toc=include_toc,
@@ -143,8 +159,10 @@ def export_cookbook_pdf(cookbook_id):
             return jsonify({'error': 'Cookbook has no recipes'}), 400
         
         # Convert to dict format
+        # For cookbook owners exporting their own cookbook, ensure they have full access to all recipes
+        is_cookbook_owner = cookbook.user_id == user.id
         cookbook_dict = cookbook.to_dict(current_user_id=user.id)
-        recipes_dict = [recipe.to_dict(current_user_id=user.id) for recipe in recipes]
+        recipes_dict = [recipe.to_dict(current_user_id=user.id, is_admin=is_cookbook_owner) for recipe in recipes]
         
         # Generate PDF
         pdf_service = PDFService(config)

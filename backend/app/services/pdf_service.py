@@ -33,6 +33,10 @@ from reportlab.platypus import (
     Image as RLImage,
     ListFlowable,
     ListItem,
+    Frame,
+    PageTemplate,
+    BaseDocTemplate,
+    FrameBreak,
 )
 from reportlab.pdfgen import canvas
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_JUSTIFY
@@ -138,6 +142,7 @@ class PDFTemplate(Enum):
     CLASSIC = "classic"
     MODERN = "modern"
     MINIMALIST = "minimalist"
+    BOOK = "book"  # New elegant book-style template
 
 
 @dataclass
@@ -168,7 +173,43 @@ class PDFStyleManager:
     def __init__(self, template: PDFTemplate = PDFTemplate.CLASSIC):
         self.template = template
         self.styles = getSampleStyleSheet()
+        self._register_fonts()
         self._customize_styles()
+    
+    def _register_fonts(self):
+        """Register custom fonts for PDF generation"""
+        try:
+            fonts_dir = Path(__file__).parent / 'fonts'
+            
+            # Register Cormorant Garamond (serif) for body text
+            if (fonts_dir / 'CormorantGaramond-Regular.ttf').exists():
+                pdfmetrics.registerFont(TTFont('CormorantGaramond', str(fonts_dir / 'CormorantGaramond-Regular.ttf')))
+                pdfmetrics.registerFont(TTFont('CormorantGaramond-Bold', str(fonts_dir / 'CormorantGaramond-Bold.ttf')))
+                pdfmetrics.registerFont(TTFont('CormorantGaramond-Italic', str(fonts_dir / 'CormorantGaramond-Italic.ttf')))
+                
+                # Register font family
+                pdfmetrics.registerFontFamily(
+                    'CormorantGaramond',
+                    normal='CormorantGaramond',
+                    bold='CormorantGaramond-Bold',
+                    italic='CormorantGaramond-Italic'
+                )
+                logger.info("Registered Cormorant Garamond font family")
+            
+            # Register Inter (sans-serif) for headers  
+            if (fonts_dir / 'Inter-Regular.ttf').exists():
+                pdfmetrics.registerFont(TTFont('Inter', str(fonts_dir / 'Inter-Regular.ttf')))
+                pdfmetrics.registerFont(TTFont('Inter-Medium', str(fonts_dir / 'Inter-Medium.ttf')))
+                
+                pdfmetrics.registerFontFamily(
+                    'Inter',
+                    normal='Inter',
+                    bold='Inter-Medium'
+                )
+                logger.info("Registered Inter font family")
+                
+        except Exception as e:
+            logger.warning(f"Failed to register custom fonts: {e}. Using system fonts.")
     
     def _customize_styles(self):
         """Customize styles based on template"""
@@ -176,6 +217,8 @@ class PDFStyleManager:
             self._apply_classic_styles()
         elif self.template == PDFTemplate.MODERN:
             self._apply_modern_styles()
+        elif self.template == PDFTemplate.BOOK:
+            self._apply_book_styles()
         else:
             self._apply_minimalist_styles()
     
@@ -247,13 +290,252 @@ class PDFStyleManager:
     
     def _apply_modern_styles(self):
         """Apply modern, clean styling"""
-        # To be implemented with artist input
-        pass
+        # Basic modern styles until full implementation with artist input
+        self.styles.add(ParagraphStyle(
+            name='RecipeTitle',
+            parent=self.styles['Heading1'],
+            fontSize=26,
+            textColor=colors.HexColor('#1A1A1A'),
+            spaceAfter=10,
+            alignment=TA_LEFT,
+            fontName='Helvetica-Bold'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='RecipeSubtitle',
+            parent=self.styles['Normal'],
+            fontSize=13,
+            textColor=colors.HexColor('#666666'),
+            spaceBefore=6,
+            spaceAfter=14,
+            alignment=TA_LEFT,
+            fontName='Helvetica'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='SectionHeader',
+            parent=self.styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#1A1A1A'),
+            spaceBefore=14,
+            spaceAfter=8,
+            fontName='Helvetica-Bold'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Ingredient',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            leftIndent=0,
+            bulletIndent=0,
+            spaceBefore=3,
+            spaceAfter=3
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Instruction',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            spaceBefore=6,
+            spaceAfter=6,
+            alignment=TA_LEFT
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Metadata',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#999999'),
+            alignment=TA_LEFT
+        ))
     
     def _apply_minimalist_styles(self):
         """Apply minimalist styling"""
-        # To be implemented with artist input
-        pass
+        # Basic minimalist styles until full implementation with artist input
+        self.styles.add(ParagraphStyle(
+            name='RecipeTitle',
+            parent=self.styles['Heading1'],
+            fontSize=22,
+            textColor=colors.black,
+            spaceAfter=8,
+            alignment=TA_LEFT,
+            fontName='Helvetica'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='RecipeSubtitle',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor('#808080'),
+            spaceBefore=4,
+            spaceAfter=12,
+            alignment=TA_LEFT,
+            fontName='Helvetica'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='SectionHeader',
+            parent=self.styles['Heading2'],
+            fontSize=12,
+            textColor=colors.black,
+            spaceBefore=12,
+            spaceAfter=6,
+            fontName='Helvetica'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Ingredient',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            leftIndent=0,
+            bulletIndent=0,
+            spaceBefore=2,
+            spaceAfter=2
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Instruction',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            spaceBefore=4,
+            spaceAfter=4,
+            alignment=TA_LEFT
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Metadata',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#A0A0A0'),
+            alignment=TA_LEFT
+        ))
+    
+    def _apply_book_styles(self):
+        """Apply elegant book-style formatting inspired by professional cookbooks"""
+        # Determine if custom fonts are available by checking registered fonts
+        registered_fonts = list(pdfmetrics._fonts.keys())
+        
+        serif_font = 'CormorantGaramond' if 'CormorantGaramond' in registered_fonts else 'Times-Roman'
+        serif_bold = 'CormorantGaramond-Bold' if 'CormorantGaramond-Bold' in registered_fonts else 'Times-Bold'
+        serif_italic = 'CormorantGaramond-Italic' if 'CormorantGaramond-Italic' in registered_fonts else 'Times-Italic'
+        sans_font = 'Inter' if 'Inter' in registered_fonts else 'Helvetica'
+        sans_bold = 'Inter-Medium' if 'Inter-Medium' in registered_fonts else 'Helvetica-Bold'
+        
+        # Recipe title - Large, centered, elegant serif
+        self.styles.add(ParagraphStyle(
+            name='RecipeTitle',
+            parent=self.styles['Heading1'],
+            fontSize=28,
+            textColor=colors.black,
+            spaceAfter=8,
+            spaceBefore=12,
+            alignment=TA_CENTER,
+            fontName=serif_bold,
+            leading=34
+        ))
+        
+        # Recipe description/headnote - Italic, centered, elegant
+        self.styles.add(ParagraphStyle(
+            name='RecipeDescription',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor('#333333'),
+            spaceBefore=4,
+            spaceAfter=16,
+            alignment=TA_CENTER,
+            fontName=serif_italic,
+            leading=14
+        ))
+        
+        # Recipe subtitle style (alias for RecipeDescription for consistency)
+        self.styles.add(ParagraphStyle(
+            name='RecipeSubtitle',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor('#333333'),
+            spaceBefore=4,
+            spaceAfter=16,
+            alignment=TA_CENTER,
+            fontName=serif_italic,
+            leading=14
+        ))
+        
+        # Metadata bar - Small, centered, clean sans-serif
+        self.styles.add(ParagraphStyle(
+            name='MetadataBar',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#666666'),
+            spaceBefore=8,
+            spaceAfter=20,
+            alignment=TA_CENTER,
+            fontName=sans_font,
+            leading=11
+        ))
+        
+        # Metadata style (alias for MetadataBar for consistency)
+        self.styles.add(ParagraphStyle(
+            name='Metadata',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#666666'),
+            spaceBefore=8,
+            spaceAfter=20,
+            alignment=TA_CENTER,
+            fontName=sans_font,
+            leading=11
+        ))
+        
+        # Section headers - Small caps style, sans-serif
+        self.styles.add(ParagraphStyle(
+            name='SectionHeader',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=colors.black,
+            spaceBefore=16,
+            spaceAfter=8,
+            fontName=sans_bold,
+            leading=13
+        ))
+        
+        # Ingredients - Clean, serif body text with proper spacing
+        self.styles.add(ParagraphStyle(
+            name='Ingredient',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.black,
+            spaceBefore=3,
+            spaceAfter=1,
+            leftIndent=0,
+            bulletIndent=0,
+            fontName=serif_font,
+            leading=14
+        ))
+        
+        # Instructions - Serif, justified text for professional appearance
+        self.styles.add(ParagraphStyle(
+            name='Instruction',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.black,
+            spaceBefore=6,
+            spaceAfter=2,
+            alignment=TA_JUSTIFY,
+            fontName=serif_font,
+            leading=14
+        ))
+        
+        # Notes - Smaller italic text
+        self.styles.add(ParagraphStyle(
+            name='Notes',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#555555'),
+            spaceBefore=16,
+            spaceAfter=8,
+            fontName=serif_italic,
+            leading=12
+        ))
 
 
 class PDFImageHandler:
@@ -496,6 +778,300 @@ class RecipePDFBuilder:
             parts.append(" (optional)")
         
         return " ".join(parts)
+
+
+class BookRecipePDFBuilder:
+    """Builds PDF for recipes using elegant book-style layout with two columns"""
+    
+    def __init__(self, config: PDFConfig = None):
+        self.config = config or PDFConfig()
+        # Force book template for this builder
+        self.config.template = PDFTemplate.BOOK
+        self.style_manager = PDFStyleManager(self.config.template)
+        self.image_handler = PDFImageHandler()
+    
+    def build_recipe_pdf(self, recipe: Dict[str, Any]) -> bytes:
+        """Generate elegant book-style PDF for a single recipe"""
+        buffer = io.BytesIO()
+        
+        # Determine page size
+        page_size = letter if self.config.page_size == PageSize.LETTER else A4
+        page_width, page_height = page_size
+        
+        # Create custom document with two-column layout
+        doc = BaseDocTemplate(
+            buffer,
+            pagesize=page_size,
+            topMargin=0.75 * inch,
+            bottomMargin=0.75 * inch,
+            leftMargin=0.75 * inch,
+            rightMargin=0.75 * inch
+        )
+        
+        # Calculate frame dimensions for two columns
+        frame_width = (page_width - 1.5 * inch) / 2 - 0.2 * inch  # Space for margins and column gap
+        frame_height = page_height - 1.5 * inch
+        
+        # Define frames for two-column layout
+        left_frame = Frame(
+            0.75 * inch,  # x
+            0.75 * inch,  # y 
+            frame_width,  # width
+            frame_height,  # height
+            leftPadding=0,
+            rightPadding=0.1 * inch,
+            topPadding=0,
+            bottomPadding=0
+        )
+        
+        right_frame = Frame(
+            0.75 * inch + frame_width + 0.2 * inch,  # x (left margin + left frame + gap)
+            0.75 * inch,  # y
+            frame_width,  # width  
+            frame_height,  # height
+            leftPadding=0.1 * inch,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0
+        )
+        
+        # Create page template with frames
+        page_template = PageTemplate(
+            id='TwoColumn',
+            frames=[left_frame, right_frame],
+            onPage=self._add_page_elements
+        )
+        doc.addPageTemplates([page_template])
+        
+        # Build content story
+        story = self._build_recipe_story(recipe)
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Clean up temporary image files
+        self._cleanup_temp_images(story)
+        
+        # Get PDF bytes
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_bytes
+    
+    def _build_recipe_story(self, recipe: Dict[str, Any]) -> List:
+        """Build the complete recipe story with proper formatting"""
+        story = []
+        
+        # Title - spans full width before columns
+        story.append(Paragraph(
+            recipe.get('title', 'Untitled Recipe'),
+            self.style_manager.styles['RecipeTitle']
+        ))
+        
+        # Description if present
+        if recipe.get('description'):
+            desc_text = sanitize_html_for_reportlab(recipe['description'])
+            story.append(Paragraph(desc_text, self.style_manager.styles['RecipeDescription']))
+        
+        # Metadata bar (Yield • Servings • Times)
+        metadata_parts = []
+        if recipe.get('servings'):
+            metadata_parts.append(f"Serves {recipe['servings']}")
+        if recipe.get('prep_time'):
+            prep_text = self._format_time(recipe['prep_time'])
+            if prep_text:
+                metadata_parts.append(f"Prep: {prep_text}")
+        if recipe.get('cook_time'):
+            cook_text = self._format_time(recipe['cook_time'])
+            if cook_text:
+                metadata_parts.append(f"Cook: {cook_text}")
+        if recipe.get('total_time'):
+            total_text = self._format_time(recipe['total_time'])
+            if total_text:
+                metadata_parts.append(f"Total: {total_text}")
+        
+        if metadata_parts:
+            metadata_text = " • ".join(metadata_parts)
+            story.append(Paragraph(metadata_text, self.style_manager.styles['MetadataBar']))
+        
+        # Ingredients section header
+        story.append(Paragraph("INGREDIENTS", self.style_manager.styles['SectionHeader']))
+        story.append(Spacer(1, 4))
+        
+        # Ingredients list
+        ingredients = recipe.get('ingredients', [])
+        for ingredient in ingredients:
+            if isinstance(ingredient, dict):
+                ing_text = self._format_ingredient_elegant(ingredient)
+            else:
+                ing_text = str(ingredient)
+            
+            story.append(Paragraph(f"• {ing_text}", self.style_manager.styles['Ingredient']))
+        
+        # Frame break to move to right column
+        story.append(FrameBreak())
+        
+        # Instructions section header
+        story.append(Paragraph("METHOD", self.style_manager.styles['SectionHeader']))
+        story.append(Spacer(1, 4))
+        
+        # Instructions
+        instructions = recipe.get('instructions', [])
+        for i, instruction in enumerate(instructions, 1):
+            if isinstance(instruction, dict):
+                inst_text = instruction.get('text', '')
+            else:
+                inst_text = str(instruction)
+            
+            # Clean HTML
+            inst_text = sanitize_html_for_reportlab(inst_text)
+            
+            story.append(Paragraph(
+                f"{i}. {inst_text}",
+                self.style_manager.styles['Instruction']
+            ))
+            story.append(Spacer(1, 4))
+        
+        # Notes if present (stays in right column)
+        if self.config.include_notes and recipe.get('notes'):
+            story.append(Spacer(1, 12))
+            story.append(Paragraph("NOTE", self.style_manager.styles['SectionHeader']))
+            story.append(Spacer(1, 4))
+            notes_text = sanitize_html_for_reportlab(recipe['notes'])
+            story.append(Paragraph(notes_text, self.style_manager.styles['Notes']))
+        
+        return story
+    
+    def _format_ingredient_elegant(self, ingredient: Dict[str, Any]) -> str:
+        """Format ingredient with elegant typography and proper units"""
+        parts = []
+        
+        # Quantity and unit
+        if ingredient.get('quantity'):
+            qty = ingredient['quantity']
+            # Convert decimals to fractions for common cooking measurements
+            if isinstance(qty, (int, float)):
+                qty_text = self._format_quantity(qty)
+            else:
+                qty_text = str(qty)
+            parts.append(qty_text)
+        
+        if ingredient.get('unit'):
+            unit = ingredient['unit']
+            # Use proper abbreviations
+            unit_abbrev = {
+                'tablespoon': 'tbsp', 'tablespoons': 'tbsp',
+                'teaspoon': 'tsp', 'teaspoons': 'tsp', 
+                'cup': 'cup', 'cups': 'cups',
+                'pound': 'lb', 'pounds': 'lbs',
+                'ounce': 'oz', 'ounces': 'oz',
+                'gram': 'g', 'grams': 'g',
+                'kilogram': 'kg', 'kilograms': 'kg',
+                'milliliter': 'ml', 'milliliters': 'ml',
+                'liter': 'l', 'liters': 'l'
+            }.get(unit.lower(), unit)
+            parts.append(unit_abbrev)
+        
+        # Ingredient name
+        name = ingredient.get('name', '')
+        parts.append(name)
+        
+        # Preparation in italics
+        if ingredient.get('preparation'):
+            prep = ingredient['preparation']
+            parts.append(f"<i>{prep}</i>")
+        
+        # Optional ingredients
+        if ingredient.get('optional'):
+            parts.append("(optional)")
+        
+        return " ".join(parts)
+    
+    def _format_quantity(self, qty: Union[int, float]) -> str:
+        """Convert decimal quantities to fractions for elegant display"""
+        if qty == int(qty):
+            return str(int(qty))
+        
+        # Common fraction conversions
+        fraction_map = {
+            0.125: '⅛', 0.25: '¼', 0.333: '⅓', 0.375: '⅜',
+            0.5: '½', 0.625: '⅝', 0.666: '⅔', 0.75: '¾', 0.875: '⅞'
+        }
+        
+        # Check for exact matches
+        for decimal, fraction in fraction_map.items():
+            if abs(qty - decimal) < 0.01:
+                return fraction
+        
+        # Check for mixed numbers
+        whole = int(qty)
+        remainder = qty - whole
+        
+        if whole > 0:
+            for decimal, fraction in fraction_map.items():
+                if abs(remainder - decimal) < 0.01:
+                    return f"{whole}{fraction}"
+        
+        # Fall back to decimal
+        return str(qty)
+    
+    def _format_time(self, minutes: int) -> str:
+        """Format cooking time elegantly"""
+        if not minutes:
+            return ""
+        
+        if minutes < 60:
+            return f"{minutes} min"
+        
+        hours = minutes // 60
+        mins = minutes % 60
+        
+        if mins == 0:
+            return f"{hours} hr" if hours == 1 else f"{hours} hrs"
+        
+        if hours == 1:
+            return f"1 hr {mins} min"
+        else:
+            return f"{hours} hrs {mins} min"
+    
+    def _add_page_elements(self, canvas, doc):
+        """Add page number and other elements to each page"""
+        canvas.saveState()
+        
+        # Page number at bottom center
+        page_num = canvas.getPageNumber()
+        text = f"{page_num}"
+        
+        # Use fallback font if Inter is not available
+        try:
+            canvas.setFont('Inter', 9)
+        except KeyError:
+            canvas.setFont('Helvetica', 9)
+        
+        canvas.setFillColor(colors.HexColor('#666666'))
+        canvas.drawString(doc.pagesize[0] / 2 - 5, 0.5 * inch, text)
+        
+        canvas.restoreState()
+    
+    def _cleanup_temp_images(self, story):
+        """Clean up temporary image files"""
+        # Implementation same as RecipePDFBuilder
+        def cleanup_element(element):
+            if hasattr(element, '_temp_file_path'):
+                try:
+                    Path(element._temp_file_path).unlink(missing_ok=True)
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup temp file {element._temp_file_path}: {e}")
+            
+            if hasattr(element, '_contents') and element._contents:
+                for content in element._contents:
+                    cleanup_element(content)
+            elif hasattr(element, 'contents') and element.contents:
+                for content in element.contents:
+                    cleanup_element(content)
+        
+        for element in story:
+            cleanup_element(element)
 
 
 class CookbookPDFBuilder:
@@ -837,14 +1413,22 @@ class PDFService:
     def __init__(self, config: PDFConfig = None):
         self.config = config or PDFConfig()
         self.recipe_builder = RecipePDFBuilder(self.config)
+        self.book_recipe_builder = BookRecipePDFBuilder(self.config)
         self.cookbook_builder = CookbookPDFBuilder(self.config)
     
     def generate_recipe_pdf(self, recipe: Dict[str, Any], config: PDFConfig = None) -> bytes:
         """Generate PDF for a single recipe"""
-        if config:
-            self.recipe_builder.config = config
+        active_config = config or self.config
         
-        return self.recipe_builder.build_recipe_pdf(recipe)
+        # Use book-style builder for book template
+        if active_config.template == PDFTemplate.BOOK:
+            if config:
+                self.book_recipe_builder.config = config
+            return self.book_recipe_builder.build_recipe_pdf(recipe)
+        else:
+            if config:
+                self.recipe_builder.config = config
+            return self.recipe_builder.build_recipe_pdf(recipe)
     
     def generate_cookbook_pdf(self, cookbook: Dict[str, Any], 
                             recipes: List[Dict[str, Any]], 
