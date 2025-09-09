@@ -118,7 +118,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
         break;
       case 'expiryDate':
         if (!/^\d{2}\/\d{2}$/.test(value)) return 'Format must be MM/YY';
-        const [month, year] = value.split('/');
+        const [month] = value.split('/');
         if (parseInt(month) < 1 || parseInt(month) > 12) return 'Invalid month';
         break;
       case 'cvv':

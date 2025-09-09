@@ -33,7 +33,6 @@ export const PrintSpecificationForm: React.FC<PrintSpecificationFormProps> = ({
   });
 
   const [showBulkPricing, setShowBulkPricing] = useState(false);
-  const [estimatedPageCount, setEstimatedPageCount] = useState(50);
 
   useEffect(() => {
     if (specification) {
@@ -45,14 +44,7 @@ export const PrintSpecificationForm: React.FC<PrintSpecificationFormProps> = ({
   }, [specification]);
 
   useEffect(() => {
-    // Estimate page count based on typical cookbook metrics
-    // This could be enhanced to call an API endpoint for better accuracy
-    const basePages = 40;
-    const averagePagesPerRecipe = 1.5;
-    const overhead = 10; // Cover, TOC, index, etc.
-    
-    // For now, we'll use a default estimate
-    setEstimatedPageCount(50);
+    // Set default page count estimate
     setFormData(prev => ({ ...prev, page_count: 50 }));
   }, []);
 
