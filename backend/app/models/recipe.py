@@ -96,6 +96,9 @@ class Cookbook(db.Model):
     purchases: Mapped[List["CookbookPurchase"]] = relationship(
         "CookbookPurchase", back_populates="cookbook", cascade="all, delete-orphan"
     )
+    print_orders: Mapped[List["PrintOrder"]] = relationship(
+        "PrintOrder", back_populates="cookbook"
+    )
 
     def is_available_for_purchase(self) -> bool:
         """Check if cookbook is available for purchase."""

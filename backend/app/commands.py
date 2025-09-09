@@ -10,6 +10,7 @@ from datetime import datetime
 
 from app import db
 from app.models.payment import Subscription
+from app.models.print_order import PrintOrder, PrintSpecification, PrintOrderStatusUpdate
 
 
 @click.group()

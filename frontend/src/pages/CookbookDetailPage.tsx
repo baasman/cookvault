@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button, SearchBar, CloudinaryImage } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
 import { ExportButton } from '../components/export';
+import { PrintOrderButton } from '../components/print';
 import { formatTextForDisplay, decodeHtmlEntities } from '../utils/textUtils';
 import type { Recipe } from '../types';
 
@@ -157,8 +158,14 @@ const CookbookDetailPage: React.FC = () => {
             {/* Cookbook Metadata */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="p-4 bg-background-secondary rounded-lg">
-                <div className="text-sm text-text-secondary mb-1">Recipes</div>
+                <div className="text-sm text-text-secondary mb-1">Available Recipes</div>
                 <div className="text-2xl font-bold text-accent">{recipes.length}</div>
+                <div className="text-xs text-text-secondary mt-1">
+                  {isAuthenticated 
+                    ? "recipes available to you"
+                    : "public recipes shown"
+                  }
+                </div>
               </div>
 
               {cookbook.publisher && (
@@ -183,19 +190,25 @@ const CookbookDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Export Button - only show for owners, purchasers, or admins */}
+            {/* Export and Print Buttons - only show for owners, purchasers, or admins */}
             {isAuthenticated && recipes.length > 0 && (
               cookbook.user_id === parseInt(user?.id || '0') || 
               cookbook.has_purchased || 
               user?.role === 'admin'
             ) && (
-              <div className="flex justify-center mb-6">
+              <div className="flex justify-center gap-4 mb-6">
                 <ExportButton
                   type="cookbook"
                   cookbookId={cookbookId}
-                  buttonText="Export Cookbook to PDF"
+                  buttonText="Export to PDF"
                   showOptions={true}
                   className="bg-green-600 hover:bg-green-700"
+                />
+                <PrintOrderButton
+                  cookbookId={cookbookId!}
+                  cookbookTitle={cookbook.title}
+                  buttonText="Order Print Copy"
+                  variant="primary"
                 />
               </div>
             )}
@@ -232,15 +245,22 @@ const CookbookDetailPage: React.FC = () => {
 
       {/* Recipes Section */}
       <div className="bg-white rounded-xl shadow-sm border p-8" style={{borderColor: '#e8d7cf'}}>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold" style={{color: '#1c120d'}}>
-            Recipes ({recipes.length})
-            {!isAuthenticated && recipes.length > 0 && (
-              <span className="text-sm font-normal text-blue-600 ml-2">
-                (showing public recipes only)
-              </span>
-            )}
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold mb-1" style={{color: '#1c120d'}}>
+              Available Recipes ({recipes.length})
+            </h2>
+            <p className="text-sm text-text-secondary">
+              {isAuthenticated 
+                ? recipes.length === 0
+                  ? "No recipes have been added to this cookbook yet"
+                  : "Showing all recipes you have access to in this cookbook"
+                : recipes.length === 0
+                  ? "This cookbook has no public recipes available"
+                  : "Showing public recipes from this cookbook - more may be available with an account"
+              }
+            </p>
+          </div>
         </div>
 
         {/* Search Bar */}

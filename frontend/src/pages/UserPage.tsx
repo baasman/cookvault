@@ -24,9 +24,10 @@ const UserPage: React.FC = () => {
 
   const formatTime = (minutes: number) => {
     if (!minutes) return '0 min';
-    if (minutes < 60) return `${minutes} min`;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const roundedMinutes = Math.round(minutes);
+    if (roundedMinutes < 60) return `${roundedMinutes} min`;
+    const hours = Math.floor(roundedMinutes / 60);
+    const mins = roundedMinutes % 60;
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
@@ -139,41 +140,7 @@ const UserPage: React.FC = () => {
       </div>
 
       {/* Secondary Statistics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Recipe Difficulty Breakdown */}
-        <div className="bg-white rounded-xl shadow-sm border p-6" style={{borderColor: '#e8d7cf'}}>
-          <h3 className="text-lg font-semibold text-text-primary mb-4">Recipe Difficulty</h3>
-          <div className="space-y-3">
-            {Object.entries(statistics.difficulty_breakdown).map(([difficulty, count]) => {
-              const total = statistics.total_recipes;
-              const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
-              const colors = {
-                easy: '#22c55e',
-                medium: '#f59e0b', 
-                hard: '#ef4444',
-                unspecified: '#9b644b'
-              };
-              
-              return (
-                <div key={difficulty} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div 
-                      className="w-3 h-3 rounded-full"
-                      style={{backgroundColor: colors[difficulty as keyof typeof colors]}}
-                    ></div>
-                    <span className="text-sm font-medium text-text-primary capitalize">
-                      {difficulty}
-                    </span>
-                  </div>
-                  <div className="text-sm text-text-secondary">
-                    {count} ({percentage}%)
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 gap-8 mb-8">
         {/* Most Popular Cookbook */}
         <div className="bg-white rounded-xl shadow-sm border p-6" style={{borderColor: '#e8d7cf'}}>
           <h3 className="text-lg font-semibold text-text-primary mb-4">Most Popular Cookbook</h3>

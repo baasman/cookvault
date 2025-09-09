@@ -95,6 +95,9 @@ class User(db.Model):
     cookbook_purchases: Mapped[List["CookbookPurchase"]] = relationship(
         "CookbookPurchase", back_populates="user", cascade="all, delete-orphan"
     )
+    print_orders: Mapped[List["PrintOrder"]] = relationship(
+        "PrintOrder", back_populates="user"
+    )
 
     def set_password(self, password: str) -> None:
         """Hash and set the user's password."""

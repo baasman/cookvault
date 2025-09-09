@@ -27,6 +27,7 @@ class SubscriptionStatus(Enum):
 class PaymentType(Enum):
     SUBSCRIPTION = "subscription"
     COOKBOOK = "cookbook"
+    PRINT_ORDER = "print_order"
 
 
 class PaymentStatus(Enum):
@@ -142,6 +143,7 @@ class Payment(db.Model):
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     subscription_id: Mapped[Optional[int]] = mapped_column(ForeignKey("subscriptions.id"))
     cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
+    print_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("print_orders.id"))
     
     # Stripe integration fields
     stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
@@ -167,6 +169,7 @@ class Payment(db.Model):
     user: Mapped["User"] = relationship("User", back_populates="payments")
     subscription: Mapped[Optional["Subscription"]] = relationship("Subscription", back_populates="payments")
     cookbook: Mapped[Optional["Cookbook"]] = relationship("Cookbook")
+    print_order: Mapped[Optional["PrintOrder"]] = relationship("PrintOrder", back_populates="payment", foreign_keys=[print_order_id])
 
     def to_dict(self) -> dict:
         """Convert payment to dictionary representation."""

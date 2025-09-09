@@ -1,4 +1,11 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { 
+  CogIcon, 
+  ShoppingBagIcon, 
+  KeyIcon,
+  PencilIcon
+} from '@heroicons/react/24/outline';
 import type { UserInfo } from '../../types';
 
 interface ProfileHeaderProps {
@@ -96,6 +103,43 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                 Verified
               </span>
             )}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex-shrink-0 flex flex-col sm:flex-row gap-3 mt-4 sm:mt-0">
+          <Link
+            to="/profile/edit"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 transition-colors"
+          >
+            <PencilIcon className="w-4 h-4 mr-2" />
+            Edit Profile
+          </Link>
+          
+          <div className="flex gap-2">
+            <Link
+              to="/orders"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              title="View Orders"
+            >
+              <ShoppingBagIcon className="w-4 h-4" />
+            </Link>
+            
+            <button
+              onClick={() => {/* TODO: Add change password functionality */}}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              title="Change Password"
+            >
+              <KeyIcon className="w-4 h-4" />
+            </button>
+            
+            <button
+              onClick={() => {/* TODO: Add account settings functionality */}}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              title="Account Settings"
+            >
+              <CogIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>

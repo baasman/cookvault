@@ -27,6 +27,28 @@ class UserApi {
       throw error;
     }
   }
+
+  async updateProfile(formData: FormData): Promise<any> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/user/profile`, {
+        method: 'PUT',
+        body: formData, // Don't set Content-Type for FormData, let the browser set it
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication required');
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    }
+  }
 }
 
 export const userApi = new UserApi();

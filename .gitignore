@@ -120,3 +120,5 @@ docs/.doctrees/
 # pnpm-lock.yaml
 # poetry.lock
 # Pipfile.lock
+LULU_INTEGRATION.yaml
+.env.lulu.example

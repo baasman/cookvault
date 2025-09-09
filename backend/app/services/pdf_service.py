@@ -157,14 +157,94 @@ class PDFConfig:
     include_index: bool = False  # Ingredient index for cookbooks
     margins: Dict[str, float] = None
     
+    # Print-ready options
+    print_ready: bool = False  # Enable print-ready features
+    trim_size: Optional[str] = None  # TrimSize enum value for print orders
+    bleed_margin: float = 0.125 * inch  # Standard 1/8 inch bleed
+    safety_margin: float = 0.25 * inch  # Safety margin inside trim
+    crop_marks: bool = False  # Add corner crop marks
+    registration_marks: bool = False  # Add registration marks for color alignment
+    color_bars: bool = False  # Add color bars for print quality control
+    page_info: bool = False  # Add page information text
+    include_spine_calculation: bool = False  # Calculate spine width for binding
+    gutter_adjustment: bool = False  # Add extra margin for binding gutter
+    
     def __post_init__(self):
         if self.margins is None:
-            self.margins = {
-                'top': 1 * inch,
-                'bottom': 1 * inch,
-                'left': 1 * inch,
-                'right': 1 * inch
-            }
+            if self.print_ready:
+                # For print-ready PDFs, use minimal base margins
+                # Actual safe margins will be calculated by PrintReadyPDFBuilder
+                self.margins = {
+                    'top': 0.5 * inch,
+                    'bottom': 0.5 * inch,
+                    'left': 0.5 * inch,
+                    'right': 0.5 * inch
+                }
+            else:
+                # Standard margins for non-print PDFs
+                self.margins = {
+                    'top': 1 * inch,
+                    'bottom': 1 * inch,
+                    'left': 1 * inch,
+                    'right': 1 * inch
+                }
+    
+    def enable_print_ready_mode(
+        self,
+        trim_size: str,
+        include_marks: bool = True,
+        bleed_margin: float = None,
+        safety_margin: float = None
+    ) -> 'PDFConfig':
+        """
+        Configure for print-ready output with specified trim size.
+        
+        Args:
+            trim_size: TrimSize enum value (e.g., 'US_TRADE')
+            include_marks: Whether to include crop marks and registration marks
+            bleed_margin: Custom bleed margin (defaults to 1/8 inch)
+            safety_margin: Custom safety margin (defaults to 1/4 inch)
+            
+        Returns:
+            Self for method chaining
+        """
+        self.print_ready = True
+        self.trim_size = trim_size
+        
+        if bleed_margin is not None:
+            self.bleed_margin = bleed_margin
+        if safety_margin is not None:
+            self.safety_margin = safety_margin
+            
+        if include_marks:
+            self.crop_marks = True
+            self.registration_marks = True
+            self.page_info = True
+        
+        return self
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary for serialization."""
+        return {
+            'page_size': self.page_size.value,
+            'template': self.template.value,
+            'include_images': self.include_images,
+            'include_nutrition': self.include_nutrition,
+            'include_notes': self.include_notes,
+            'include_toc': self.include_toc,
+            'include_index': self.include_index,
+            'margins': self.margins.copy(),
+            'print_ready': self.print_ready,
+            'trim_size': self.trim_size,
+            'bleed_margin': self.bleed_margin,
+            'safety_margin': self.safety_margin,
+            'crop_marks': self.crop_marks,
+            'registration_marks': self.registration_marks,
+            'color_bars': self.color_bars,
+            'page_info': self.page_info,
+            'include_spine_calculation': self.include_spine_calculation,
+            'gutter_adjustment': self.gutter_adjustment
+        }
 
 
 class PDFStyleManager:
@@ -1420,8 +1500,14 @@ class PDFService:
         """Generate PDF for a single recipe"""
         active_config = config or self.config
         
+        # Use print-ready builder for print-ready PDFs
+        if active_config.print_ready:
+            from app.services.print_pdf_builder import PrintReadyPDFBuilder
+            print_builder = PrintReadyPDFBuilder(active_config)
+            return print_builder.build_recipe_pdf(recipe)
+        
         # Use book-style builder for book template
-        if active_config.template == PDFTemplate.BOOK:
+        elif active_config.template == PDFTemplate.BOOK:
             if config:
                 self.book_recipe_builder.config = config
             return self.book_recipe_builder.build_recipe_pdf(recipe)
@@ -1434,6 +1520,15 @@ class PDFService:
                             recipes: List[Dict[str, Any]], 
                             config: PDFConfig = None) -> bytes:
         """Generate PDF for a complete cookbook"""
+        active_config = config or self.config
+        
+        # Use print-ready builder for print-ready PDFs
+        if active_config.print_ready:
+            from app.services.print_pdf_builder import PrintReadyPDFBuilder
+            print_builder = PrintReadyPDFBuilder(active_config)
+            return print_builder.build_cookbook_pdf(cookbook, recipes)
+        
+        # Use standard cookbook builder
         if config:
             self.cookbook_builder.config = config
         
@@ -1451,3 +1546,68 @@ class PDFService:
         }
         
         return self.generate_cookbook_pdf(cookbook, recipes, config)
+    
+    def generate_simple_cover(self, cookbook: Dict[str, Any], config: PDFConfig = None) -> bytes:
+        """Generate a simple cover PDF for print-on-demand"""
+        active_config = config or self.config
+        buffer = io.BytesIO()
+        
+        # Use the page size from config
+        page_size = active_config.page_size
+        doc = SimpleDocTemplate(buffer, pagesize=page_size, topMargin=1*inch, bottomMargin=1*inch)
+        
+        # Build content
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Create custom styles for cover
+        title_style = ParagraphStyle(
+            'CoverTitle',
+            parent=styles['Title'],
+            fontSize=24,
+            spaceAfter=0.5*inch,
+            alignment=TA_CENTER,
+            textColor=colors.black,
+        )
+        
+        author_style = ParagraphStyle(
+            'CoverAuthor',
+            parent=styles['Normal'],
+            fontSize=16,
+            spaceAfter=0.5*inch,
+            alignment=TA_CENTER,
+            textColor=colors.grey,
+        )
+        
+        subtitle_style = ParagraphStyle(
+            'CoverSubtitle',
+            parent=styles['Normal'],
+            fontSize=12,
+            spaceAfter=1*inch,
+            alignment=TA_CENTER,
+            textColor=colors.grey,
+        )
+        
+        # Add content to cover
+        story.append(Spacer(1, 2*inch))  # Top spacing
+        
+        # Title
+        title = cookbook.get('title', 'Untitled Cookbook')
+        story.append(Paragraph(title, title_style))
+        
+        # Author
+        author = cookbook.get('author', 'Unknown Author')
+        story.append(Paragraph(f"by {author}", author_style))
+        
+        # Description (if available)
+        description = cookbook.get('description')
+        if description:
+            # Truncate long descriptions
+            if len(description) > 200:
+                description = description[:197] + "..."
+            story.append(Paragraph(description, subtitle_style))
+        
+        # Build the PDF
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.read()

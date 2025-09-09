@@ -1,103 +1,161 @@
 #!/usr/bin/env python3
-"""Test script for PDF generation functionality"""
+"""
+Test script for generating actual print-ready PDFs.
+"""
 
-from app import create_app
-from app.services.pdf_service import PDFService, PDFConfig, PageSize, PDFTemplate
+import sys
+import os
 
-def test_pdf_generation():
-    """Test basic PDF generation"""
+# Add the current directory to the path
+sys.path.insert(0, os.path.abspath('.'))
 
-    # Create app context
-    app = create_app('development')
+from app.models.print_order import TrimSize
+from app.services.print_pdf_builder import PrintReadyPDFBuilder
+from app.services.cover_generation_service import CoverGenerationService
+from app.services.pdf_service import PDFConfig
 
-    with app.app_context():
-        # Create sample recipe data
-        recipe = {
-            'title': 'Classic Chocolate Chip Cookies',
-            'description': 'Delicious homemade chocolate chip cookies that are crispy on the outside and chewy on the inside.',
-            'prep_time': 15,
-            'cook_time': 12,
-            'servings': 24,
-            'difficulty': 'easy',
-            'ingredients': [
-                {'quantity': 2.25, 'unit': 'cups', 'name': 'all-purpose flour'},
-                {'quantity': 1, 'unit': 'tsp', 'name': 'baking soda'},
-                {'quantity': 1, 'unit': 'tsp', 'name': 'salt'},
-                {'quantity': 1, 'unit': 'cup', 'name': 'butter, softened'},
-                {'quantity': 0.75, 'unit': 'cup', 'name': 'granulated sugar'},
-                {'quantity': 0.75, 'unit': 'cup', 'name': 'packed brown sugar'},
-                {'quantity': 2, 'unit': 'large', 'name': 'eggs'},
-                {'quantity': 1, 'unit': 'tsp', 'name': 'vanilla extract'},
-                {'quantity': 2, 'unit': 'cups', 'name': 'chocolate chips'},
-            ],
-            'instructions': [
-                'Preheat oven to 375°F (190°C).',
-                'In a medium bowl, whisk together flour, baking soda, and salt. Set aside.',
-                'In a large bowl, cream together butter and both sugars until light and fluffy.',
-                'Beat in eggs one at a time, then stir in vanilla.',
-                'Gradually blend in the dry ingredients.',
-                'Fold in chocolate chips.',
-                'Drop rounded tablespoons of dough onto ungreased cookie sheets.',
-                'Bake for 9 to 11 minutes or until golden brown.',
-                'Cool on baking sheet for 2 minutes; remove to wire rack.',
-            ],
-            'notes': 'For chewier cookies, slightly underbake them. Store in an airtight container for up to 1 week.',
-            'images': []
-        }
-
-        # Create PDF service
-        config = PDFConfig(
-            page_size=PageSize.LETTER,
-            template=PDFTemplate.CLASSIC,
-            include_images=True,
-            include_notes=True
-        )
-
-        pdf_service = PDFService(config)
-
-        # Test single recipe PDF
-        print("Testing single recipe PDF generation...")
-        try:
-            pdf_bytes = pdf_service.generate_recipe_pdf(recipe, config)
-
-            # Save to file
-            with open('test_recipe.pdf', 'wb') as f:
-                f.write(pdf_bytes)
-
-            print(f"✅ Successfully generated recipe PDF ({len(pdf_bytes)} bytes)")
-            print("   Saved as: test_recipe.pdf")
-        except Exception as e:
-            print(f"❌ Failed to generate recipe PDF: {e}")
-            import traceback
-            traceback.print_exc()
-
-        # Test cookbook PDF
-        print("\nTesting cookbook PDF generation...")
-        cookbook = {
-            'title': 'My Test Cookbook',
+def test_interior_pdf_generation():
+    """Test generating print-ready interior PDF."""
+    print("Testing print-ready interior PDF generation...")
+    
+    try:
+        # Create print-ready configuration
+        config = PDFConfig()
+        config.enable_print_ready_mode('US_TRADE', include_marks=True)
+        config.gutter_adjustment = True
+        
+        # Create PDF builder
+        builder = PrintReadyPDFBuilder(config)
+        
+        # Sample cookbook data
+        cookbook_data = {
+            'title': 'Test Print Cookbook',
             'author': 'Test Author',
-            'description': 'A collection of delicious recipes for testing PDF generation.',
-            'publication_date': '2025',
-            'publisher': 'Test Publisher'
+            'description': 'A test cookbook for print-ready PDF generation.'
         }
+        
+        # Sample recipes
+        recipes_data = [
+            {
+                'title': 'Test Recipe 1',
+                'description': 'A delicious test recipe',
+                'prep_time_minutes': 15,
+                'cook_time_minutes': 30,
+                'servings': 4,
+                'ingredients': [
+                    {'quantity': '2', 'unit': 'cups', 'ingredient': 'flour'},
+                    {'quantity': '1', 'unit': 'cup', 'ingredient': 'sugar'},
+                    {'quantity': '3', 'unit': '', 'ingredient': 'eggs'}
+                ],
+                'instructions': [
+                    {'instruction': 'Mix flour and sugar in a large bowl.'},
+                    {'instruction': 'Add eggs one at a time, mixing well.'},
+                    {'instruction': 'Bake at 350°F for 30 minutes.'}
+                ]
+            },
+            {
+                'title': 'Test Recipe 2',
+                'description': 'Another test recipe',
+                'prep_time_minutes': 10,
+                'cook_time_minutes': 20,
+                'servings': 2,
+                'ingredients': [
+                    {'quantity': '1', 'unit': 'lb', 'ingredient': 'pasta'},
+                    {'quantity': '2', 'unit': 'tbsp', 'ingredient': 'olive oil'}
+                ],
+                'instructions': [
+                    {'instruction': 'Boil water in a large pot.'},
+                    {'instruction': 'Add pasta and cook according to package directions.'},
+                    {'instruction': 'Drain and toss with olive oil.'}
+                ]
+            }
+        ]
+        
+        # Generate PDF
+        pdf_bytes = builder.build_cookbook_pdf(cookbook_data, recipes_data)
+        
+        print(f"✓ Generated interior PDF: {len(pdf_bytes)} bytes")
+        
+        # Save to file for inspection
+        with open('test_interior.pdf', 'wb') as f:
+            f.write(pdf_bytes)
+        print("✓ Saved as test_interior.pdf")
+        
+        # Get print specifications
+        specs = builder.get_print_specifications()
+        print(f"✓ Print specifications:")
+        for key, value in specs.items():
+            print(f"  {key}: {value}")
+        
+    except Exception as e:
+        print(f"✗ Error generating interior PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    
+    return True
 
-        recipes = [recipe, recipe]  # Add the same recipe twice for testing
+def test_cover_pdf_generation():
+    """Test generating print-ready cover PDF."""
+    print("\nTesting print-ready cover PDF generation...")
+    
+    try:
+        service = CoverGenerationService()
+        
+        # Sample cookbook data
+        cookbook_data = {
+            'title': 'Test Print Cookbook',
+            'author': 'Test Author',
+            'description': 'A comprehensive test cookbook for validating print-ready PDF generation capabilities. This description provides enough content to test the back cover layout and text wrapping functionality.',
+            'recipes': [{'title': f'Recipe {i}'} for i in range(1, 11)]  # 10 recipes
+        }
+        
+        # Generate cover PDF
+        pdf_bytes = service.generate_cover_pdf(
+            cookbook_data=cookbook_data,
+            trim_size=TrimSize.US_TRADE,
+            page_count=30,  # Estimated page count
+            template_name='minimalist',
+            binding_type='perfect_bound'
+        )
+        
+        print(f"✓ Generated cover PDF: {len(pdf_bytes)} bytes")
+        
+        # Save to file for inspection
+        with open('test_cover.pdf', 'wb') as f:
+            f.write(pdf_bytes)
+        print("✓ Saved as test_cover.pdf")
+        
+    except Exception as e:
+        print(f"✗ Error generating cover PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    
+    return True
 
-        try:
-            pdf_bytes = pdf_service.generate_cookbook_pdf(cookbook, recipes, config)
-
-            # Save to file
-            with open('test_cookbook.pdf', 'wb') as f:
-                f.write(pdf_bytes)
-
-            print(f"✅ Successfully generated cookbook PDF ({len(pdf_bytes)} bytes)")
-            print("   Saved as: test_cookbook.pdf")
-        except Exception as e:
-            print(f"❌ Failed to generate cookbook PDF: {e}")
-            import traceback
-            traceback.print_exc()
-
-        print("\n✨ PDF generation test complete!")
+def main():
+    """Run all PDF generation tests."""
+    print("=== Print-Ready PDF Generation Tests ===")
+    
+    all_passed = True
+    
+    if not test_interior_pdf_generation():
+        all_passed = False
+    
+    if not test_cover_pdf_generation():
+        all_passed = False
+    
+    print(f"\n=== Test Results ===")
+    if all_passed:
+        print("✓ All PDF generation tests passed!")
+        print("\nGenerated files:")
+        print("  - test_interior.pdf (Print-ready interior with crop marks)")
+        print("  - test_cover.pdf (Print-ready cover with spine)")
+        return 0
+    else:
+        print("✗ Some PDF generation tests failed!")
+        return 1
 
 if __name__ == '__main__':
-    test_pdf_generation()
+    sys.exit(main())

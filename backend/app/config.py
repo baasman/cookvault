@@ -132,6 +132,18 @@ class Config:
 
         # Rate limiting
         app.config['RATELIMIT_STORAGE_URL'] = os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
+        
+        # Lulu Print API settings
+        app.config['LULU_CLIENT_KEY'] = os.environ.get("LULU_CLIENT_KEY")
+        app.config['LULU_CLIENT_SECRET'] = os.environ.get("LULU_CLIENT_SECRET")
+        app.config['LULU_API_URL'] = os.environ.get("LULU_API_URL", "https://api.lulu.com")
+        app.config['LULU_SANDBOX_MODE'] = os.environ.get("LULU_SANDBOX_MODE", "true").lower() == "true"
+        app.config['LULU_WEBHOOK_SECRET'] = os.environ.get("LULU_WEBHOOK_SECRET")
+        app.config['LULU_DEV_MODE'] = os.environ.get("LULU_DEV_MODE", "false").lower() == "true"
+        
+        # Print order settings
+        app.config['PRINT_PLATFORM_MARKUP'] = float(os.environ.get("PRINT_PLATFORM_MARKUP", "0.25"))  # 25% markup
+        app.config['PRINT_MAX_FILE_SIZE_MB'] = int(os.environ.get("PRINT_MAX_FILE_SIZE_MB", "100"))  # 100MB max
 
     # Logging
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")

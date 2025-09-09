@@ -1058,3 +1058,92 @@ def get_user_profile(current_user: User) -> Response:
     except Exception as e:
         current_app.logger.error(f"Failed to get user profile: {str(e)}")
         return jsonify({"error": "Failed to retrieve profile"}), 500
+
+
+@bp.route("/user/profile", methods=["PUT"])
+@require_auth
+def update_user_profile(current_user: User) -> Response:
+    """Update current user profile."""
+    try:
+        # Handle multipart/form-data for file uploads
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            first_name = request.form.get('first_name', '').strip()
+            last_name = request.form.get('last_name', '').strip()
+            bio = request.form.get('bio', '').strip()
+            avatar_file = request.files.get('avatar')
+        else:
+            # Handle JSON data
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "No data provided"}), 400
+            
+            first_name = data.get('first_name', '').strip()
+            last_name = data.get('last_name', '').strip()
+            bio = data.get('bio', '').strip()
+            avatar_file = None
+
+        # Validate bio length
+        if bio and len(bio) > 500:
+            return jsonify({"error": "Bio must be less than 500 characters"}), 400
+
+        # Update user fields
+        if first_name is not None:
+            current_user.first_name = first_name if first_name else None
+        if last_name is not None:
+            current_user.last_name = last_name if last_name else None
+        if bio is not None:
+            current_user.bio = bio if bio else None
+
+        # Handle avatar upload
+        if avatar_file and avatar_file.filename:
+            # Validate file type
+            allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+            file_extension = avatar_file.filename.rsplit('.', 1)[1].lower() if '.' in avatar_file.filename else ''
+            
+            if file_extension not in allowed_extensions:
+                return jsonify({"error": "Invalid file type. Only PNG, JPG, JPEG, GIF, and WebP files are allowed."}), 400
+            
+            # Validate file size (5MB limit)
+            avatar_file.seek(0, 2)  # Seek to end
+            file_size = avatar_file.tell()
+            avatar_file.seek(0)  # Seek back to beginning
+            
+            if file_size > 5 * 1024 * 1024:  # 5MB
+                return jsonify({"error": "File too large. Maximum size is 5MB."}), 400
+            
+            try:
+                from app.services.cloudinary_service import cloudinary_service
+                
+                # Read the file data
+                avatar_file.seek(0)
+                image_data = avatar_file.read()
+                
+                # Upload to Cloudinary with avatar-specific settings
+                upload_result = cloudinary_service.upload_image(
+                    image_data=image_data,
+                    filename=f"avatar_{current_user.id}_{avatar_file.filename}",
+                    folder="avatars",
+                    generate_thumbnail=True
+                )
+                
+                # Store the Cloudinary URL
+                current_user.avatar_url = upload_result['url']
+                current_app.logger.info(f"Successfully uploaded avatar for user {current_user.id}: {upload_result['public_id']}")
+                
+            except Exception as e:
+                current_app.logger.error(f"Failed to upload avatar for user {current_user.id}: {str(e)}")
+                return jsonify({"error": "Failed to upload avatar"}), 500
+
+        db.session.commit()
+        current_app.logger.info(f"Profile updated for user: {current_user.username}")
+
+        # Return updated user info
+        return jsonify({
+            "message": "Profile updated successfully",
+            "user": current_user.to_dict(include_sensitive=True)
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to update user profile: {str(e)}")
+        return jsonify({"error": "Failed to update profile"}), 500

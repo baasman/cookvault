@@ -19,6 +19,10 @@ def setup_app_imports():
         from app.models.recipe import (
             UserRecipeCollection, RecipeGroup, RecipeNote, RecipeComment
         )
+        from app.models.print_order import (
+            PrintOrder, PrintSpecification, PrintOrderStatusUpdate,
+            PrintOrderStatus, BindingType, TrimSize, PaperType, CoverFinish
+        )
         return create_app, db, {
             'User': User,
             'UserSession': UserSession, 
@@ -38,6 +42,14 @@ def setup_app_imports():
             'RecipeGroup': RecipeGroup,
             'RecipeNote': RecipeNote,
             'RecipeComment': RecipeComment,
+            'PrintOrder': PrintOrder,
+            'PrintSpecification': PrintSpecification,
+            'PrintOrderStatusUpdate': PrintOrderStatusUpdate,
+            'PrintOrderStatus': PrintOrderStatus,
+            'BindingType': BindingType,
+            'TrimSize': TrimSize,
+            'PaperType': PaperType,
+            'CoverFinish': CoverFinish,
         }
     except ImportError:
         # When running as standalone package, we need to set up the path
@@ -55,6 +67,10 @@ def setup_app_imports():
             )
             from app.models.recipe import (
                 UserRecipeCollection, RecipeGroup, RecipeNote, RecipeComment
+            )
+            from app.models.print_order import (
+                PrintOrder, PrintSpecification, PrintOrderStatusUpdate,
+                PrintOrderStatus, BindingType, TrimSize, PaperType, CoverFinish
             )
             return create_app, db, {
                 'User': User,
@@ -75,6 +91,14 @@ def setup_app_imports():
                 'RecipeGroup': RecipeGroup,
                 'RecipeNote': RecipeNote,
                 'RecipeComment': RecipeComment,
+                'PrintOrder': PrintOrder,
+                'PrintSpecification': PrintSpecification,
+                'PrintOrderStatusUpdate': PrintOrderStatusUpdate,
+                'PrintOrderStatus': PrintOrderStatus,
+                'BindingType': BindingType,
+                'TrimSize': TrimSize,
+                'PaperType': PaperType,
+                'CoverFinish': CoverFinish,
             }
         except ImportError as e:
             raise ImportError(
@@ -104,11 +128,21 @@ UserRecipeCollection = models['UserRecipeCollection']
 RecipeGroup = models['RecipeGroup']
 RecipeNote = models['RecipeNote']
 RecipeComment = models['RecipeComment']
+PrintOrder = models['PrintOrder']
+PrintSpecification = models['PrintSpecification']
+PrintOrderStatusUpdate = models['PrintOrderStatusUpdate']
+PrintOrderStatus = models['PrintOrderStatus']
+BindingType = models['BindingType']
+TrimSize = models['TrimSize']
+PaperType = models['PaperType']
+CoverFinish = models['CoverFinish']
 
 __all__ = [
     'create_app', 'db', 'models',
     'User', 'UserSession', 'Password', 'Recipe', 'Cookbook', 'Ingredient',
     'Tag', 'Instruction', 'RecipeImage', 'ProcessingJob',
     'UserRole', 'UserStatus', 'ProcessingStatus', 'recipe_ingredients',
-    'UserRecipeCollection', 'RecipeGroup', 'RecipeNote', 'RecipeComment'
+    'UserRecipeCollection', 'RecipeGroup', 'RecipeNote', 'RecipeComment',
+    'PrintOrder', 'PrintSpecification', 'PrintOrderStatusUpdate',
+    'PrintOrderStatus', 'BindingType', 'TrimSize', 'PaperType', 'CoverFinish'
 ]

@@ -9,3 +9,5 @@
 * ALWAYS use uv when running python based commands
 
 * Imports should always be at the top level
+
+* The only important .env file is the one in the root directory

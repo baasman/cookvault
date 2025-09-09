@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from decimal import Decimal
 from typing import Dict, Any, Optional, List
 
@@ -23,7 +24,12 @@ class StripeService:
     
     def __init__(self):
         """Initialize Stripe with API key from config."""
-        stripe.api_key = current_app.config.get('STRIPE_SECRET_KEY')
+        stripe_key = current_app.config.get('STRIPE_SECRET_KEY')
+        logger.info(f"Initializing StripeService - API key present: {bool(stripe_key)}")
+        if stripe_key:
+            logger.info(f"Stripe API key starts with: {stripe_key[:7]}...")
+        
+        stripe.api_key = stripe_key
         self.webhook_secret = current_app.config.get('STRIPE_WEBHOOK_SECRET')
         
         if not stripe.api_key:
@@ -207,6 +213,80 @@ class StripeService:
             logger.error(f"Failed to create cookbook payment intent for user {user.id}, cookbook {cookbook.id}: {str(e)}")
             raise
 
+    def create_print_order_payment_intent(self, user: User, print_order: "PrintOrder") -> Dict[str, Any]:
+        """Create a payment intent for print order."""
+        try:
+            from app.models.print_order import PrintOrderStatus
+            
+            if print_order.status != PrintOrderStatus.DRAFT:
+                raise ValueError("Print order must be in draft status to create payment")
+            
+            if print_order.user_id != user.id:
+                raise ValueError("Print order does not belong to user")
+            
+            customer_id = self.get_or_create_customer(user)
+            
+            # Use the calculated total cost from the order
+            amount_cents = int(print_order.total_cost * 100)  # Convert to cents
+            
+            metadata = {
+                'user_id': str(user.id),
+                'print_order_id': str(print_order.id),
+                'payment_type': PaymentType.PRINT_ORDER.value,
+                'order_number': print_order.order_number,
+                'cookbook_id': str(print_order.cookbook_id),
+                'quantity': str(print_order.quantity),
+                'printing_cost': str(print_order.printing_cost),
+                'shipping_cost': str(print_order.shipping_cost),
+                'platform_fee': str(print_order.platform_fee),
+                'total_cost': str(print_order.total_cost)
+            }
+            
+            payment_intent = stripe.PaymentIntent.create(
+                amount=amount_cents,
+                currency='usd',
+                customer=customer_id,
+                metadata=metadata,
+                automatic_payment_methods={'enabled': True}
+            )
+            
+            # Create payment record
+            description = f"Print order {print_order.order_number} - {print_order.cookbook.title} (Qty: {print_order.quantity})"
+            
+            payment = Payment(
+                user_id=user.id,
+                print_order_id=print_order.id,
+                stripe_payment_intent_id=payment_intent.id,
+                payment_type=PaymentType.PRINT_ORDER,
+                status=PaymentStatus.PENDING,
+                amount=print_order.total_cost,
+                currency='usd',
+                description=description
+            )
+            db.session.add(payment)
+            db.session.commit()
+            
+            logger.info(f"Created print order payment intent {payment_intent.id} for user {user.id}, order {print_order.order_number}")
+            
+            return {
+                'client_secret': payment_intent.client_secret,
+                'payment_intent_id': payment_intent.id,
+                'amount': amount_cents,
+                'currency': 'usd',
+                'print_order': print_order.to_dict(include_shipping=True),
+                'cost_breakdown': {
+                    'printing_cost': float(print_order.printing_cost),
+                    'shipping_cost': float(print_order.shipping_cost),
+                    'platform_fee': float(print_order.platform_fee),
+                    'tax_amount': float(print_order.tax_amount),
+                    'total_cost': float(print_order.total_cost)
+                }
+            }
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Failed to create print order payment intent for user {user.id}, order {print_order.id}: {str(e)}")
+            raise
+
     def handle_payment_succeeded(self, payment_intent: Dict[str, Any]) -> None:
         """Handle successful payment completion."""
         try:
@@ -231,6 +311,8 @@ class StripeService:
                 self._handle_subscription_payment_success(payment, metadata)
             elif payment_type == PaymentType.COOKBOOK.value:
                 self._handle_cookbook_payment_success(payment, metadata)
+            elif payment_type == PaymentType.PRINT_ORDER.value:
+                self._handle_print_order_payment_success(payment, metadata)
             
             db.session.commit()
             logger.info(f"Successfully processed payment {payment_intent_id}")
@@ -276,6 +358,37 @@ class StripeService:
         self._add_cookbook_recipes_to_collection(user.id, cookbook)
         
         logger.info(f"Created cookbook purchase for user {user.id}, cookbook {cookbook_id}")
+
+    def _handle_print_order_payment_success(self, payment: Payment, metadata: Dict[str, Any]) -> None:
+        """Handle successful print order payment."""
+        from app.models.print_order import PrintOrderStatus
+        from app.models.print_order import PrintOrderStatusUpdate
+        
+        print_order = payment.print_order
+        user = payment.user
+        
+        if not print_order:
+            logger.error(f"Print order not found for payment {payment.id}")
+            return
+        
+        # Update order status to PAID - ready for processing/submission
+        previous_status = print_order.status
+        print_order.status = PrintOrderStatus.PAID
+        print_order.paid_at = db.func.now()
+        
+        # Create status update
+        status_update = PrintOrderStatusUpdate(
+            print_order_id=print_order.id,
+            previous_status=previous_status,
+            new_status=PrintOrderStatus.PAID,
+            message="Payment completed successfully. Order ready for processing."
+        )
+        db.session.add(status_update)
+        
+        # Link payment to print order
+        print_order.payment_id = payment.id
+        
+        logger.info(f"Print order {print_order.order_number} payment completed for user {user.id}")
 
     def _add_cookbook_recipes_to_collection(self, user_id: int, cookbook: "Cookbook") -> None:
         """Add all recipes from a purchased cookbook to the user's collection."""
@@ -406,3 +519,233 @@ class StripeService:
         except stripe.error.StripeError as e:
             logger.error(f"Failed to get payment methods for user {user.id}: {str(e)}")
             return []
+
+    def create_refund(
+        self, 
+        payment_intent_id: str, 
+        amount: Optional[int] = None, 
+        reason: str = "requested_by_customer",
+        metadata: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a refund for a payment intent.
+        
+        Args:
+            payment_intent_id: Stripe payment intent ID
+            amount: Amount to refund in cents (None for full refund)
+            reason: Reason for refund (requested_by_customer, duplicate, fraudulent)
+            metadata: Additional metadata for the refund
+            
+        Returns:
+            Dict with refund information
+        """
+        try:
+            # Find the payment record
+            payment = Payment.query.filter_by(
+                stripe_payment_intent_id=payment_intent_id
+            ).first()
+            
+            if not payment:
+                raise ValueError(f"Payment record not found for payment intent {payment_intent_id}")
+            
+            if payment.status != PaymentStatus.SUCCEEDED:
+                raise ValueError(f"Cannot refund payment with status {payment.status.value}")
+            
+            # Create refund in Stripe
+            refund_data = {
+                'payment_intent': payment_intent_id,
+                'reason': reason,
+                'metadata': metadata or {}
+            }
+            
+            if amount is not None:
+                refund_data['amount'] = amount
+            
+            refund = stripe.Refund.create(**refund_data)
+            
+            # Update payment record
+            if refund.amount == int(payment.amount * 100):  # Full refund
+                payment.status = PaymentStatus.REFUNDED
+            # For partial refunds, we might want a different status or tracking
+            
+            db.session.commit()
+            
+            logger.info(f"Created refund {refund.id} for payment intent {payment_intent_id}")
+            
+            return {
+                'refund_id': refund.id,
+                'amount': refund.amount,
+                'currency': refund.currency,
+                'status': refund.status,
+                'payment_intent_id': payment_intent_id,
+                'created': refund.created
+            }
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Failed to create refund for payment intent {payment_intent_id}: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Error processing refund for payment intent {payment_intent_id}: {str(e)}")
+            db.session.rollback()
+            raise
+
+    def create_print_order_refund(
+        self, 
+        print_order: "PrintOrder", 
+        refund_reason: str = "Order cancelled before processing",
+        partial_amount: Optional[Decimal] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Create a refund for a print order.
+        
+        Args:
+            print_order: The print order to refund
+            refund_reason: Reason for the refund
+            partial_amount: Amount to refund (None for full refund)
+            
+        Returns:
+            Dict with refund information or None if no payment to refund
+        """
+        try:
+            # Check if order has a payment
+            if not print_order.payment or not print_order.payment.stripe_payment_intent_id:
+                logger.warning(f"No payment found to refund for print order {print_order.order_number}")
+                return None
+            
+            payment = print_order.payment
+            
+            # Calculate refund amount
+            refund_amount_cents = None
+            if partial_amount:
+                refund_amount_cents = int(partial_amount * 100)
+            
+            # Create metadata for tracking
+            metadata = {
+                'print_order_id': str(print_order.id),
+                'order_number': print_order.order_number,
+                'refund_reason': refund_reason
+            }
+            
+            # Create the refund
+            refund_info = self.create_refund(
+                payment_intent_id=payment.stripe_payment_intent_id,
+                amount=refund_amount_cents,
+                reason="requested_by_customer",
+                metadata=metadata
+            )
+            
+            # Update order with refund information
+            print_order.refund_amount = partial_amount or print_order.total_cost
+            print_order.refund_reason = refund_reason
+            print_order.stripe_refund_id = refund_info['refund_id']
+            print_order.refunded_at = datetime.utcnow()
+            
+            # Update order status
+            if partial_amount is None or partial_amount >= print_order.total_cost:
+                # Full refund - update order status
+                print_order.status = PrintOrderStatus.REFUNDED
+            
+            db.session.commit()
+            
+            logger.info(f"Processed refund for print order {print_order.order_number}: {refund_info['refund_id']}")
+            return refund_info
+            
+        except Exception as e:
+            logger.error(f"Failed to create refund for print order {print_order.order_number}: {str(e)}")
+            db.session.rollback()
+            raise
+
+    def get_refund_info(self, refund_id: str) -> Dict[str, Any]:
+        """
+        Get information about a refund.
+        
+        Args:
+            refund_id: Stripe refund ID
+            
+        Returns:
+            Dict with refund information
+        """
+        try:
+            refund = stripe.Refund.retrieve(refund_id)
+            
+            return {
+                'refund_id': refund.id,
+                'amount': refund.amount,
+                'currency': refund.currency,
+                'status': refund.status,
+                'payment_intent_id': refund.payment_intent,
+                'reason': refund.reason,
+                'created': refund.created,
+                'metadata': refund.metadata
+            }
+            
+        except stripe.error.StripeError as e:
+            logger.error(f"Failed to get refund info for {refund_id}: {str(e)}")
+            raise
+
+    def calculate_refund_eligibility(self, print_order: "PrintOrder") -> Dict[str, Any]:
+        """
+        Calculate refund eligibility and amount for a print order.
+        
+        Args:
+            print_order: The print order to check
+            
+        Returns:
+            Dict with eligibility information
+        """
+        try:
+            from app.models.print_order import PrintOrderStatus
+            
+            if not print_order.payment:
+                return {
+                    'eligible': False,
+                    'reason': 'No payment found for this order',
+                    'refund_amount': 0
+                }
+            
+            if print_order.payment.status != PaymentStatus.SUCCEEDED:
+                return {
+                    'eligible': False,
+                    'reason': 'Payment was not successful',
+                    'refund_amount': 0
+                }
+            
+            # Check order status for refund eligibility
+            if print_order.status in [PrintOrderStatus.REFUNDED]:
+                return {
+                    'eligible': False,
+                    'reason': 'Order has already been refunded',
+                    'refund_amount': 0
+                }
+            
+            # Calculate refund amount based on order status
+            refund_amount = print_order.total_cost
+            refund_percentage = 100
+            
+            if print_order.status == PrintOrderStatus.PRINTING:
+                # Partial refund - printing has started
+                refund_percentage = 50  # 50% refund
+                refund_amount = print_order.total_cost * Decimal('0.5')
+            elif print_order.status in [PrintOrderStatus.SHIPPED, PrintOrderStatus.DELIVERED]:
+                # No refund after shipping
+                return {
+                    'eligible': False,
+                    'reason': 'Order has already been shipped',
+                    'refund_amount': 0
+                }
+            
+            return {
+                'eligible': True,
+                'refund_amount': float(refund_amount),
+                'refund_percentage': refund_percentage,
+                'order_status': print_order.status.value,
+                'reason': f'{refund_percentage}% refund available for {print_order.status.value} order'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating refund eligibility for order {print_order.order_number}: {str(e)}")
+            return {
+                'eligible': False,
+                'reason': 'Error calculating refund eligibility',
+                'refund_amount': 0
+            }
