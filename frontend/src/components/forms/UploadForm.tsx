@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input } from '../ui';
 import { CookbookSearch } from '../cookbook/CookbookSearch';
 import { GoogleBooksSearch } from '../cookbook/GoogleBooksSearch';
@@ -9,9 +9,10 @@ interface UploadFormProps {
   onSubmit: (data: UploadFormData) => void;
   isLoading?: boolean;
   error?: string;
+  initialCookbookData?: { cookbookId?: number, cookbookTitle?: string } | null;
 }
 
-const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, error }) => {
+const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, error, initialCookbookData }) => {
   const [formData, setFormData] = useState<UploadFormData>({
     image: null,
     images: [],
@@ -347,6 +348,21 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     const shouldBeMultiImage = fileCount > 1;
     setFormData(prev => ({ ...prev, isMultiImage: shouldBeMultiImage }));
   };
+
+  // Initialize form with cookbook data if provided
+  useEffect(() => {
+    if (initialCookbookData?.cookbookId) {
+      setFormData(prev => ({
+        ...prev,
+        search_existing_cookbook: true,
+        no_cookbook: false,
+        create_new_cookbook: false,
+        search_google_books: false,
+        selected_existing_cookbook_id: initialCookbookData.cookbookId,
+        cookbook_search_query: initialCookbookData.cookbookTitle || `Cookbook ID: ${initialCookbookData.cookbookId}`
+      }));
+    }
+  }, [initialCookbookData]);
 
 
   return (

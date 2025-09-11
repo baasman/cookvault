@@ -190,11 +190,38 @@ const CookbookDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Export and Print Buttons - only show for owners, purchasers, or admins */}
-            {isAuthenticated && recipes.length > 0 && (
-              cookbook.user_id === parseInt(user?.id || '0') || 
-              cookbook.has_purchased || 
-              user?.role === 'admin'
+            {/* Owner Actions - only show for cookbook owners */}
+            {isAuthenticated && cookbook.user_id === parseInt(user?.id || '0') && (
+              <div className="flex justify-center gap-3 mb-6">
+                <Button
+                  onClick={() => navigate(`/upload?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`)}
+                  className="bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Add Recipe
+                </Button>
+                {recipes.length > 0 && (
+                  <>
+                    <ExportButton
+                      type="cookbook"
+                      cookbookId={cookbookId}
+                      buttonText="Export to PDF"
+                      showOptions={true}
+                      className="bg-green-600 hover:bg-green-700"
+                    />
+                    <PrintOrderButton
+                      cookbookId={cookbookId!}
+                      cookbookTitle={cookbook.title}
+                      buttonText="Order Print Copy"
+                      variant="primary"
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Export and Print Buttons - only show for purchasers or admins (non-owners) */}
+            {isAuthenticated && recipes.length > 0 && cookbook.user_id !== parseInt(user?.id || '0') && (
+              cookbook.has_purchased || user?.role === 'admin'
             ) && (
               <div className="flex justify-center gap-4 mb-6">
                 <ExportButton
@@ -390,8 +417,11 @@ const CookbookDetailPage: React.FC = () => {
                 Clear Search
               </Button>
             ) : isAuthenticated ? (
-              <Button onClick={() => navigate('/upload')}>
-                Import Recipes
+              <Button 
+                onClick={() => navigate(`/upload?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`)}
+                className="bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Upload Recipe to this Cookbook
               </Button>
             ) : (
               <div className="flex justify-center gap-3">

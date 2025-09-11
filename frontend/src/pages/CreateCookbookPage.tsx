@@ -16,9 +16,6 @@ const CreateCookbookPage: React.FC = () => {
     title: '',
     author: '',
     description: '',
-    isbn: '',
-    publisher: '',
-    publication_date: '',
     is_purchasable: false,
     price: '',
   });
@@ -87,9 +84,6 @@ const CreateCookbookPage: React.FC = () => {
       title: formData.title.trim(),
       author: formData.author.trim() || undefined,
       description: formData.description.trim() || undefined,
-      isbn: formData.isbn.trim() || undefined,
-      publisher: formData.publisher.trim() || undefined,
-      publication_date: formData.publication_date || undefined,
       is_purchasable: isAdmin ? formData.is_purchasable : false,
       price: isAdmin && formData.is_purchasable ? parseFloat(formData.price) : undefined,
     };
@@ -150,7 +144,7 @@ const CreateCookbookPage: React.FC = () => {
           <div className="space-y-4">
             <div>
               <Input
-                label="Title *"
+                label="Title"
                 placeholder="Enter cookbook title"
                 value={formData.title}
                 onChange={(value) => handleInputChange('title', value)}
@@ -182,30 +176,6 @@ const CreateCookbookPage: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="ISBN"
-                placeholder="Enter ISBN"
-                value={formData.isbn}
-                onChange={(value) => handleInputChange('isbn', value)}
-              />
-              
-              <Input
-                label="Publisher"
-                placeholder="Enter publisher"
-                value={formData.publisher}
-                onChange={(value) => handleInputChange('publisher', value)}
-              />
-            </div>
-
-            <div>
-              <Input
-                label="Publication Date"
-                type="date"
-                value={formData.publication_date}
-                onChange={(value) => handleInputChange('publication_date', value)}
-              />
-            </div>
           </div>
         </div>
 

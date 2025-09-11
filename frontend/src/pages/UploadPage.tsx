@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { UploadForm } from '../components/forms';
 import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { MultiProcessingProgress } from '../components/upload/MultiProcessingProgress';
@@ -9,6 +9,7 @@ import { apiFetch } from '../utils/apiInterceptor';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
 
 const UploadPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<UploadResponse | MultiUploadResponse | null>(null);
@@ -16,6 +17,7 @@ const UploadPage: React.FC = () => {
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMultiProcessing, setIsMultiProcessing] = useState(false);
+  const [initialCookbookData, setInitialCookbookData] = useState<{cookbookId?: number, cookbookTitle?: string} | null>(null);
   
   const { canUpload, isLoading: isLoadingLimits } = useCanUpload();
 
@@ -165,6 +167,19 @@ const UploadPage: React.FC = () => {
     setMultiJobId(null);
     setError(errorMessage);
   };
+
+  // Check for cookbook URL parameters on component mount
+  useEffect(() => {
+    const cookbookId = searchParams.get('cookbookId');
+    const cookbookTitle = searchParams.get('cookbookTitle');
+    
+    if (cookbookId) {
+      setInitialCookbookData({
+        cookbookId: parseInt(cookbookId, 10),
+        cookbookTitle: cookbookTitle || undefined
+      });
+    }
+  }, [searchParams]);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -321,6 +336,7 @@ const UploadPage: React.FC = () => {
             onSubmit={handleUpload}
             isLoading={isLoading}
             error={undefined}
+            initialCookbookData={initialCookbookData}
           />
         </div>
       )}

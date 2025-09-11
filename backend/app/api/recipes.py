@@ -2453,11 +2453,22 @@ def upload_multi_recipe(current_user):
         if cookbook_id:
             try:
                 cookbook_id = int(cookbook_id)
+                # First check if cookbook exists at all
+                cookbook_exists = Cookbook.query.get(cookbook_id)
+                if not cookbook_exists:
+                    current_app.logger.error(f"Cookbook {cookbook_id} does not exist")
+                    return jsonify({"error": f"Cookbook with ID {cookbook_id} not found"}), 404
+                
+                # Then check if user owns it
                 cookbook = Cookbook.query.filter_by(
                     id=cookbook_id, user_id=user_id
                 ).first()
                 if not cookbook:
-                    return jsonify({"error": "Cookbook not found"}), 404
+                    current_app.logger.error(
+                        f"User {user_id} does not own cookbook {cookbook_id}. "
+                        f"Owner is {cookbook_exists.user_id}"
+                    )
+                    return jsonify({"error": f"You don't have permission to add recipes to this cookbook"}), 403
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid cookbook ID"}), 400
 
