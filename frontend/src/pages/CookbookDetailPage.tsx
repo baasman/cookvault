@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cookbooksApi } from '../services/cookbooksApi';
+import { recipesApi } from '../services/recipesApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, SearchBar, CloudinaryImage } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
@@ -19,6 +20,7 @@ const CookbookDetailPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [showAddRecipeDropdown, setShowAddRecipeDropdown] = useState(false);
+  const queryClient = useQueryClient();
 
   const { 
     data: cookbook, 
@@ -64,6 +66,21 @@ const CookbookDetailPage: React.FC = () => {
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
+  };
+
+  // Mutation to remove recipe from cookbook
+  const removeRecipeMutation = useMutation({
+    mutationFn: (recipeId: number) => recipesApi.linkRecipeToCookbook(recipeId, null),
+    onSuccess: () => {
+      // Invalidate and refetch cookbook data
+      queryClient.invalidateQueries({ queryKey: ['cookbook', cookbookId] });
+    },
+  });
+
+  const handleRemoveRecipe = (recipeId: number, recipeTitle: string) => {
+    if (window.confirm(`Remove "${recipeTitle}" from this cookbook?\n\nThe recipe will not be deleted, just removed from this cookbook.`)) {
+      removeRecipeMutation.mutate(recipeId);
+    }
   };
 
 
@@ -363,35 +380,52 @@ const CookbookDetailPage: React.FC = () => {
                 return (a.page_number || 0) - (b.page_number || 0);
               })
               .map((recipe) => (
-                <Link key={recipe.id} to={`/recipes/${recipe.id}`}>
-                  <div className="group bg-white rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden" style={{borderColor: '#e8d7cf'}}>
-                    {/* Recipe Image */}
-                    <div className="aspect-[4/3] bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden">
-                      <CloudinaryImage
-                        cloudinaryUrl={recipe.images && recipe.images.length > 0 ? recipe.images[0].cloudinary_url : null}
-                        thumbnailUrl={recipe.images && recipe.images.length > 0 ? recipe.images[0].cloudinary_thumbnail_url : null}
-                        filename={recipe.images && recipe.images.length > 0 ? recipe.images[0].filename : null}
-                        alt={recipe.title}
-                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                        preferThumbnail={true}
-                        fallback={
-                          <div className="w-full h-full flex items-center justify-center">
-                            <svg className="h-12 w-12 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                            </svg>
+                <div key={recipe.id} className="relative group">
+                  {/* Remove Button - Only show for cookbook owners */}
+                  {isAuthenticated && cookbook.user_id === parseInt(user?.id || '0') && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleRemoveRecipe(recipe.id, recipe.title);
+                      }}
+                      className="absolute top-2 right-2 z-10 bg-red-600 text-white p-2 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                      title="Remove from cookbook"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+
+                  <Link to={`/recipes/${recipe.id}`}>
+                    <div className="bg-white rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md hover:border-accent/20 overflow-hidden" style={{borderColor: '#e8d7cf'}}>
+                      {/* Recipe Image */}
+                      <div className="aspect-[4/3] bg-gradient-to-br from-background-secondary to-primary-200 relative overflow-hidden">
+                        <CloudinaryImage
+                          cloudinaryUrl={recipe.images && recipe.images.length > 0 ? recipe.images[0].cloudinary_url : null}
+                          thumbnailUrl={recipe.images && recipe.images.length > 0 ? recipe.images[0].cloudinary_thumbnail_url : null}
+                          filename={recipe.images && recipe.images.length > 0 ? recipe.images[0].filename : null}
+                          alt={recipe.title}
+                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                          preferThumbnail={true}
+                          fallback={
+                            <div className="w-full h-full flex items-center justify-center">
+                              <svg className="h-12 w-12 text-primary-300" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                              </svg>
+                            </div>
+                          }
+                        />
+
+                        {/* Page Number Badge */}
+                        {recipe.page_number && (
+                          <div className="absolute top-3 left-3">
+                            <span className="px-2 py-1 text-xs font-medium text-white rounded-full bg-accent">
+                              Page {recipe.page_number}
+                            </span>
                           </div>
-                        }
-                      />
-                      
-                      {/* Page Number Badge */}
-                      {recipe.page_number && (
-                        <div className="absolute top-3 left-3">
-                          <span className="px-2 py-1 text-xs font-medium text-white rounded-full bg-accent">
-                            Page {recipe.page_number}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
 
                     {/* Recipe Info */}
                     <div className="p-4">
@@ -436,6 +470,7 @@ const CookbookDetailPage: React.FC = () => {
                     </div>
                   </div>
                 </Link>
+              </div>
               ))}
           </div>
         ) : (
