@@ -1569,6 +1569,8 @@ def _create_ingredients(recipe_id: int, parsed_recipe: Dict[str, Any]) -> None:
     current_app.logger.debug(f"Ingredients data: {ingredients}")
 
     for order, ingredient_data in enumerate(ingredients, 1):
+        # Use a savepoint to allow rolling back individual ingredient failures
+        savepoint = db.session.begin_nested()
         try:
             # Handle both old format (strings) and new LLM format (objects)
             if isinstance(ingredient_data, str):
@@ -1606,8 +1608,16 @@ def _create_ingredients(recipe_id: int, parsed_recipe: Dict[str, Any]) -> None:
                     f"Unknown ingredient format: {type(ingredient_data)} - {ingredient_data}"
                 )
 
+            # Commit the savepoint if successful
+            savepoint.commit()
+
         except Exception as e:
-            current_app.logger.error(f"Failed to create ingredient {order}: {str(e)}")
+            # Rollback this ingredient's changes but continue with others
+            savepoint.rollback()
+            current_app.logger.error(
+                f"Failed to create ingredient {order}: {str(e)}",
+                exc_info=True
+            )
             # Continue with other ingredients rather than failing completely
 
 
