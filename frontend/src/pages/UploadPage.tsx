@@ -30,10 +30,18 @@ const UploadPage: React.FC = () => {
     setIsMultiProcessing(false);
 
     try {
-      if (formData.isMultiImage && formData.images.length > 0) {
+      if (formData.isTextMode && formData.recipeText) {
+        // Handle text upload
+        const result = await recipesApi.uploadRecipeText(formData.recipeText, formData);
+
+        // Text upload is synchronous - no job polling needed
+        // The result structure matches the backend response
+        setSuccess(result);
+
+      } else if (formData.isMultiImage && formData.images.length > 0) {
         // Handle multi-image upload
         let cookbook_id: number | undefined;
-        
+
         // Determine cookbook ID based on form selection
         if (formData.create_new_cookbook) {
           // For now, we'll need to handle cookbook creation in the backend
@@ -50,10 +58,10 @@ const UploadPage: React.FC = () => {
           cookbook_id,
           formData.page_number
         );
-        
+
         setMultiJobId(result.multi_job_id);
         setIsMultiProcessing(true);
-        
+
       } else if (!formData.isMultiImage && formData.image) {
         // Handle single image upload (existing logic)
         const uploadData = new FormData();

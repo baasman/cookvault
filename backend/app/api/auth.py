@@ -3,10 +3,11 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any, Dict, Optional, Tuple
 
-from flask import Response, current_app, jsonify, request, session
+from flask import Response, current_app, jsonify, request, session, g
 from sqlalchemy.exc import IntegrityError
 
 from app.utils.jwt_utils import JWTTokenManager, extract_jwt_from_request
+from app.utils.rate_limiting import rate_limit_auth
 
 from app import db
 from app.api import bp
@@ -36,6 +37,8 @@ def require_auth(f):
         if user.status != UserStatus.ACTIVE:
             return jsonify({"error": "Account is not active"}), 403
 
+        # Store user in g for rate limiting
+        g.current_user = user
         return f(user, *args, **kwargs)
 
     return decorated_function
@@ -60,7 +63,10 @@ def optional_auth(f):
 
             if user.status != UserStatus.ACTIVE:
                 return jsonify({"error": "Account is not active"}), 403
-        
+
+            # Store user in g for rate limiting
+            g.current_user = user
+
         # Pass user (or None) to the function
         return f(user, *args, **kwargs)
 
@@ -251,6 +257,7 @@ def debug_auth() -> Response:
 
 
 @bp.route("/auth/register", methods=["POST"])
+@rate_limit_auth
 def register() -> Tuple[Response, int]:
     """Register a new user account."""
     try:
@@ -402,6 +409,7 @@ def register() -> Tuple[Response, int]:
 
 
 @bp.route("/auth/login", methods=["POST"])
+@rate_limit_auth
 def login() -> Tuple[Response, int]:
     """Authenticate user and create session."""
     try:
@@ -1147,3 +1155,77 @@ def update_user_profile(current_user: User) -> Response:
         db.session.rollback()
         current_app.logger.error(f"Failed to update user profile: {str(e)}")
         return jsonify({"error": "Failed to update profile"}), 500
+
+
+@bp.route("/users/<int:user_id>", methods=["GET"])
+def get_public_user_profile(user_id: int) -> Response:
+    """Get public user profile by user ID (no authentication required)."""
+    try:
+        user = User.query.get(user_id)
+        if not user or user.status != UserStatus.ACTIVE:
+            return jsonify({"error": "User not found"}), 404
+
+        # Get public user info (no sensitive data)
+        user_info = user.to_dict(include_sensitive=False)
+
+        # Calculate public recipe statistics (only public recipes)
+        total_recipes = Recipe.query.filter_by(user_id=user.id, is_public=True).count()
+
+        # Cookbook statistics
+        total_cookbooks = Cookbook.query.filter_by(user_id=user.id).count()
+
+        # Recent public activity (last 10 public recipes)
+        recent_recipes = (
+            Recipe.query.filter_by(user_id=user.id, is_public=True)
+            .order_by(Recipe.created_at.desc())
+            .limit(10)
+            .all()
+        )
+
+        recent_activity = [
+            {
+                "type": "recipe",
+                "id": recipe.id,
+                "title": recipe.title,
+                "created_at": (
+                    recipe.created_at.isoformat() if recipe.created_at else None
+                ),
+                "cookbook_title": recipe.cookbook.title if recipe.cookbook else None,
+            }
+            for recipe in recent_recipes
+        ]
+
+        # Compile public statistics
+        statistics = {
+            "total_public_recipes": total_recipes,
+            "total_cookbooks": total_cookbooks,
+            "member_since": user.created_at.isoformat() if user.created_at else None,
+        }
+
+        return jsonify(
+            {
+                "user": user_info,
+                "statistics": statistics,
+                "recent_activity": recent_activity,
+            }
+        )
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to get public user profile: {str(e)}")
+        return jsonify({"error": "Failed to retrieve user profile"}), 500
+
+
+@bp.route("/users/by-username/<username>", methods=["GET"])
+def get_public_user_profile_by_username(username: str) -> Response:
+    """Get public user profile by username (no authentication required)."""
+    try:
+        user = User.query.filter_by(username=username).first()
+        if not user or user.status != UserStatus.ACTIVE:
+            return jsonify({"error": "User not found"}), 404
+
+        # Redirect to the user ID endpoint with same logic
+        return get_public_user_profile(user.id)
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to get public user profile by username: {str(e)}")
+        return jsonify({"error": "Failed to retrieve user profile"}), 500

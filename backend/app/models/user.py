@@ -159,21 +159,28 @@ class User(db.Model):
         """Get user's subscription or create a default free one."""
         if not self.subscription:
             from app.models.payment import Subscription, SubscriptionTier, SubscriptionStatus
-            subscription = Subscription(
-                user_id=self.id,
-                tier=SubscriptionTier.FREE,
-                status=SubscriptionStatus.ACTIVE
-            )
             from app import db
-            db.session.add(subscription)
-            self.subscription = subscription
+
+            # First try to load existing subscription from database
+            existing_subscription = Subscription.query.filter_by(user_id=self.id).first()
+
+            if existing_subscription:
+                self.subscription = existing_subscription
+            else:
+                # Only create new subscription if none exists
+                subscription = Subscription(
+                    user_id=self.id,
+                    tier=SubscriptionTier.FREE,
+                    status=SubscriptionStatus.ACTIVE
+                )
+                db.session.add(subscription)
+                self.subscription = subscription
         return self.subscription
 
     def is_premium(self) -> bool:
         """Check if user has active premium subscription."""
-        if not self.subscription:
-            return False
-        return self.subscription.is_premium()
+        subscription = self.get_or_create_subscription()
+        return subscription.is_premium()
 
     def can_upload_recipe(self) -> bool:
         """Check if user can upload another recipe based on their plan."""

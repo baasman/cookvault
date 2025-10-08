@@ -341,11 +341,18 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
               {recipe.is_public && recipe.user && (
                 <div className="pt-3 border-t border-primary-200">
                   <p className="text-xs text-text-secondary">
-                    By: <span className="font-medium text-text-primary">
+                    By: <Link 
+                      to={`/users/${recipe.user.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                      style={{color: '#2563eb'}}
+                    >
                       {recipe.user.first_name && recipe.user.last_name 
                         ? `${recipe.user.first_name} ${recipe.user.last_name}` 
                         : recipe.user.username}
-                    </span>
+                    </Link>
                     {recipe.published_at && (
                       <span className="ml-2">
                         • Published {new Date(recipe.published_at).toLocaleDateString()}

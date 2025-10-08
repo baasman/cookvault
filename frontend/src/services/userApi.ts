@@ -49,6 +49,52 @@ class UserApi {
       throw error;
     }
   }
+
+  async fetchPublicUserProfile(userId: number): Promise<any> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/users/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('User not found');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching public user profile:', error);
+      throw error;
+    }
+  }
+
+  async fetchPublicUserByUsername(username: string): Promise<any> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/users/by-username/${encodeURIComponent(username)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('User not found');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching public user profile by username:', error);
+      throw error;
+    }
+  }
 }
 
 export const userApi = new UserApi();

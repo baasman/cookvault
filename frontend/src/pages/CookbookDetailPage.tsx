@@ -5,6 +5,7 @@ import { cookbooksApi } from '../services/cookbooksApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, SearchBar, CloudinaryImage } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
+import { LinkRecipeModal } from '../components/cookbook';
 import { ExportButton } from '../components/export';
 import { PrintOrderButton } from '../components/print';
 import { formatTextForDisplay, decodeHtmlEntities } from '../utils/textUtils';
@@ -16,6 +17,8 @@ const CookbookDetailPage: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
   const cookbookId = id ? parseInt(id, 10) : null;
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [showAddRecipeDropdown, setShowAddRecipeDropdown] = useState(false);
 
   const { 
     data: cookbook, 
@@ -193,12 +196,51 @@ const CookbookDetailPage: React.FC = () => {
             {/* Owner Actions - only show for cookbook owners */}
             {isAuthenticated && cookbook.user_id === parseInt(user?.id || '0') && (
               <div className="flex justify-center gap-3 mb-6">
-                <Button
-                  onClick={() => navigate(`/upload?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`)}
-                  className="bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  Add Recipe
-                </Button>
+                {/* Add Recipe Dropdown */}
+                <div className="relative">
+                  <div className="flex">
+                    <Button
+                      onClick={() => navigate(`/upload?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`)}
+                      className="bg-blue-600 text-white hover:bg-blue-700 rounded-r-none"
+                    >
+                      Upload New Recipe
+                    </Button>
+                    <button
+                      onClick={() => setShowAddRecipeDropdown(!showAddRecipeDropdown)}
+                      className="bg-blue-600 text-white hover:bg-blue-700 px-3 border-l border-blue-500 rounded-r-lg"
+                      aria-label="More recipe options"
+                    >
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Dropdown Menu */}
+                  {showAddRecipeDropdown && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowAddRecipeDropdown(false)}
+                      />
+                      <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-border-light z-20">
+                        <button
+                          onClick={() => {
+                            setIsLinkModalOpen(true);
+                            setShowAddRecipeDropdown(false);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center space-x-2 rounded-t-lg"
+                        >
+                          <svg className="h-5 w-5 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          <span className="text-text-primary">Link Existing Recipe</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 {recipes.length > 0 && (
                   <>
                     <ExportButton
@@ -443,6 +485,17 @@ const CookbookDetailPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Link Recipe Modal */}
+      {cookbookId && cookbook && (
+        <LinkRecipeModal
+          isOpen={isLinkModalOpen}
+          onClose={() => setIsLinkModalOpen(false)}
+          cookbookId={cookbookId}
+          cookbookTitle={cookbook.title}
+          currentRecipeIds={recipes.map(r => r.id)}
+        />
+      )}
     </div>
   );
 };

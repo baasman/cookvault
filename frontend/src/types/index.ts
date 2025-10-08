@@ -248,6 +248,8 @@ export interface UploadFormData {
   image: File | null;
   images: File[]; // For multi-image uploads
   isMultiImage: boolean; // Toggle between single and multi-image mode
+  isTextMode?: boolean; // Toggle for text upload mode
+  recipeText?: string; // Recipe text for direct text upload
   cookbook_id?: number;
   page_number?: number;
   // Upload mode selection

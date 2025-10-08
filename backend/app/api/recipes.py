@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.api import bp
 from app.api.auth import require_auth, require_admin, optional_auth, should_apply_user_filter
+from app.utils.rate_limiting import rate_limit_upload, rate_limit_api_write, rate_limit_job_status
 from app.models import (
     Cookbook,
     Ingredient,
@@ -44,40 +45,40 @@ def allowed_file(filename: str) -> bool:
 def process_and_save_image(file, original_filename: str, folder: str = "recipes") -> RecipeImage:
     """
     Process and save an image file, using Cloudinary if enabled, otherwise local storage.
-    
+
     Args:
         file: The uploaded file object
         original_filename: The original filename from the user
         folder: The Cloudinary folder to upload to (if using Cloudinary)
-        
+
     Returns:
         RecipeImage: The created RecipeImage object
     """
     filename = secure_filename(f"{uuid.uuid4().hex}_{original_filename}")
-    
+
     # Read file data for Cloudinary upload
     file.seek(0)
     file_data = file.read()
     file.seek(0)  # Reset for local save if needed
-    
+
     recipe_image = RecipeImage(
         filename=filename,
         original_filename=original_filename,
         file_size=len(file_data),
         content_type=file.content_type or "image/jpeg",
     )
-    
+
     # Try Cloudinary first if enabled
     if cloudinary_service.is_enabled():
         try:
             current_app.logger.info("Uploading image to Cloudinary...")
             cloudinary_result = cloudinary_service.upload_image(
-                file_data, 
-                original_filename, 
+                file_data,
+                original_filename,
                 folder=folder,
                 generate_thumbnail=True
             )
-            
+
             # Store Cloudinary information
             recipe_image.cloudinary_public_id = cloudinary_result['public_id']
             recipe_image.cloudinary_url = cloudinary_result['url']
@@ -86,41 +87,41 @@ def process_and_save_image(file, original_filename: str, folder: str = "recipes"
             recipe_image.cloudinary_height = cloudinary_result['height']
             recipe_image.cloudinary_format = cloudinary_result['format']
             recipe_image.cloudinary_bytes = cloudinary_result['bytes']
-            
+
             # For Cloudinary images, we don't need local file path
             recipe_image.file_path = f"cloudinary:{cloudinary_result['public_id']}"
-            
+
             current_app.logger.info(f"Successfully uploaded to Cloudinary: {cloudinary_result['public_id']}")
-            
+
         except Exception as e:
             current_app.logger.error(f"Cloudinary upload failed, falling back to local storage: {str(e)}")
             # Fall through to local storage
-    
+
     # Local storage fallback (or primary if Cloudinary not enabled)
     if not recipe_image.cloudinary_public_id:
         upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
         file_path = upload_folder / filename
-        
+
         # Save file locally
         with open(file_path, 'wb') as f:
             f.write(file_data)
-        
+
         recipe_image.file_path = str(file_path)
         current_app.logger.info(f"Saved image locally: {file_path}")
-    
+
     return recipe_image
 
 
 def get_image_data_for_ocr(recipe_image: RecipeImage) -> bytes:
     """
     Get image data for OCR processing, handling both Cloudinary and local images.
-    
+
     Args:
         recipe_image: RecipeImage object
-        
+
     Returns:
         bytes: Image data
-        
+
     Raises:
         Exception: If image cannot be retrieved
     """
@@ -128,9 +129,9 @@ def get_image_data_for_ocr(recipe_image: RecipeImage) -> bytes:
     if recipe_image.file_path.startswith('cloudinary:'):
         if not recipe_image.cloudinary_url:
             raise Exception("Cloudinary image has no URL")
-        
+
         current_app.logger.info(f"Downloading Cloudinary image for OCR: {recipe_image.cloudinary_url}")
-        
+
         try:
             response = requests.get(recipe_image.cloudinary_url, timeout=30)
             response.raise_for_status()
@@ -138,13 +139,13 @@ def get_image_data_for_ocr(recipe_image: RecipeImage) -> bytes:
         except Exception as e:
             current_app.logger.error(f"Failed to download Cloudinary image: {e}")
             raise Exception(f"Failed to download Cloudinary image: {str(e)}")
-    
+
     # Local image
     else:
         image_path = Path(recipe_image.file_path)
         if not image_path.exists():
             raise Exception(f"Local image file not found: {image_path}")
-        
+
         current_app.logger.info(f"Reading local image for OCR: {image_path}")
         return image_path.read_bytes()
 
@@ -161,7 +162,7 @@ def safe_int_conversion(value: Any) -> int | None:
         value_str = value.strip()
         if not value_str:
             return None
-        
+
         # Handle range values like "8-10", "4-6 servings", "2-3 hours", "2 to 4 servings"
         # Look for patterns like "8-10", "4-6", "2 to 4", etc.
         range_match = re.search(r'(\d+)\s*(?:[-–—]|to)\s*(\d+)', value_str)
@@ -172,7 +173,7 @@ def safe_int_conversion(value: Any) -> int | None:
             result = (start_val + end_val) // 2
             current_app.logger.info(f"Converted range '{value_str}' to {result} for servings field")
             return result
-        
+
         # Look for single numbers (ignoring text like "servings", "minutes", etc.)
         number_match = re.search(r'(\d+)', value_str)
         if number_match:
@@ -292,7 +293,11 @@ def get_recipes(current_user) -> Response:
     return jsonify(
         {
             "recipes": [
-                recipe.to_dict(current_user_id=current_user.id, is_admin=not should_apply_user_filter(current_user))
+                recipe.to_dict(
+                    include_user=True, 
+                    current_user_id=current_user.id, 
+                    is_admin=not should_apply_user_filter(current_user)
+                )
                 for recipe in recipes.items
             ],
             "total": recipes.total,
@@ -428,14 +433,14 @@ def delete_recipe(current_user, recipe_id: int) -> Response:
                 if image.cloudinary_public_id and cloudinary_service.is_enabled():
                     cloudinary_service.delete_image(image.cloudinary_public_id)
                     current_app.logger.info(f"Deleted Cloudinary image: {image.cloudinary_public_id}")
-                
+
                 # Delete local file if exists
                 if image.file_path:
                     file_path = Path(image.file_path)
                     if file_path.exists():
                         file_path.unlink()
                         current_app.logger.info(f"Deleted local image file: {file_path}")
-                
+
             except Exception as e:
                 current_app.logger.error(f"Error deleting image {image.id}: {e}")
                 # Continue with deletion even if image cleanup fails
@@ -527,6 +532,7 @@ def unfeature_recipe(current_user, recipe_id: int) -> Response:
 
 @bp.route("/recipes/upload", methods=["POST"])
 @require_auth
+@rate_limit_upload
 def upload_recipe(current_user) -> Tuple[Response, int]:
     """Upload a recipe image and process it into a recipe."""
     current_app.logger.info(
@@ -653,7 +659,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     try:
         # Use the new helper function to handle image processing
         recipe_image = process_and_save_image(file, file.filename, folder="recipes")
-        
+
         db.session.add(recipe_image)
         db.session.flush()
 
@@ -806,6 +812,66 @@ def update_recipe(current_user, recipe_id: int) -> Response:
         return jsonify({"error": "Recipe update failed"}), 500
 
 
+@bp.route("/recipes/<int:recipe_id>/cookbook", methods=["PUT"])
+@require_auth
+def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
+    """Link an existing recipe to a cookbook."""
+
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        cookbook_id = data.get("cookbook_id")
+        page_number = data.get("page_number")
+
+        # Allow unlinking from cookbook by setting cookbook_id to null
+        if cookbook_id is not None:
+            # Verify cookbook exists and user has permission
+            if should_apply_user_filter(current_user):
+                cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
+            else:
+                cookbook = Cookbook.query.get(cookbook_id)
+
+            if not cookbook:
+                return jsonify({"error": "Cookbook not found or access denied"}), 404
+
+        # Update recipe's cookbook association
+        recipe.cookbook_id = cookbook_id
+        recipe.page_number = safe_int_conversion(page_number) if page_number else None
+
+        db.session.commit()
+        current_app.logger.info(
+            f"Recipe {recipe_id} {'linked to' if cookbook_id else 'unlinked from'} cookbook {cookbook_id} by user {current_user.id}"
+        )
+
+        is_admin = current_user.role.value == "admin" if current_user.role else False
+        return jsonify(
+            {
+                "message": "Recipe cookbook updated successfully",
+                "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)
+            }
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Failed to link recipe {recipe_id} to cookbook: {str(e)}"
+        )
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to update recipe cookbook"}), 500
+
+
 @bp.route("/recipes/<int:recipe_id>/ingredients", methods=["PUT"])
 @require_auth
 def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
@@ -910,10 +976,10 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
 
         # Get existing instructions to preserve their IDs and image data
         existing_instructions = Instruction.query.filter_by(recipe_id=recipe_id).order_by(Instruction.step_number).all()
-        
+
         # Create a mapping of current instructions for efficient lookup
         existing_by_step = {inst.step_number: inst for inst in existing_instructions}
-        
+
         # Update or create instructions while preserving image data
         updated_instructions = []
         for step_number, instruction_text in enumerate(instructions_data, 1):
@@ -936,9 +1002,9 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
                     recipe_id=recipe_id, step_number=step_number, text=instruction_text
                 )
                 db.session.add(instruction)
-            
+
             updated_instructions.append(instruction)
-        
+
         # Remove any instructions that are no longer needed (step numbers beyond the new list)
         for step_number in existing_by_step:
             if step_number > len(instructions_data):
@@ -1042,7 +1108,7 @@ def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
         # Use the new helper function to handle image processing
         recipe_image = process_and_save_image(file, file.filename, folder="recipes")
         recipe_image.recipe_id = recipe.id
-        
+
         db.session.add(recipe_image)
         db.session.commit()
 
@@ -1112,7 +1178,7 @@ def serve_image(current_user, filename: str) -> Response:
                 else:
                     # Unauthenticated users can't access private recipes
                     can_access = False
-                
+
                 # Additional check: if this image is used as a recipe group cover
                 # and the user owns the group, allow access
                 if not can_access and current_user:
@@ -1132,7 +1198,7 @@ def serve_image(current_user, filename: str) -> Response:
                 if not current_user:
                     return jsonify({"error": "Access denied"}), 403
                 can_access = True
-            
+
             # If image is stored in Cloudinary, redirect to Cloudinary URL
             if recipe_image.cloudinary_url:
                 from flask import redirect
@@ -1148,7 +1214,7 @@ def serve_image(current_user, filename: str) -> Response:
                     cookbook_id=cookbook.id,
                     is_public=True
                 ).first() is not None
-                
+
                 if has_public_recipes:
                     # Cookbook with public recipes is accessible to everyone
                     can_access = True
@@ -1161,7 +1227,7 @@ def serve_image(current_user, filename: str) -> Response:
                 else:
                     # Unauthenticated users can't access private cookbook images
                     can_access = False
-                
+
                 if not can_access:
                     return jsonify({"error": "Access denied"}), 403
             else:
@@ -1204,7 +1270,7 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         from app.services.llm_ocr_service import LLMOCRService
 
         llm_ocr_service = LLMOCRService()
-        
+
         # Get image data (handles both Cloudinary and local images)
         try:
             image_data = get_image_data_for_ocr(recipe_image)
@@ -1285,12 +1351,12 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
 
     except Exception as e:
         current_app.logger.error(f"Processing failed for job {job_id}: {str(e)}", exc_info=True)
-        
+
         # Handle database session rollback properly
         try:
             db.session.rollback()
             current_app.logger.info("Database session rolled back successfully")
-            
+
             # Re-fetch the job in a clean session to update status
             job = ProcessingJob.query.get(job_id)
             if job:
@@ -1300,7 +1366,7 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
                 current_app.logger.info(f"Job {job_id} status updated to FAILED")
             else:
                 current_app.logger.error(f"Could not find job {job_id} to update status")
-                
+
         except Exception as rollback_error:
             current_app.logger.error(f"Failed to rollback and update job status: {str(rollback_error)}", exc_info=True)
             # As a last resort, try to create a new session
@@ -1323,7 +1389,7 @@ def _extract_text_from_image(image_id: int) -> str:
     from app.services.llm_ocr_service import LLMOCRService
 
     llm_ocr_service = LLMOCRService()
-    
+
     # Get image data (handles both Cloudinary and local images)
     try:
         image_data = get_image_data_for_ocr(recipe_image)
@@ -1383,7 +1449,7 @@ def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, j
     if title and title.strip():
         current_app.logger.info(f"Using parsed title: {title}")
         return title.strip()
-    
+
     # Fallback 1: Extract first line/sentence from extracted text
     if extracted_text and extracted_text.strip():
         lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
@@ -1392,7 +1458,7 @@ def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, j
             first_line = lines[0][:100]  # Limit to 100 characters
             current_app.logger.warning(f"Title was null, using first line as fallback: {first_line}")
             return first_line
-    
+
     # Fallback 2: Try to get filename from job's associated image
     try:
         if job and job.images:
@@ -1406,7 +1472,7 @@ def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, j
                 return title
     except (AttributeError, IndexError):
         pass
-    
+
     # Fallback 3: Use timestamp-based title
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -1431,7 +1497,7 @@ def _create_recipe_from_parsed_data(
 
     # Generate robust title with smart fallbacks
     title = _generate_recipe_title(parsed_recipe, extracted_text, job)
-    
+
     # Create base recipe
     recipe = Recipe(
         title=title,
@@ -1973,7 +2039,11 @@ def discover_recipes(current_user) -> Response:
     return jsonify(
         {
             "recipes": [
-                recipe.to_dict(include_user=True, current_user_id=current_user.id, is_admin=not should_apply_user_filter(current_user))
+                recipe.to_dict(
+                    include_user=True, 
+                    current_user_id=current_user.id, 
+                    is_admin=not should_apply_user_filter(current_user)
+                )
                 for recipe in recipes.items
             ],
             "total": recipes.total,
@@ -2369,6 +2439,7 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
 
 @bp.route("/recipes/upload-multi", methods=["POST"])
 @require_auth
+@rate_limit_upload
 def upload_multi_recipe(current_user):
     """Upload multiple images for a single recipe"""
     try:
@@ -2458,7 +2529,7 @@ def upload_multi_recipe(current_user):
                 if not cookbook_exists:
                     current_app.logger.error(f"Cookbook {cookbook_id} does not exist")
                     return jsonify({"error": f"Cookbook with ID {cookbook_id} not found"}), 404
-                
+
                 # Then check if user owns it
                 cookbook = Cookbook.query.filter_by(
                     id=cookbook_id, user_id=user_id
@@ -2488,11 +2559,11 @@ def upload_multi_recipe(current_user):
             # Use the same image processing function as single upload (includes Cloudinary)
             file.seek(0)  # Reset file pointer
             recipe_image = process_and_save_image(file, file.filename, folder="recipes/multi")
-            
+
             # Set multi-image specific fields
             recipe_image.image_order = i  # Set order based on upload sequence
             recipe_image.page_number = page_number + i if page_number else i + 1
-            
+
             db.session.add(recipe_image)
             db.session.flush()  # Get the ID
 
@@ -2541,7 +2612,7 @@ def upload_multi_recipe(current_user):
             recipe_image = RecipeImage.query.get(processing_job.image_id)
             if recipe_image:
                 images_data.append(recipe_image.to_dict())
-        
+
         return (
             jsonify(
                 {
@@ -2687,8 +2758,13 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
         current_app.logger.info(f"Parsed recipe: {parsed_recipe}")
 
         # Create the recipe directly (no background processing needed for text)
+        # Handle None or empty title - ensure we always have a valid title
+        recipe_title = parsed_recipe.get("title")
+        if not recipe_title or not recipe_title.strip():
+            recipe_title = "Untitled Recipe"
+
         recipe = Recipe(
-            title=parsed_recipe.get("title", "Untitled Recipe"),
+            title=recipe_title,
             description=parsed_recipe.get("description"),
             cookbook_id=cookbook_id,
             page_number=page_number,
@@ -2937,13 +3013,13 @@ def process_multi_image_job(multi_job_id: int):
                     current_app.logger.info(
                         f"Processing image {i+1}/{len(image_paths)}: {image_path}"
                     )
-                    
+
                     # Get the RecipeImage object from the processing job map
                     processing_job = processing_job_map.get(str(image_path))
                     recipe_image = None
                     if processing_job:
                         recipe_image = RecipeImage.query.get(processing_job.image_id)
-                    
+
                     if recipe_image:
                         # Use helper function to get image data (handles both Cloudinary and local)
                         image_data = get_image_data_for_ocr(recipe_image)
@@ -2957,7 +3033,7 @@ def process_multi_image_job(multi_job_id: int):
                         except Exception as read_error:
                             current_app.logger.error(f"Failed to read local image file {image_path}: {str(read_error)}")
                             raise
-                    
+
                     extracted_text = llm_ocr_service.extract_text_from_image(image_data, source_info)
                     combined_text += f"\n--- Page {i+1} ---\n{extracted_text}\n"
                     successful_extractions += 1
@@ -3275,7 +3351,7 @@ def process_multi_image_job(multi_job_id: int):
             if not recipe_title or recipe_title.strip() == "":
                 recipe_title = "Untitled Recipe"
                 current_app.logger.warning(f"Recipe title was empty, using default: {recipe_title}")
-            
+
             # Create the recipe
             recipe = Recipe(
                 title=recipe_title,
@@ -3419,17 +3495,17 @@ def upload_instruction_image(current_user, recipe_id: int, instruction_id: int) 
     """Upload an image for a specific instruction step."""
     # Verify recipe exists and user has edit permission
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     # Check if user can edit this recipe (only owner or admin)
     is_admin = current_user.role.value == "admin"
     if not is_admin and recipe.user_id != current_user.id:
         return jsonify({"error": "Permission denied"}), 403
-    
+
     # Verify instruction exists and belongs to recipe
     instruction = Instruction.query.filter_by(
         id=instruction_id, recipe_id=recipe_id
     ).first()
-    
+
     if not instruction:
         return jsonify({"error": "Instruction not found"}), 404
 
@@ -3450,16 +3526,16 @@ def upload_instruction_image(current_user, recipe_id: int, instruction_id: int) 
     try:
         # Process and upload image (similar to recipe images)
         image_record = process_and_save_image(file, file.filename, folder="instructions")
-        
+
         # Update instruction with image information
         instruction.image_filename = image_record.filename
         instruction.image_url = image_record.file_path
         instruction.cloudinary_public_id = image_record.cloudinary_public_id
         instruction.cloudinary_url = image_record.cloudinary_url
         instruction.cloudinary_thumbnail_url = image_record.cloudinary_thumbnail_url
-        
+
         db.session.commit()
-        
+
         return jsonify({
             "message": "Instruction image uploaded successfully",
             "instruction": instruction.to_dict()
@@ -3477,20 +3553,20 @@ def remove_instruction_image(current_user, recipe_id: int, instruction_id: int) 
     """Remove image from a specific instruction step."""
     # Verify recipe exists and user has edit permission
     recipe = Recipe.query.get_or_404(recipe_id)
-    
+
     # Check if user can edit this recipe (only owner or admin)
     is_admin = current_user.role.value == "admin"
     if not is_admin and recipe.user_id != current_user.id:
         return jsonify({"error": "Permission denied"}), 403
-    
+
     # Verify instruction exists and belongs to recipe
     instruction = Instruction.query.filter_by(
         id=instruction_id, recipe_id=recipe_id
     ).first()
-    
+
     if not instruction:
         return jsonify({"error": "Instruction not found"}), 404
-    
+
     if not instruction.image_filename:
         return jsonify({"error": "No image to remove"}), 400
 
@@ -3501,16 +3577,16 @@ def remove_instruction_image(current_user, recipe_id: int, instruction_id: int) 
                 cloudinary_service.delete_image(instruction.cloudinary_public_id)
             except Exception as e:
                 current_app.logger.warning(f"Failed to delete Cloudinary image: {e}")
-        
+
         # Clear image fields
         instruction.image_filename = None
         instruction.image_url = None
         instruction.cloudinary_public_id = None
         instruction.cloudinary_url = None
         instruction.cloudinary_thumbnail_url = None
-        
+
         db.session.commit()
-        
+
         return jsonify({
             "message": "Instruction image removed successfully",
             "instruction": instruction.to_dict()

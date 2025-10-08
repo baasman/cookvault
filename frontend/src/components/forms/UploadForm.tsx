@@ -17,6 +17,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     image: null,
     images: [],
     isMultiImage: false,
+    isTextMode: false, // Start in image mode by default
+    recipeText: '',
     cookbook_id: undefined,
     page_number: undefined,
     create_new_cookbook: false,
@@ -212,17 +214,30 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate images
-    if (formData.isMultiImage) {
-      if (formData.images.length === 0) {
-        alert('Please select at least one image to upload');
+
+    // Validate based on mode
+    if (formData.isTextMode) {
+      // Validate text input
+      if (!formData.recipeText || formData.recipeText.trim() === '') {
+        alert('Please enter recipe text');
+        return;
+      }
+      if (formData.recipeText.length > 50000) {
+        alert('Recipe text exceeds maximum length of 50,000 characters');
         return;
       }
     } else {
-      if (!formData.image) {
-        alert('Please select an image to upload');
-        return;
+      // Validate images
+      if (formData.isMultiImage) {
+        if (formData.images.length === 0) {
+          alert('Please select at least one image to upload');
+          return;
+        }
+      } else {
+        if (!formData.image) {
+          alert('Please select an image to upload');
+          return;
+        }
       }
     }
 
@@ -368,7 +383,82 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
   return (
     <div className="flex flex-col w-full max-w-[512px] mx-auto">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6 px-4 py-3">
-        {/* Image Upload Area */}
+        {/* Upload Mode Selector */}
+        <div className="flex flex-col">
+          <label className="block text-base font-medium leading-normal mb-2" style={{color: '#1c120d'}}>
+            Upload Mode
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, isTextMode: false }))}
+              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
+                !formData.isTextMode
+                  ? 'border-orange-400 bg-orange-50 text-orange-900'
+                  : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+              }`}
+              style={{
+                borderColor: !formData.isTextMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: !formData.isTextMode ? '#fcf9f8' : '#ffffff'
+              }}
+            >
+              📷 Image Upload
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, isTextMode: true, isMultiImage: false }))}
+              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
+                formData.isTextMode
+                  ? 'border-orange-400 bg-orange-50 text-orange-900'
+                  : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+              }`}
+              style={{
+                borderColor: formData.isTextMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: formData.isTextMode ? '#fcf9f8' : '#ffffff'
+              }}
+            >
+              📝 Text Input
+            </button>
+          </div>
+        </div>
+
+        {/* Text Upload Area (shown when in text mode) */}
+        {formData.isTextMode ? (
+          <div className="flex flex-col">
+            <div className="pb-2">
+              <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
+                Recipe Text *
+              </label>
+              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
+                Paste or type your recipe below. Include title, ingredients, and instructions.
+              </p>
+            </div>
+            <textarea
+              value={formData.recipeText || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, recipeText: e.target.value }))}
+              placeholder="Example:\n\nChocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup butter\n- 1 cup sugar\n...\n\nInstructions:\n1. Preheat oven to 350°F\n2. Mix dry ingredients\n..."
+              className="w-full px-4 py-3 border rounded-lg resize-y font-mono text-sm"
+              style={{
+                borderColor: '#e8d7cf',
+                backgroundColor: '#fcf9f8',
+                minHeight: '300px',
+                maxHeight: '600px'
+              }}
+              required
+            />
+            <div className="flex justify-between mt-2">
+              <span className="text-xs" style={{color: '#9b644b'}}>
+                {(formData.recipeText || '').length} / 50,000 characters
+              </span>
+              {(formData.recipeText || '').length > 45000 && (
+                <span className="text-xs text-orange-600">
+                  Approaching character limit
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+        /* Image Upload Area (shown when not in text mode) */
         <div className="flex flex-col">
           <div className="pb-2">
             <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
@@ -565,6 +655,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             </div>
           )}
         </div>
+        )}
 
         {/* Cookbook Information */}
         <div className="flex flex-col gap-4">
@@ -977,8 +1068,11 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             type="submit"
             variant="primary"
             size="lg"
-            disabled={isLoading || 
-              (formData.isMultiImage ? formData.images.length === 0 : !formData.image) || 
+            disabled={isLoading ||
+              (formData.isTextMode
+                ? !formData.recipeText || formData.recipeText.trim() === ''
+                : (formData.isMultiImage ? formData.images.length === 0 : !formData.image)
+              ) ||
               !allConsentsGiven}
             className="min-w-[200px]"
           >

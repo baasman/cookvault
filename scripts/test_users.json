@@ -1,0 +1,154 @@
+{
+  "users": [
+    {
+      "username": "loadtest_user1",
+      "email": "loadtest1@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Free tier test user 1"
+    },
+    {
+      "username": "loadtest_user2",
+      "email": "loadtest2@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Free tier test user 2"
+    },
+    {
+      "username": "loadtest_user3",
+      "email": "loadtest3@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Free tier test user 3"
+    },
+    {
+      "username": "loadtest_user4",
+      "email": "loadtest4@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Free tier test user 4"
+    },
+    {
+      "username": "loadtest_user5",
+      "email": "loadtest5@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Free tier test user 5"
+    },
+    {
+      "username": "loadtest_premium1",
+      "email": "loadtest_premium1@example.com",
+      "password": "TestPassword123!",
+      "tier": "premium",
+      "description": "Premium tier test user 1"
+    },
+    {
+      "username": "loadtest_premium2",
+      "email": "loadtest_premium2@example.com",
+      "password": "TestPassword123!",
+      "tier": "premium",
+      "description": "Premium tier test user 2"
+    },
+    {
+      "username": "loadtest_premium3",
+      "email": "loadtest_premium3@example.com",
+      "password": "TestPassword123!",
+      "tier": "premium",
+      "description": "Premium tier test user 3"
+    },
+    {
+      "username": "loadtest_premium4",
+      "email": "loadtest_premium4@example.com",
+      "password": "TestPassword123!",
+      "tier": "premium",
+      "description": "Premium tier test user 4"
+    },
+    {
+      "username": "loadtest_premium5",
+      "email": "loadtest_premium5@example.com",
+      "password": "TestPassword123!",
+      "tier": "premium",
+      "description": "Premium tier test user 5"
+    },
+    {
+      "username": "loadtest_burst1",
+      "email": "loadtest_burst1@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Burst pattern test user 1"
+    },
+    {
+      "username": "loadtest_burst2",
+      "email": "loadtest_burst2@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Burst pattern test user 2"
+    },
+    {
+      "username": "loadtest_burst3",
+      "email": "loadtest_burst3@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Burst pattern test user 3"
+    },
+    {
+      "username": "loadtest_stress1",
+      "email": "loadtest_stress1@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Stress test user 1"
+    },
+    {
+      "username": "loadtest_stress2",
+      "email": "loadtest_stress2@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Stress test user 2"
+    },
+    {
+      "username": "loadtest_stress3",
+      "email": "loadtest_stress3@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Stress test user 3"
+    },
+    {
+      "username": "loadtest_stress4",
+      "email": "loadtest_stress4@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Stress test user 4"
+    },
+    {
+      "username": "loadtest_stress5",
+      "email": "loadtest_stress5@example.com",
+      "password": "TestPassword123!",
+      "tier": "free",
+      "description": "Stress test user 5"
+    },
+    {
+      "username": "loadtest_endurance1",
+      "email": "loadtest_endurance1@example.com",
+      "password": "TestPassword123!",
+      "tier": "premium",
+      "description": "Endurance test user 1"
+    },
+    {
+      "username": "loadtest_endurance2",
+      "email": "loadtest_endurance2@example.com",
+      "password": "TestPassword123!",
+      "tier": "premium",
+      "description": "Endurance test user 2"
+    }
+  ],
+  "admin_users": [
+    {
+      "username": "loadtest_admin",
+      "email": "loadtest_admin@example.com",
+      "password": "AdminPassword123!",
+      "tier": "admin",
+      "description": "Admin test user for load testing"
+    }
+  ],
+  "note": "These users should be created in the test environment before running load tests. Use the setup_test_users.py script to create them automatically."
+}

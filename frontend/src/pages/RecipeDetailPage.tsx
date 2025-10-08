@@ -361,34 +361,31 @@ const RecipeDetailPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* User Information - Show for public recipes or recipes from other users */}
+                {/* User Information - Streamlined inline display */}
                 {recipe.user && (recipe.is_public || recipe.user_id !== parseInt(user?.id || '0')) && (
-                  <div className="mb-6 p-4 bg-background-secondary rounded-lg border border-primary-200">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center">
-                        <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="text-sm text-text-secondary">Uploaded by</div>
-                        <div className="font-medium text-text-primary">
-                          {recipe.user.first_name && recipe.user.last_name 
-                            ? `${recipe.user.first_name} ${recipe.user.last_name}`
-                            : recipe.user.username
-                          }
-                        </div>
-                        {recipe.created_at && (
-                          <div className="text-xs text-text-secondary">
-                            {new Date(recipe.created_at).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  <div className="mb-4 flex items-center text-sm text-text-secondary">
+                    <svg className="h-4 w-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+                    </svg>
+                    <span>Uploaded by </span>
+                    <Link 
+                      to={`/users/${recipe.user.id}`}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors mx-1"
+                    >
+                      {recipe.user.first_name && recipe.user.last_name 
+                        ? `${recipe.user.first_name} ${recipe.user.last_name}`
+                        : recipe.user.username
+                      }
+                    </Link>
+                    {recipe.created_at && (
+                      <span className="text-text-secondary">
+                        on {new Date(recipe.created_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -409,22 +406,91 @@ const RecipeDetailPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Cookbook Info */}
+                {/* Enhanced Cookbook Info */}
                 {recipe.cookbook && (
-                  <div className="p-4 bg-background-secondary rounded-lg">
-                    <h3 className="text-sm font-medium text-text-secondary mb-1">From Cookbook</h3>
-                    <Link 
-                      to={`/cookbooks/${recipe.cookbook.id}`}
-                      className="font-medium text-text-primary hover:text-accent transition-colors underline hover:no-underline"
-                    >
-                      {recipe.cookbook.title}
-                    </Link>
-                    {recipe.cookbook.author && (
-                      <p className="text-sm text-text-secondary">by {recipe.cookbook.author}</p>
-                    )}
-                    {recipe.page_number && (
-                      <p className="text-sm text-text-secondary">Page {recipe.page_number}</p>
-                    )}
+                  <div className="mb-6 p-4 bg-gradient-to-r from-background-secondary to-primary-50 rounded-lg border border-primary-200 hover:shadow-md transition-shadow">
+                    <div className="flex gap-4">
+                      {/* Cookbook Cover Thumbnail */}
+                      {recipe.cookbook.cover_image_url && (
+                        <Link 
+                          to={`/cookbooks/${recipe.cookbook.id}`}
+                          className="flex-shrink-0"
+                        >
+                          <img 
+                            src={recipe.cookbook.cover_image_url} 
+                            alt={recipe.cookbook.title}
+                            className="w-16 h-20 object-cover rounded shadow-sm hover:shadow-md transition-shadow"
+                            onError={(e) => {
+                              // Hide image if it fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        </Link>
+                      )}
+                      
+                      {/* Cookbook Details */}
+                      <div className="flex-grow">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="text-xs font-medium text-text-secondary mb-1 uppercase tracking-wider">From Cookbook</h3>
+                            <Link 
+                              to={`/cookbooks/${recipe.cookbook.id}`}
+                              className="font-semibold text-lg text-text-primary hover:text-accent transition-colors block mb-1"
+                            >
+                              {recipe.cookbook.title}
+                            </Link>
+                            
+                            <div className="flex flex-wrap gap-3 text-sm text-text-secondary">
+                              {recipe.cookbook.author && (
+                                <span className="flex items-center">
+                                  <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                  {recipe.cookbook.author}
+                                </span>
+                              )}
+                              
+                              {recipe.cookbook.publisher && (
+                                <span className="flex items-center">
+                                  <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-2m-2 0H7m5 0v-9a2 2 0 00-2-2H7a2 2 0 00-2 2v9m14 0h2" />
+                                  </svg>
+                                  {recipe.cookbook.publisher}
+                                </span>
+                              )}
+                              
+                              {recipe.page_number && (
+                                <span className="flex items-center">
+                                  <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                  Page {recipe.page_number}
+                                </span>
+                              )}
+                              
+                              {recipe.cookbook.recipe_count > 0 && (
+                                <span className="flex items-center">
+                                  <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                  </svg>
+                                  {recipe.cookbook.recipe_count} recipes
+                                </span>
+                              )}
+                              
+                              {recipe.cookbook.isbn && (
+                                <span className="flex items-center">
+                                  <svg className="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                                  </svg>
+                                  ISBN: {recipe.cookbook.isbn}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 

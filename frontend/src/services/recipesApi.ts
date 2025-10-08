@@ -260,6 +260,32 @@ class RecipesApi {
     }
   }
 
+  async linkRecipeToCookbook(recipeId: number, cookbookId: number | null, pageNumber?: number): Promise<Recipe> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/cookbook`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cookbook_id: cookbookId,
+          page_number: pageNumber,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.recipe;
+    } catch (error) {
+      console.error('Error linking recipe to cookbook:', error);
+      throw error;
+    }
+  }
+
   async updateRecipeIngredients(recipeId: number, params: UpdateIngredientsParams): Promise<Recipe> {
     try {
       const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/ingredients`, {
@@ -687,6 +713,51 @@ class RecipesApi {
       return await response.json();
     } catch (error) {
       console.error('Error uploading multiple images:', error);
+      throw error;
+    }
+  }
+
+  async uploadRecipeText(text: string, formData: any): Promise<any> {
+    try {
+      const payload: any = {
+        text: text,
+      };
+
+      // Add cookbook information if provided
+      if (formData.create_new_cookbook) {
+        payload.create_new_cookbook = true;
+        payload.new_cookbook_title = formData.new_cookbook_title || '';
+        if (formData.new_cookbook_author) payload.new_cookbook_author = formData.new_cookbook_author;
+        if (formData.new_cookbook_description) payload.new_cookbook_description = formData.new_cookbook_description;
+        if (formData.new_cookbook_publisher) payload.new_cookbook_publisher = formData.new_cookbook_publisher;
+        if (formData.new_cookbook_isbn) payload.new_cookbook_isbn = formData.new_cookbook_isbn;
+        if (formData.new_cookbook_publication_date) payload.new_cookbook_publication_date = formData.new_cookbook_publication_date;
+      } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
+        payload.cookbook_id = formData.selected_existing_cookbook_id;
+      } else if (formData.cookbook_id) {
+        payload.cookbook_id = formData.cookbook_id;
+      }
+
+      if (formData.page_number) {
+        payload.page_number = formData.page_number;
+      }
+
+      const response = await apiFetch(`${this.baseUrl}/recipes/upload-text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading recipe text:', error);
       throw error;
     }
   }

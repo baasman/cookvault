@@ -18,6 +18,20 @@ db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
 
+def get_rate_limit_key():
+    """
+    Custom rate limit key function that uses user ID for authenticated users,
+    falls back to IP address for anonymous users.
+    """
+    from flask import g
+
+    # Check if we have a current user in the request context
+    if hasattr(g, 'current_user') and g.current_user:
+        return f"user_{g.current_user.id}"
+
+    # Fall back to IP address for unauthenticated requests
+    return get_remote_address()
+
 
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, static_folder=None)
@@ -108,13 +122,30 @@ def create_app(config_name: str | None = None) -> Flask:
         )
 
     # Configure rate limiting (after dynamic config is loaded)
+    # Use custom key function that identifies users instead of just IPs
     limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=[app.config.get('RATELIMIT_DEFAULT', '100/hour')],
+        key_func=get_rate_limit_key,
+        default_limits=["500/hour"],  # Higher default to avoid issues
         storage_uri=app.config.get('RATELIMIT_STORAGE_URL')
     )
     limiter.init_app(app)
-    app.logger.info(f"Rate limiter configured with default: {app.config.get('RATELIMIT_DEFAULT')}")
+
+    # Exempt job status endpoints from rate limiting
+    @limiter.request_filter
+    def exempt_job_endpoints():
+        """Exempt job status checks from rate limiting"""
+        # Return True to exempt from rate limiting
+        # Check if this is a job status endpoint
+        if request.endpoint and ('job' in request.endpoint or
+                                 'get_processing_job' in request.endpoint or
+                                 'get_job_status' in request.endpoint):
+            return True  # True means EXEMPT from rate limiting
+        return False  # False means DO apply rate limiting
+
+    # Make limiter available globally for use in blueprints
+    app.limiter = limiter
+
+    app.logger.info(f"Rate limiter configured with user-based keys and job status exemptions")
 
     # Ensure upload folder exists (after dynamic config is loaded)
     upload_folder = Path(app.config['UPLOAD_FOLDER'])
