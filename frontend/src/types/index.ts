@@ -11,6 +11,12 @@ export interface Cookbook {
   cover_image_url?: string;
   recipe_count: number;
   user_id?: number; // Owner of the cookbook
+  user?: {
+    id: number;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+  };
   created_at: string;
   updated_at: string;
   recipes?: Recipe[]; // Only populated in detail view

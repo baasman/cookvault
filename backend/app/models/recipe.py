@@ -127,6 +127,15 @@ class Cookbook(db.Model):
             "recipe_count": len(self.recipes)
         }
 
+        # Include user information if available
+        if self.user:
+            result["user"] = {
+                "id": self.user.id,
+                "username": self.user.username,
+                "first_name": self.user.first_name,
+                "last_name": self.user.last_name,
+            }
+
         # Include purchase status if current user is provided
         if current_user_id and self.is_purchasable:
             has_purchased = any(

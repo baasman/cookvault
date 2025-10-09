@@ -119,13 +119,42 @@ const CreateCookbookPage: React.FC = () => {
           </svg>
           <span>Back to Cookbooks</span>
         </button>
-        
+
         <h1 className="text-3xl font-bold mb-2" style={{color: '#1c120d'}}>
           Create New Cookbook
         </h1>
         <p className="text-text-secondary">
           Create a new cookbook to organize your recipes.
         </p>
+      </div>
+
+      {/* User Profile Section - Shows cookbook ownership */}
+      <div className="mb-6 bg-white rounded-xl shadow-sm border p-4" style={{borderColor: '#e8d7cf'}}>
+        <div className="flex items-center space-x-3">
+          {/* User Avatar */}
+          <div className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden" style={{backgroundColor: '#f1ece9'}}>
+            <div className="w-full h-full flex items-center justify-center">
+              <svg className="w-6 h-6" style={{color: '#f15f1c'}} fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* User Info */}
+          <div className="flex-grow">
+            <div className="flex items-center space-x-2">
+              <p className="text-sm font-medium" style={{color: '#9b644b'}}>
+                Created by
+              </p>
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full" style={{backgroundColor: '#f1ece9', color: '#f15f1c'}}>
+                Owner
+              </span>
+            </div>
+            <p className="text-base font-semibold" style={{color: '#1c120d'}}>
+              {user?.name || 'Unknown User'}
+            </p>
+          </div>
+        </div>
       </div>
 
       {errors.general && (
@@ -155,11 +184,14 @@ const CreateCookbookPage: React.FC = () => {
 
             <div>
               <Input
-                label="Author"
-                placeholder="Enter author name"
+                label="Author Display Name (optional)"
+                placeholder={user?.name || "Enter author name"}
                 value={formData.author}
                 onChange={(value) => handleInputChange('author', value)}
               />
+              <p className="text-xs mt-1" style={{color: '#9b644b'}}>
+                Leave empty to use your username, or enter a custom author name for display
+              </p>
             </div>
 
             <div>

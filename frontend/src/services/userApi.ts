@@ -95,6 +95,34 @@ class UserApi {
       throw error;
     }
   }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<any> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Current password is incorrect');
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error changing password:', error);
+      throw error;
+    }
+  }
 }
 
 export const userApi = new UserApi();

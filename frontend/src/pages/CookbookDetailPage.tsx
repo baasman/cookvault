@@ -163,11 +163,34 @@ const CookbookDetailPage: React.FC = () => {
               {cookbook.title}
             </h1>
 
-            {cookbook.author && (
-              <p className="text-xl text-text-secondary mb-4">
-                by {cookbook.author}
-              </p>
-            )}
+            {/* Author and User Info */}
+            <div className="mb-4">
+              {cookbook.author && (
+                <p className="text-xl text-text-secondary mb-2">
+                  by {cookbook.author}
+                </p>
+              )}
+
+              {cookbook.user && (
+                <div className="flex items-center space-x-2">
+                  <svg className="h-4 w-4" style={{color: '#9b644b'}} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="text-sm" style={{color: '#9b644b'}}>
+                    Created by{' '}
+                    <Link
+                      to={`/users/${cookbook.user.id}`}
+                      className="font-medium hover:underline transition-colors"
+                      style={{color: '#2563eb'}}
+                    >
+                      {cookbook.user.first_name && cookbook.user.last_name
+                        ? `${cookbook.user.first_name} ${cookbook.user.last_name} (@${cookbook.user.username})`
+                        : `@${cookbook.user.username}`}
+                    </Link>
+                  </span>
+                </div>
+              )}
+            </div>
 
             {cookbook.description && (
               <div className="text-sm text-text-secondary mb-6 description-text preserve-newlines">
