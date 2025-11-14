@@ -6,6 +6,7 @@ import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, 
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { EditProfilePage } from './pages/EditProfilePage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { PublicUserPage } from './pages/PublicUserPage';
 import { CookbookPurchaseSuccessPage } from './pages/CookbookPurchaseSuccessPage';
 import { CreateCookbookPage } from './pages/CreateCookbookPage';
@@ -35,6 +36,7 @@ function App() {
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/profile" element={<UserPage />} />
               <Route path="/profile/edit" element={<EditProfilePage />} />
+              <Route path="/profile/change-password" element={<ChangePasswordPage />} />
               <Route path="/users/:userId" element={<PublicUserPage />} />
               <Route path="/users/by-username/:username" element={<PublicUserPage />} />
               <Route path="/login" element={<LoginPage />} />

@@ -16,21 +16,27 @@ from app.exceptions import OCRExtractionError
 
 class LLMOCRService:
     """Service for LLM-based text extraction from images using Anthropic Claude."""
-    
+
     def __init__(self):
         api_key = current_app.config.get("ANTHROPIC_API_KEY")
         if not api_key:
             current_app.logger.error("ANTHROPIC_API_KEY not configured!")
             raise ValueError("ANTHROPIC_API_KEY is required for LLM OCR service")
-        
+
         current_app.logger.info(f"Initializing Anthropic client with API key: {api_key[:10]}...{api_key[-4:] if len(api_key) > 10 else 'short'}")
-        
+
         self.client = anthropic.Anthropic(
             api_key=api_key,
             timeout=90.0  # 90 second timeout for API calls
         )
         self.redis_client = self._init_redis()
         self.cache_ttl = current_app.config.get("OCR_QUALITY_CACHE_TTL", 3600)  # 1 hour default
+
+        # Load model IDs from config for flexibility
+        self.vision_model = current_app.config.get("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-5-20250929")
+        self.text_model = current_app.config.get("ANTHROPIC_TEXT_MODEL", "claude-sonnet-4-20250514")
+
+        current_app.logger.info(f"LLM OCR Service initialized with vision_model={self.vision_model}, text_model={self.text_model}")
 
     def _init_redis(self) -> redis.Redis:
         """Initialize Redis connection."""
@@ -43,19 +49,19 @@ class LLMOCRService:
         except Exception:
             # Fall back to None if Redis is unavailable
             return None
-    
+
     def _make_api_call_with_retry(self, api_call_func, max_retries: int = 3, base_delay: float = 1.0):
         """
         Make an API call with exponential backoff retry logic.
-        
+
         Args:
             api_call_func: Function that makes the API call
             max_retries: Maximum number of retries (default: 3)
             base_delay: Base delay in seconds for exponential backoff (default: 1.0)
-            
+
         Returns:
             API response
-            
+
         Raises:
             OCRExtractionError: If all retries are exhausted
         """
@@ -66,26 +72,26 @@ class LLMOCRService:
                 # Check if it's a retryable error (overloaded, rate limit, timeout)
                 is_retryable = False
                 error_message = str(e).lower()
-                
+
                 if hasattr(e, 'status_code'):
                     # HTTP status codes that should be retried
                     retryable_status_codes = {429, 500, 502, 503, 504, 529}
                     is_retryable = e.status_code in retryable_status_codes
                 elif any(keyword in error_message for keyword in ['overloaded', 'rate limit', 'timeout', 'connection']):
                     is_retryable = True
-                
+
                 # If this is the last attempt or error is not retryable, raise the exception
                 if attempt == max_retries or not is_retryable:
                     current_app.logger.error(f"API call failed after {attempt + 1} attempts: {str(e)}")
                     raise
-                
+
                 # Calculate delay with exponential backoff and jitter
                 delay = base_delay * (2 ** attempt) + (time.time() % 1)  # Add jitter
                 current_app.logger.warning(
                     f"API call failed (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay:.1f}s: {str(e)}"
                 )
                 time.sleep(delay)
-            
+
     def _build_literal_extraction_prompt(self) -> str:
         """Build a prompt focused purely on literal text extraction."""
         return """
@@ -121,7 +127,7 @@ STRUCTURING RULES:
 Return a JSON object with this structure:
 {{
     "title": "exact title from text or null",
-    "description": "exact description from text or null", 
+    "description": "exact description from text or null",
     "prep_time": time_in_minutes_if_explicitly_stated_or_null,
     "cook_time": time_in_minutes_if_explicitly_stated_or_null,
     "total_time": time_in_minutes_if_explicitly_stated_or_null,
@@ -132,7 +138,7 @@ Return a JSON object with this structure:
         "exact ingredient line 2 as extracted"
     ],
     "instructions": [
-        "exact instruction step 1 as extracted", 
+        "exact instruction step 1 as extracted",
         "exact instruction step 2 as extracted"
     ],
     "tags": [],
@@ -144,7 +150,7 @@ Return ONLY valid JSON, no markdown, no additional text.
 
     def _parse_minimal_response(self, response_text: str) -> dict:
         """Parse the minimal parsing LLM response into structured data."""
-        
+
         try:
             # Clean up response text - sometimes LLM adds markdown formatting
             json_text = response_text.strip()
@@ -152,39 +158,39 @@ Return ONLY valid JSON, no markdown, no additional text.
                 json_text = re.sub(r'^```json\s*', '', json_text)
             if json_text.endswith('```'):
                 json_text = re.sub(r'\s*```$', '', json_text)
-            
+
             # Parse JSON response
             recipe_data = json.loads(json_text)
-            
+
             # Validate and clean up critical fields to prevent database constraint violations
             recipe_data = self._validate_and_clean_recipe_data(recipe_data)
-                
+
             current_app.logger.info(f"Minimal parsing returned {len(recipe_data.get('ingredients', []))} ingredients and {len(recipe_data.get('instructions', []))} instructions")
-                
+
             return recipe_data
-            
+
         except (json.JSONDecodeError, ValueError) as e:
             current_app.logger.error(f"Failed to parse minimal LLM response: {str(e)}")
             current_app.logger.error(f"Raw response: {response_text[:500]}...")
-            
+
             # Fallback: return minimal but valid structure
             return self._get_fallback_recipe_structure(str(e))
-    
+
     def _safe_int_conversion(self, value, field_name: str) -> Optional[int]:
         """Safely convert a value to integer, handling ranges and special cases."""
         if value is None:
             return None
-        
+
         try:
             # If already an integer, return it
             if isinstance(value, int):
                 return value
-            
+
             # Convert to string and clean up
             value_str = str(value).strip()
             if not value_str:
                 return None
-            
+
             # Handle range values like "8-10", "4-6 servings", "2-3 hours", "2 to 4 servings"
             # Look for patterns like "8-10", "4-6", "2 to 4", etc.
             range_match = re.search(r'(\d+)\s*(?:[-–—]|to)\s*(\d+)', value_str)
@@ -195,21 +201,21 @@ Return ONLY valid JSON, no markdown, no additional text.
                 result = (start_val + end_val) // 2
                 current_app.logger.info(f"Converted range '{value_str}' to {result} for field '{field_name}'")
                 return result
-            
+
             # Look for single numbers (ignoring text like "servings", "minutes", etc.)
             number_match = re.search(r'(\d+)', value_str)
             if number_match:
                 result = int(number_match.group(1))
                 current_app.logger.debug(f"Extracted number {result} from '{value_str}' for field '{field_name}'")
                 return result
-            
+
             # Try direct conversion as fallback
             return int(value_str)
-            
+
         except (ValueError, TypeError, AttributeError) as e:
             current_app.logger.warning(f"Could not convert '{value}' to integer for field '{field_name}': {str(e)}")
             return None
-    
+
     def _validate_and_clean_recipe_data(self, recipe_data: dict) -> dict:
         """Validate and clean recipe data to prevent database constraint violations."""
         # Ensure title is never None or empty
@@ -217,17 +223,17 @@ Return ONLY valid JSON, no markdown, no additional text.
         if not title or not str(title).strip():
             current_app.logger.warning("LLM returned null/empty title, will be handled by fallback logic")
             recipe_data["title"] = None  # Let the calling code handle this with fallbacks
-        
+
         # Ensure ingredients is a list
         if "ingredients" in recipe_data and not isinstance(recipe_data["ingredients"], list):
             current_app.logger.warning("LLM returned ingredients in wrong format, converting to list")
             recipe_data["ingredients"] = []
-        
-        # Ensure instructions is a list  
+
+        # Ensure instructions is a list
         if "instructions" in recipe_data and not isinstance(recipe_data["instructions"], list):
             current_app.logger.warning("LLM returned instructions in wrong format, converting to list")
             recipe_data["instructions"] = []
-        
+
         # Clean up text fields to prevent issues
         text_fields = ["title", "description", "difficulty", "source"]
         for field in text_fields:
@@ -235,24 +241,24 @@ Return ONLY valid JSON, no markdown, no additional text.
                 # Ensure it's a string and clean it up
                 value = str(recipe_data[field]).strip()
                 recipe_data[field] = value if value else None
-        
+
         # Validate numeric fields with improved range handling
         numeric_fields = ["prep_time", "cook_time", "total_time", "servings"]
         for field in numeric_fields:
             if field in recipe_data and recipe_data[field] is not None:
                 recipe_data[field] = self._safe_int_conversion(recipe_data[field], field)
-        
+
         # Ensure tags is a list
         if "tags" not in recipe_data or not isinstance(recipe_data["tags"], list):
             recipe_data["tags"] = []
-        
+
         return recipe_data
-    
+
     def _get_fallback_recipe_structure(self, error_msg: str = None) -> dict:
         """Return a minimal but valid recipe structure for fallback."""
         from datetime import datetime
         fallback_title = f"Recipe extracted on {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        
+
         return {
             "title": fallback_title,
             "description": "Recipe extracted from image" + (f" (Error: {error_msg})" if error_msg else ""),
@@ -272,18 +278,18 @@ Return ONLY valid JSON, no markdown, no additional text.
         """
         Extract text from image using true two-step approach: literal extraction first, then minimal parsing.
         This ensures maximum fidelity to the source text.
-        
+
         Args:
             image_path: Path to the image file
             use_cache: Whether to use caching for the extraction
-            
+
         Returns:
             Dictionary containing both extracted text and parsed recipe data
         """
         try:
             # Generate cache key from image content
             cache_key = f"recipe_extract_parse_v2_{self._generate_cache_key_from_data(image_data)}"
-            
+
             # Check cache if enabled and Redis is available
             if use_cache and self.redis_client:
                 cached_result = self._get_from_cache(cache_key)
@@ -297,11 +303,11 @@ Return ONLY valid JSON, no markdown, no additional text.
             # STEP 1: Pure literal text extraction
             current_app.logger.info("Step 1: Starting literal text extraction")
             extracted_text = self._extract_literal_text(image_data, source_info)
-            
+
             # STEP 2: Minimal parsing of extracted text
             current_app.logger.info("Step 2: Starting minimal parsing of extracted text")
             parsed_recipe = self._parse_extracted_text(extracted_text)
-            
+
             # Combine results
             result = {
                 "text": extracted_text,
@@ -310,35 +316,35 @@ Return ONLY valid JSON, no markdown, no additional text.
                 "quality_score": 10,
                 "success": True
             }
-            
+
             # Cache the result if caching is enabled and Redis is available
             if use_cache and self.redis_client:
                 self._set_in_cache(cache_key, result)
-                
+
             current_app.logger.info("Two-step extract+parse completed successfully")
             return result
 
         except Exception as e:
             current_app.logger.error(f"Two-step extract+parse failed: {str(e)}")
             raise OCRExtractionError(f"Two-step extract+parse failed: {str(e)}", e) from e
-            
+
     def _extract_literal_text(self, image_data: bytes, source_info: str = "") -> str:
         """Step 1: Extract literal text with no interpretation."""
         try:
             current_app.logger.info(f"Starting literal text extraction for: {source_info}")
-            
+
             # Prepare optimized image for LLM
             prepared_image = self._prepare_image_for_llm(image_data, source_info)
-            
+
             # Literal extraction prompt
             prompt = self._build_literal_extraction_prompt()
 
             current_app.logger.info("Making LLM API call for literal text extraction")
-            
+
             # LLM call for pure text extraction with retry logic
             def make_api_call():
                 return self.client.messages.create(
-                    model="claude-3-5-sonnet-20241022",  # Best vision model
+                    model=self.vision_model,
                     max_tokens=2000,
                     temperature=0.0,  # Maximum determinism
                     system="You are a text transcription specialist. Extract every visible word exactly as written.",
@@ -360,7 +366,7 @@ Return ONLY valid JSON, no markdown, no additional text.
                         ]
                     }]
                 )
-            
+
             try:
                 response = self._make_api_call_with_retry(make_api_call)
             except Exception as api_error:
@@ -374,13 +380,13 @@ Return ONLY valid JSON, no markdown, no additional text.
             extracted_text = response.content[0].text.strip()
             current_app.logger.info(f"Literal extraction completed. Text length: {len(extracted_text)} characters")
             current_app.logger.info(f"First 200 chars of extracted text: {extracted_text[:200]}...")
-            
+
             return extracted_text
-            
+
         except Exception as e:
             current_app.logger.error(f"Literal text extraction failed: {str(e)}", exc_info=True)
             raise
-        
+
     def _parse_extracted_text(self, extracted_text: str) -> dict:
         """Step 2: Minimally parse the already-extracted text."""
         # Minimal parsing prompt
@@ -389,13 +395,13 @@ Return ONLY valid JSON, no markdown, no additional text.
         # LLM call for minimal parsing with retry logic
         def make_api_call():
             return self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=self.text_model,
                 max_tokens=2000,
                 temperature=0.0,  # Maximum determinism
                 system="You are a recipe structuring assistant. Organize extracted text with minimal changes.",
                 messages=[{"role": "user", "content": prompt}]
             )
-        
+
         response = self._make_api_call_with_retry(make_api_call)
         response_text = response.content[0].text.strip()
         return self._parse_minimal_response(response_text)
@@ -403,11 +409,11 @@ Return ONLY valid JSON, no markdown, no additional text.
     def extract_text_from_image(self, image_data: bytes, source_info: str = "", use_cache: bool = True) -> str:
         """
         Extract text from image using Claude vision capabilities.
-        
+
         Args:
             image_path: Path to the image file
             use_cache: Whether to use caching for the extraction
-            
+
         Returns:
             Extracted text optimized for recipe parsing
         """
@@ -423,13 +429,13 @@ Return ONLY valid JSON, no markdown, no additional text.
 
             # Convert image to base64
             prepared_image = self._prepare_image_for_llm(image_data, source_info)
-            
+
             prompt = self._build_extraction_prompt()
 
             # LLM call with retry logic
             def make_api_call():
                 return self.client.messages.create(
-                    model="claude-3-5-sonnet-20241022",  # High-quality vision model
+                    model=self.vision_model,
                     max_tokens=2000,
                     temperature=0.0,
                     system="You are an expert at extracting text from recipe images with high accuracy and attention to detail.",
@@ -451,7 +457,7 @@ Return ONLY valid JSON, no markdown, no additional text.
                         ]
                     }]
                 )
-            
+
             response = self._make_api_call_with_retry(make_api_call)
 
             extracted_text = response.content[0].text.strip()
@@ -469,33 +475,33 @@ Return ONLY valid JSON, no markdown, no additional text.
     def _prepare_image_for_llm(self, image_data: bytes, source_info: str = "") -> Dict[str, str]:
         """
         Prepare image for LLM processing with aggressive optimization to reduce memory usage.
-        
+
         Args:
             image_data: Image data as bytes
             source_info: Optional string for logging (path or URL)
-            
+
         Returns:
             Dictionary with base64 data and media type
         """
         import io
         import gc
-        
+
         try:
             current_app.logger.info(f"Preparing image for LLM: {source_info}")
-            
+
             # Get original file size for logging
             original_size_mb = len(image_data) / (1024 * 1024)
             current_app.logger.info(f"Original image size: {original_size_mb:.1f}MB")
-            
+
             # Open and aggressively optimize image to reduce memory usage
             with Image.open(io.BytesIO(image_data)) as img:
                 original_dimensions = img.size
                 current_app.logger.info(f"Original dimensions: {original_dimensions[0]}x{original_dimensions[1]}")
-                
+
                 # Convert to RGB if needed (more memory efficient than keeping alpha channels)
                 if img.mode in ('RGBA', 'LA', 'P'):
                     img = img.convert('RGB')
-                
+
                 # Get max size from config (production may have different settings)
                 max_size = current_app.config.get('MAX_IMAGE_DIMENSION', 1568)  # Keep higher default for better OCR
                 current_app.logger.info(f"Using MAX_IMAGE_DIMENSION: {max_size}px")
@@ -504,52 +510,52 @@ Return ONLY valid JSON, no markdown, no additional text.
                     ratio = min(max_size / img.width, max_size / img.height)
                     new_width = int(img.width * ratio)
                     new_height = int(img.height * ratio)
-                    
+
                     # Use LANCZOS for quality, but resize aggressively
                     img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
                     current_app.logger.info(f"Resized to: {new_width}x{new_height}")
-                
+
                 # Compress as JPEG with configurable quality to reduce file size
                 img_buffer = io.BytesIO()
                 jpeg_quality = current_app.config.get('JPEG_QUALITY', 95)  # Use higher quality for better OCR
                 current_app.logger.info(f"Using JPEG_QUALITY: {jpeg_quality}%")
                 img.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
-                
+
                 # Get compressed size for logging
                 compressed_size = len(img_buffer.getvalue())
                 compressed_size_mb = compressed_size / (1024 * 1024)
                 current_app.logger.info(f"Compressed image size: {compressed_size_mb:.1f}MB (reduction: {((original_size_mb - compressed_size_mb) / original_size_mb * 100):.1f}%)")
-                
+
                 img_bytes = img_buffer.getvalue()
                 img_buffer.close()  # Explicitly close buffer
-                
+
             # Force garbage collection after image processing
             gc.collect()
-            
+
             # Encode to base64 with streaming for memory efficiency
             # Use chunked encoding to reduce peak memory usage
             import math
-            
+
             chunk_size = 1024 * 1024  # 1MB chunks
             base64_chunks = []
-            
+
             for i in range(0, len(img_bytes), chunk_size):
                 chunk = img_bytes[i:i + chunk_size]
                 base64_chunk = base64.b64encode(chunk).decode('utf-8')
                 base64_chunks.append(base64_chunk)
                 del chunk  # Free chunk memory immediately
-            
+
             base64_data = ''.join(base64_chunks)
             del base64_chunks  # Free chunk list
             del img_bytes  # Free the original bytes data
-            
+
             current_app.logger.info(f"Base64 encoded image ready for LLM (final memory optimization complete)")
-            
+
             return {
                 "data": base64_data,
                 "media_type": "image/jpeg"
             }
-            
+
         except Exception as e:
             # Force garbage collection even on error
             gc.collect()
@@ -567,7 +573,7 @@ Return ONLY valid JSON, no markdown, no additional text.
             # Use file content hash for cache key
             with open(image_path, 'rb') as f:
                 image_content = f.read()
-            
+
             return self._generate_cache_key_from_data(image_content)
         except Exception:
             # Fallback to path-based key if file reading fails
@@ -588,13 +594,13 @@ Return ONLY valid JSON, no markdown, no additional text.
         """Store extracted text in Redis cache."""
         try:
             self.redis_client.setex(
-                cache_key, 
-                self.cache_ttl, 
+                cache_key,
+                self.cache_ttl,
                 json.dumps(extracted_text)
             )
         except Exception:
             pass
-    
+
     def _validate_cached_result(self, cached_result: dict) -> bool:
         """Validate cached result to ensure it won't cause database constraint violations."""
         try:
@@ -602,42 +608,42 @@ Return ONLY valid JSON, no markdown, no additional text.
             if not isinstance(cached_result, dict):
                 current_app.logger.warning("Cached result is not a dictionary")
                 return False
-            
+
             # Check for required top-level keys
             required_keys = ["text", "parsed_recipe", "method", "success"]
             for key in required_keys:
                 if key not in cached_result:
                     current_app.logger.warning(f"Cached result missing required key: {key}")
                     return False
-            
+
             # If parsing was successful, validate the parsed recipe
             if cached_result.get("success") and cached_result.get("parsed_recipe"):
                 parsed_recipe = cached_result["parsed_recipe"]
-                
+
                 # Check if title would cause database constraint violation
                 title = parsed_recipe.get("title")
                 if title is None or (isinstance(title, str) and not title.strip()):
                     current_app.logger.warning("Cached result has null/empty title, would cause database constraint violation")
                     return False
-                
+
                 # Check that ingredients and instructions are lists (if present)
                 ingredients = parsed_recipe.get("ingredients")
                 if ingredients is not None and not isinstance(ingredients, list):
                     current_app.logger.warning("Cached result has invalid ingredients format")
                     return False
-                
-                instructions = parsed_recipe.get("instructions") 
+
+                instructions = parsed_recipe.get("instructions")
                 if instructions is not None and not isinstance(instructions, list):
                     current_app.logger.warning("Cached result has invalid instructions format")
                     return False
-            
+
             current_app.logger.debug("Cached result passed validation")
             return True
-            
+
         except Exception as e:
             current_app.logger.error(f"Error validating cached result: {str(e)}")
             return False
-    
+
     def _invalidate_cache(self, cache_key: str) -> None:
         """Remove invalid cached result."""
         try:

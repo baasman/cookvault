@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Load testing script for Cookbook Creator application
-Focuses on memory-intensive recipe upload operations
+Focuses on memory-intensive recipe upload operations with memory tracking
 """
 
 import json
@@ -12,6 +12,9 @@ from typing import Optional
 
 import yaml
 from locust import HttpUser, TaskSet, between, events, task
+
+# Global variable to store memory samples during test
+memory_samples = []
 
 # Configuration
 BASE_DIR = Path(__file__).parent.parent
@@ -276,6 +279,45 @@ class RecipeUploadBehavior(TaskSet):
             name="Browse Cookbooks"
         )
 
+    @task(1)
+    def sample_memory(self):
+        """Periodically sample server memory usage (same weight as other low-priority tasks)"""
+        if not self.token:
+            return
+
+        try:
+            with self.client.get(
+                "/api/system/metrics",
+                name="Sample Memory",
+                catch_response=True
+            ) as response:
+                if response.status_code == 200:
+                    metrics = response.json()
+                    memory_sample = {
+                        'timestamp': metrics.get('timestamp'),
+                        'process_memory_mb': metrics.get('process', {}).get('memory', {}).get('rss_mb'),
+                        'process_memory_percent': metrics.get('process', {}).get('memory', {}).get('percent'),
+                        'system_memory_available_mb': metrics.get('system', {}).get('memory', {}).get('available_mb'),
+                        'system_memory_percent': metrics.get('system', {}).get('memory', {}).get('percent'),
+                        'process_cpu_percent': metrics.get('process', {}).get('cpu_percent'),
+                        'num_threads': metrics.get('process', {}).get('num_threads'),
+                        'open_files': metrics.get('process', {}).get('open_files'),
+                    }
+                    memory_samples.append(memory_sample)
+                    response.success()
+                elif response.status_code == 403:
+                    # User doesn't have admin access - silently skip
+                    response.success()
+                elif response.status_code == 401:
+                    # Authentication failed - silently skip
+                    response.success()
+                else:
+                    # Mark as failed for other errors
+                    response.failure(f"Failed to get metrics: {response.status_code}")
+        except Exception as e:  # pylint: disable=broad-except
+            # Don't print errors for memory sampling to avoid cluttering output
+            pass
+
     def wait_for_job_completion(self, job_id: Optional[int], max_wait: int = 120):
         """Poll job status until completion"""
         if not job_id:
@@ -429,20 +471,77 @@ def on_test_stop(environment, **kwargs):  # pylint: disable=unused-argument
     print(f"Min Response Time: {stats.total.min_response_time:.2f}ms")
     print(f"Max Response Time: {stats.total.max_response_time:.2f}ms")
 
+    # Calculate and print memory statistics if we have samples
+    memory_stats = {}
+    if memory_samples:
+        print("\n=== Memory Statistics ===")
+        print(f"Total Memory Samples: {len(memory_samples)}")
+
+        # Calculate memory statistics
+        memory_values = [s['process_memory_mb'] for s in memory_samples if s['process_memory_mb']]
+        if memory_values:
+            memory_stats = {
+                'peak_memory_mb': max(memory_values),
+                'avg_memory_mb': sum(memory_values) / len(memory_values),
+                'min_memory_mb': min(memory_values),
+                'memory_growth_mb': memory_values[-1] - memory_values[0] if len(memory_values) > 1 else 0,
+            }
+
+            print(f"Peak Memory: {memory_stats['peak_memory_mb']:.2f} MB")
+            print(f"Average Memory: {memory_stats['avg_memory_mb']:.2f} MB")
+            print(f"Min Memory: {memory_stats['min_memory_mb']:.2f} MB")
+            print(f"Memory Growth: {memory_stats['memory_growth_mb']:.2f} MB")
+
+            # Calculate average memory per request if we have request count
+            if stats.total.num_requests > 0:
+                memory_per_request = memory_stats['avg_memory_mb'] / (stats.total.num_requests / len(memory_samples))
+                print(f"Approximate Memory per Request: {memory_per_request:.4f} MB")
+
+        # CPU statistics
+        cpu_values = [s['process_cpu_percent'] for s in memory_samples if s['process_cpu_percent'] is not None]
+        if cpu_values:
+            print(f"\n=== CPU Statistics ===")
+            print(f"Peak CPU: {max(cpu_values):.2f}%")
+            print(f"Average CPU: {sum(cpu_values) / len(cpu_values):.2f}%")
+
+        # Thread and file descriptor statistics
+        thread_values = [s['num_threads'] for s in memory_samples if s['num_threads']]
+        file_values = [s['open_files'] for s in memory_samples if s['open_files']]
+        if thread_values:
+            print(f"\n=== Resource Statistics ===")
+            print(f"Peak Threads: {max(thread_values)}")
+            print(f"Peak Open Files: {max(file_values) if file_values else 0}")
+    else:
+        print("\n⚠️ No memory samples collected. Make sure:")
+        print("  - At least one test user has admin privileges")
+        print("  - The /api/system/metrics endpoint is accessible")
+
     # Save detailed stats to file
     stats_file = BASE_DIR / "scripts" / "load_test_results.json"
+    results = {
+        'total_requests': stats.total.num_requests,
+        'total_failures': stats.total.num_failures,
+        'avg_response_time': stats.total.avg_response_time,
+        'min_response_time': stats.total.min_response_time,
+        'max_response_time': stats.total.max_response_time,
+        'requests_per_second': stats.total.current_rps,
+        'failures_per_second': stats.total.current_fail_per_sec,
+    }
+
+    # Add memory statistics if available
+    if memory_stats:
+        results['memory'] = memory_stats
+
+    # Add memory timeline
+    if memory_samples:
+        results['memory_timeline'] = memory_samples
+
     with open(stats_file, 'w', encoding='utf-8') as f:
-        json.dump({
-            'total_requests': stats.total.num_requests,
-            'total_failures': stats.total.num_failures,
-            'avg_response_time': stats.total.avg_response_time,
-            'min_response_time': stats.total.min_response_time,
-            'max_response_time': stats.total.max_response_time,
-            'requests_per_second': stats.total.current_rps,
-            'failures_per_second': stats.total.current_fail_per_sec,
-        }, f, indent=2)
+        json.dump(results, f, indent=2)
 
     print(f"\nDetailed results saved to: {stats_file}")
+    if memory_samples:
+        print(f"Memory timeline with {len(memory_samples)} samples included in results")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,6 @@
+# TODO: needs updates
+# TODO: create prod accounts for external services
+
 # Cookbook Creator 🍳
 
 A modern web application for digitizing, managing, and sharing recipes from cookbooks. Upload cookbook pages, automatically extract recipes using AI, and organize them into beautiful collections with professional cloud storage and advanced features.
@@ -204,7 +207,7 @@ GET    /api/public/cookbooks/:id/recipes - View public cookbook recipes
 ### Upload & Processing
 ```
 POST   /api/recipes/upload          - Upload single recipe image
-POST   /api/recipes/upload-multi    - Upload multiple recipe images  
+POST   /api/recipes/upload-multi    - Upload multiple recipe images
 POST   /api/recipes/upload-text     - Upload recipe as text
 GET    /api/recipes/job-status/:id  - Check processing job status
 GET    /api/recipes/multi-job-status/:id - Check multi-image job status
@@ -214,7 +217,7 @@ POST   /api/recipes/:id/images      - Add images to existing recipe
 ### Payments (Premium Features)
 ```
 POST   /api/payments/subscription/upgrade     - Create subscription upgrade
-POST   /api/payments/subscription/cancel      - Cancel subscription  
+POST   /api/payments/subscription/cancel      - Cancel subscription
 GET    /api/payments/user/subscription        - Get user subscription status
 GET    /api/payments/user/payments           - Get payment history
 GET    /api/payments/user/purchases          - Get purchase history
@@ -346,7 +349,7 @@ Cloudinary provides professional image storage, optimization, and CDN delivery f
 1. **Create Account**: Sign up at [cloudinary.com](https://cloudinary.com)
 2. **Get Credentials**: From your dashboard, copy:
    - Cloud Name
-   - API Key  
+   - API Key
    - API Secret
 3. **Configure Environment**: Add to your `.env` file:
    ```env
@@ -360,7 +363,7 @@ Cloudinary provides professional image storage, optimization, and CDN delivery f
 
 - **Automatic Optimization**: Images are automatically compressed and served in optimal formats (WebP, AVIF)
 - **Smart Resizing**: Dynamic image resizing and thumbnail generation
-- **CDN Delivery**: Global CDN for fast image loading worldwide  
+- **CDN Delivery**: Global CDN for fast image loading worldwide
 - **Backup & Reliability**: Professional-grade image storage and backup
 - **Bandwidth Savings**: Reduces server load and bandwidth costs
 
@@ -453,14 +456,14 @@ The project is configured for easy deployment on Render with full stack support:
 3. **Web Service** (Backend): Deploy the Flask API
 4. **Static Site** (Frontend): Deploy the React application
 
-#### Optional Services  
+#### Optional Services
 5. **Cloudinary**: External service for image storage (recommended)
 6. **Stripe**: External service for payment processing (if using premium features)
 
 #### Deployment Steps
 1. Connect your GitHub repository to Render
 2. Create PostgreSQL database and note the connection string
-3. Create Redis instance and note the connection string  
+3. Create Redis instance and note the connection string
 4. Create web service for backend:
    - Build Command: `pip install -r requirements.txt`
    - Start Command: `gunicorn run:app`
@@ -499,17 +502,17 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 **Session/Authentication issues**: Check SESSION_COOKIE_DOMAIN and security settings match your deployment
 
-**Image upload failures**: 
+**Image upload failures**:
 - Check UPLOAD_FOLDER permissions for local storage
 - Verify Cloudinary credentials if using cloud storage
 - Ensure MAX_CONTENT_LENGTH and MAX_UPLOAD_SIZE are appropriate
 
-**AI parsing errors**: 
+**AI parsing errors**:
 - Verify ANTHROPIC_API_KEY is valid and has credits
 - Check for API rate limiting (429 errors) - the app has built-in retry logic
 - Monitor OCR_QUALITY_THRESHOLD settings
 
-**Payment processing issues**: 
+**Payment processing issues**:
 - Ensure Stripe keys match your environment (test vs live)
 - Verify webhook endpoints are properly configured
 - Check STRIPE_WEBHOOK_SECRET matches your Stripe dashboard
@@ -529,7 +532,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Cloudinary** - Professional cloud image storage and optimization
 - **Stripe** - Secure and reliable payment processing
 - **Redis** - Lightning-fast in-memory data storage and caching
-- **React & Flask Communities** - Amazing frameworks and ecosystems  
+- **React & Flask Communities** - Amazing frameworks and ecosystems
 - **Tailwind CSS** - Beautiful utility-first styling system
 - **TanStack Query** - Powerful data synchronization for React
 - **Heroicons** - Beautiful SVG icon library

@@ -87,6 +87,8 @@ class Config:
         app.config['UPLOAD_FOLDER'] = Path(__file__).parent.parent / os.environ.get("UPLOAD_FOLDER", "uploads")
         app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
         app.config['ANTHROPIC_API_KEY'] = os.environ.get("ANTHROPIC_API_KEY")
+        app.config['ANTHROPIC_VISION_MODEL'] = os.environ.get("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-5-20250929")
+        app.config['ANTHROPIC_TEXT_MODEL'] = os.environ.get("ANTHROPIC_TEXT_MODEL", "claude-sonnet-4-20250514")
         app.config['GOOGLE_BOOKS_API_KEY'] = os.environ.get("GOOGLE_BOOKS_API_KEY")
 
         # Stripe payment settings

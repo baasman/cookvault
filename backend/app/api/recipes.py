@@ -312,14 +312,23 @@ def get_recipes(current_user) -> Response:
 
 @bp.route("/recipes", methods=["POST"])
 @require_auth
-def create_empty_recipe(current_user) -> Response:
+def create_empty_recipe(current_user) -> Tuple[Response, int]:
     """Create a new empty recipe."""
     try:
         # Check upload limit for free users
+        subscription = current_user.get_or_create_subscription()
+        current_app.logger.info(
+            f"Upload check for user {current_user.id} ({current_user.username}): "
+            f"tier={subscription.tier.value}, status={subscription.status.value}, "
+            f"monthly_uploads={subscription.monthly_upload_count}, "
+            f"is_premium={subscription.is_premium()}, "
+            f"can_upload={current_user.can_upload_recipe()}"
+        )
+
         if not current_user.can_upload_recipe():
-            subscription = current_user.get_or_create_subscription()
             current_app.logger.warning(
-                f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+                f"User {current_user.id} ({current_user.username}) reached upload limit: "
+                f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
             return jsonify({
                 "error": "Upload limit reached",
@@ -543,10 +552,19 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     current_app.logger.info(f"Files: {list(request.files.keys())}")
 
     # Check upload limit for free users
+    subscription = current_user.get_or_create_subscription()
+    current_app.logger.info(
+        f"Upload check for user {current_user.id} ({current_user.username}): "
+        f"tier={subscription.tier.value}, status={subscription.status.value}, "
+        f"monthly_uploads={subscription.monthly_upload_count}, "
+        f"is_premium={subscription.is_premium()}, "
+        f"can_upload={current_user.can_upload_recipe()}"
+    )
+
     if not current_user.can_upload_recipe():
-        subscription = current_user.get_or_create_subscription()
         current_app.logger.warning(
-            f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            f"User {current_user.id} ({current_user.username}) reached upload limit: "
+            f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
         )
         return jsonify({
             "error": "Upload limit reached",
@@ -2454,10 +2472,19 @@ def upload_multi_recipe(current_user):
     """Upload multiple images for a single recipe"""
     try:
         # Check upload limit for free users
+        subscription = current_user.get_or_create_subscription()
+        current_app.logger.info(
+            f"Upload check for user {current_user.id} ({current_user.username}): "
+            f"tier={subscription.tier.value}, status={subscription.status.value}, "
+            f"monthly_uploads={subscription.monthly_upload_count}, "
+            f"is_premium={subscription.is_premium()}, "
+            f"can_upload={current_user.can_upload_recipe()}"
+        )
+
         if not current_user.can_upload_recipe():
-            subscription = current_user.get_or_create_subscription()
             current_app.logger.warning(
-                f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+                f"User {current_user.id} ({current_user.username}) reached upload limit: "
+                f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
             return jsonify({
                 "error": "Upload limit reached",
@@ -2651,10 +2678,19 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
 
     try:
         # Check upload limit for free users
+        subscription = current_user.get_or_create_subscription()
+        current_app.logger.info(
+            f"Upload check for user {current_user.id} ({current_user.username}): "
+            f"tier={subscription.tier.value}, status={subscription.status.value}, "
+            f"monthly_uploads={subscription.monthly_upload_count}, "
+            f"is_premium={subscription.is_premium()}, "
+            f"can_upload={current_user.can_upload_recipe()}"
+        )
+
         if not current_user.can_upload_recipe():
-            subscription = current_user.get_or_create_subscription()
             current_app.logger.warning(
-                f"User {current_user.id} reached upload limit: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+                f"User {current_user.id} ({current_user.username}) reached upload limit: "
+                f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
             return jsonify({
                 "error": "Upload limit reached",
