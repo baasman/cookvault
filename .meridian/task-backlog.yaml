@@ -1,0 +1,9 @@
+# Task Backlog
+# Simple index of tasks - detailed definitions live in .meridian/tasks/TASK-###/
+
+tasks:
+  - id: example-000
+    title: "Add cursor-based pagination to /api/orders"
+    priority: P1
+    status: done
+    path: ".meridian/tasks/TASK-000/"

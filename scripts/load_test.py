@@ -6,6 +6,7 @@ Focuses on memory-intensive recipe upload operations with memory tracking
 
 import json
 import random
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -418,28 +419,37 @@ def on_locust_init(environment, **kwargs):  # pylint: disable=unused-argument
 
 
 def reset_test_user_upload_counters():
-    """Reset upload counters for all test users to allow unlimited uploads
-    during testing"""
+    """
+    Display test user status for load testing.
 
+    Note: This function now uses consolidated utilities from test_user_utils.py
+          For actual user management, run prepare_load_test.py before testing.
+    """
     print("Checking test user configuration...")
 
-    # Since all test users are now premium with unlimited uploads,
-    # we don't need to reset counters
-    print("✓ All test users are configured as PREMIUM")
-    print("✓ Premium users have unlimited uploads - no counter reset needed")
+    # Try to import consolidated utilities for better status display
+    try:
+        sys.path.insert(0, str(BASE_DIR / "scripts"))
+        from test_user_utils import print_test_user_status
 
-    # Show some test users for verification
-    print(f"✓ {len(TEST_USERS)} test users available for load testing:")
-    for user in TEST_USERS[:3]:  # Show first 3 users
-        tier = user.get('tier', 'unknown')
-        print(f"   - {user['username']} ({tier})")
-    if len(TEST_USERS) > 3:
-        print(f"   ... and {len(TEST_USERS) - 3} more")
+        print_test_user_status()
+        print("✓ Test users ready for load testing!")
 
-    if ADMIN_USERS:
-        print(f"✓ {len(ADMIN_USERS)} admin users available")
+    except ImportError:
+        # Fallback to basic status check using loaded config
+        print(f"✓ {len(TEST_USERS)} test users available for load testing")
 
-    print("✓ Test users ready for unlimited uploads!")
+        # Show sample users
+        for user in TEST_USERS[:3]:
+            tier = user.get('tier', 'unknown')
+            print(f"   - {user['username']} ({tier})")
+        if len(TEST_USERS) > 3:
+            print(f"   ... and {len(TEST_USERS) - 3} more")
+
+        if ADMIN_USERS:
+            print(f"✓ {len(ADMIN_USERS)} admin users available")
+
+        print("✓ All test users configured as PREMIUM with unlimited uploads")
 
 
 @events.test_start.add_listener
