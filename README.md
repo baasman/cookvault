@@ -1,6 +1,3 @@
-# TODO: needs updates
-# TODO: create prod accounts for external services
-
 # Cookbook Creator 🍳
 
 A modern web application for digitizing, managing, and sharing recipes from cookbooks. Upload cookbook pages, automatically extract recipes using AI, and organize them into beautiful collections with professional cloud storage and advanced features.
@@ -99,6 +96,31 @@ npm run dev
 ```
 
 The frontend will be available at http://localhost:5173
+
+## 📖 Documentation
+
+**Complete documentation is available in the [`/docs`](docs/) directory.**
+
+### Quick Links
+
+- **[📚 Documentation Home](docs/README.md)** - Central documentation hub
+- **[🚀 Getting Started Guide](docs/getting-started/)** - Detailed setup and installation
+- **[🏗️ Architecture](docs/architecture/)** - System design and technical decisions
+- **[🔌 API Reference](docs/api/)** - Complete API documentation
+- **[💻 Development Guide](docs/development/)** - Contributing and code standards
+- **[🚢 Deployment Guide](docs/deployment/)** - Production deployment
+- **[⚙️ Operations](docs/operations/)** - Database and maintenance
+- **[🔗 Integrations](docs/integrations/)** - Third-party services (Claude, Stripe, Cloudinary, Lulu)
+
+### Documentation Highlights
+
+- **[Installation Guide](docs/getting-started/installation.md)** - Complete setup instructions
+- **[API Authentication](docs/api/authentication.md)** - Authentication and authorization
+- **[Database CLI](docs/operations/database-cli.md)** - Database management CLI tool
+- **[Code Standards](docs/development/code-standards.md)** - Coding guidelines and best practices
+- **[Troubleshooting](docs/deployment/troubleshooting.md)** - Common issues and solutions
+
+**New to the project?** Start with the [Getting Started Guide](docs/getting-started/) for a comprehensive walkthrough.
 
 ## 📁 Project Structure
 

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - Cookbook Creator</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            text-align: center;
+            color: #ffffff;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .content h2 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        .content p {
+            margin: 16px 0;
+            font-size: 16px;
+            color: #555555;
+        }
+        .button-container {
+            text-align: center;
+            margin: 35px 0;
+        }
+        .verify-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            padding: 14px 40px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .verify-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+        .alternative-link {
+            margin-top: 25px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            word-break: break-all;
+        }
+        .alternative-link p {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666666;
+        }
+        .alternative-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 25px 0;
+            border-radius: 4px;
+        }
+        .warning p {
+            margin: 0;
+            color: #856404;
+            font-size: 14px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px 20px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+        }
+        .footer p {
+            margin: 5px 0;
+            font-size: 13px;
+            color: #6c757d;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .emoji {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="emoji">👨‍🍳</div>
+            <h1>Cookbook Creator</h1>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <h2>Welcome, {{ username }}!</h2>
+
+            <p>
+                Thank you for signing up for Cookbook Creator! We're excited to have you join
+                our community of food lovers and recipe enthusiasts.
+            </p>
+
+            <p>
+                To get started, please verify your email address by clicking the button below:
+            </p>
+
+            <!-- Verification Button -->
+            <div class="button-container">
+                <a href="{{ verification_url }}" class="verify-button">
+                    Verify Email Address
+                </a>
+            </div>
+
+            <!-- Alternative Link -->
+            <div class="alternative-link">
+                <p><strong>Button not working?</strong> Copy and paste this link into your browser:</p>
+                <a href="{{ verification_url }}">{{ verification_url }}</a>
+            </div>
+
+            <!-- Warning Box -->
+            <div class="warning">
+                <p>
+                    <strong>⚠️ Important:</strong> This verification link will expire in
+                    {{ expiry_hours }} hours. If you don't verify within this time, you'll
+                    need to request a new verification email.
+                </p>
+            </div>
+
+            <p>
+                Once verified, you'll have full access to:
+            </p>
+            <ul style="color: #555555; margin: 15px 0;">
+                <li>Create and organize your favorite recipes</li>
+                <li>Build custom cookbooks</li>
+                <li>Upload recipes with OCR text extraction</li>
+                <li>Share your recipes with the community</li>
+            </ul>
+
+            <p style="margin-top: 30px; color: #666666; font-size: 14px;">
+                If you didn't create an account with Cookbook Creator, please disregard this email.
+                No further action is required.
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>Cookbook Creator</strong></p>
+            <p>Your Digital Recipe Collection</p>
+            <p style="margin-top: 15px;">
+                Questions? Contact us at
+                <a href="mailto:support@cookbook-creator.com">support@cookbook-creator.com</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

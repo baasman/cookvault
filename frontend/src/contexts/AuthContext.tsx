@@ -16,7 +16,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (usernameOrEmail: string, password: string) => Promise<void>;
-  register: (userData: RegisterData) => Promise<void>;
+  register: (userData: RegisterData) => Promise<RegisterResponse>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -27,6 +27,24 @@ export interface RegisterData {
   password: string;
   first_name?: string;
   last_name?: string;
+  verification_method?: 'email' | 'sms';
+  phone?: string;
+}
+
+export interface RegisterResponse {
+  message: string;
+  requires_verification?: boolean;
+  verification_method?: string;
+  email?: string;
+  phone?: string;
+  user?: {
+    id: number;
+    username: string;
+    email: string;
+    role: string;
+  };
+  access_token?: string;
+  token_type?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -162,17 +180,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (userData: RegisterData) => {
+  const register = async (userData: RegisterData): Promise<RegisterResponse> => {
     setIsLoading(true);
     try {
       console.log('Attempting registration with data:', { ...userData, password: '[REDACTED]' });
-      
+
       const apiUrl = import.meta.env.VITE_API_URL || '/api';
       const fullUrl = `${apiUrl}/auth/register`;
       console.log('API URL from env:', import.meta.env.VITE_API_URL);
       console.log('Using API base URL:', apiUrl);
       console.log('Full registration URL:', fullUrl);
-      
+
       const response = await apiFetch(fullUrl, {
         method: 'POST',
         headers: {
@@ -187,36 +205,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Check if response has content before trying to parse JSON
       const contentType = response.headers.get('content-type');
       console.log('Response content-type:', contentType);
-      
+
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
         console.log('Non-JSON response:', text);
         throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
-      console.log('Registration response data:', { ...data, session_token: data.session_token ? '[PRESENT]' : '[ABSENT]' });
+      const data: RegisterResponse = await response.json();
+      console.log('Registration response data:', { ...data, access_token: data.access_token ? '[PRESENT]' : '[ABSENT]' });
 
       if (!response.ok) {
-        throw new Error(data.error || 'Registration failed');
+        throw new Error(data.message || 'Registration failed');
       }
 
-      setUser({
-        id: data.user.id.toString(),
-        email: data.user.email,
-        name: data.user.username,
-        role: data.user.role,
-        isAdmin: data.user.role === 'admin',
-      });
+      // Check if verification is required
+      if (data.requires_verification) {
+        console.log('Verification required - user not logged in yet');
+        // Don't set user or token - user needs to verify first
+        return data;
+      }
 
-      // Store JWT token from registration response (same as login)
-      localStorage.setItem('auth_token', data.access_token);
-      
-      // Clear any authentication error tracking
-      clearAuthErrors();
-      
-      // Invalidate all queries to ensure fresh data for the new user
-      queryClient.invalidateQueries();
+      // Legacy path: immediate login (no verification required)
+      if (data.access_token && data.user) {
+        setUser({
+          id: data.user.id.toString(),
+          email: data.user.email,
+          name: data.user.username,
+          role: data.user.role,
+          isAdmin: data.user.role === 'admin',
+        });
+
+        // Store JWT token from registration response
+        localStorage.setItem('auth_token', data.access_token);
+
+        // Clear any authentication error tracking
+        clearAuthErrors();
+
+        // Invalidate all queries to ensure fresh data for the new user
+        queryClient.invalidateQueries();
+      }
+
+      return data;
     } finally {
       setIsLoading(false);
     }

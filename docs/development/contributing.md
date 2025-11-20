@@ -1,8 +1,13 @@
-# Contributing to Cookbook Creator 🤝
+# Contributing to Cookbook Creator
 
-> **📖 Documentation Note:** This file is also available in the [documentation structure](docs/development/contributing.md) with additional context and cross-references to other development guides.
+**Tags:** `contributing`, `development`, `guidelines`, `workflow`, `standards`
+**Last updated:** 2025-11-14
 
-Thank you for your interest in contributing to Cookbook Creator! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to Cookbook Creator! This document provides comprehensive guidelines and information for contributors.
+
+> **Note:** This documentation is also available at [`/CONTRIBUTING.md`](../../CONTRIBUTING.md) in the repository root for GitHub integration.
+
+---
 
 ## 📋 Table of Contents
 
@@ -15,6 +20,9 @@ Thank you for your interest in contributing to Cookbook Creator! This document p
 - [Architecture Overview](#architecture-overview)
 - [Testing Guidelines](#testing-guidelines)
 - [Documentation](#documentation)
+- [Areas for Contribution](#areas-for-contribution)
+
+---
 
 ## 📝 Code of Conduct
 
@@ -25,6 +33,8 @@ This project adheres to a code of conduct. By participating, you are expected to
 - **Be constructive** - Provide helpful feedback and suggestions
 - **Be patient** - Remember that everyone has different skill levels
 - **Be collaborative** - Work together to improve the project
+
+---
 
 ## 🚀 Getting Started
 
@@ -53,7 +63,9 @@ Before contributing, ensure you have:
 
 ### Local Setup
 
-Follow the setup instructions in [README.md](README.md) to get the development environment running.
+Follow the setup instructions in the [Getting Started Guide](../getting-started/installation.md) to get the development environment running.
+
+---
 
 ## 🔄 Development Workflow
 
@@ -83,10 +95,10 @@ Follow the setup instructions in [README.md](README.md) to get the development e
    ```bash
    # Backend tests
    cd backend && pytest
-   
-   # Frontend tests  
+
+   # Frontend tests
    cd frontend && npm test
-   
+
    # Manual testing
    npm run dev  # Frontend
    uv run python run.py  # Backend
@@ -105,6 +117,8 @@ Follow the setup instructions in [README.md](README.md) to get the development e
 
 7. **Create a Pull Request** (see [Pull Request Process](#pull-request-process))
 
+---
+
 ## 📏 Coding Standards
 
 ### General Guidelines
@@ -118,6 +132,7 @@ Follow the setup instructions in [README.md](README.md) to get the development e
 ### Frontend (React/TypeScript)
 
 #### File Organization
+
 ```
 src/
 ├── components/
@@ -132,6 +147,7 @@ src/
 ```
 
 #### Code Style
+
 ```typescript
 // ✅ Good - Clear component structure
 interface RecipeCardProps {
@@ -140,10 +156,10 @@ interface RecipeCardProps {
   showActions?: boolean;
 }
 
-export const RecipeCard: React.FC<RecipeCardProps> = ({ 
-  recipe, 
-  onEdit, 
-  showActions = false 
+export const RecipeCard: React.FC<RecipeCardProps> = ({
+  recipe,
+  onEdit,
+  showActions = false
 }) => {
   const handleEdit = useCallback(() => {
     if (onEdit) {
@@ -160,12 +176,14 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
 ```
 
 #### TypeScript Guidelines
+
 - Always define proper interfaces/types
 - Use strict mode (`strict: true` in tsconfig.json)
 - Avoid `any` types - use proper typing
 - Export types from a central `types/` directory
 
 #### React Best Practices
+
 - Use functional components with hooks
 - Implement proper error boundaries
 - Use React Query for data fetching
@@ -175,6 +193,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
 ### Backend (Python/Flask)
 
 #### File Organization
+
 ```
 app/
 ├── api/              # API route handlers
@@ -185,41 +204,43 @@ app/
 ```
 
 #### Code Style
+
 ```python
 # ✅ Good - Clear function structure
 def create_recipe(user_id: int, recipe_data: Dict[str, Any]) -> Recipe:
     """
     Create a new recipe for the specified user.
-    
+
     Args:
         user_id: ID of the user creating the recipe
         recipe_data: Dictionary containing recipe information
-        
+
     Returns:
         Recipe: The created recipe instance
-        
+
     Raises:
         ValidationError: If recipe data is invalid
     """
     # Validate input data
     if not recipe_data.get('title'):
         raise ValidationError("Recipe title is required")
-    
+
     # Create recipe instance
     recipe = Recipe(
         title=recipe_data['title'],
         description=recipe_data.get('description'),
         user_id=user_id
     )
-    
+
     # Save to database
     db.session.add(recipe)
     db.session.commit()
-    
+
     return recipe
 ```
 
 #### Python Guidelines
+
 - Follow PEP 8 style guide
 - Use type hints for all function parameters and return values
 - Write comprehensive docstrings
@@ -263,6 +284,8 @@ def get_recipes():
             'error': str(e)
         }), 500
 ```
+
+---
 
 ## 🔍 Pull Request Process
 
@@ -320,6 +343,8 @@ Brief description of what this PR does.
 4. **Approval** from maintainers
 5. **Merge** using squash and merge strategy
 
+---
+
 ## 🐛 Issue Guidelines
 
 ### Before Creating an Issue
@@ -331,6 +356,7 @@ Brief description of what this PR does.
 ### Issue Templates
 
 #### Bug Report
+
 ```markdown
 ## Bug Description
 Clear description of the bug.
@@ -356,6 +382,7 @@ If applicable, add screenshots to help explain your problem.
 ```
 
 #### Feature Request
+
 ```markdown
 ## Feature Description
 Clear description of the feature you'd like to see.
@@ -373,6 +400,8 @@ Any alternative solutions or features you've considered.
 Any other context about the feature request.
 ```
 
+---
+
 ## 🏗️ Architecture Overview
 
 ### Frontend Architecture
@@ -385,6 +414,13 @@ React App
 └── Tailwind CSS (Styling)
 ```
 
+**Key Technologies:**
+- React 19
+- TypeScript 5.8
+- TanStack Query v5
+- Vite 6
+- Tailwind CSS v4
+
 ### Backend Architecture
 
 ```
@@ -396,6 +432,13 @@ Flask Application
 └── Database Migrations
 ```
 
+**Key Technologies:**
+- Flask 3.0
+- SQLAlchemy 2.0
+- PostgreSQL
+- Redis
+- Anthropic Claude
+
 ### Key Patterns
 
 - **Component Composition** - Build UIs from small, reusable components
@@ -403,6 +446,10 @@ Flask Application
 - **Service Layer** - Separate business logic from API routes
 - **Repository Pattern** - Abstract database access
 - **Error Boundaries** - Handle React errors gracefully
+
+For more details, see [Architecture Documentation](../architecture/overview.md).
+
+---
 
 ## 🧪 Testing Guidelines
 
@@ -420,6 +467,7 @@ npm test RecipeCard.test.tsx
 ```
 
 #### Test Structure
+
 ```typescript
 describe('RecipeCard', () => {
   const mockRecipe = {
@@ -436,10 +484,10 @@ describe('RecipeCard', () => {
   it('calls onEdit when edit button is clicked', async () => {
     const mockOnEdit = jest.fn();
     render(<RecipeCard recipe={mockRecipe} onEdit={mockOnEdit} showActions />);
-    
+
     const editButton = screen.getByRole('button', { name: /edit/i });
     await userEvent.click(editButton);
-    
+
     expect(mockOnEdit).toHaveBeenCalledTimes(1);
   });
 });
@@ -459,10 +507,11 @@ pytest tests/test_recipes.py::TestRecipeAPI::test_create_recipe
 ```
 
 #### Test Structure
+
 ```python
 class TestRecipeAPI:
     """Test cases for Recipe API endpoints."""
-    
+
     def test_create_recipe_success(self, client, auth_headers):
         """Test successful recipe creation."""
         recipe_data = {
@@ -471,18 +520,22 @@ class TestRecipeAPI:
             'ingredients': ['ingredient1', 'ingredient2'],
             'instructions': ['step1', 'step2']
         }
-        
+
         response = client.post(
             '/api/recipes',
             json=recipe_data,
             headers=auth_headers
         )
-        
+
         assert response.status_code == 201
         data = response.get_json()
         assert data['title'] == 'Test Recipe'
         assert 'id' in data
 ```
+
+For more testing information, see [Testing Guide](testing.md).
+
+---
 
 ## 📚 Documentation
 
@@ -511,7 +564,7 @@ type(scope): brief description
 Detailed explanation if needed
 
 - feat: new feature
-- fix: bug fix  
+- fix: bug fix
 - docs: documentation changes
 - style: formatting changes
 - refactor: code restructuring
@@ -519,7 +572,7 @@ Detailed explanation if needed
 - chore: maintenance tasks
 ```
 
-Examples:
+**Examples:**
 ```
 feat(auth): add JWT token refresh endpoint
 fix(recipe): resolve image upload validation error
@@ -527,27 +580,34 @@ docs(api): update recipe endpoint documentation
 refactor(database): optimize recipe query performance
 ```
 
+---
+
 ## 🎯 Areas for Contribution
 
 We especially welcome contributions in these areas:
 
 ### 🔥 High Priority
+
 - **Testing** - Increase test coverage
 - **Performance** - Optimize slow queries and large image handling
 - **Accessibility** - Improve keyboard navigation and screen reader support
 - **Mobile UI** - Enhance mobile responsiveness
 
 ### 📈 Medium Priority
+
 - **Internationalization** - Add multi-language support
 - **Advanced Search** - Improve recipe search with filters
 - **Social Features** - Recipe ratings and comments
 - **Export Features** - PDF generation and recipe sharing
 
 ### 💡 Nice to Have
+
 - **PWA Support** - Offline functionality
 - **Recipe Scaling** - Automatic ingredient quantity adjustment
 - **Meal Planning** - Weekly meal planning features
 - **Integration** - Third-party recipe imports
+
+---
 
 ## ❓ Questions?
 
@@ -556,7 +616,9 @@ If you have questions about contributing:
 1. **Check existing issues** and discussions
 2. **Ask in GitHub Discussions** for general questions
 3. **Create an issue** for specific bugs or features
-4. **Join our community** Discord/Slack (if available)
+4. **Review documentation** at [docs/README.md](../README.md)
+
+---
 
 ## 🙏 Recognition
 
@@ -568,4 +630,18 @@ Contributors will be recognized in:
 
 ---
 
-**Thank you for contributing to Cookbook Creator! Your efforts help make cooking and recipe management better for everyone.** 🍳❤️
+## See Also
+
+- [Getting Started Guide](../getting-started/installation.md)
+- [Development Setup](../getting-started/development-setup.md)
+- [Architecture Overview](../architecture/overview.md)
+- [Testing Guide](testing.md)
+- [Debugging Guide](debugging.md)
+
+---
+
+**Thank you for contributing to Cookbook Creator! Your efforts help make cooking and recipe management better for everyone.** 🍳
+
+---
+
+[← Back to Development Guide](README.md) | [Back to Documentation Home](../README.md)

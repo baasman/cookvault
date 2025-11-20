@@ -12,6 +12,7 @@ const RegisterPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [verificationMethod] = useState<'email'>('email'); // Only email for now
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -31,14 +32,28 @@ const RegisterPage: React.FC = () => {
     }
 
     try {
-      await register({
+      const response = await register({
         username,
         email,
         password,
         first_name: firstName,
         last_name: lastName,
+        verification_method: verificationMethod,
       });
-      navigate('/recipes');
+
+      // Check if verification is required
+      if (response.requires_verification) {
+        // Redirect to a page telling them to check their email
+        navigate('/verify-email-sent', {
+          state: {
+            email: response.email,
+            method: response.verification_method
+          }
+        });
+      } else {
+        // Legacy flow: immediate login
+        navigate('/recipes');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {

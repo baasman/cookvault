@@ -7,3 +7,15 @@ tasks:
     priority: P1
     status: done
     path: ".meridian/tasks/TASK-000/"
+  - id: TASK-001
+    title: "Centralize and reorganize project documentation for developers"
+    priority: P1
+    status: in_progress
+    progress: "Phases 1 & 2 complete, Phase 3: 50% (API + Operations done). 38+ docs, 11k+ lines. Remaining: Architecture, Dev guides, Integrations, Search, Cleanup"
+    path: ".meridian/tasks/TASK-001/"
+  - id: TASK-002
+    title: "Implement email/SMS verification for user registration"
+    priority: P1
+    status: accepted
+    progress: "Core implementation accepted and ready for production. Email verification fully functional. Tests deferred for incremental addition."
+    path: ".meridian/tasks/TASK-002/"

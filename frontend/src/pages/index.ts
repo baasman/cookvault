@@ -8,3 +8,5 @@ export { CookbooksPage } from './CookbooksPage';
 export { CookbookDetailPage } from './CookbookDetailPage';
 export { UserPage } from './UserPage';
 export { OrdersPage } from './OrdersPage';
+export { VerifyEmailPage } from './VerifyEmailPage';
+export { VerifyEmailSentPage } from './VerifyEmailSentPage';

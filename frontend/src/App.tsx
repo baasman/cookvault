@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
-import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage } from './pages';
+import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { EditProfilePage } from './pages/EditProfilePage';
@@ -41,6 +41,8 @@ function App() {
               <Route path="/users/by-username/:username" element={<PublicUserPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
               <Route path="/copyright-policy" element={<CopyrightPolicyPage />} />
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
             </Routes>

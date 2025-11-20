@@ -1,34 +1,33 @@
-# MVP: Cookbook Creator
+# ⚠️ This Document Has Been Archived
 
-## Problem
+This was the original MVP (Minimum Viable Product) brief from the project's inception. The project has evolved significantly beyond this initial scope.
 
-I want to be able to essentially digitize cookbooks using OCR/Vision/NLP and be able essentially be a platform for cookbook publishers, personal cookbook creation from existing recipes, and help to digitize recipes for restaurants. The MVP would mostly just consist of a simple web UI where you can load an image of a
-recipe, and the app stores and digitizes it for easy viewing
+**New Location:** [Original MVP Brief (Archived)](../archive/original-mvp-brief.md)
 
-## Target Users:
+---
 
-* cookbook publishers
-* foodies that love cookbooks
-* people with large cookbook collections that want to store and digitize them
-* restaurants for maintaining their recipes
+## What Changed?
 
-## Core features
+The Cookbook Creator project is now much more than the original MVP. It includes:
 
-* Process a recipe from an image using OCR/Vision/NLP and standardize the information written in it, and store that in a database
-* a database that unifies recipes from lots of different sources
-* a simple web ui that allows someone to input an image, and then view the digitized version
+- ✅ **AI-powered recipe extraction** - Using Anthropic Claude (evolved from OCR/NLP)
+- ✅ **Full cookbook management** - Create, organize, and share cookbooks
+- ✅ **Premium subscriptions** - Stripe-powered payment system
+- ✅ **Cloud image storage** - Cloudinary integration with CDN
+- ✅ **Public sharing** - Community recipe discovery
+- ✅ **Print-on-demand** - Lulu integration for physical cookbooks
+- ✅ **Recipe groups** - Themed collections and organization
+- ✅ **User system** - Authentication, profiles, and favorites
 
-## Tech stack and preferred technologies
+## Current Project Information
 
-* Python for the web backend
-* Flask for the web framework
-* React for the frontend
-* Postgres for the database
-* Docker and docker compose for easily setting up postgres, etc...
+For up-to-date project information, see:
 
-## Success metrics
+- **[Project README](../../README.md)** - Current features and setup
+- **[Architecture Overview](../architecture/overview.md)** - System design
+- **[Current Roadmap](roadmap.md)** - Upcoming features
+- **[Documentation Home](../README.md)** - Complete documentation
 
-A functional webpage that a user can input an image to than then converts it to a digitized recipe.
+---
 
-## Other notes
-Include type hints everywhere
+*Document archived on 2025-11-14 as part of documentation reorganization. See [archive/original-mvp-brief.md](../archive/original-mvp-brief.md) for the original content.*

@@ -49,6 +49,12 @@ class User(db.Model):
     email_verification_token: Mapped[Optional[str]] = mapped_column(String(255))
     email_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Phone verification
+    phone_number: Mapped[Optional[str]] = mapped_column(String(20), unique=True)
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    phone_verification_token: Mapped[Optional[str]] = mapped_column(String(10))
+    phone_verification_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
     # Password reset
     password_reset_token: Mapped[Optional[str]] = mapped_column(String(255))
     password_reset_expires: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -132,7 +138,48 @@ class User(db.Model):
 
         token = secrets.token_urlsafe(32)
         self.email_verification_token = token
+        self.email_verified_at = None  # Reset verification status
         return token
+
+    def is_email_verification_valid(self, token: str) -> bool:
+        """Check if the email verification token is valid.
+
+        Args:
+            token: The token to validate
+
+        Returns:
+            bool: True if token matches and user is not already verified
+        """
+        if not self.email_verification_token:
+            return False
+        if self.is_verified:
+            return False  # Already verified
+        return self.email_verification_token == token
+
+    def clear_email_verification(self) -> None:
+        """Clear email verification token."""
+        self.email_verification_token = None
+
+    def generate_phone_verification_token(self) -> str:
+        """Generate a new phone verification token (6-digit code)."""
+        import random
+
+        code = str(random.randint(100000, 999999))
+        self.phone_verification_token = code
+        self.phone_verification_sent_at = datetime.utcnow()
+        return code
+
+    def is_phone_verification_valid(self) -> bool:
+        """Check if the phone verification token is still valid (10 minutes)."""
+        if not self.phone_verification_token or not self.phone_verification_sent_at:
+            return False
+        expiry_time = self.phone_verification_sent_at + timedelta(minutes=10)
+        return datetime.utcnow() < expiry_time
+
+    def clear_phone_verification(self) -> None:
+        """Clear phone verification token and timestamp."""
+        self.phone_verification_token = None
+        self.phone_verification_sent_at = None
 
     def generate_password_reset_token(self) -> str:
         """Generate a new password reset token."""

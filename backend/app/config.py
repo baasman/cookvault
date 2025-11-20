@@ -110,6 +110,20 @@ class Config:
         app.config['OCR_ENABLE_LLM_FALLBACK'] = os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"
         app.config['OCR_QUALITY_CACHE_TTL'] = int(os.environ.get("OCR_QUALITY_CACHE_TTL", 3600))
 
+        # Email verification settings (SendGrid)
+        app.config['SENDGRID_API_KEY'] = os.environ.get("SENDGRID_API_KEY")
+        app.config['EMAIL_FROM_ADDRESS'] = os.environ.get("EMAIL_FROM_ADDRESS", "noreply@cookbook-creator.com")
+        app.config['EMAIL_FROM_NAME'] = os.environ.get("EMAIL_FROM_NAME", "Cookbook Creator")
+        app.config['FRONTEND_URL'] = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+        app.config['VERIFICATION_TOKEN_EXPIRY_HOURS'] = int(os.environ.get("VERIFICATION_TOKEN_EXPIRY_HOURS", 24))
+
+        # SMS verification settings (Twilio)
+        app.config['TWILIO_ACCOUNT_SID'] = os.environ.get("TWILIO_ACCOUNT_SID")
+        app.config['TWILIO_AUTH_TOKEN'] = os.environ.get("TWILIO_AUTH_TOKEN")
+        app.config['TWILIO_PHONE_NUMBER'] = os.environ.get("TWILIO_PHONE_NUMBER")
+        app.config['SMS_VERIFICATION_CODE_LENGTH'] = int(os.environ.get("SMS_VERIFICATION_CODE_LENGTH", 6))
+        app.config['SMS_VERIFICATION_EXPIRY_MINUTES'] = int(os.environ.get("SMS_VERIFICATION_EXPIRY_MINUTES", 10))
+
         # Session security settings - default to secure for HTTPS production
         _session_secure_env = os.environ.get("SESSION_COOKIE_SECURE", "true")
         _session_secure_parsed = _session_secure_env.lower() == "true"

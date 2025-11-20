@@ -35,6 +35,9 @@ dependencies = [
     "pypdf>=3.17.0",
     "locust>=2.40.5",
     "psutil>=5.9.6",
+    "sendgrid>=6.11.0",
+    "twilio>=9.0.0",
+    "phonenumbers>=8.13.0",
 ]
 
 [project.optional-dependencies]

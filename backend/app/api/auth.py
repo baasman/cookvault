@@ -8,6 +8,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.utils.jwt_utils import JWTTokenManager, extract_jwt_from_request
 from app.utils.rate_limiting import rate_limit_auth
+from app.services.email_service import get_email_service
+from app.services.sms_service import get_sms_service
 
 from app import db
 from app.api import bp
@@ -259,7 +261,7 @@ def debug_auth() -> Response:
 @bp.route("/auth/register", methods=["POST"])
 @rate_limit_auth
 def register() -> Tuple[Response, int]:
-    """Register a new user account."""
+    """Register a new user account with email or SMS verification."""
     try:
         current_app.logger.info(
             f"Registration attempt - Request headers: {dict(request.headers)}"
@@ -289,6 +291,8 @@ def register() -> Tuple[Response, int]:
         username = data["username"].strip()
         email = data["email"].strip().lower()
         password = data["password"]
+        verification_method = data.get("verification_method", "email").lower()
+        phone = data.get("phone", "").strip() if data.get("phone") else None
 
         # Validate username
         if len(username) < 3 or len(username) > 80:
@@ -308,6 +312,26 @@ def register() -> Tuple[Response, int]:
                 400,
             )
 
+        # Validate verification method
+        if verification_method not in ["email", "sms"]:
+            return jsonify({"error": "verification_method must be 'email' or 'sms'"}), 400
+
+        # If SMS verification chosen, phone is required
+        if verification_method == "sms":
+            if not phone:
+                return jsonify({"error": "phone is required for SMS verification"}), 400
+
+            # Validate phone number format using SMS service
+            sms_service = get_sms_service()
+            is_valid, formatted_phone_or_error = sms_service.validate_phone_number(phone)
+
+            if not is_valid:
+                return jsonify({"error": formatted_phone_or_error}), 400
+
+            # Use the formatted phone number (E.164 format)
+            phone = formatted_phone_or_error
+            current_app.logger.info(f"Phone validated and formatted: {phone}")
+
         # Test database connection and log user count
         current_app.logger.info("Testing database connection before user creation")
         try:
@@ -319,33 +343,48 @@ def register() -> Tuple[Response, int]:
             current_app.logger.error(f"Database connection error: {str(db_error)}")
             raise
 
-        # Check if user already exists
+        # Check if user already exists (email, username, or phone)
         current_app.logger.info(
             f"Checking for existing user with username '{username}' or email '{email}'"
         )
-        existing_user = User.query.filter(
-            (User.username == username) | (User.email == email)
-        ).first()
+
+        filters = [(User.username == username), (User.email == email)]
+        if phone:
+            filters.append(User.phone_number == phone)
+            current_app.logger.info(f"Also checking for existing phone: {phone}")
+
+        existing_user = User.query.filter(db.or_(*filters)).first()
 
         if existing_user:
             if existing_user.username == username:
                 return jsonify({"error": "Username already exists"}), 409
-            else:
+            elif existing_user.email == email:
                 return jsonify({"error": "Email already exists"}), 409
+            elif phone and existing_user.phone_number == phone:
+                return jsonify({"error": "Phone number already exists"}), 409
 
-        # Create new user
+        # Create new user with pending verification status
         current_app.logger.info(f"Creating user object for: {username}")
         user = User(
             username=username,
             email=email,
+            phone_number=phone,
             first_name=data.get("first_name", "").strip(),
             last_name=data.get("last_name", "").strip(),
-            status=UserStatus.ACTIVE,  # Auto-activate for now
-            is_verified=True,  # Skip email verification for now
+            status=UserStatus.PENDING_VERIFICATION,  # Requires verification
+            is_verified=False,  # Not verified yet
         )
 
         current_app.logger.info(f"Setting password for user: {username}")
         user.set_password(password)
+
+        # Generate verification token based on method
+        if verification_method == "email":
+            verification_token = user.generate_verification_token()
+            current_app.logger.info(f"Generated email verification token for: {username}")
+        else:  # SMS
+            verification_token = user.generate_phone_verification_token()
+            current_app.logger.info(f"Generated SMS verification code for: {username}")
 
         current_app.logger.info(f"Adding user to database session: {username}")
         db.session.add(user)
@@ -357,45 +396,70 @@ def register() -> Tuple[Response, int]:
 
         # Verify user was actually saved by querying it back
         verification_user = User.query.filter_by(username=username).first()
-        if verification_user:
-            current_app.logger.info(
-                f"✅ User verification successful - found user ID: {verification_user.id}"
-            )
-        else:
+        if not verification_user:
             current_app.logger.error(
                 f"❌ User verification FAILED - user not found in database after commit!"
             )
             raise Exception("User was not saved to database despite successful commit")
 
-        # Generate JWT token for the new user (same as login)
-        jwt_token = JWTTokenManager.generate_token(user)
+        current_app.logger.info(
+            f"✅ User saved successfully - found user ID: {verification_user.id}"
+        )
 
-        # Create session for the new user (for backward compatibility and audit)
-        user_session = create_user_session(user, request)
+        # Send verification based on method
+        verification_sent = False
+        if verification_method == "email":
+            email_service = get_email_service()
+            verification_sent = email_service.send_verification_email(
+                email=email,
+                token=verification_token,
+                username=username
+            )
+            current_app.logger.info(
+                f"Email verification sent to {email}: {verification_sent}"
+            )
+        else:  # SMS
+            sms_service = get_sms_service()
+            verification_sent = sms_service.send_verification_sms(
+                phone_number=phone,
+                code=verification_token
+            )
+            current_app.logger.info(
+                f"SMS verification sent to {phone}: {verification_sent}"
+            )
+
+        if not verification_sent:
+            current_app.logger.warning(
+                f"Verification {verification_method} failed to send for user {username}"
+            )
+            # Note: User is still created even if verification fails to send
+            # They can request a resend later
 
         current_app.logger.info(
-            f"New user registered successfully: {username} (ID: {user.id})"
+            f"New user registered (pending verification): {username} (ID: {user.id})"
         )
-        current_app.logger.info(f"JWT token generated for new user {user.id}")
-        current_app.logger.info(f"Session after registration: {dict(session)}")
 
-        response = jsonify(
-            {
-                "message": "User registered successfully",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "role": user.role.value
-                },
-                "access_token": jwt_token,
-                "token_type": "Bearer",
-                "session_token": user_session.session_token,  # Keep for backward compatibility
+        # Build response without JWT token (user must verify first)
+        response_data = {
+            "message": "Registration successful. Please verify your account.",
+            "requires_verification": True,
+            "verification_method": verification_method,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
             }
-        )
+        }
+
+        if verification_method == "email":
+            response_data["email"] = email
+        else:
+            response_data["phone"] = phone
+
+        response = jsonify(response_data)
 
         current_app.logger.info(
-            f"Registration response created - session should be set in cookies"
+            f"Registration response created - user must verify via {verification_method}"
         )
         return response, 201
 
@@ -406,6 +470,269 @@ def register() -> Tuple[Response, int]:
         db.session.rollback()
         current_app.logger.error(f"Registration failed: {str(e)}")
         return jsonify({"error": "Registration failed"}), 500
+
+
+@bp.route("/auth/verify-email", methods=["POST"])
+@rate_limit_auth
+def verify_email() -> Tuple[Response, int]:
+    """Verify user email address with token."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        token = data.get("token", "").strip()
+
+        if not token:
+            return jsonify({"error": "Verification token is required"}), 400
+
+        # Find user with this verification token
+        user = User.query.filter_by(email_verification_token=token).first()
+
+        if not user:
+            current_app.logger.warning(f"Invalid email verification token: {token[:8]}...")
+            return jsonify({"error": "Invalid or expired verification token"}), 400
+
+        # Check if token is valid
+        if not user.is_email_verification_valid(token):
+            current_app.logger.warning(
+                f"Email verification failed for user {user.username}: token invalid or user already verified"
+            )
+            return jsonify({"error": "Invalid or expired verification token"}), 400
+
+        # Mark user as verified
+        user.is_verified = True
+        user.status = UserStatus.ACTIVE
+        user.email_verified_at = datetime.utcnow()
+        user.clear_email_verification()
+
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Email verified successfully for user: {user.username} (ID: {user.id})"
+        )
+
+        # Generate JWT token for immediate login
+        jwt_token = JWTTokenManager.generate_token(user)
+
+        # Create session for the user
+        user_session = create_user_session(user, request)
+
+        return jsonify({
+            "message": "Email verified successfully",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_verified": user.is_verified,
+                "role": user.role.value
+            },
+            "access_token": jwt_token,
+            "token_type": "Bearer",
+            "session_token": user_session.session_token
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Email verification failed: {str(e)}")
+        return jsonify({"error": "Verification failed"}), 500
+
+
+@bp.route("/auth/verify-phone", methods=["POST"])
+@rate_limit_auth
+def verify_phone() -> Tuple[Response, int]:
+    """Verify user phone number with 6-digit code."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        phone = data.get("phone", "").strip()
+        code = data.get("code", "").strip()
+
+        if not phone or not code:
+            return jsonify({"error": "Phone number and verification code are required"}), 400
+
+        # Validate phone format
+        sms_service = get_sms_service()
+        is_valid, formatted_phone_or_error = sms_service.validate_phone_number(phone)
+
+        if not is_valid:
+            return jsonify({"error": formatted_phone_or_error}), 400
+
+        phone = formatted_phone_or_error
+
+        # Find user with this phone number
+        user = User.query.filter_by(phone_number=phone).first()
+
+        if not user:
+            current_app.logger.warning(f"Phone verification attempt for unknown phone: {phone}")
+            return jsonify({"error": "Invalid phone number or verification code"}), 400
+
+        # Check if code is valid and not expired
+        if not user.is_phone_verification_valid():
+            current_app.logger.warning(
+                f"Phone verification failed for user {user.username}: token expired"
+            )
+            return jsonify({"error": "Verification code has expired. Please request a new one."}), 400
+
+        # Check if code matches
+        if user.phone_verification_token != code:
+            current_app.logger.warning(
+                f"Phone verification failed for user {user.username}: incorrect code"
+            )
+            return jsonify({"error": "Invalid verification code"}), 400
+
+        # Mark user as verified
+        user.is_verified = True
+        user.phone_verified = True
+        user.status = UserStatus.ACTIVE
+        user.clear_phone_verification()
+
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Phone verified successfully for user: {user.username} (ID: {user.id})"
+        )
+
+        # Generate JWT token for immediate login
+        jwt_token = JWTTokenManager.generate_token(user)
+
+        # Create session for the user
+        user_session = create_user_session(user, request)
+
+        return jsonify({
+            "message": "Phone verified successfully",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "is_verified": user.is_verified,
+                "phone_verified": user.phone_verified,
+                "role": user.role.value
+            },
+            "access_token": jwt_token,
+            "token_type": "Bearer",
+            "session_token": user_session.session_token
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Phone verification failed: {str(e)}")
+        return jsonify({"error": "Verification failed"}), 500
+
+
+@bp.route("/auth/resend-verification", methods=["POST"])
+@rate_limit_auth
+def resend_verification() -> Tuple[Response, int]:
+    """Resend verification email or SMS to unverified user."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        email_or_phone = data.get("email_or_phone", "").strip()
+        method = data.get("method", "").strip().lower()
+
+        if not email_or_phone or not method:
+            return jsonify({"error": "email_or_phone and method are required"}), 400
+
+        if method not in ["email", "sms"]:
+            return jsonify({"error": "method must be 'email' or 'sms'"}), 400
+
+        # Find user by email or phone based on method
+        user = None
+        if method == "email":
+            # Treat as email
+            user = User.query.filter_by(email=email_or_phone.lower()).first()
+        else:  # SMS
+            # Validate and format phone number
+            sms_service = get_sms_service()
+            is_valid, formatted_phone_or_error = sms_service.validate_phone_number(email_or_phone)
+
+            if not is_valid:
+                return jsonify({"error": formatted_phone_or_error}), 400
+
+            user = User.query.filter_by(phone_number=formatted_phone_or_error).first()
+
+        if not user:
+            current_app.logger.warning(
+                f"Resend verification attempt for unknown {method}: {email_or_phone}"
+            )
+            # Return generic error to avoid user enumeration
+            return jsonify({"error": "If the account exists, verification will be resent"}), 200
+
+        # Check if user is already verified
+        if user.is_verified:
+            current_app.logger.info(
+                f"Resend verification attempt for already verified user: {user.username}"
+            )
+            return jsonify({"error": "Account is already verified"}), 400
+
+        # Rate limiting: Check last sent time (5 minutes for both email and SMS resend)
+        if method == "email":
+            # Check when email was last sent (we can use email_verified_at or a separate cache)
+            # For now, we'll allow resend (rate limiting is handled by email_service internally)
+            pass
+        else:  # SMS
+            # Check phone verification sent time
+            if user.phone_verification_sent_at:
+                time_since_last = datetime.utcnow() - user.phone_verification_sent_at
+                if time_since_last < timedelta(minutes=2):
+                    current_app.logger.warning(
+                        f"Rate limit: SMS resend to {user.phone_number} too soon"
+                    )
+                    return jsonify({
+                        "error": "Please wait 2 minutes before requesting another code"
+                    }), 429
+
+        # Regenerate verification token
+        verification_sent = False
+        if method == "email":
+            verification_token = user.generate_verification_token()
+            db.session.commit()
+
+            email_service = get_email_service()
+            verification_sent = email_service.send_verification_email(
+                email=user.email,
+                token=verification_token,
+                username=user.username
+            )
+            current_app.logger.info(
+                f"Resent email verification to {user.email}: {verification_sent}"
+            )
+        else:  # SMS
+            verification_token = user.generate_phone_verification_token()
+            db.session.commit()
+
+            sms_service = get_sms_service()
+            verification_sent = sms_service.send_verification_sms(
+                phone_number=user.phone_number,
+                code=verification_token
+            )
+            current_app.logger.info(
+                f"Resent SMS verification to {user.phone_number}: {verification_sent}"
+            )
+
+        if not verification_sent:
+            current_app.logger.error(
+                f"Failed to resend verification {method} for user {user.username}"
+            )
+            return jsonify({"error": "Failed to send verification. Please try again later."}), 500
+
+        return jsonify({
+            "message": f"Verification {method} sent successfully",
+            "method": method
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Resend verification failed: {str(e)}")
+        return jsonify({"error": "Failed to resend verification"}), 500
 
 
 @bp.route("/auth/login", methods=["POST"])
