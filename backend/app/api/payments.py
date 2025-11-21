@@ -1,5 +1,4 @@
 import logging
-import traceback
 from flask import Blueprint, request, jsonify, current_app
 from functools import wraps
 
@@ -58,7 +57,6 @@ def create_subscription_upgrade():
 
     except Exception as e:
         logger.error(f"Failed to create subscription upgrade for user {user_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to create payment intent'}), 500
 
 
@@ -95,7 +93,6 @@ def create_cookbook_purchase():
 
     except Exception as e:
         logger.error(f"Failed to create cookbook purchase for user {user_id}, cookbook {cookbook_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to create payment intent'}), 500
 
 
@@ -126,7 +123,6 @@ def cancel_subscription():
 
     except Exception as e:
         logger.error(f"Failed to cancel subscription for user {user_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to cancel subscription'}), 500
 
 
@@ -142,15 +138,15 @@ def get_user_subscription():
             return jsonify({'error': 'User not found'}), 404
 
         subscription = user.get_or_create_subscription()
+        sub_dict = subscription.to_dict()
 
         return jsonify({
             'success': True,
-            'subscription': subscription.to_dict()
+            'subscription': sub_dict
         }), 200
 
     except Exception as e:
         logger.error(f"Failed to get subscription for user {user_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to get subscription details'}), 500
 
 
@@ -190,7 +186,6 @@ def get_user_payments():
 
     except Exception as e:
         logger.error(f"Failed to get payments for user {user_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to get payment history'}), 500
 
 
@@ -222,7 +217,6 @@ def get_user_purchases():
 
     except Exception as e:
         logger.error(f"Failed to get purchases for user {user_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to get purchase history'}), 500
 
 
@@ -247,7 +241,6 @@ def get_user_payment_methods():
 
     except Exception as e:
         logger.error(f"Failed to get payment methods for user {user_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to get payment methods'}), 500
 
 
@@ -272,7 +265,6 @@ def stripe_webhook():
 
     except Exception as e:
         logger.error(f"Failed to process webhook: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Webhook processing failed'}), 500
 
 
@@ -300,5 +292,4 @@ def get_payment_status():
 
     except Exception as e:
         logger.error(f"Failed to get payment status for {payment_intent_id}: {str(e)}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to get payment status'}), 500

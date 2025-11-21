@@ -204,6 +204,8 @@ class User(db.Model):
 
     def get_or_create_subscription(self) -> "Subscription":
         """Get user's subscription or create a default free one."""
+        from flask import current_app
+
         if not self.subscription:
             from app.models.payment import Subscription, SubscriptionTier, SubscriptionStatus
             from app import db

@@ -117,8 +117,9 @@ class DatabaseManager:
         if not confirm:
             print("⚠️  WARNING: This will reset all user-related data!")
             print("The following will be deleted:")
-            print("  - All users and their accounts")  
+            print("  - All users and their accounts")
             print("  - User sessions and passwords")
+            print("  - User subscriptions and payments")
             print("  - User recipe collections")
             print("  - User recipe notes and comments")
             print("  - Recipe groups")
@@ -145,31 +146,38 @@ class DatabaseManager:
                 # Import all user-related models
                 from app.models.user import User, UserSession, Password, CopyrightConsent
                 from app.models.recipe import UserRecipeCollection, RecipeGroup, ProcessingJob, RecipeNote, RecipeComment, Cookbook, Recipe
-                
+                from app.models.payment import Subscription, Payment
+
                 # Delete in order to respect foreign key constraints
                 # Start with dependent tables first
-                
+
                 print("   Deleting recipe comments...")
                 RecipeComment.query.delete()
-                
+
                 print("   Deleting user recipe notes...")
                 RecipeNote.query.delete()
-                
+
                 print("   Deleting user recipe collections...")
                 UserRecipeCollection.query.delete()
-                
+
                 print("   Deleting recipe groups...")
                 RecipeGroup.query.delete()
-                
+
                 print("   Deleting processing jobs...")
                 ProcessingJob.query.delete()
-                
+
                 print("   Deleting copyright consents...")
                 CopyrightConsent.query.delete()
-                
+
+                print("   Deleting payments...")
+                Payment.query.delete()
+
+                print("   Deleting subscriptions...")
+                Subscription.query.delete()
+
                 print("   Deleting user sessions...")
                 UserSession.query.delete()
-                
+
                 print("   Deleting password history...")
                 Password.query.delete()
 
