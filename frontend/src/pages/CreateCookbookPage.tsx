@@ -178,7 +178,6 @@ const CreateCookbookPage: React.FC = () => {
                 value={formData.title}
                 onChange={(value) => handleInputChange('title', value)}
                 error={errors.title}
-                required
               />
             </div>
 
