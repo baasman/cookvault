@@ -38,11 +38,19 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                .replace(/\b\w/g, (l: string) => l.toUpperCase());
     };
 
+    // Map template values to display labels
+    const templateLabels: Record<string, string> = {
+      'modern': 'Modern Minimalist',
+      'classic': 'Classic',
+      'book': 'Book Style'
+    };
+
     return {
       trimSize: formatName(spec.trim_size),
       bindingType: formatName(spec.binding_type),
       paperType: formatName(spec.paper_type),
-      coverFinish: formatName(spec.cover_finish)
+      coverFinish: formatName(spec.cover_finish),
+      template: templateLabels[spec.template] || formatName(spec.template || 'modern')
     };
   };
 
@@ -93,6 +101,10 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
               <div className="flex justify-between">
                 <span className="text-gray-600">Cover</span>
                 <span className="text-gray-900">{specification.coverFinish}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Design Style</span>
+                <span className="text-gray-900">{specification.template}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Pages</span>

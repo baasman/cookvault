@@ -74,6 +74,9 @@ class Cookbook(db.Model):
     isbn: Mapped[Optional[str]] = mapped_column(String(20))
     publisher: Mapped[Optional[str]] = mapped_column(String(200))
     cover_image_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # Google Books integration - stores the Google Books ID for deduplication
+    # Cookbooks with google_books_id are global (user_id=NULL)
+    google_books_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -118,6 +121,8 @@ class Cookbook(db.Model):
             "isbn": self.isbn,
             "publisher": self.publisher,
             "cover_image_url": self.cover_image_url,
+            "google_books_id": self.google_books_id,
+            "is_google_books": self.google_books_id is not None,
             "user_id": self.user_id,  # Include owner information for permissions
             "is_purchasable": self.is_purchasable,
             "price": float(self.price) if self.price else None,

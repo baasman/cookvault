@@ -1,10 +1,35 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ScanIcon, BookIcon, CollectionIcon } from '../components/icons'; // Assuming these exist or will be created
+import { ScanIcon, BookIcon, CollectionIcon } from '../components/icons';
 import { HeroSection } from '../components/homepage';
 import { FeaturedRecipes } from '../components/recipe/FeaturedRecipes';
+import { AuthenticatedDashboard } from '../components/dashboard';
+import { useAuth } from '../contexts/AuthContext';
 
 const HomePage: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Show loading spinner while checking auth
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-24">
+        <div className="text-center">
+          <div
+            className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
+            style={{ borderColor: '#f15f1c' }}
+          ></div>
+          <p style={{ color: '#9b644b' }}>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show personalized dashboard for authenticated users
+  if (isAuthenticated) {
+    return <AuthenticatedDashboard />;
+  }
+
+  // Show marketing landing page for unauthenticated users
   return (
     <>
       <HeroSection />

@@ -19,6 +19,7 @@ export interface PrintSpecification {
   binding_type: string;
   paper_type: string;
   cover_finish: string;
+  template: string;
   page_count: number;
   color_pages: boolean;
 }
@@ -88,7 +89,7 @@ export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
   const fetchPrintOptions = async () => {
     try {
       setLoading(true);
-      const response = await apiFetch(`${getApiUrl()}/print-orders/specifications`);
+      const response = await apiFetch(`${getApiUrl()}/print-orders/specifications?cookbook_id=${cookbookId}`);
       if (response.ok) {
         const data = await response.json();
         setPrintOptions(data);

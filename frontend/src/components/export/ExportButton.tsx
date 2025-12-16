@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import { getApiUrl } from '../../utils/getApiUrl';
 import { apiFetch } from '../../utils/apiInterceptor';
@@ -14,6 +14,16 @@ interface ExportButtonProps {
   showOptions?: boolean;
 }
 
+interface ExportOptions {
+  template: string;
+  profile: string;
+  pageSize: string;
+  includeImages: boolean;
+  includeNotes: boolean;
+  includeToc: boolean;
+  includeIndex: boolean;
+}
+
 export const ExportButton: React.FC<ExportButtonProps> = ({
   type,
   recipeId,
@@ -26,14 +36,48 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [exportOptions, setExportOptions] = useState({
-    template: 'classic',
-    pageSize: 'letter',
-    includeImages: true,
-    includeNotes: true,
-    includeToc: true,
-    includeIndex: false
-  });
+
+  // Load saved preferences from localStorage
+  const loadSavedPreferences = (): ExportOptions => {
+    try {
+      const savedTemplate = localStorage.getItem('cookbook_export_template');
+      const savedProfile = localStorage.getItem('cookbook_export_profile');
+      const savedPageSize = localStorage.getItem('cookbook_export_page_size');
+
+      return {
+        template: savedTemplate || 'modern',
+        profile: savedProfile || 'digital',
+        pageSize: savedPageSize || 'letter',
+        includeImages: true,
+        includeNotes: true,
+        includeToc: true,
+        includeIndex: false
+      };
+    } catch {
+      return {
+        template: 'modern',
+        profile: 'digital',
+        pageSize: 'letter',
+        includeImages: true,
+        includeNotes: true,
+        includeToc: true,
+        includeIndex: false
+      };
+    }
+  };
+
+  const [exportOptions, setExportOptions] = useState<ExportOptions>(loadSavedPreferences());
+
+  // Save preferences to localStorage when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('cookbook_export_template', exportOptions.template);
+      localStorage.setItem('cookbook_export_profile', exportOptions.profile);
+      localStorage.setItem('cookbook_export_page_size', exportOptions.pageSize);
+    } catch (error) {
+      console.warn('Failed to save export preferences:', error);
+    }
+  }, [exportOptions.template, exportOptions.profile, exportOptions.pageSize]);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -45,6 +89,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
         const response = await apiFetch(
           `${getApiUrl()}/recipes/${recipeId}/export/pdf?` + new URLSearchParams({
             template: exportOptions.template,
+            profile: exportOptions.profile,
             page_size: exportOptions.pageSize,
             include_images: String(exportOptions.includeImages),
             include_notes: String(exportOptions.includeNotes)
@@ -76,6 +121,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
         const response = await apiFetch(
           `${getApiUrl()}/cookbooks/${cookbookId}/export/pdf?` + new URLSearchParams({
             template: exportOptions.template,
+            profile: exportOptions.profile,
             page_size: exportOptions.pageSize,
             include_images: String(exportOptions.includeImages),
             include_notes: String(exportOptions.includeNotes),
@@ -114,7 +160,13 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
           body: JSON.stringify({
             recipe_ids: recipeIds,
             title: collectionTitle,
-            ...exportOptions
+            template: exportOptions.template,
+            profile: exportOptions.profile,
+            page_size: exportOptions.pageSize,
+            include_images: exportOptions.includeImages,
+            include_notes: exportOptions.includeNotes,
+            include_toc: exportOptions.includeToc,
+            include_index: exportOptions.includeIndex
           })
         });
 
@@ -168,7 +220,8 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       <button
         onClick={handleQuickExport}
         disabled={isExporting}
-        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        style={{ backgroundColor: isExporting ? '#9ca3af' : '#f15f1c' }}
       >
         <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
         {isExporting ? 'Exporting...' : buttonText}
@@ -189,8 +242,8 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
 };
 
 interface ExportOptionsModalProps {
-  options: any;
-  onChange: (options: any) => void;
+  options: ExportOptions;
+  onChange: (options: ExportOptions) => void;
   onExport: () => void;
   onClose: () => void;
   isExporting: boolean;
@@ -205,12 +258,56 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
   isExporting,
   type
 }) => {
+  const templateDescriptions: Record<string, string> = {
+    classic: 'Traditional professional layout',
+    modern: 'Clean, contemporary design with ample white space',
+    book: 'Elegant two-column layout'
+  };
+
+  const profileDescriptions: Record<string, string> = {
+    digital: 'Optimized for screens (85% quality, RGB, smaller file size)',
+    home_print: 'Optimized for home printers (90% quality, RGB)',
+    professional_print: 'Print-ready with CMYK colors (95% quality, crop marks, bleed)'
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
+      <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Export Options</h3>
-        
+
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Template Style</label>
+            <select
+              value={options.template}
+              onChange={(e) => onChange({ ...options, template: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <option value="modern">Modern Minimalist</option>
+              <option value="classic">Classic</option>
+              <option value="book">Book Style</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {templateDescriptions[options.template]}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Output Profile</label>
+            <select
+              value={options.profile}
+              onChange={(e) => onChange({ ...options, profile: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            >
+              <option value="digital">Digital Viewing</option>
+              <option value="home_print">Home Printing</option>
+              <option value="professional_print">Professional Print Service</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {profileDescriptions[options.profile]}
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700">Page Size</label>
             <select
@@ -220,20 +317,6 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
             >
               <option value="letter">Letter (8.5" × 11")</option>
               <option value="a4">A4 (210mm × 297mm)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Template Style</label>
-            <select
-              value={options.template}
-              onChange={(e) => onChange({ ...options, template: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-            >
-              <option value="classic">Classic</option>
-              <option value="book">Book Style (Elegant, Two-Column)</option>
-              <option value="modern">Modern (Coming Soon)</option>
-              <option value="minimalist">Minimalist (Coming Soon)</option>
             </select>
           </div>
 
@@ -290,14 +373,14 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
         <div className="mt-6 flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent"
           >
             Cancel
           </button>
           <button
             onClick={onExport}
             disabled={isExporting}
-            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-accent hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isExporting ? 'Exporting...' : 'Export PDF'}
           </button>

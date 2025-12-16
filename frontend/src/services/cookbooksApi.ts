@@ -400,7 +400,9 @@ class CookbooksApi {
     }
   }
 
-  async createCookbookFromGoogleBooks(googleBooksId: string): Promise<Cookbook> {
+  async createCookbookFromGoogleBooks(
+    googleBooksId: string
+  ): Promise<{ cookbook: Cookbook; isExisting: boolean }> {
     try {
       const response = await apiFetch(`${this.baseUrl}/cookbooks/from-google-books`, {
         method: 'POST',
@@ -414,18 +416,14 @@ class CookbooksApi {
 
       if (!response.ok) {
         const errorData = await response.json();
-        
-        // Handle duplicate cookbook case (409 Conflict)
-        if (response.status === 409 && errorData.existing_cookbook) {
-          // Return the existing cookbook instead of throwing an error
-          return errorData.existing_cookbook;
-        }
-        
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      return result.cookbook;
+      return {
+        cookbook: result.cookbook,
+        isExisting: result.is_existing ?? false,
+      };
     } catch (error) {
       console.error('Error creating cookbook from online database:', error);
       throw error;

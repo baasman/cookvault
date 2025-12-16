@@ -277,9 +277,9 @@ const CreateRecipePage: React.FC = () => {
               <GoogleBooksSearch
                 onBookSelect={async (book: GoogleBook) => {
                   try {
-                    const cookbook = await cookbooksApi.createCookbookFromGoogleBooks(book.google_books_id);
-                    setInitialData(prev => ({ 
-                      ...prev, 
+                    const { cookbook } = await cookbooksApi.createCookbookFromGoogleBooks(book.google_books_id);
+                    setInitialData(prev => ({
+                      ...prev,
                       selected_google_book: book,
                       cookbook_id: cookbook.id
                     }));

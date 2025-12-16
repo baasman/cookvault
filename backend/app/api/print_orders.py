@@ -37,22 +37,45 @@ limiter = Limiter(key_func=get_remote_address)
 @bp.route('/specifications', methods=['GET'])
 @require_auth
 def get_print_specifications(current_user):
-    """Get available print specifications and options."""
+    """Get available print specifications and options.
+
+    Query params:
+        cookbook_id: Optional cookbook ID to get estimated page count
+    """
     try:
         cover_service = CoverGenerationService()
-        
+
         # Get bulk pricing information
         lulu_service = LuluService()
         bulk_pricing_tiers = lulu_service.get_bulk_pricing_tiers()
-        
-        return jsonify({
+
+        response_data = {
             'trim_sizes': [{'value': size.value, 'name': size.value} for size in TrimSize],
             'binding_types': [{'value': bt.value, 'name': bt.value} for bt in BindingType],
             'paper_types': [{'value': pt.value, 'name': pt.value} for pt in PaperType],
             'cover_finishes': [{'value': cf.value, 'name': cf.value} for cf in CoverFinish],
+            'templates': [
+                {'value': 'modern', 'label': 'Modern Minimalist', 'description': 'Clean, contemporary design with Inter and Lora fonts'},
+                {'value': 'classic', 'label': 'Classic', 'description': 'Traditional professional layout with Helvetica'},
+                {'value': 'book', 'label': 'Book Style', 'description': 'Elegant two-column layout with serif fonts'},
+            ],
             'cover_templates': cover_service.get_available_templates(),
             'bulk_pricing_tiers': bulk_pricing_tiers
-        })
+        }
+
+        # If cookbook_id provided, calculate estimated page count
+        cookbook_id = request.args.get('cookbook_id', type=int)
+        if cookbook_id:
+            cookbook = Cookbook.query.get(cookbook_id)
+            # Reject Google Books cookbooks - print orders only allowed for user-owned cookbooks
+            if cookbook and cookbook.google_books_id is not None:
+                return jsonify({'error': 'Print orders are not available for Google Books cookbooks'}), 400
+            if cookbook and cookbook.user_id == current_user.id:
+                recipe_count = len(cookbook.get_recipes_for_user(current_user.id))
+                response_data['estimated_page_count'] = cover_service.estimate_page_count(recipe_count)
+                response_data['recipe_count'] = recipe_count
+
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Error getting print specifications: {str(e)}")
         return jsonify({'error': 'Failed to get print specifications'}), 500
@@ -120,9 +143,18 @@ def get_print_quote(current_user):
         cookbook = Cookbook.query.get(data['cookbook_id'])
         if not cookbook:
             return jsonify({'error': 'Cookbook not found'}), 404
-        
+
         if cookbook.user_id != current_user.id:
             return jsonify({'error': 'Access denied'}), 403
+
+        # Reject Google Books cookbooks - print orders only allowed for user-owned cookbooks
+        if cookbook.google_books_id is not None:
+            return jsonify({'error': 'Print orders are not available for Google Books cookbooks'}), 400
+
+        # Validate template if provided
+        template = spec_data.get('template', 'modern')
+        if template not in ('modern', 'classic', 'book'):
+            return jsonify({'error': f'Invalid template: {template}. Must be modern, classic, or book.'}), 400
 
         # Create specification object for quote
         try:
@@ -132,7 +164,8 @@ def get_print_quote(current_user):
                 paper_type=PaperType(spec_data['paper_type']),
                 cover_finish=CoverFinish(spec_data['cover_finish']),
                 page_count=int(spec_data['page_count']),
-                color_pages=spec_data.get('color_pages', False)
+                color_pages=spec_data.get('color_pages', False),
+                template=template
             )
         except ValueError as e:
             return jsonify({'error': f'Invalid specification value: {str(e)}'}), 400
@@ -167,6 +200,7 @@ def get_print_quote(current_user):
                 'binding_type': spec_data['binding_type'],
                 'paper_type': spec_data['paper_type'],
                 'cover_finish': spec_data['cover_finish'],
+                'template': template,
                 'page_count': spec_data['page_count'],
                 'color_pages': spec_data.get('color_pages', False)
             },
@@ -211,9 +245,13 @@ def create_print_order(current_user):
         cookbook = Cookbook.query.get(data['cookbook_id'])
         if not cookbook:
             return jsonify({'error': 'Cookbook not found'}), 404
-        
+
         if cookbook.user_id != current_user.id:
             return jsonify({'error': 'Access denied'}), 403
+
+        # Reject Google Books cookbooks - print orders only allowed for user-owned cookbooks
+        if cookbook.google_books_id is not None:
+            return jsonify({'error': 'Print orders are not available for Google Books cookbooks'}), 400
 
         # Validate shipping address
         shipping_required = [
@@ -226,6 +264,12 @@ def create_print_order(current_user):
 
         # Create and save specification
         spec_data = data['specification']
+
+        # Validate template if provided
+        template = spec_data.get('template', 'modern')
+        if template not in ('modern', 'classic', 'book'):
+            return jsonify({'error': f'Invalid template: {template}. Must be modern, classic, or book.'}), 400
+
         try:
             specification = PrintSpecification(
                 trim_size=TrimSize(spec_data['trim_size']),
@@ -233,7 +277,8 @@ def create_print_order(current_user):
                 paper_type=PaperType(spec_data['paper_type']),
                 cover_finish=CoverFinish(spec_data['cover_finish']),
                 page_count=int(spec_data['page_count']),
-                color_pages=spec_data.get('color_pages', False)
+                color_pages=spec_data.get('color_pages', False),
+                template=template
             )
             db.session.add(specification)
             db.session.flush()  # Get the ID
@@ -442,14 +487,23 @@ def submit_print_order(current_user, order_id):
 
         # Generate print-ready interior PDF
         try:
-            # Create print-ready configuration
-            from app.services.pdf_service import PDFConfig
-            print_config = PDFConfig().enable_print_ready_mode(
+            # Create print-ready configuration with selected template
+            from app.services.pdf_service import PDFConfig, PDFTemplate
+
+            # Map specification template to PDFTemplate enum
+            template_map = {
+                'classic': PDFTemplate.CLASSIC,
+                'modern': PDFTemplate.MODERN,
+                'book': PDFTemplate.BOOK
+            }
+            selected_template = template_map.get(order.specification.template, PDFTemplate.MODERN)
+
+            print_config = PDFConfig(template=selected_template).enable_print_ready_mode(
                 trim_size=order.specification.trim_size.value,
                 include_marks=True
             )
             print_config.gutter_adjustment = True  # Add binding margin
-            
+
             interior_pdf = pdf_service.generate_cookbook_pdf(cookbook_dict, recipes_dict, print_config)
             
             # Upload interior PDF using new method
@@ -469,14 +523,20 @@ def submit_print_order(current_user, order_id):
         # Generate print-ready cover PDF
         try:
             from app.services.cover_generation_service import CoverGenerationService
-            
+
             cover_service = CoverGenerationService()
-            
+
             # Estimate page count for spine calculation
             estimated_pages = cover_service.estimate_page_count(len(recipes_dict))
-            
-            # Generate cover with template
-            cover_template = cookbook_dict.get('cover_template', 'minimalist')
+
+            # Map specification template to cover template name
+            cover_template_map = {
+                'classic': 'classic',
+                'modern': 'minimalist',  # Modern uses minimalist cover
+                'book': 'book'
+            }
+            cover_template = cover_template_map.get(order.specification.template, 'minimalist')
+
             cover_pdf = cover_service.generate_cover_pdf(
                 cookbook_data=cookbook_dict,
                 trim_size=order.specification.trim_size,

@@ -28,6 +28,7 @@ export const PrintSpecificationForm: React.FC<PrintSpecificationFormProps> = ({
     binding_type: 'perfect_bound',
     paper_type: 'standard_white',
     cover_finish: 'matte',
+    template: 'modern',
     page_count: 50,
     color_pages: false
   });
@@ -44,9 +45,13 @@ export const PrintSpecificationForm: React.FC<PrintSpecificationFormProps> = ({
   }, [specification]);
 
   useEffect(() => {
-    // Set default page count estimate
-    setFormData(prev => ({ ...prev, page_count: 50 }));
-  }, []);
+    // Set page count from API estimated value (based on cookbook's actual recipes)
+    if (printOptions?.estimated_page_count) {
+      const newFormData = { ...formData, page_count: printOptions.estimated_page_count };
+      setFormData(newFormData);
+      onSpecificationChange(newFormData);
+    }
+  }, [printOptions?.estimated_page_count]);
 
   const handleInputChange = (field: keyof PrintSpecification, value: any) => {
     const newFormData = { ...formData, [field]: value };
@@ -220,22 +225,45 @@ export const PrintSpecificationForm: React.FC<PrintSpecificationFormProps> = ({
         </select>
       </div>
 
-      {/* Page Count */}
+      {/* Template Style */}
       <div>
-        <label htmlFor="page_count" className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="template" className="block text-sm font-medium text-gray-700 mb-2">
+          Design Style
+        </label>
+        <select
+          id="template"
+          value={formData.template}
+          onChange={(e) => handleInputChange('template', e.target.value)}
+          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
+        >
+          {printOptions.templates?.map((template: any) => (
+            <option key={template.value} value={template.value}>
+              {template.label}
+            </option>
+          ))}
+        </select>
+        {printOptions.templates && (
+          <p className="mt-1 text-xs text-gray-500">
+            {printOptions.templates.find((t: any) => t.value === formData.template)?.description || 'Select a design style for your cookbook'}
+          </p>
+        )}
+      </div>
+
+      {/* Page Count (auto-calculated) */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           Estimated Page Count
         </label>
-        <input
-          type="number"
-          id="page_count"
-          min="20"
-          max="500"
-          value={formData.page_count}
-          onChange={(e) => handleInputChange('page_count', parseInt(e.target.value) || 50)}
-          className="block w-32 rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
-        />
+        <div className="flex items-center space-x-2">
+          <span className="text-lg font-semibold text-gray-900">{formData.page_count} pages</span>
+          {printOptions?.recipe_count !== undefined && (
+            <span className="text-sm text-gray-500">
+              ({printOptions.recipe_count} recipes)
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-xs text-gray-500">
-          This affects printing cost. Final count may vary slightly.
+          Calculated based on your cookbook's recipes. Final count may vary slightly.
         </p>
       </div>
 

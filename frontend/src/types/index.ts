@@ -10,7 +10,7 @@ export interface Cookbook {
   publication_date?: string;
   cover_image_url?: string;
   recipe_count: number;
-  user_id?: number; // Owner of the cookbook
+  user_id?: number; // Owner of the cookbook (null for global Google Books cookbooks)
   user?: {
     id: number;
     username: string;
@@ -20,6 +20,9 @@ export interface Cookbook {
   created_at: string;
   updated_at: string;
   recipes?: Recipe[]; // Only populated in detail view
+  // Google Books integration
+  google_books_id?: string;
+  is_google_books?: boolean; // True if this cookbook was created from Google Books API
   // Purchase-related fields
   is_purchasable?: boolean;
   price?: number;

@@ -27,7 +27,11 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick, showPurc
   };
 
   // Check if current user owns this cookbook
-  const isOwnCookbook = user && cookbook.user_id && cookbook.user_id.toString() === user.id.toString();
+  // Google Books cookbooks are global (user_id=null) and don't show "Mine" badge
+  const isOwnCookbook = user &&
+    cookbook.user_id &&
+    cookbook.user_id.toString() === user.id.toString() &&
+    !cookbook.is_google_books;
 
   const formatDate = (dateString: string) => {
     try {

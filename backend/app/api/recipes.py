@@ -350,12 +350,15 @@ def create_empty_recipe(current_user) -> Tuple[Response, int]:
 
         cookbook_id = data.get("cookbook_id")
 
-        # Validate cookbook ownership if cookbook_id is provided
+        # Validate cookbook access if cookbook_id is provided
         if cookbook_id:
-            cookbook = Cookbook.query.filter_by(
-                id=cookbook_id, user_id=current_user.id
-            ).first()
+            cookbook = Cookbook.query.get(cookbook_id)
             if not cookbook:
+                return jsonify({"error": "Cookbook not found"}), 404
+            # Allow access if: user owns the cookbook OR it's a global cookbook (Google Books)
+            is_global_cookbook = cookbook.user_id is None
+            is_own_cookbook = cookbook.user_id == current_user.id
+            if not is_global_cookbook and not is_own_cookbook:
                 return jsonify({"error": "Cookbook not found or access denied"}), 404
 
         # Create new recipe
@@ -854,14 +857,21 @@ def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
 
         # Allow unlinking from cookbook by setting cookbook_id to null
         if cookbook_id is not None:
-            # Verify cookbook exists and user has permission
-            if should_apply_user_filter(current_user):
-                cookbook = Cookbook.query.filter_by(id=cookbook_id, user_id=current_user.id).first()
-            else:
-                cookbook = Cookbook.query.get(cookbook_id)
-
+            # Get the cookbook first
+            cookbook = Cookbook.query.get(cookbook_id)
             if not cookbook:
-                return jsonify({"error": "Cookbook not found or access denied"}), 404
+                return jsonify({"error": "Cookbook not found"}), 404
+
+            # Permission check: allow if any of these conditions are met:
+            # 1. Admin user (no restrictions)
+            # 2. Global cookbook (user_id=NULL) - any authenticated user can add recipes
+            # 3. User-owned cookbook - user must be the owner
+            is_global_cookbook = cookbook.user_id is None
+            is_own_cookbook = cookbook.user_id == current_user.id
+
+            if should_apply_user_filter(current_user):
+                if not is_global_cookbook and not is_own_cookbook:
+                    return jsonify({"error": "Cookbook not found or access denied"}), 404
 
         # Update recipe's cookbook association
         recipe.cookbook_id = cookbook_id
@@ -1158,10 +1168,13 @@ def get_processing_job(current_user, job_id: int):
     job = ProcessingJob.query.get_or_404(job_id)
     # Verify job belongs to user (through cookbook ownership or direct ownership)
     if job.cookbook_id:
-        cookbook = Cookbook.query.filter_by(
-            id=job.cookbook_id, user_id=current_user.id
-        ).first()
+        cookbook = Cookbook.query.get(job.cookbook_id)
         if not cookbook:
+            return jsonify({"error": "Job not found"}), 404
+        # Allow access if: user owns cookbook OR it's a global cookbook (Google Books)
+        is_global = cookbook.user_id is None
+        is_owner = cookbook.user_id == current_user.id
+        if not is_global and not is_owner:
             return jsonify({"error": "Job not found"}), 404
 
     return jsonify(job.to_dict())
@@ -2561,22 +2574,23 @@ def upload_multi_recipe(current_user):
         if cookbook_id:
             try:
                 cookbook_id = int(cookbook_id)
-                # First check if cookbook exists at all
-                cookbook_exists = Cookbook.query.get(cookbook_id)
-                if not cookbook_exists:
+                # Check if cookbook exists
+                cookbook = Cookbook.query.get(cookbook_id)
+                if not cookbook:
                     current_app.logger.error(f"Cookbook {cookbook_id} does not exist")
                     return jsonify({"error": f"Cookbook with ID {cookbook_id} not found"}), 404
 
-                # Then check if user owns it
-                cookbook = Cookbook.query.filter_by(
-                    id=cookbook_id, user_id=user_id
-                ).first()
-                if not cookbook:
+                # Allow access if: user owns cookbook OR it's a global cookbook (Google Books)
+                is_global_cookbook = cookbook.user_id is None
+                is_own_cookbook = cookbook.user_id == user_id
+                if not is_global_cookbook and not is_own_cookbook:
                     current_app.logger.error(
-                        f"User {user_id} does not own cookbook {cookbook_id}. "
-                        f"Owner is {cookbook_exists.user_id}"
+                        f"User {user_id} cannot add to cookbook {cookbook_id}. "
+                        f"Owner is {cookbook.user_id}"
                     )
-                    return jsonify({"error": f"You don't have permission to add recipes to this cookbook"}), 403
+                    return jsonify({
+                        "error": "You don't have permission to add recipes to this cookbook"
+                    }), 403
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid cookbook ID"}), 400
 

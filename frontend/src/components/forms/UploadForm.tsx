@@ -763,10 +763,10 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                 <GoogleBooksSearch
                   onBookSelect={async (book: GoogleBook) => {
                     try {
-                      // Create cookbook from Google Books
-                      const cookbook = await cookbooksApi.createCookbookFromGoogleBooks(book.google_books_id);
-                      setFormData(prev => ({ 
-                        ...prev, 
+                      // Create or get existing cookbook from Google Books
+                      const { cookbook } = await cookbooksApi.createCookbookFromGoogleBooks(book.google_books_id);
+                      setFormData(prev => ({
+                        ...prev,
                         selected_google_book: book,
                         cookbook_id: cookbook.id,
                         new_cookbook_title: cookbook.title,
@@ -774,8 +774,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                         new_cookbook_description: cookbook.description || '',
                         new_cookbook_publisher: cookbook.publisher || '',
                         new_cookbook_isbn: cookbook.isbn || '',
-                        new_cookbook_publication_date: cookbook.publication_date 
-                          ? new Date(cookbook.publication_date).toISOString().split('T')[0] 
+                        new_cookbook_publication_date: cookbook.publication_date
+                          ? new Date(cookbook.publication_date).toISOString().split('T')[0]
                           : ''
                       }));
                     } catch (error) {

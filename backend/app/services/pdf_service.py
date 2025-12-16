@@ -39,7 +39,7 @@ from reportlab.platypus import (
     FrameBreak,
 )
 from reportlab.pdfgen import canvas
-from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_JUSTIFY, TA_LEFT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
@@ -142,7 +142,14 @@ class PDFTemplate(Enum):
     CLASSIC = "classic"
     MODERN = "modern"
     MINIMALIST = "minimalist"
-    BOOK = "book"  # New elegant book-style template
+    BOOK = "book"
+
+
+class OutputProfile(Enum):
+    """Output profiles for different use cases"""
+    DIGITAL = "digital"  # Optimized for screen viewing
+    HOME_PRINT = "home_print"  # Optimized for home printers
+    PROFESSIONAL_PRINT = "professional_print"  # Print-ready with CMYK
 
 
 @dataclass
@@ -150,13 +157,18 @@ class PDFConfig:
     """Configuration for PDF generation"""
     page_size: PageSize = PageSize.LETTER
     template: PDFTemplate = PDFTemplate.CLASSIC
+    profile: OutputProfile = OutputProfile.DIGITAL  # Output profile for different use cases
     include_images: bool = True
     include_nutrition: bool = False
     include_notes: bool = True
     include_toc: bool = True  # Table of contents for cookbooks
     include_index: bool = False  # Ingredient index for cookbooks
     margins: Dict[str, float] = None
-    
+
+    # Image quality settings (profile-specific defaults)
+    image_quality: int = 85  # JPEG quality (0-100)
+    color_mode: str = 'RGB'  # 'RGB' or 'CMYK'
+
     # Print-ready options
     print_ready: bool = False  # Enable print-ready features
     trim_size: Optional[str] = None  # TrimSize enum value for print orders
@@ -170,6 +182,9 @@ class PDFConfig:
     gutter_adjustment: bool = False  # Add extra margin for binding gutter
     
     def __post_init__(self):
+        # Apply profile-specific settings
+        self._apply_profile_settings()
+
         if self.margins is None:
             if self.print_ready:
                 # For print-ready PDFs, use minimal base margins
@@ -180,14 +195,44 @@ class PDFConfig:
                     'left': 0.5 * inch,
                     'right': 0.5 * inch
                 }
+            elif self.profile == OutputProfile.HOME_PRINT:
+                # Home print profile: smaller margins for standard printers
+                self.margins = {
+                    'top': 0.5 * inch,
+                    'bottom': 0.5 * inch,
+                    'left': 0.5 * inch,
+                    'right': 0.5 * inch
+                }
             else:
-                # Standard margins for non-print PDFs
+                # Standard margins for digital viewing
                 self.margins = {
                     'top': 1 * inch,
                     'bottom': 1 * inch,
                     'left': 1 * inch,
                     'right': 1 * inch
                 }
+
+    def _apply_profile_settings(self):
+        """Apply settings based on output profile"""
+        if self.profile == OutputProfile.DIGITAL:
+            # Digital viewing: smaller file size, RGB, lower quality
+            self.image_quality = 85
+            self.color_mode = 'RGB'
+            self.print_ready = False
+
+        elif self.profile == OutputProfile.HOME_PRINT:
+            # Home printing: higher quality, RGB, no bleed
+            self.image_quality = 90
+            self.color_mode = 'RGB'
+            self.print_ready = False
+
+        elif self.profile == OutputProfile.PROFESSIONAL_PRINT:
+            # Professional printing: highest quality, CMYK, print marks
+            self.image_quality = 95
+            self.color_mode = 'CMYK'
+            self.print_ready = True
+            self.crop_marks = True
+            self.bleed_margin = 0.125 * inch  # Standard 1/8" bleed
     
     def enable_print_ready_mode(
         self,
@@ -260,36 +305,62 @@ class PDFStyleManager:
         """Register custom fonts for PDF generation"""
         try:
             fonts_dir = Path(__file__).parent / 'fonts'
-            
-            # Register Cormorant Garamond (serif) for body text
-            if (fonts_dir / 'CormorantGaramond-Regular.ttf').exists():
-                pdfmetrics.registerFont(TTFont('CormorantGaramond', str(fonts_dir / 'CormorantGaramond-Regular.ttf')))
-                pdfmetrics.registerFont(TTFont('CormorantGaramond-Bold', str(fonts_dir / 'CormorantGaramond-Bold.ttf')))
-                pdfmetrics.registerFont(TTFont('CormorantGaramond-Italic', str(fonts_dir / 'CormorantGaramond-Italic.ttf')))
-                
-                # Register font family
-                pdfmetrics.registerFontFamily(
-                    'CormorantGaramond',
-                    normal='CormorantGaramond',
-                    bold='CormorantGaramond-Bold',
-                    italic='CormorantGaramond-Italic'
-                )
-                logger.info("Registered Cormorant Garamond font family")
-            
-            # Register Inter (sans-serif) for headers  
+
+            # Register Inter (sans-serif) - primary font for modern design
             if (fonts_dir / 'Inter-Regular.ttf').exists():
                 pdfmetrics.registerFont(TTFont('Inter', str(fonts_dir / 'Inter-Regular.ttf')))
                 pdfmetrics.registerFont(TTFont('Inter-Medium', str(fonts_dir / 'Inter-Medium.ttf')))
-                
+                pdfmetrics.registerFont(TTFont('Inter-SemiBold', str(fonts_dir / 'Inter-SemiBold.ttf')))
+                pdfmetrics.registerFont(TTFont('Inter-Bold', str(fonts_dir / 'Inter-Bold.ttf')))
+
+                # Register font family with proper weight mappings
                 pdfmetrics.registerFontFamily(
                     'Inter',
                     normal='Inter',
-                    bold='Inter-Medium'
+                    bold='Inter-Bold',
+                    italic='Inter',  # Using regular as italic fallback
+                    boldItalic='Inter-Bold'
                 )
-                logger.info("Registered Inter font family")
-                
+                logger.info("✓ Registered Inter font family (sans-serif)")
+
+            # Register Lora (serif) - accent font for titles
+            if (fonts_dir / 'Lora-Regular.ttf').exists():
+                pdfmetrics.registerFont(TTFont('Lora', str(fonts_dir / 'Lora-Regular.ttf')))
+                pdfmetrics.registerFont(TTFont('Lora-Bold', str(fonts_dir / 'Lora-Bold.ttf')))
+
+                pdfmetrics.registerFontFamily(
+                    'Lora',
+                    normal='Lora',
+                    bold='Lora-Bold',
+                    italic='Lora',
+                    boldItalic='Lora-Bold'
+                )
+                logger.info("✓ Registered Lora font family (serif)")
+
+            # Register JetBrains Mono (monospace) - for measurements/times
+            if (fonts_dir / 'JetBrainsMono-Regular.ttf').exists():
+                pdfmetrics.registerFont(TTFont('JetBrainsMono', str(fonts_dir / 'JetBrainsMono-Regular.ttf')))
+                pdfmetrics.registerFont(TTFont('JetBrainsMono-Medium', str(fonts_dir / 'JetBrainsMono-Medium.ttf')))
+
+                pdfmetrics.registerFontFamily(
+                    'JetBrainsMono',
+                    normal='JetBrainsMono',
+                    bold='JetBrainsMono-Medium',
+                    italic='JetBrainsMono',
+                    boldItalic='JetBrainsMono-Medium'
+                )
+                logger.info("✓ Registered JetBrains Mono font family (monospace)")
+
+            # Store font availability for fallback logic
+            self.fonts_available = {
+                'inter': (fonts_dir / 'Inter-Regular.ttf').exists(),
+                'lora': (fonts_dir / 'Lora-Regular.ttf').exists(),
+                'jetbrains': (fonts_dir / 'JetBrainsMono-Regular.ttf').exists()
+            }
+
         except Exception as e:
             logger.warning(f"Failed to register custom fonts: {e}. Using system fonts.")
+            self.fonts_available = {'inter': False, 'lora': False, 'jetbrains': False}
     
     def _customize_styles(self):
         """Customize styles based on template"""
@@ -369,66 +440,410 @@ class PDFStyleManager:
         ))
     
     def _apply_modern_styles(self):
-        """Apply modern, clean styling"""
-        # Basic modern styles until full implementation with artist input
+        """Apply modern minimalist styling with professional typography"""
+        # Modern Minimalist Color Palette
+        primary_text = colors.HexColor('#2B2D42')      # Charcoal - main text
+        secondary_text = colors.HexColor('#8D99AE')    # Warm gray - metadata
+        accent_color = colors.HexColor('#EF8354')      # Muted coral - accents
+        bg_color = colors.HexColor('#FAF9F6')          # Off-white - backgrounds
+        divider_color = colors.HexColor('#EDF2F4')     # Light gray - dividers
+
+        # Font fallbacks: Use custom fonts if available, else Helvetica
+        serif_font = 'Lora' if self.fonts_available.get('lora') else 'Helvetica'
+        serif_bold = 'Lora-Bold' if self.fonts_available.get('lora') else 'Helvetica-Bold'
+        sans_font = 'Inter' if self.fonts_available.get('inter') else 'Helvetica'
+        sans_medium = 'Inter-Medium' if self.fonts_available.get('inter') else 'Helvetica-Bold'
+        sans_semibold = 'Inter-SemiBold' if self.fonts_available.get('inter') else 'Helvetica-Bold'
+        sans_bold = 'Inter-Bold' if self.fonts_available.get('inter') else 'Helvetica-Bold'
+        mono_font = 'JetBrainsMono' if self.fonts_available.get('jetbrains') else 'Courier'
+
+        # Level 1: Cookbook Title (48pt serif, bold)
+        self.styles.add(ParagraphStyle(
+            name='CookbookTitle',
+            parent=self.styles['Title'],
+            fontSize=48,
+            textColor=primary_text,
+            spaceAfter=24,
+            spaceBefore=0,
+            alignment=TA_CENTER,
+            fontName=serif_bold,
+            leading=54  # 1.125x line height
+        ))
+
+        # Level 2: Recipe Title (32pt serif, semibold)
         self.styles.add(ParagraphStyle(
             name='RecipeTitle',
             parent=self.styles['Heading1'],
-            fontSize=26,
-            textColor=colors.HexColor('#1A1A1A'),
-            spaceAfter=10,
+            fontSize=32,
+            textColor=primary_text,
+            spaceAfter=12,
+            spaceBefore=0,
             alignment=TA_LEFT,
-            fontName='Helvetica-Bold'
+            fontName=serif_bold,
+            leading=38  # 1.19x line height
         ))
-        
+
+        # Subtitle for recipes (used for description)
         self.styles.add(ParagraphStyle(
             name='RecipeSubtitle',
             parent=self.styles['Normal'],
             fontSize=13,
-            textColor=colors.HexColor('#666666'),
+            textColor=secondary_text,
             spaceBefore=6,
-            spaceAfter=14,
+            spaceAfter=18,
             alignment=TA_LEFT,
-            fontName='Helvetica'
+            fontName=sans_font,
+            leading=18  # 1.4x line height
         ))
-        
+
+        # Level 3: Section Headers (18pt sans-serif bold)
         self.styles.add(ParagraphStyle(
             name='SectionHeader',
             parent=self.styles['Heading2'],
-            fontSize=14,
-            textColor=colors.HexColor('#1A1A1A'),
-            spaceBefore=14,
-            spaceAfter=8,
-            fontName='Helvetica-Bold'
+            fontSize=18,
+            textColor=primary_text,
+            spaceBefore=24,
+            spaceAfter=12,
+            fontName=sans_bold,
+            leading=22  # 1.2x line height
         ))
-        
+
+        # Level 4: Body Text (11pt sans-serif regular)
+        self.styles.add(ParagraphStyle(
+            name='ModernBody',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=primary_text,
+            spaceBefore=0,
+            spaceAfter=6,
+            fontName=sans_font,
+            leading=15  # 1.4x line height
+        ))
+
+        # Ingredients (11pt sans-serif, with custom bullet)
         self.styles.add(ParagraphStyle(
             name='Ingredient',
             parent=self.styles['Normal'],
             fontSize=11,
+            textColor=primary_text,
             leftIndent=0,
             bulletIndent=0,
             spaceBefore=3,
-            spaceAfter=3
+            spaceAfter=3,
+            fontName=sans_font,
+            leading=15
         ))
-        
+
+        # Instructions (11pt sans-serif, justified)
         self.styles.add(ParagraphStyle(
             name='Instruction',
             parent=self.styles['Normal'],
             fontSize=11,
+            textColor=primary_text,
             spaceBefore=6,
             spaceAfter=6,
-            alignment=TA_LEFT
+            alignment=TA_LEFT,
+            fontName=sans_font,
+            leading=16  # Slightly more generous for readability
         ))
-        
+
+        # Instruction number style (accent color)
+        self.styles.add(ParagraphStyle(
+            name='InstructionNumber',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=accent_color,
+            fontName=sans_bold,
+            leading=16
+        ))
+
+        # Level 5: Metadata (9pt sans-serif light)
+        # Use 'Metadata' name for consistency with other templates
         self.styles.add(ParagraphStyle(
             name='Metadata',
             parent=self.styles['Normal'],
-            fontSize=10,
-            textColor=colors.HexColor('#999999'),
-            alignment=TA_LEFT
+            fontSize=9,
+            textColor=secondary_text,
+            alignment=TA_LEFT,
+            fontName=sans_font,
+            spaceBefore=2,
+            spaceAfter=2
         ))
-    
+
+        # Metadata with monospace for measurements/times
+        self.styles.add(ParagraphStyle(
+            name='MetadataMono',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=secondary_text,
+            fontName=mono_font
+        ))
+
+        # Notes/Tips box style
+        self.styles.add(ParagraphStyle(
+            name='NoteText',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=primary_text,
+            fontName=sans_font,
+            leading=14,
+            spaceBefore=6,
+            spaceAfter=6
+        ))
+
+        # Caption style for images
+        self.styles.add(ParagraphStyle(
+            name='ImageCaption',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            textColor=secondary_text,
+            alignment=TA_CENTER,
+            fontName=sans_font,
+            spaceBefore=4,
+            spaceAfter=12
+        ))
+
+        # Store colors for use in builders
+        self.modern_colors = {
+            'primary': primary_text,
+            'secondary': secondary_text,
+            'accent': accent_color,
+            'background': bg_color,
+            'divider': divider_color
+        }
+
+        # Define spacing constants for consistent white space management
+        self.spacing = {
+            'SMALL': 6,      # 6pt - Tight spacing for list items
+            'MEDIUM': 12,    # 12pt - Standard paragraph spacing
+            'LARGE': 24,     # 24pt - Section spacing
+            'XLARGE': 36,    # 36pt - Major section breaks
+            'XXLARGE': 48    # 48pt - Chapter/category breaks
+        }
+
+    @staticmethod
+    def rgb_to_cmyk(r: int, g: int, b: int) -> tuple[float, float, float, float]:
+        """
+        Convert RGB (0-255) to CMYK (0-1) for professional print output.
+
+        Args:
+            r, g, b: RGB values in range 0-255
+
+        Returns:
+            tuple of (c, m, y, k) in range 0-1
+
+        Note: This is a basic conversion. For production printing, consider using
+        ICC color profiles for more accurate color matching.
+        """
+        # Normalize RGB to 0-1 range
+        r_norm, g_norm, b_norm = r / 255.0, g / 255.0, b / 255.0
+
+        # Calculate key (black)
+        k = 1 - max(r_norm, g_norm, b_norm)
+
+        # Handle pure black case
+        if k == 1:
+            return 0.0, 0.0, 0.0, 1.0
+
+        # Calculate CMY
+        c = (1 - r_norm - k) / (1 - k)
+        m = (1 - g_norm - k) / (1 - k)
+        y = (1 - b_norm - k) / (1 - k)
+
+        return c, m, y, k
+
+    @staticmethod
+    def apply_opacity(color: colors.Color, opacity: float) -> colors.Color:
+        """
+        Create a semi-transparent version of a color.
+
+        Args:
+            color: ReportLab Color object
+            opacity: Alpha value (0.0 = fully transparent, 1.0 = fully opaque)
+
+        Returns:
+            New Color object with alpha channel
+
+        Note: Requires PDF transparency support. For cover overlays, 0.3-0.4 opacity works well.
+        """
+        if opacity < 0.0 or opacity > 1.0:
+            raise ValueError(f"Opacity must be between 0.0 and 1.0, got {opacity}")
+
+        # Extract RGB components
+        if hasattr(color, 'red') and hasattr(color, 'green') and hasattr(color, 'blue'):
+            return colors.Color(color.red, color.green, color.blue, alpha=opacity)
+        else:
+            # Fallback for color formats without RGB attributes
+            return color
+
+    def get_color_for_profile(
+        self,
+        color_rgb: tuple[int, int, int],
+        profile: str = 'digital'
+    ) -> colors.Color:
+        """
+        Return appropriate color format based on output profile.
+
+        Args:
+            color_rgb: RGB color as tuple (r, g, b) in range 0-255
+            profile: Output profile ('digital', 'home_print', 'professional_print')
+
+        Returns:
+            Color object in appropriate format (RGB or CMYK)
+        """
+        r, g, b = color_rgb
+
+        if profile == 'professional_print':
+            # Convert to CMYK for professional printing
+            c, m, y, k = self.rgb_to_cmyk(r, g, b)
+            return colors.CMYKColor(c, m, y, k)
+        else:
+            # Use RGB for digital and home print
+            return colors.Color(r / 255.0, g / 255.0, b / 255.0)
+
+    def create_divider_line(
+        self,
+        width: str = "30%",
+        thickness: float = 0.5,
+        color: colors.Color = None,
+        space_before: int = 12,
+        space_after: int = 12
+    ):
+        """
+        Create an elegant horizontal divider line.
+
+        Args:
+            width: Line width (can be percentage like "30%" or absolute like "4*inch")
+            thickness: Line thickness in points (default 0.5pt for subtle effect)
+            color: Line color (defaults to divider color from modern palette)
+            space_before: Spacing before the line in points
+            space_after: Spacing after the line in points
+
+        Returns:
+            HRFlowable object for use in story
+        """
+        from reportlab.platypus import HRFlowable
+
+        if color is None:
+            color = self.modern_colors.get('divider', colors.HexColor('#EDF2F4'))
+
+        return HRFlowable(
+            width=width,
+            thickness=thickness,
+            color=color,
+            spaceBefore=space_before,
+            spaceAfter=space_after,
+            hAlign='CENTER'
+        )
+
+    def create_framed_box(
+        self,
+        content_elements: list,
+        padding: int = 12,
+        border_color: colors.Color = None,
+        border_width: float = 0.5,
+        background_color: colors.Color = None
+    ):
+        """
+        Create a framed box for notes, tips, or variations.
+
+        Args:
+            content_elements: List of Flowable elements to include in the box
+            padding: Internal padding in points
+            border_color: Border color (defaults to divider color)
+            border_width: Border thickness in points
+            background_color: Optional background color (None for transparent)
+
+        Returns:
+            KeepTogether flowable containing a Table with the framed content
+        """
+        from reportlab.platypus import Table, TableStyle, KeepTogether, Spacer
+
+        if border_color is None:
+            border_color = self.modern_colors.get('divider', colors.HexColor('#EDF2F4'))
+
+        # Create table style for the frame
+        table_style = [
+            ('BOX', (0, 0), (-1, -1), border_width, border_color),
+            ('LEFTPADDING', (0, 0), (-1, -1), padding),
+            ('RIGHTPADDING', (0, 0), (-1, -1), padding),
+            ('TOPPADDING', (0, 0), (-1, -1), padding),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), padding),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]
+
+        if background_color:
+            table_style.insert(0, ('BACKGROUND', (0, 0), (-1, -1), background_color))
+
+        # Wrap content in table for framing
+        table = Table([[content_elements]], colWidths=[None])
+        table.setStyle(TableStyle(table_style))
+
+        # Keep together to avoid page breaks within the box
+        return KeepTogether([table])
+
+    def create_pull_quote(
+        self,
+        quote_text: str,
+        author: str = None,
+        style_name: str = None
+    ):
+        """
+        Create a pull quote for chef's notes or special highlights.
+
+        Args:
+            quote_text: The quote text
+            author: Optional author attribution
+            style_name: Style to use (defaults to appropriate modern style)
+
+        Returns:
+            List of Flowable elements (quote + optional attribution)
+        """
+        from reportlab.platypus import Paragraph, Spacer
+
+        if style_name is None:
+            # Use NoteText style if available, otherwise create inline
+            if 'NoteText' in self.styles:
+                quote_style = self.styles['NoteText']
+            else:
+                # Fallback inline style
+                quote_style = ParagraphStyle(
+                    'PullQuote',
+                    parent=self.styles['Normal'],
+                    fontSize=11,
+                    textColor=self.modern_colors.get('secondary', colors.HexColor('#8D99AE')),
+                    leftIndent=24,
+                    rightIndent=24,
+                    spaceBefore=12,
+                    spaceAfter=6,
+                    leading=16
+                )
+        else:
+            quote_style = self.styles.get(style_name, self.styles['Normal'])
+
+        elements = []
+
+        # Add the quote with subtle italic emphasis
+        quote_para = Paragraph(f'<i>"{quote_text}"</i>', quote_style)
+        elements.append(quote_para)
+
+        # Add author attribution if provided
+        if author:
+            author_style = ParagraphStyle(
+                'QuoteAuthor',
+                parent=self.styles['Normal'],
+                fontSize=9,
+                textColor=self.modern_colors.get('secondary', colors.HexColor('#8D99AE')),
+                leftIndent=24,
+                rightIndent=24,
+                alignment=TA_RIGHT,
+                spaceAfter=12
+            )
+            author_para = Paragraph(f'— {author}', author_style)
+            elements.append(author_para)
+
+        return elements
+
     def _apply_minimalist_styles(self):
         """Apply minimalist styling"""
         # Basic minimalist styles until full implementation with artist input
@@ -619,77 +1034,275 @@ class PDFStyleManager:
 
 
 class PDFImageHandler:
-    """Handles image processing for PDF generation"""
-    
-    @staticmethod
-    def process_image(image_path: str, max_width: float = 4 * inch, 
-                      max_height: float = 3 * inch) -> Optional[RLImage]:
-        """Process and resize image for PDF inclusion"""
+    """Handles image processing for PDF generation with caching"""
+
+    def __init__(self, config: 'PDFConfig'):
+        """
+        Initialize image handler with cache and profile configuration.
+
+        Args:
+            config: PDFConfig with profile-specific settings (image_quality, color_mode)
+        """
+        self.config = config
+        self._image_cache: dict[str, tuple[str, RLImage]] = {}  # url -> (temp_path, image)
+        self._temp_files: list[str] = []  # Track all temp files for cleanup
+
+    def _optimize_image(self, source_path: str) -> str:
+        """
+        Optimize image based on output profile (quality and color mode).
+
+        Args:
+            source_path: Path to source image file
+
+        Returns:
+            Path to optimized image (may be same as source if no optimization needed)
+        """
+        try:
+            from PIL import Image as PILImage
+            import tempfile
+
+            # Open image with PIL
+            with PILImage.open(source_path) as img:
+                # Convert to RGB if needed (handles RGBA, grayscale, etc.)
+                if img.mode not in ('RGB', 'CMYK'):
+                    img = img.convert('RGB')
+
+                # Apply profile-specific optimizations
+                if self.config.color_mode == 'CMYK' and img.mode != 'CMYK':
+                    # Convert to CMYK for professional print
+                    img = img.convert('CMYK')
+                    logger.debug(f"Converted image to CMYK for {self.config.profile.value} profile")
+                elif self.config.color_mode == 'RGB' and img.mode != 'RGB':
+                    # Ensure RGB for digital/home print
+                    img = img.convert('RGB')
+
+                # Save with profile-specific quality
+                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                    img.save(tmp.name, 'JPEG', quality=self.config.image_quality, optimize=True)
+                    optimized_path = tmp.name
+
+                self._temp_files.append(optimized_path)
+                logger.debug(f"Optimized image: quality={self.config.image_quality}, mode={self.config.color_mode}")
+                return optimized_path
+
+        except Exception as e:
+            logger.warning(f"Image optimization failed, using original: {e}")
+            return source_path
+
+    def process_image(self, image_path: str, max_width: float = 4 * inch,
+                      max_height: float = 3 * inch, maintain_aspect: bool = True,
+                      apply_profile_optimization: bool = True) -> Optional[RLImage]:
+        """
+        Process and resize image for PDF inclusion.
+
+        Args:
+            image_path: Path to image file
+            max_width: Maximum width in points
+            max_height: Maximum height in points
+            maintain_aspect: Whether to maintain aspect ratio (default True)
+            apply_profile_optimization: Apply profile-specific quality/color (default True)
+
+        Returns:
+            RLImage object or None if processing fails
+        """
         try:
             if not image_path or not Path(image_path).exists():
                 return None
-            
+
+            # Apply profile-specific optimization if requested
+            if apply_profile_optimization:
+                image_path = self._optimize_image(image_path)
+
             img = RLImage(image_path)
-            
+
             # Calculate scaling to fit within max dimensions
             img_width = img.drawWidth
             img_height = img.drawHeight
-            
-            width_scale = max_width / img_width if img_width > max_width else 1
-            height_scale = max_height / img_height if img_height > max_height else 1
-            scale = min(width_scale, height_scale)
-            
-            if scale < 1:
-                img.drawWidth *= scale
-                img.drawHeight *= scale
-            
+
+            if maintain_aspect:
+                # Scale proportionally to fit
+                width_scale = max_width / img_width if img_width > max_width else 1
+                height_scale = max_height / img_height if img_height > max_height else 1
+                scale = min(width_scale, height_scale)
+
+                if scale < 1:
+                    img.drawWidth *= scale
+                    img.drawHeight *= scale
+            else:
+                # Fill to exact dimensions (may distort)
+                img.drawWidth = max_width
+                img.drawHeight = max_height
+
             return img
-            
+
         except Exception as e:
             logger.error(f"Error processing image {image_path}: {e}")
             return None
-    
-    @staticmethod
-    def get_image_from_url(url: str, max_width: float = 4 * inch,
-                          max_height: float = 3 * inch) -> Optional[RLImage]:
-        """Download and process image from URL"""
+
+    def get_cover_image(self, url: str, page_width: float, page_height: float,
+                       cover_fit: str = 'cover') -> Optional[RLImage]:
+        """
+        Download and process full-page cover image.
+
+        Args:
+            url: Image URL
+            page_width: Full page width in points
+            page_height: Full page height in points
+            cover_fit: 'cover' (fill page, crop excess) or 'contain' (fit within page)
+
+        Returns:
+            RLImage sized for full-page cover or None if fails
+        """
         try:
             import requests
             from PIL import Image as PILImage
             import tempfile
-            
+
+            # Check cache first
+            if url in self._image_cache:
+                cached_path, _ = self._image_cache[url]
+                logger.debug(f"Using cached cover image for {url}")
+                # Re-process from cache with cover dimensions
+                return self._process_cover_from_path(cached_path, page_width, page_height, cover_fit)
+
+            # Download image
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                tmp.write(response.content)
+                tmp_path = tmp.name
+
+            self._temp_files.append(tmp_path)
+
+            # Process as cover image
+            img = self._process_cover_from_path(tmp_path, page_width, page_height, cover_fit)
+
+            if img:
+                img._temp_file_path = tmp_path
+                # Cache the downloaded file path
+                self._image_cache[url] = (tmp_path, img)
+                logger.info(f"Downloaded and cached cover image from {url}")
+            else:
+                Path(tmp_path).unlink(missing_ok=True)
+                self._temp_files.remove(tmp_path)
+
+            return img
+
+        except Exception as e:
+            logger.error(f"Error downloading cover image from {url}: {e}")
+            return None
+
+    def _process_cover_from_path(self, image_path: str, page_width: float,
+                                page_height: float, cover_fit: str) -> Optional[RLImage]:
+        """Process image for full-page cover with profile optimization"""
+        try:
+            from PIL import Image as PILImage
+
+            # Apply profile-specific optimization
+            optimized_path = self._optimize_image(image_path)
+
+            # Open with PIL to get actual dimensions
+            with PILImage.open(optimized_path) as pil_img:
+                img_width, img_height = pil_img.size
+
+            # Create ReportLab image
+            img = RLImage(optimized_path)
+
+            if cover_fit == 'cover':
+                # Fill entire page (crop if needed)
+                width_ratio = page_width / img_width
+                height_ratio = page_height / img_height
+                scale = max(width_ratio, height_ratio)  # Use max to cover entire page
+            else:  # 'contain'
+                # Fit within page (may have borders)
+                width_ratio = page_width / img_width
+                height_ratio = page_height / img_height
+                scale = min(width_ratio, height_ratio)
+
+            img.drawWidth = img_width * scale
+            img.drawHeight = img_height * scale
+
+            return img
+
+        except Exception as e:
+            logger.error(f"Error processing cover image {image_path}: {e}")
+            return None
+
+    def get_image_from_url(self, url: str, max_width: float = 4 * inch,
+                          max_height: float = 3 * inch) -> Optional[RLImage]:
+        """
+        Download and process image from URL with caching.
+
+        Args:
+            url: Image URL
+            max_width: Maximum width in points (default 4 inches)
+            max_height: Maximum height in points (default 3 inches)
+
+        Returns:
+            RLImage object or None if download/processing fails
+        """
+        try:
+            import requests
+            import tempfile
+
+            # Check cache first
+            if url in self._image_cache:
+                cached_path, _ = self._image_cache[url]
+                logger.debug(f"Using cached image for {url}")
+                return self.process_image(cached_path, max_width, max_height)
+
+            # Download image
             response = requests.get(url, timeout=10)
             response.raise_for_status()
-            
+
             # Save to temporary file (don't delete yet - ReportLab needs the file to exist)
             with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
                 tmp.write(response.content)
                 tmp_path = tmp.name
-            
+
+            self._temp_files.append(tmp_path)
+
             # Process the image
-            img = PDFImageHandler.process_image(tmp_path, max_width, max_height)
-            
+            img = self.process_image(tmp_path, max_width, max_height)
+
             # Store cleanup path in image object for later cleanup
             if img:
                 img._temp_file_path = tmp_path
+                # Cache for reuse
+                self._image_cache[url] = (tmp_path, img)
+                logger.info(f"Downloaded and cached image from {url}")
             else:
                 # If image processing failed, clean up immediately
                 Path(tmp_path).unlink(missing_ok=True)
-            
+                self._temp_files.remove(tmp_path)
+
             return img
-            
+
         except Exception as e:
             logger.error(f"Error downloading image from {url}: {e}")
             return None
 
+    def cleanup_temp_files(self):
+        """Clean up all temporary image files"""
+        for tmp_path in self._temp_files:
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp file {tmp_path}: {e}")
+
+        self._temp_files.clear()
+        self._image_cache.clear()
+
 
 class RecipePDFBuilder:
     """Builds PDF for individual recipes"""
-    
+
     def __init__(self, config: PDFConfig = None):
         self.config = config or PDFConfig()
         self.style_manager = PDFStyleManager(self.config.template)
-        self.image_handler = PDFImageHandler()
+        self.image_handler = PDFImageHandler(self.config)
     
     def build_recipe_pdf(self, recipe: Dict[str, Any]) -> bytes:
         """Generate PDF for a single recipe"""
@@ -741,20 +1354,71 @@ class RecipePDFBuilder:
             ))
         
         story.append(Spacer(1, 0.3 * inch))
-        
+
         # Add main image if available and configured
         if self.config.include_images and recipe.get('images'):
             main_image = recipe['images'][0]
             img = None
-            
+
+            # Modern template uses larger hero images (5" × 4")
+            if self.config.template == PDFTemplate.MODERN:
+                max_width = 5 * inch
+                max_height = 4 * inch
+            else:
+                max_width = 4 * inch
+                max_height = 3 * inch
+
             if main_image.get('cloudinary_url'):
-                img = self.image_handler.get_image_from_url(main_image['cloudinary_url'])
+                img = self.image_handler.get_image_from_url(
+                    main_image['cloudinary_url'],
+                    max_width,
+                    max_height
+                )
             elif main_image.get('image_url'):
-                img = self.image_handler.get_image_from_url(main_image['image_url'])
-            
+                img = self.image_handler.get_image_from_url(
+                    main_image['image_url'],
+                    max_width,
+                    max_height
+                )
+
             if img:
-                story.append(img)
-                story.append(Spacer(1, 0.2 * inch))
+                # Modern template: center image and add border
+                if self.config.template == PDFTemplate.MODERN:
+                    # Create framed image with border
+                    from reportlab.platypus import Table, TableStyle
+
+                    # Wrap image in table for centering and border
+                    image_table = Table(
+                        [[img]],
+                        colWidths=[img.drawWidth],
+                        rowHeights=[img.drawHeight]
+                    )
+                    image_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('BOX', (0, 0), (-1, -1), 0.5, self.style_manager.modern_colors.get('divider', colors.HexColor('#EDF2F4'))),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 6),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ]))
+
+                    story.append(image_table)
+
+                    # Add caption if available
+                    caption = main_image.get('caption') or main_image.get('alt_text')
+                    if caption:
+                        story.append(Spacer(1, 0.1 * inch))
+                        story.append(Paragraph(
+                            caption,
+                            self.style_manager.styles.get('ImageCaption', self.style_manager.styles['Normal'])
+                        ))
+
+                    story.append(Spacer(1, 0.3 * inch))
+                else:
+                    # Classic template: simple image
+                    story.append(img)
+                    story.append(Spacer(1, 0.2 * inch))
         
         # Add ingredients section
         story.append(Paragraph('Ingredients', self.style_manager.styles['SectionHeader']))
@@ -783,19 +1447,66 @@ class RecipePDFBuilder:
         # Add instructions section
         story.append(Paragraph('Instructions', self.style_manager.styles['SectionHeader']))
         story.append(Spacer(1, 0.1 * inch))
-        
+
         instructions = recipe.get('instructions', [])
         for i, instruction in enumerate(instructions, 1):
             if isinstance(instruction, dict):
                 inst_text = instruction.get('text', '')
+                inst_image_url = instruction.get('cloudinary_url') or instruction.get('image_url')
             else:
                 inst_text = str(instruction)
-            
-            story.append(Paragraph(
-                f"{i}. {inst_text}",
-                self.style_manager.styles['Instruction']
-            ))
-            story.append(Spacer(1, 0.1 * inch))
+                inst_image_url = None
+
+            # Modern template: inline images with instructions
+            if self.config.template == PDFTemplate.MODERN and self.config.include_images and inst_image_url:
+                from reportlab.platypus import Table, TableStyle
+
+                # Get small inline image (2" × 1.5")
+                inst_img = self.image_handler.get_image_from_url(
+                    inst_image_url,
+                    max_width=2 * inch,
+                    max_height=1.5 * inch
+                )
+
+                if inst_img:
+                    # Create table with image on left, text on right
+                    instruction_para = Paragraph(
+                        f"<b>{i}.</b> {inst_text}",
+                        self.style_manager.styles['Instruction']
+                    )
+
+                    inst_table = Table(
+                        [[inst_img, instruction_para]],
+                        colWidths=[inst_img.drawWidth + 12, None],  # Image width + padding, rest for text
+                        spaceBefore=6,
+                        spaceAfter=6
+                    )
+                    inst_table.setStyle(TableStyle([
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('LEFTPADDING', (0, 0), (0, 0), 0),
+                        ('RIGHTPADDING', (0, 0), (0, 0), 6),
+                        ('LEFTPADDING', (1, 0), (1, 0), 6),
+                        ('RIGHTPADDING', (1, 0), (1, 0), 0),
+                        ('TOPPADDING', (0, 0), (-1, -1), 3),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                    ]))
+
+                    story.append(inst_table)
+                    story.append(Spacer(1, 0.15 * inch))
+                else:
+                    # Image failed to load, use text only
+                    story.append(Paragraph(
+                        f"{i}. {inst_text}",
+                        self.style_manager.styles['Instruction']
+                    ))
+                    story.append(Spacer(1, 0.1 * inch))
+            else:
+                # Classic template or no image: simple numbered instruction
+                story.append(Paragraph(
+                    f"{i}. {inst_text}",
+                    self.style_manager.styles['Instruction']
+                ))
+                story.append(Spacer(1, 0.1 * inch))
         
         # Add notes if configured and present
         if self.config.include_notes and recipe.get('notes'):
@@ -862,13 +1573,15 @@ class RecipePDFBuilder:
 
 class BookRecipePDFBuilder:
     """Builds PDF for recipes using elegant book-style layout with two columns"""
-    
+
     def __init__(self, config: PDFConfig = None):
-        self.config = config or PDFConfig()
+        from copy import deepcopy
+        # Create a deep copy to avoid mutating the original config
+        self.config = deepcopy(config) if config else PDFConfig()
         # Force book template for this builder
         self.config.template = PDFTemplate.BOOK
         self.style_manager = PDFStyleManager(self.config.template)
-        self.image_handler = PDFImageHandler()
+        self.image_handler = PDFImageHandler(self.config)
     
     def build_recipe_pdf(self, recipe: Dict[str, Any]) -> bytes:
         """Generate elegant book-style PDF for a single recipe"""
@@ -1156,11 +1869,11 @@ class BookRecipePDFBuilder:
 
 class CookbookPDFBuilder:
     """Builds PDF for complete cookbooks"""
-    
+
     def __init__(self, config: PDFConfig = None):
         self.config = config or PDFConfig()
         self.style_manager = PDFStyleManager(self.config.template)
-        self.image_handler = PDFImageHandler()
+        self.image_handler = PDFImageHandler(self.config)
         self.recipe_builder = RecipePDFBuilder(config)
     
     def build_cookbook_pdf(self, cookbook: Dict[str, Any], recipes: List[Dict[str, Any]]) -> bytes:
@@ -1238,10 +1951,18 @@ class CookbookPDFBuilder:
     def _build_cover_page(self, cookbook: Dict[str, Any]) -> List:
         """Build cookbook cover page"""
         elements = []
-        
+
+        # Modern template with cover image
+        if self.config.template == PDFTemplate.MODERN and cookbook.get('cover_image_url'):
+            cover_flowable = self._create_modern_cover(cookbook)
+            if cover_flowable:
+                elements.append(cover_flowable)
+                return elements
+
+        # Classic/fallback cover page (text-based)
         # Add some spacing
         elements.append(Spacer(1, 2 * inch))
-        
+
         # Title
         title_style = ParagraphStyle(
             'CoverTitle',
@@ -1255,7 +1976,7 @@ class CookbookPDFBuilder:
             cookbook.get('title', 'Cookbook'),
             title_style
         ))
-        
+
         # Author
         if cookbook.get('author'):
             author_style = ParagraphStyle(
@@ -1271,7 +1992,7 @@ class CookbookPDFBuilder:
                 f"by {cookbook['author']}",
                 author_style
             ))
-        
+
         # Description
         if cookbook.get('description'):
             elements.append(Spacer(1, 0.5 * inch))
@@ -1287,10 +2008,10 @@ class CookbookPDFBuilder:
                 sanitize_html_for_reportlab(cookbook['description']),
                 desc_style
             ))
-        
+
         # Publication info
         elements.append(Spacer(1, 2 * inch))
-        
+
         pub_info = []
         if cookbook.get('publisher'):
             pub_info.append(cookbook['publisher'])
@@ -1300,7 +2021,7 @@ class CookbookPDFBuilder:
                 pub_info.append(pub_date[:4])  # Just year
             else:
                 pub_info.append(str(pub_date.year))
-        
+
         if pub_info:
             pub_style = ParagraphStyle(
                 'PublicationInfo',
@@ -1313,40 +2034,243 @@ class CookbookPDFBuilder:
                 " • ".join(pub_info),
                 pub_style
             ))
-        
+
         return elements
+
+    def _create_modern_cover(self, cookbook: Dict[str, Any]):
+        """Create modern cover page with full-page image and title overlay"""
+        from reportlab.platypus import Flowable
+
+        class ModernCoverPage(Flowable):
+            """Custom flowable for full-page cover with image and text overlay"""
+
+            def __init__(self, cookbook, image_handler, style_manager, page_width, page_height):
+                Flowable.__init__(self)
+                self.cookbook = cookbook
+                self.image_handler = image_handler
+                self.style_manager = style_manager
+                self.page_width = page_width
+                self.page_height = page_height
+                # Report zero size so this doesn't interfere with frame layout
+                # The actual drawing uses absolute page coordinates
+                self.width = 0
+                self.height = 0
+
+            def draw(self):
+                """Draw the cover page on canvas using absolute page coordinates"""
+                canvas = self.canv
+                pw = self.page_width
+                ph = self.page_height
+
+                # Save graphics state and reset transforms to draw at absolute coords
+                canvas.saveState()
+                canvas.resetTransforms()
+
+                # Download and draw full-page cover image
+                cover_url = self.cookbook.get('cover_image_url')
+                if cover_url:
+                    try:
+                        cover_img = self.image_handler.get_cover_image(
+                            cover_url, pw, ph, cover_fit='cover'
+                        )
+                        if cover_img:
+                            img_x = (pw - cover_img.drawWidth) / 2
+                            img_y = (ph - cover_img.drawHeight) / 2
+                            cover_img.drawOn(canvas, img_x, img_y)
+                    except Exception as e:
+                        logger.error(f"Failed to draw cover image: {e}")
+
+                # Draw semi-transparent overlay for text readability
+                overlay_color = self.style_manager.apply_opacity(colors.black, 0.35)
+                canvas.setFillColor(overlay_color)
+                canvas.rect(0, 0, pw, ph, fill=1, stroke=0)
+
+                # Draw title text
+                title = self.cookbook.get('title', 'Cookbook')
+                canvas.setFillColor(colors.white)
+                try:
+                    canvas.setFont('Lora-Bold', 48)
+                    font_name = 'Lora-Bold'
+                except KeyError:
+                    canvas.setFont('Helvetica-Bold', 48)
+                    font_name = 'Helvetica-Bold'
+
+                title_y = ph * 0.65
+                title_width = canvas.stringWidth(title, font_name, 48)
+                title_x = (pw - title_width) / 2
+                canvas.drawString(title_x, title_y, title)
+
+                # Draw author if present
+                author = self.cookbook.get('author')
+                if author:
+                    author_text = f"by {author}"
+                    try:
+                        canvas.setFont('Inter', 18)
+                        author_font = 'Inter'
+                    except KeyError:
+                        canvas.setFont('Helvetica', 18)
+                        author_font = 'Helvetica'
+
+                    author_y = title_y - 36
+                    author_width = canvas.stringWidth(author_text, author_font, 18)
+                    author_x = (pw - author_width) / 2
+                    canvas.drawString(author_x, author_y, author_text)
+
+                # Draw publication info at bottom
+                pub_info = []
+                if self.cookbook.get('publisher'):
+                    pub_info.append(self.cookbook['publisher'])
+                if self.cookbook.get('publication_date'):
+                    pub_date = self.cookbook['publication_date']
+                    if isinstance(pub_date, str):
+                        pub_info.append(pub_date[:4])
+                    else:
+                        pub_info.append(str(pub_date.year))
+
+                if pub_info:
+                    pub_text = " • ".join(pub_info)
+                    try:
+                        canvas.setFont('Inter', 10)
+                        pub_font = 'Inter'
+                    except KeyError:
+                        canvas.setFont('Helvetica', 10)
+                        pub_font = 'Helvetica'
+
+                    pub_y = 0.75 * inch
+                    pub_width = canvas.stringWidth(pub_text, pub_font, 10)
+                    pub_x = (pw - pub_width) / 2
+                    canvas.drawString(pub_x, pub_y, pub_text)
+
+                # Restore graphics state
+                canvas.restoreState()
+
+        # Get page size
+        page_size = letter if self.config.page_size == PageSize.LETTER else A4
+        page_width, page_height = page_size
+
+        # Create and return the custom flowable
+        return ModernCoverPage(
+            cookbook,
+            self.image_handler,
+            self.style_manager,
+            page_width,
+            page_height
+        )
     
     def _build_table_of_contents(self, recipes: List[Dict[str, Any]]) -> List:
         """Build table of contents"""
         elements = []
-        
-        # TOC Title
-        toc_title_style = ParagraphStyle(
-            'TOCTitle',
-            parent=self.style_manager.styles['Heading1'],
-            fontSize=24,
-            alignment=TA_CENTER,
-            spaceAfter=24
-        )
-        elements.append(Paragraph('Table of Contents', toc_title_style))
-        
-        # Recipe entries
-        toc_entry_style = ParagraphStyle(
-            'TOCEntry',
-            parent=self.style_manager.styles['Normal'],
-            fontSize=11,
-            leftIndent=0.5 * inch,
-            spaceBefore=4,
-            spaceAfter=4
-        )
-        
-        for i, recipe in enumerate(recipes, 1):
-            # Simple numbering for now - would need real page numbers in production
-            entry = f"{i}. {recipe.get('title', 'Untitled Recipe')}"
-            elements.append(Paragraph(entry, toc_entry_style))
-        
+
+        # Modern template: clean, minimal TOC with generous spacing
+        if self.config.template == PDFTemplate.MODERN:
+            # TOC Title - use serif, larger, more breathing room
+            toc_title_style = ParagraphStyle(
+                'ModernTOCTitle',
+                parent=self.style_manager.styles.get('CookbookTitle', self.style_manager.styles['Heading1']),
+                fontSize=36,
+                alignment=TA_CENTER,
+                spaceAfter=48,  # More space for modern design
+                spaceBefore=24
+            )
+            elements.append(Paragraph('Contents', toc_title_style))
+
+            # Recipe entries - clean, minimal
+            toc_entry_style = ParagraphStyle(
+                'ModernTOCEntry',
+                parent=self.style_manager.styles.get('ModernBody', self.style_manager.styles['Normal']),
+                fontSize=12,
+                leftIndent=0,
+                spaceBefore=8,
+                spaceAfter=8,
+                leading=18
+            )
+
+            for i, recipe in enumerate(recipes, 1):
+                title = recipe.get('title', 'Untitled Recipe')
+                # Simple format: recipe number and title (no dot leaders for minimalist style)
+                entry = f"{i}. {title}"
+                elements.append(Paragraph(entry, toc_entry_style))
+
+        else:
+            # Classic TOC style
+            toc_title_style = ParagraphStyle(
+                'TOCTitle',
+                parent=self.style_manager.styles['Heading1'],
+                fontSize=24,
+                alignment=TA_CENTER,
+                spaceAfter=24
+            )
+            elements.append(Paragraph('Table of Contents', toc_title_style))
+
+            # Recipe entries
+            toc_entry_style = ParagraphStyle(
+                'TOCEntry',
+                parent=self.style_manager.styles['Normal'],
+                fontSize=11,
+                leftIndent=0.5 * inch,
+                spaceBefore=4,
+                spaceAfter=4
+            )
+
+            for i, recipe in enumerate(recipes, 1):
+                # Simple numbering for now - would need real page numbers in production
+                entry = f"{i}. {recipe.get('title', 'Untitled Recipe')}"
+                elements.append(Paragraph(entry, toc_entry_style))
+
         return elements
-    
+
+    def _build_section_divider(self, category_name: str) -> List:
+        """
+        Build a section divider page for recipe categories (e.g., "Appetizers", "Main Courses").
+        Modern template uses minimal, elegant divider with generous white space.
+        """
+        elements = []
+
+        if self.config.template == PDFTemplate.MODERN:
+            # Add generous spacing at top
+            elements.append(Spacer(1, 3 * inch))
+
+            # Category name - large serif, centered
+            divider_style = ParagraphStyle(
+                'ModernSectionDivider',
+                parent=self.style_manager.styles.get('RecipeTitle', self.style_manager.styles['Heading1']),
+                fontSize=32,
+                textColor=self.style_manager.modern_colors.get('primary', colors.HexColor('#2B2D42')),
+                alignment=TA_CENTER,
+                spaceBefore=0,
+                spaceAfter=24,
+                leading=38
+            )
+            elements.append(Paragraph(category_name, divider_style))
+
+            # Subtle decorative line
+            from reportlab.platypus import HRFlowable
+            line = HRFlowable(
+                width="30%",
+                thickness=0.5,
+                color=self.style_manager.modern_colors.get('divider', colors.HexColor('#EDF2F4')),
+                spaceAfter=0,
+                spaceBefore=12,
+                hAlign='CENTER'
+            )
+            elements.append(line)
+
+        else:
+            # Classic template: simple category header
+            elements.append(Spacer(1, 1 * inch))
+
+            divider_style = ParagraphStyle(
+                'SectionDivider',
+                parent=self.style_manager.styles['Heading1'],
+                fontSize=24,
+                alignment=TA_CENTER,
+                spaceAfter=12
+            )
+            elements.append(Paragraph(category_name, divider_style))
+            elements.append(Spacer(1, 0.5 * inch))
+
+        return elements
+
     def _build_recipe_section(self, recipe: Dict[str, Any]) -> List:
         """Build a recipe section for the cookbook"""
         elements = []
@@ -1473,17 +2397,33 @@ class CookbookPDFBuilder:
     def _add_page_number(self, canvas_obj, doc):
         """Add page numbers to the document"""
         canvas_obj.saveState()
-        canvas_obj.setFont('Helvetica', 9)
-        canvas_obj.setFillColor(colors.HexColor('#7F8C8D'))
-        
+
         # Get page size
         page_width = letter[0] if self.config.page_size == PageSize.LETTER else A4[0]
-        
-        # Add page number at bottom center
         page_num = canvas_obj.getPageNumber()
-        text = f"Page {page_num}"
-        canvas_obj.drawCentredString(page_width / 2, 0.5 * inch, text)
-        
+
+        # Modern template: minimalist page numbers
+        if self.config.template == PDFTemplate.MODERN:
+            # Use Inter font if available, cleaner styling
+            try:
+                canvas_obj.setFont('Inter', 9)
+            except KeyError:
+                canvas_obj.setFont('Helvetica', 9)
+
+            # Use secondary text color from modern palette
+            canvas_obj.setFillColor(self.style_manager.modern_colors.get('secondary', colors.HexColor('#8D99AE')))
+
+            # Just the number, no "Page" prefix for minimalism
+            text = str(page_num)
+            canvas_obj.drawCentredString(page_width / 2, 0.5 * inch, text)
+
+        else:
+            # Classic template: traditional page numbers
+            canvas_obj.setFont('Helvetica', 9)
+            canvas_obj.setFillColor(colors.HexColor('#7F8C8D'))
+            text = f"Page {page_num}"
+            canvas_obj.drawCentredString(page_width / 2, 0.5 * inch, text)
+
         canvas_obj.restoreState()
 
 
@@ -1499,39 +2439,52 @@ class PDFService:
     def generate_recipe_pdf(self, recipe: Dict[str, Any], config: PDFConfig = None) -> bytes:
         """Generate PDF for a single recipe"""
         active_config = config or self.config
-        
+
         # Use print-ready builder for print-ready PDFs
         if active_config.print_ready:
             from app.services.print_pdf_builder import PrintReadyPDFBuilder
             print_builder = PrintReadyPDFBuilder(active_config)
             return print_builder.build_recipe_pdf(recipe)
-        
+
         # Use book-style builder for book template
         elif active_config.template == PDFTemplate.BOOK:
             if config:
                 self.book_recipe_builder.config = config
+                # Reinitialize style_manager and image_handler with new config
+                self.book_recipe_builder.style_manager = PDFStyleManager(config.template)
+                self.book_recipe_builder.image_handler = PDFImageHandler(config)
             return self.book_recipe_builder.build_recipe_pdf(recipe)
         else:
             if config:
                 self.recipe_builder.config = config
+                # Reinitialize style_manager and image_handler with new config
+                self.recipe_builder.style_manager = PDFStyleManager(config.template)
+                self.recipe_builder.image_handler = PDFImageHandler(config)
             return self.recipe_builder.build_recipe_pdf(recipe)
     
-    def generate_cookbook_pdf(self, cookbook: Dict[str, Any], 
-                            recipes: List[Dict[str, Any]], 
+    def generate_cookbook_pdf(self, cookbook: Dict[str, Any],
+                            recipes: List[Dict[str, Any]],
                             config: PDFConfig = None) -> bytes:
         """Generate PDF for a complete cookbook"""
         active_config = config or self.config
-        
+
         # Use print-ready builder for print-ready PDFs
         if active_config.print_ready:
             from app.services.print_pdf_builder import PrintReadyPDFBuilder
             print_builder = PrintReadyPDFBuilder(active_config)
             return print_builder.build_cookbook_pdf(cookbook, recipes)
-        
+
         # Use standard cookbook builder
         if config:
             self.cookbook_builder.config = config
-        
+            # Reinitialize style_manager and image_handler with new config
+            self.cookbook_builder.style_manager = PDFStyleManager(config.template)
+            self.cookbook_builder.image_handler = PDFImageHandler(config)
+            # Also update the nested recipe builder
+            self.cookbook_builder.recipe_builder.config = config
+            self.cookbook_builder.recipe_builder.style_manager = PDFStyleManager(config.template)
+            self.cookbook_builder.recipe_builder.image_handler = PDFImageHandler(config)
+
         return self.cookbook_builder.build_cookbook_pdf(cookbook, recipes)
     
     def generate_recipe_collection_pdf(self, recipes: List[Dict[str, Any]], 

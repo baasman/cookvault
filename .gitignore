@@ -122,3 +122,6 @@ docs/.doctrees/
 # Pipfile.lock
 LULU_INTEGRATION.yaml
 .env.lulu.example
+backend/test_output/*
+
+deprecated/

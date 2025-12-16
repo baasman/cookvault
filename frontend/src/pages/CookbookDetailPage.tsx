@@ -233,21 +233,25 @@ const CookbookDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Owner Actions - only show for cookbook owners */}
-            {isAuthenticated && cookbook.user_id === parseInt(user?.id || '0') && (
+            {/* Actions - show for cookbook owners OR for any authenticated user on Google Books cookbooks */}
+            {isAuthenticated && (
+              cookbook.user_id === parseInt(user?.id || '0') ||
+              cookbook.is_google_books
+            ) && (
               <div className="flex justify-center gap-3 mb-6">
                 {/* Add Recipe Dropdown */}
                 <div className="relative">
                   <div className="flex">
                     <Button
                       onClick={() => navigate(`/upload?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`)}
-                      className="bg-blue-600 text-white hover:bg-blue-700 rounded-r-none"
+                      className="rounded-r-none"
                     >
                       Upload New Recipe
                     </Button>
                     <button
                       onClick={() => setShowAddRecipeDropdown(!showAddRecipeDropdown)}
-                      className="bg-blue-600 text-white hover:bg-blue-700 px-3 border-l border-blue-500 rounded-r-lg"
+                      className="text-white px-3 border-l border-white/20 rounded-r-lg"
+                      style={{ backgroundColor: '#f15f1c' }}
                       aria-label="More recipe options"
                     >
                       <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -288,14 +292,16 @@ const CookbookDetailPage: React.FC = () => {
                       cookbookId={cookbookId}
                       buttonText="Export to PDF"
                       showOptions={true}
-                      className="bg-green-600 hover:bg-green-700"
                     />
-                    <PrintOrderButton
-                      cookbookId={cookbookId!}
-                      cookbookTitle={cookbook.title}
-                      buttonText="Order Print Copy"
-                      variant="primary"
-                    />
+                    {/* Only show print button for user-owned cookbooks, not Google Books */}
+                    {!cookbook.is_google_books && (
+                      <PrintOrderButton
+                        cookbookId={cookbookId!}
+                        cookbookTitle={cookbook.title}
+                        buttonText="Order Print Copy"
+                        variant="primary"
+                      />
+                    )}
                   </>
                 )}
               </div>
@@ -311,14 +317,16 @@ const CookbookDetailPage: React.FC = () => {
                   cookbookId={cookbookId}
                   buttonText="Export to PDF"
                   showOptions={true}
-                  className="bg-green-600 hover:bg-green-700"
                 />
-                <PrintOrderButton
-                  cookbookId={cookbookId!}
-                  cookbookTitle={cookbook.title}
-                  buttonText="Order Print Copy"
-                  variant="primary"
-                />
+                {/* Only show print button for user-owned cookbooks, not Google Books */}
+                {!cookbook.is_google_books && (
+                  <PrintOrderButton
+                    cookbookId={cookbookId!}
+                    cookbookTitle={cookbook.title}
+                    buttonText="Order Print Copy"
+                    variant="primary"
+                  />
+                )}
               </div>
             )}
           </div>
@@ -404,8 +412,11 @@ const CookbookDetailPage: React.FC = () => {
               })
               .map((recipe) => (
                 <div key={recipe.id} className="relative group">
-                  {/* Remove Button - Only show for cookbook owners */}
-                  {isAuthenticated && cookbook.user_id === parseInt(user?.id || '0') && (
+                  {/* Remove Button - Show for cookbook owners OR for own recipes in Google Books cookbooks */}
+                  {isAuthenticated && (
+                    cookbook.user_id === parseInt(user?.id || '0') ||
+                    (cookbook.is_google_books && recipe.user_id === parseInt(user?.id || '0'))
+                  ) && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -505,10 +516,12 @@ const CookbookDetailPage: React.FC = () => {
               {searchTerm ? 'No matching recipes found' : 'No recipes available'}
             </h3>
             <p className="text-text-secondary mb-4">
-              {searchTerm 
+              {searchTerm
                 ? `No recipes match "${searchTerm}" in this cookbook.`
-                : isAuthenticated 
-                ? "This cookbook doesn't have any recipes yet."
+                : isAuthenticated
+                ? cookbook.is_google_books
+                  ? "No one has added recipes from this book yet. Be the first!"
+                  : "This cookbook doesn't have any recipes yet."
                 : "This cookbook has no public recipes available."
               }
             </p>
@@ -516,14 +529,17 @@ const CookbookDetailPage: React.FC = () => {
               <Button onClick={() => setSearchTerm('')}>
                 Clear Search
               </Button>
-            ) : isAuthenticated ? (
-              <Button 
+            ) : isAuthenticated && (
+              cookbook.user_id === parseInt(user?.id || '0') ||
+              cookbook.is_google_books
+            ) ? (
+              <Button
                 onClick={() => navigate(`/upload?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`)}
                 className="bg-blue-600 text-white hover:bg-blue-700"
               >
                 Upload Recipe to this Cookbook
               </Button>
-            ) : (
+            ) : isAuthenticated ? null : (
               <div className="flex justify-center gap-3">
                 <Button 
                   onClick={() => navigate('/register')}

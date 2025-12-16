@@ -595,7 +595,12 @@ def search_google_books(current_user) -> Response:
 @bp.route("/cookbooks/from-google-books", methods=["POST"])
 @require_auth
 def create_cookbook_from_google_books(current_user) -> Response:
-    """Create a new cookbook from Google Books data."""
+    """Create or return a global cookbook from Google Books data.
+
+    Google Books cookbooks are global (user_id=NULL) and shared across all users.
+    Deduplication is done by google_books_id first, then ISBN fallback.
+    If the cookbook already exists, it is returned with is_existing=true.
+    """
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -605,36 +610,67 @@ def create_cookbook_from_google_books(current_user) -> Response:
         return jsonify({"error": "google_books_id is required"}), 400
 
     try:
-        # Initialize Google Books service
+        # Step 1: Check if cookbook already exists by google_books_id (global deduplication)
+        existing_by_google_id = Cookbook.query.filter_by(
+            google_books_id=google_books_id
+        ).first()
+
+        if existing_by_google_id:
+            cookbook_dict = existing_by_google_id.to_dict(current_user_id=current_user.id)
+            # Get recipe count visible to this user (own + public)
+            recipe_count = Recipe.query.filter(
+                Recipe.cookbook_id == existing_by_google_id.id,
+                db.or_(
+                    Recipe.is_public == True,
+                    Recipe.user_id == current_user.id,
+                )
+            ).count()
+            cookbook_dict["recipe_count"] = recipe_count
+            cookbook_dict["source"] = "google_books"
+            return jsonify({
+                "message": "Cookbook already exists",
+                "cookbook": cookbook_dict,
+                "is_existing": True,
+            }), 200
+
+        # Step 2: Fetch book details from Google Books API
         api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
-        # Only pass API key if it's not None or empty
         api_key = api_key.strip() if api_key and api_key.strip() else None
         service = GoogleBooksService(api_key)
 
-        # Get book details from Google Books
         book_data = service.get_book_details(google_books_id)
         if not book_data:
             return jsonify({"error": "Book not found in Google Books"}), 404
 
-        # Check if cookbook already exists (by title and author)
-        existing_cookbook = Cookbook.query.filter_by(
-            title=book_data["title"],
-            author=book_data["author"],
-            user_id=current_user.id,
-        ).first()
+        # Step 3: Fallback deduplication by ISBN
+        if book_data.get("isbn"):
+            existing_by_isbn = Cookbook.query.filter_by(
+                isbn=book_data["isbn"]
+            ).first()
 
-        if existing_cookbook:
-            return (
-                jsonify(
-                    {
-                        "error": "A cookbook with this title and author already exists",
-                        "existing_cookbook": existing_cookbook.to_dict(),
-                    }
-                ),
-                409,
-            )
+            if existing_by_isbn:
+                # Update the existing cookbook with google_books_id if missing
+                if not existing_by_isbn.google_books_id:
+                    existing_by_isbn.google_books_id = google_books_id
+                    db.session.commit()
 
-        # Create new cookbook
+                cookbook_dict = existing_by_isbn.to_dict(current_user_id=current_user.id)
+                recipe_count = Recipe.query.filter(
+                    Recipe.cookbook_id == existing_by_isbn.id,
+                    db.or_(
+                        Recipe.is_public == True,
+                        Recipe.user_id == current_user.id,
+                    )
+                ).count()
+                cookbook_dict["recipe_count"] = recipe_count
+                cookbook_dict["source"] = "google_books"
+                return jsonify({
+                    "message": "Cookbook already exists (matched by ISBN)",
+                    "cookbook": cookbook_dict,
+                    "is_existing": True,
+                }), 200
+
+        # Step 4: Create new GLOBAL cookbook (user_id=NULL)
         cookbook = Cookbook(
             title=book_data["title"],
             author=book_data["author"] or None,
@@ -643,31 +679,34 @@ def create_cookbook_from_google_books(current_user) -> Response:
             publisher=book_data["publisher"] or None,
             publication_date=book_data["publication_date"],
             cover_image_url=book_data["thumbnail_url"] or None,
-            user_id=current_user.id,
+            google_books_id=google_books_id,
+            user_id=None,  # Global cookbook - no single owner
         )
 
         db.session.add(cookbook)
         db.session.commit()
 
-        cookbook_dict = cookbook.to_dict()
+        cookbook_dict = cookbook.to_dict(current_user_id=current_user.id)
         cookbook_dict["recipe_count"] = 0  # New cookbook has no recipes
         cookbook_dict["source"] = "google_books"
-        cookbook_dict["google_books_id"] = google_books_id
 
         return (
             jsonify(
                 {
                     "message": "Cookbook created successfully from Google Books",
                     "cookbook": cookbook_dict,
+                    "is_existing": False,
                 }
             ),
             201,
         )
 
     except GoogleBooksAPIError as e:
+        current_app.logger.error(f"Google Books API error: {str(e)}")
         return jsonify({"error": str(e)}), 500
     except Exception as e:
         db.session.rollback()
+        current_app.logger.error(f"Failed to create cookbook from Google Books: {str(e)}", exc_info=True)
         return jsonify({"error": "Failed to create cookbook from Google Books"}), 500
 
 

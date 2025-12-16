@@ -10,7 +10,7 @@ from app import db
 from app.models.recipe import Recipe, Cookbook
 from app.models.user import User, UserRole
 from app.api.auth import get_current_user, require_auth
-from app.services.pdf_service import PDFService, PDFConfig, PageSize, PDFTemplate
+from app.services.pdf_service import PDFService, PDFConfig, PageSize, PDFTemplate, OutputProfile
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,10 @@ def export_recipe_pdf(recipe_id):
         # Get export options from query params
         template = request.args.get('template', 'classic')
         page_size = request.args.get('page_size', 'letter')
+        profile = request.args.get('profile', 'digital')
         include_images = request.args.get('include_images', 'true').lower() == 'true'
         include_notes = request.args.get('include_notes', 'true').lower() == 'true'
-        
+
         # Map template string to enum
         template_map = {
             'classic': PDFTemplate.CLASSIC,
@@ -62,11 +63,19 @@ def export_recipe_pdf(recipe_id):
             'minimalist': PDFTemplate.MINIMALIST,
             'book': PDFTemplate.BOOK
         }
-        
+
+        # Map profile string to enum
+        profile_map = {
+            'digital': OutputProfile.DIGITAL,
+            'home_print': OutputProfile.HOME_PRINT,
+            'professional_print': OutputProfile.PROFESSIONAL_PRINT
+        }
+
         # Create PDF config
         config = PDFConfig(
             page_size=PageSize.LETTER if page_size == 'letter' else PageSize.A4,
             template=template_map.get(template, PDFTemplate.CLASSIC),
+            profile=profile_map.get(profile, OutputProfile.DIGITAL),
             include_images=include_images,
             include_notes=include_notes
         )
@@ -130,11 +139,12 @@ def export_cookbook_pdf(cookbook_id):
         # Get export options
         template = request.args.get('template', 'classic')
         page_size = request.args.get('page_size', 'letter')
+        profile = request.args.get('profile', 'digital')
         include_images = request.args.get('include_images', 'true').lower() == 'true'
         include_notes = request.args.get('include_notes', 'true').lower() == 'true'
         include_toc = request.args.get('include_toc', 'true').lower() == 'true'
         include_index = request.args.get('include_index', 'false').lower() == 'true'
-        
+
         # Map template string to enum
         template_map = {
             'classic': PDFTemplate.CLASSIC,
@@ -142,11 +152,19 @@ def export_cookbook_pdf(cookbook_id):
             'minimalist': PDFTemplate.MINIMALIST,
             'book': PDFTemplate.BOOK
         }
-        
+
+        # Map profile string to enum
+        profile_map = {
+            'digital': OutputProfile.DIGITAL,
+            'home_print': OutputProfile.HOME_PRINT,
+            'professional_print': OutputProfile.PROFESSIONAL_PRINT
+        }
+
         # Create PDF config
         config = PDFConfig(
             page_size=PageSize.LETTER if page_size == 'letter' else PageSize.A4,
             template=template_map.get(template, PDFTemplate.CLASSIC),
+            profile=profile_map.get(profile, OutputProfile.DIGITAL),
             include_images=include_images,
             include_notes=include_notes,
             include_toc=include_toc,
@@ -218,15 +236,32 @@ def export_recipes_pdf():
         title = data.get('title', 'My Recipe Collection')
         template = data.get('template', 'classic')
         page_size = data.get('page_size', 'letter')
+        profile = data.get('profile', 'digital')
         include_images = data.get('include_images', True)
         include_notes = data.get('include_notes', True)
         include_toc = data.get('include_toc', True)
         include_index = data.get('include_index', False)
-        
+
+        # Map template string to enum
+        template_map = {
+            'classic': PDFTemplate.CLASSIC,
+            'modern': PDFTemplate.MODERN,
+            'minimalist': PDFTemplate.MINIMALIST,
+            'book': PDFTemplate.BOOK
+        }
+
+        # Map profile string to enum
+        profile_map = {
+            'digital': OutputProfile.DIGITAL,
+            'home_print': OutputProfile.HOME_PRINT,
+            'professional_print': OutputProfile.PROFESSIONAL_PRINT
+        }
+
         # Create PDF config
         config = PDFConfig(
             page_size=PageSize.LETTER if page_size == 'letter' else PageSize.A4,
-            template=PDFTemplate.CLASSIC,
+            template=template_map.get(template, PDFTemplate.CLASSIC),
+            profile=profile_map.get(profile, OutputProfile.DIGITAL),
             include_images=include_images,
             include_notes=include_notes,
             include_toc=include_toc,
@@ -271,8 +306,41 @@ def export_recipes_pdf():
 def get_export_options():
     """Get available export options and templates"""
     return jsonify({
-        'templates': ['classic'],  # Add more as they're implemented
+        'templates': [
+            {
+                'value': 'classic',
+                'label': 'Classic',
+                'description': 'Traditional professional layout'
+            },
+            {
+                'value': 'modern',
+                'label': 'Modern Minimalist',
+                'description': 'Clean, contemporary design with ample white space'
+            },
+            {
+                'value': 'book',
+                'label': 'Book Style',
+                'description': 'Elegant two-column layout'
+            }
+        ],
         'page_sizes': ['letter', 'a4'],
+        'profiles': [
+            {
+                'value': 'digital',
+                'label': 'Digital Viewing',
+                'description': 'Optimized for screens with smaller file size and hyperlinks (85% image quality, RGB)'
+            },
+            {
+                'value': 'home_print',
+                'label': 'Home Printing',
+                'description': 'Optimized for standard home printers (90% quality, RGB, no bleed)'
+            },
+            {
+                'value': 'professional_print',
+                'label': 'Professional Print Service',
+                'description': 'Print-ready with bleed, crop marks, and CMYK colors (95% quality)'
+            }
+        ],
         'options': {
             'include_images': {
                 'type': 'boolean',

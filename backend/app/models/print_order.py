@@ -70,13 +70,17 @@ class PrintSpecification(db.Model):
     __tablename__ = 'print_specifications'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    
+
     # Physical specifications
     trim_size: Mapped[TrimSize] = mapped_column(default=TrimSize.US_TRADE)
     binding_type: Mapped[BindingType] = mapped_column(default=BindingType.PERFECT_BOUND)
     paper_type: Mapped[PaperType] = mapped_column(default=PaperType.STANDARD_WHITE)
     cover_finish: Mapped[CoverFinish] = mapped_column(default=CoverFinish.MATTE)
-    
+
+    # Template selection (affects interior PDF and cover styling)
+    # Values: 'modern' (default), 'classic', 'book'
+    template: Mapped[str] = mapped_column(String(50), default='modern')
+
     # Page information
     page_count: Mapped[int] = mapped_column(Integer, nullable=False)
     color_pages: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -104,6 +108,7 @@ class PrintSpecification(db.Model):
             "binding_type": self.binding_type.value,
             "paper_type": self.paper_type.value,
             "cover_finish": self.cover_finish.value,
+            "template": self.template,
             "page_count": self.page_count,
             "color_pages": self.color_pages,
             "lulu_pod_package_id": self.lulu_pod_package_id,

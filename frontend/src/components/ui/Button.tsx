@@ -38,11 +38,14 @@ interface ExtendedButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ExtendedButtonProps>(
   ({ className, variant, size, children, style, ...props }, ref) => {
+    // Default variant to 'primary' if not specified (matches defaultVariants in cva)
+    const effectiveVariant = variant ?? 'primary';
+
     const getButtonStyle = () => {
-      if (variant === 'primary') {
+      if (effectiveVariant === 'primary') {
         return { backgroundColor: '#f15f1c', color: '#ffffff', ...style };
       }
-      if (variant === 'secondary') {
+      if (effectiveVariant === 'secondary') {
         return { backgroundColor: '#f1ece9', color: '#1c120d', ...style };
       }
       return style;
