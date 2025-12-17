@@ -32,7 +32,8 @@ export interface RegisterData {
 }
 
 export interface RegisterResponse {
-  message: string;
+  message?: string;
+  error?: string;
   requires_verification?: boolean;
   verification_method?: string;
   email?: string;
@@ -216,7 +217,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('Registration response data:', { ...data, access_token: data.access_token ? '[PRESENT]' : '[ABSENT]' });
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+        // Backend returns errors in 'error' field, not 'message'
+        throw new Error(data.error || data.message || 'Registration failed');
       }
 
       // Check if verification is required

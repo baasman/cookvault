@@ -38,6 +38,7 @@ dependencies = [
     "sendgrid>=6.11.0",
     "twilio>=9.0.0",
     "phonenumbers>=8.13.0",
+    "psycopg-binary>=3.3.2",
 ]
 
 [project.optional-dependencies]
