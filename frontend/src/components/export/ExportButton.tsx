@@ -380,7 +380,8 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
           <button
             onClick={onExport}
             disabled={isExporting}
-            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-accent hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: isExporting ? '#9ca3af' : '#f15f1c' }}
           >
             {isExporting ? 'Exporting...' : 'Export PDF'}
           </button>

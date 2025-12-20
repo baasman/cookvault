@@ -210,123 +210,31 @@ const CreateCookbookPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Access & Pricing Settings */}
+        {/* Access & Pricing Settings - Coming Soon */}
         <div className="bg-white rounded-xl shadow-sm border p-6" style={{borderColor: '#e8d7cf'}}>
-          <h2 className="text-xl font-semibold mb-4" style={{color: '#1c120d'}}>
-            Access & Pricing
-          </h2>
-          
-          {isAdmin ? (
-            // Admin-only paywall settings
-            <div className="space-y-4">
-              <div className="flex items-start space-x-3">
-                <input
-                  type="checkbox"
-                  id="is_purchasable"
-                  checked={formData.is_purchasable}
-                  onChange={(e) => handleInputChange('is_purchasable', e.target.checked)}
-                  className="mt-1"
-                />
-                <div>
-                  <label htmlFor="is_purchasable" className="text-sm font-medium text-text-primary cursor-pointer">
-                    Make this cookbook purchasable (Paywall)
-                  </label>
-                  <p className="text-xs text-text-secondary mt-1">
-                    When enabled, users will need to purchase this cookbook to view full recipe ingredients and instructions
-                  </p>
-                </div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold" style={{color: '#1c120d'}}>
+              Access & Pricing
+            </h2>
+            <span className="px-3 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded-full">
+              Coming Soon
+            </span>
+          </div>
+
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
-
-              {formData.is_purchasable && (
-                <div className="ml-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-3">
-                    Paywall Configuration
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <Input
-                        label="Price (USD) *"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="9.99"
-                        value={formData.price}
-                        onChange={(value) => handleInputChange('price', value)}
-                        error={errors.price}
-                        required={formData.is_purchasable}
-                      />
-                      <p className="text-xs text-blue-600 mt-1">
-                        Set a fair price for your cookbook content
-                      </p>
-                    </div>
-
-                    <div className="text-sm text-blue-700 bg-blue-100 rounded p-3">
-                      <p className="font-medium mb-2">What happens with paywall:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• Users can see recipe titles and basic info</li>
-                        <li>• Ingredients and instructions are hidden behind paywall</li>
-                        <li>• Purchased recipes are automatically added to user's collection</li>
-                        <li>• Revenue is tracked through Stripe</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            // Regular user - show contact information
-            <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0">
-                  <svg className="h-12 w-12 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">
-                    Interested in Selling Your Cookbook?
-                  </h3>
-                  <p className="text-blue-800 mb-4 leading-relaxed">
-                    Want to monetize your recipes and create a premium cookbook experience? 
-                    We offer cookbook paywall features for qualified creators who want to sell their content through Cookle.
-                  </p>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2 text-blue-700">
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M2.94 6.412A2 2 0 002 8.108V16a2 2 0 002 2h12a2 2 0 002-2V8.108a2 2 0 00-.94-1.696l-6-3.75a2 2 0 00-2.12 0l-6 3.75zm3.14 8.654l2.12-1.327a2 2 0 012.12 0l2.12 1.327A.7.7 0 0013 14.7V9a.7.7 0 00-.35-.606L10 6.882 7.35 8.394A.7.7 0 007 9v5.7a.7.7 0 00.08.366z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-medium">Contact us to get started:</span>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-blue-300">
-                      <a 
-                        href="mailto:admin@cookle.food?subject=Interest in Cookbook Paywall Features"
-                        className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                        </svg>
-                        <span>admin@cookle.food</span>
-                      </a>
-                    </div>
-                    
-                    <div className="text-sm text-blue-600 bg-blue-100 rounded p-3">
-                      <p className="font-medium mb-1">What to include in your email:</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• Brief description of your cookbook concept</li>
-                        <li>• Your experience with cooking/recipe creation</li>
-                        <li>• Expected number of recipes</li>
-                        <li>• Target audience and pricing ideas</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
+              <div>
+                <p className="text-sm text-gray-600">
+                  We're working on features that will let you sell access to your cookbooks and monetize your recipes. Stay tuned!
+                </p>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Submit Buttons */}

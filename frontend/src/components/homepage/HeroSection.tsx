@@ -10,7 +10,7 @@ const HeroSection: React.FC = () => {
     <section className="relative py-16 lg:py-24 bg-gradient-to-br from-primary-100 via-background to-primary-200 overflow-hidden">
       <div className="absolute top-0 right-0 w-3/5 h-full opacity-30 pointer-events-none" style={{backgroundImage: "url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1200 800\"><defs><pattern id=\"cooking\" patternUnits=\"userSpaceOnUse\" width=\"100\" height=\"100\"><circle cx=\"50\" cy=\"50\" r=\"2\" fill=\"%23f15f1c\" opacity=\"0.1\"/></pattern></defs><rect width=\"1200\" height=\"800\" fill=\"url(%23cooking)\"/></svg>')", backgroundSize: 'cover', backgroundRepeat: 'no-repeat'}}></div>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="flex justify-center items-center">
           {/* Hero Text */}
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-text-primary leading-tight mb-6">
