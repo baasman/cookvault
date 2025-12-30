@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 from flask import Response, current_app, jsonify, request, send_file
-from sqlalchemy import text
+from sqlalchemy import select, text
 from werkzeug.utils import secure_filename
 
 from app import db
@@ -554,6 +554,11 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     current_app.logger.info(f"Form data keys: {list(request.form.keys())}")
     current_app.logger.info(f"Files: {list(request.files.keys())}")
 
+    # Check for cache bypass header (used during load testing)
+    skip_cache = request.headers.get('X-Skip-Cache', '').lower() == 'true'
+    if skip_cache:
+        current_app.logger.info("Cache bypass enabled via X-Skip-Cache header")
+
     # Check upload limit for free users
     subscription = current_user.get_or_create_subscription()
     current_app.logger.info(
@@ -688,6 +693,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
             image_id=recipe_image.id,
             cookbook_id=cookbook_id,
             page_number=page_number,
+            skip_cache=skip_cache,
         )
 
         db.session.add(processing_job)
@@ -702,46 +708,16 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
                 f"Upload count incremented for user {current_user.id}: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
 
-        # Queue background processing to prevent worker timeouts
-        import threading
+        # Queue background processing via Celery task queue
+        # This ensures sequential processing to prevent memory spikes
+        from app.tasks.recipe_tasks import process_single_recipe_task
 
         current_app.logger.info(
-            f"Starting background processing for job {processing_job.id}"
+            f"Queuing Celery task for job {processing_job.id}"
         )
 
-        # Capture Flask app object and user ID for background thread
-        app = current_app._get_current_object()
-        user_id = current_user.id
-
-        # Process in background thread to return immediately to user
-        def background_process():
-            # Use application context in background thread
-            with app.app_context():
-                try:
-                    _process_recipe_image(processing_job.id, user_id)
-                    app.logger.info(
-                        f"Background processing completed for job {processing_job.id}"
-                    )
-                except Exception as e:
-                    app.logger.error(
-                        f"Background processing failed for job {processing_job.id}: {str(e)}"
-                    )
-                    # Update job status to failed
-                    try:
-                        job = ProcessingJob.query.get(processing_job.id)
-                        if job:
-                            job.status = ProcessingStatus.FAILED
-                            job.error_message = str(e)
-                            db.session.commit()
-                    except Exception as db_error:
-                        app.logger.error(
-                            f"Failed to update job status: {str(db_error)}"
-                        )
-
-        # Start background processing
-        thread = threading.Thread(target=background_process)
-        thread.daemon = True  # Thread will die when main process dies
-        thread.start()
+        # Dispatch the task to Celery worker
+        process_single_recipe_task.delay(processing_job.id, current_user.id)
 
         return (
             jsonify(
@@ -1314,13 +1290,20 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
             f"Starting single-pass extract+parse for image {job.image_id}"
         )
 
+        # Check if caching should be bypassed (for load testing)
+        use_cache = not getattr(job, 'skip_cache', False)
+        if not use_cache:
+            current_app.logger.info("Cache bypass enabled for this job")
+
         # Single LLM call for both extraction and parsing - with timeout monitoring
         import time
 
         start_time = time.time()
 
         try:
-            comprehensive_result = llm_ocr_service.extract_and_parse_recipe(image_data, source_info)
+            comprehensive_result = llm_ocr_service.extract_and_parse_recipe(
+                image_data, source_info, use_cache=use_cache
+            )
             processing_time = time.time() - start_time
             current_app.logger.info(
                 f"LLM processing completed in {processing_time:.1f}s"
@@ -1668,6 +1651,18 @@ def _create_recipe_ingredient_association(
     recipe_id: int, ingredient_id: int, parsed_ingredient: Dict[str, Any], order: int
 ) -> None:
     """Create association between recipe and ingredient with quantities."""
+    # Check if association already exists (prevents duplicate constraint errors)
+    existing = db.session.execute(
+        select(recipe_ingredients).where(
+            recipe_ingredients.c.recipe_id == recipe_id,
+            recipe_ingredients.c.ingredient_id == ingredient_id
+        )
+    ).first()
+
+    if existing:
+        # Already exists, skip insertion
+        return
+
     # Insert into the association table using ORM
     stmt = recipe_ingredients.insert().values(
         recipe_id=recipe_id,
@@ -2484,6 +2479,11 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
 def upload_multi_recipe(current_user):
     """Upload multiple images for a single recipe"""
     try:
+        # Check for cache bypass header (used during load testing)
+        skip_cache = request.headers.get('X-Skip-Cache', '').lower() == 'true'
+        if skip_cache:
+            current_app.logger.info("Cache bypass enabled via X-Skip-Cache header")
+
         # Check upload limit for free users
         subscription = current_user.get_or_create_subscription()
         current_app.logger.info(
@@ -2599,6 +2599,7 @@ def upload_multi_recipe(current_user):
             user_id=user_id,
             total_images=len(validated_files),
             status=ProcessingStatus.PENDING,
+            skip_cache=skip_cache,
         )
         db.session.add(multi_job)
         db.session.flush()  # Get the ID
@@ -2642,16 +2643,16 @@ def upload_multi_recipe(current_user):
                 f"Upload count incremented for user {current_user.id}: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
 
-        # Start processing
-        try:
-            process_multi_image_job(multi_job.id)
-        except Exception as e:
-            current_app.logger.error(
-                f"Error starting multi-image processing for job {multi_job.id}: {e}"
-            )
-            multi_job.status = ProcessingStatus.FAILED
-            multi_job.error_message = f"Failed to start processing: {str(e)}"
-            db.session.commit()
+        # Queue background processing via Celery task queue
+        # This ensures sequential processing to prevent memory spikes
+        from app.tasks.recipe_tasks import process_multi_recipe_task
+
+        current_app.logger.info(
+            f"Queuing Celery multi-image task for job {multi_job.id}"
+        )
+
+        # Dispatch the task to Celery worker (returns immediately)
+        process_multi_recipe_task.delay(multi_job.id)
 
         current_app.logger.info(
             f"Created multi-image job {multi_job.id} with {len(processing_jobs)} images for user {user_id}"
@@ -3020,6 +3021,11 @@ def process_multi_image_job(multi_job_id: int):
         multi_job.status = ProcessingStatus.PROCESSING
         db.session.commit()
 
+        # Check if caching should be bypassed (for load testing)
+        use_cache = not getattr(multi_job, 'skip_cache', False)
+        if not use_cache:
+            current_app.logger.info("Cache bypass enabled for multi-job")
+
         # Get all processing jobs for this multi-image job, ordered by image_order
         processing_jobs = (
             ProcessingJob.query.filter_by(multi_job_id=multi_job_id)
@@ -3094,7 +3100,9 @@ def process_multi_image_job(multi_job_id: int):
                             current_app.logger.error(f"Failed to read local image file {image_path}: {str(read_error)}")
                             raise
 
-                    extracted_text = llm_ocr_service.extract_text_from_image(image_data, source_info)
+                    extracted_text = llm_ocr_service.extract_text_from_image(
+                        image_data, source_info, use_cache=use_cache
+                    )
                     combined_text += f"\n--- Page {i+1} ---\n{extracted_text}\n"
                     successful_extractions += 1
 
@@ -3236,7 +3244,7 @@ def process_multi_image_job(multi_job_id: int):
             for processing_job in processing_jobs:
                 max_retries = 2
                 retry_count = 0
-                timeout_seconds = 120  # 2 minutes per image
+                timeout_seconds = 180  # 3 minutes per image (match Gunicorn timeout)
 
                 while retry_count <= max_retries:
                     try:
@@ -3378,7 +3386,7 @@ def process_multi_image_job(multi_job_id: int):
                 quality_info = None
 
             parsed_recipe = recipe_parser.parse_multi_image_recipe(
-                ocr_texts, quality_info=quality_info
+                ocr_texts, use_cache=use_cache, quality_info=quality_info
             )
             current_app.logger.info(f"Parsed recipe result: {parsed_recipe}")
 

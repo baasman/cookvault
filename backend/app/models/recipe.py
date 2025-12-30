@@ -256,6 +256,9 @@ class MultiRecipeJob(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Cache control for load testing
+    skip_cache: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Relationships
     user: Mapped["User"] = relationship("User")
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe")
@@ -684,6 +687,9 @@ class ProcessingJob(db.Model):
     ocr_method: Mapped[Optional[str]] = mapped_column(String(20))  # 'traditional' or 'llm'
     ocr_quality_score: Mapped[Optional[int]] = mapped_column(Integer)  # 1-10 quality score
     ocr_fallback_used: Mapped[Optional[bool]] = mapped_column(db.Boolean, default=False)
+
+    # Cache control for load testing
+    skip_cache: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)

@@ -125,3 +125,5 @@ LULU_INTEGRATION.yaml
 backend/test_output/*
 
 deprecated/
+render.env
+scripts/reports

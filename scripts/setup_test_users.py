@@ -88,6 +88,42 @@ class TestUserSetup:
             print(f"❌ Error verifying login for {user_data['username']}: {str(e)}")
             return False
 
+    def activate_users(self):
+        """Activate all test users (bypass email verification)"""
+        print("\n🔓 Activating test users...")
+
+        try:
+            sys.path.append(str(self.base_dir / 'backend'))
+            from app import create_app, db
+            from app.models.user import User, UserStatus, UserRole
+
+            app = create_app()
+            with app.app_context():
+                config = self.load_user_config()
+                all_test_users = config["users"] + config.get("admin_users", [])
+
+                activated_count = 0
+                for user_data in all_test_users:
+                    user = User.query.filter_by(username=user_data["username"]).first()
+                    if user:
+                        user.status = UserStatus.ACTIVE
+                        user.is_verified = True
+                        # Set admin role if specified
+                        if user_data.get("tier") == "admin":
+                            user.role = UserRole.ADMIN
+                        activated_count += 1
+                        print(f"   ✅ Activated: {user.username}")
+
+                db.session.commit()
+                print(f"\n   🔓 Activated {activated_count} users")
+
+        except ImportError as e:
+            print(f"⚠️  Could not import backend modules: {e}")
+        except Exception as e:
+            print(f"⚠️  Error activating users: {e}")
+            import traceback
+            traceback.print_exc()
+
     def upgrade_users_to_premium(self):
         """Upgrade all test users to premium tier for unlimited uploads"""
         print("\n💎 Upgrading test users to premium tier...")
@@ -178,6 +214,9 @@ class TestUserSetup:
 
         if self.failed_users:
             print(f"\n   Failed users: {', '.join(self.failed_users)}")
+
+        # Activate all users (bypass email verification)
+        self.activate_users()
 
         # Verify logins for created users
         print("\n🔐 Verifying user logins...")

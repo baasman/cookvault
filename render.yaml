@@ -38,8 +38,55 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: USE_CLOUDINARY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
 
-  # Frontend Static Site  
+  # Celery Worker Service for background task processing
+  - type: worker
+    name: cookle-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile.worker
+    region: oregon
+    branch: main
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: UPLOAD_FOLDER
+        value: uploads
+      # These need to be set in Render dashboard as secrets (same as backend)
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: USE_CLOUDINARY
+        sync: false
+
+  # Frontend Static Site
   - type: web
     name: cookle-frontend
     runtime: static

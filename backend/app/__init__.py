@@ -147,6 +147,13 @@ def create_app(config_name: str | None = None) -> Flask:
 
     app.logger.info(f"Rate limiter configured with user-based keys and job status exemptions")
 
+    # Initialize Celery with Flask app context
+    from app.celery_app import make_celery
+    celery = make_celery(app)
+    app.extensions['celery'] = celery
+    app.celery = celery
+    app.logger.info("Celery initialized with Flask app context")
+
     # Ensure upload folder exists (after dynamic config is loaded)
     upload_folder = Path(app.config['UPLOAD_FOLDER'])
     upload_folder.mkdir(parents=True, exist_ok=True)

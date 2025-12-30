@@ -7,14 +7,13 @@ from typing import Tuple
 import psutil
 from flask import Blueprint, Response, jsonify
 
-from app.api.auth import require_admin, require_auth
+from app.api.auth import require_admin
 from app.models.user import User
 
 bp = Blueprint("system", __name__, url_prefix="/system")
 
 
 @bp.route("/metrics", methods=["GET"])
-@require_auth
 @require_admin
 def get_system_metrics(current_user: User) -> Tuple[Response, int]:
     """
@@ -39,6 +38,13 @@ def get_system_metrics(current_user: User) -> Tuple[Response, int]:
         def bytes_to_mb(bytes_val: int) -> float:
             return round(bytes_val / (1024 * 1024), 2)
 
+        # Safe helper for psutil calls that may fail with permission errors on macOS
+        def safe_len(func):
+            try:
+                return len(func())
+            except (psutil.AccessDenied, PermissionError):
+                return -1
+
         metrics = {
             "process": {
                 "memory": {
@@ -48,8 +54,8 @@ def get_system_metrics(current_user: User) -> Tuple[Response, int]:
                 },
                 "cpu_percent": round(cpu_percent, 2),
                 "num_threads": process.num_threads(),
-                "open_files": len(process.open_files()),
-                "connections": len(process.connections()),
+                "open_files": safe_len(process.open_files),
+                "connections": safe_len(process.connections),
             },
             "system": {
                 "memory": {

@@ -199,11 +199,11 @@ class CloudinaryService:
     def optimize_image_for_upload(self, image_data: bytes, max_size_mb: int = 8) -> bytes:
         """
         Optimize image before uploading to reduce size and improve quality
-        
+
         Args:
             image_data: Raw image bytes
             max_size_mb: Maximum file size in MB
-            
+
         Returns:
             Optimized image bytes
         """
@@ -218,19 +218,19 @@ class CloudinaryService:
                     img = white_bg
                 elif img.mode != 'RGB':
                     img = img.convert('RGB')
-                
+
                 # Apply basic optimization
                 max_dimension = current_app.config.get('MAX_IMAGE_DIMENSION', 1200)
                 if img.width > max_dimension or img.height > max_dimension:
                     img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
-                
+
                 # Save optimized image
                 output = BytesIO()
                 quality = current_app.config.get('JPEG_QUALITY', 85)
                 img.save(output, format='JPEG', quality=quality, optimize=True)
-                
+
                 optimized_data = output.getvalue()
-                
+
                 # Check if size is acceptable
                 size_mb = len(optimized_data) / (1024 * 1024)
                 if size_mb > max_size_mb:
@@ -239,10 +239,10 @@ class CloudinaryService:
                     output = BytesIO()
                     img.save(output, format='JPEG', quality=quality, optimize=True)
                     optimized_data = output.getvalue()
-                
+
                 logger.info(f"Optimized image: {len(image_data)} -> {len(optimized_data)} bytes")
                 return optimized_data
-                
+
         except Exception as e:
             logger.error(f"Error optimizing image: {e}")
             # Return original data if optimization fails

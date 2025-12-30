@@ -40,6 +40,7 @@ class RecipeUploadBehavior(TaskSet):
         """Called when a user starts executing this TaskSet"""
         self.token = None
         self.user_data = None
+        self.is_admin = False
         self.available_recipe_ids = []
 
         # Simulate different IP addresses for better production testing
@@ -49,12 +50,20 @@ class RecipeUploadBehavior(TaskSet):
         self.client.headers['X-Forwarded-For'] = fake_ip
         self.client.headers['X-Real-IP'] = fake_ip
 
+        # Bypass OCR/parsing cache for accurate load testing
+        # This ensures each upload actually processes instead of returning cached results
+        self.client.headers['X-Skip-Cache'] = 'true'
+
         self.login()
         self.fetch_recipe_ids()
 
     def login(self):
         """Authenticate and get JWT token"""
-        user = random.choice(TEST_USERS)
+        # 20% chance to use admin user for memory sampling, otherwise random
+        if ADMIN_USERS and random.random() < 0.2:
+            user = random.choice(ADMIN_USERS)
+        else:
+            user = random.choice(TEST_USERS + ADMIN_USERS)
         self.user_data = user
 
         response = self.client.post(
@@ -70,9 +79,11 @@ class RecipeUploadBehavior(TaskSet):
             data = response.json()
             # The API returns "access_token" not "token"
             self.token = data.get("access_token")
+            self.is_admin = user.get("tier") == "admin"
             if self.token:
                 self.client.headers['Authorization'] = f"Bearer {self.token}"
-                print(f"✓ Logged in as {user['username']} with JWT")
+                admin_tag = " [ADMIN]" if self.is_admin else ""
+                print(f"✓ Logged in as {user['username']}{admin_tag} with JWT")
             else:
                 print(f"✓ Logged in as {user['username']} with session (no JWT)")
         else:
@@ -193,17 +204,17 @@ class RecipeUploadBehavior(TaskSet):
                 files=files,
                 data=data,
                 name="Upload Multi Recipe",
-                timeout=120  # Increased timeout for multi-image processing
+                timeout=180  # Match backend Gunicorn timeout
             )
 
             if response.status_code == 201:
                 job_data = response.json()
-                job_id = job_data.get('job_id')
-                if job_id:
-                    print(f"Multi upload started, job ID: {job_id}")
-                    self.wait_for_job_completion(job_id)
+                multi_job_id = job_data.get('multi_job_id')
+                if multi_job_id:
+                    print(f"Multi upload started, multi_job_id: {multi_job_id}")
+                    self.wait_for_multi_job_completion(multi_job_id)
                 else:
-                    print("Multi upload succeeded but no job_id returned")
+                    print("Multi upload succeeded but no multi_job_id returned")
             elif response.status_code == 403:
                 print(f"Upload limit reached for {self.user_data['username']}")
             else:
@@ -282,8 +293,8 @@ class RecipeUploadBehavior(TaskSet):
 
     @task(1)
     def sample_memory(self):
-        """Periodically sample server memory usage (same weight as other low-priority tasks)"""
-        if not self.token:
+        """Periodically sample server memory usage (requires admin)"""
+        if not self.token or not self.is_admin:
             return
 
         try:
@@ -319,7 +330,7 @@ class RecipeUploadBehavior(TaskSet):
             # Don't print errors for memory sampling to avoid cluttering output
             pass
 
-    def wait_for_job_completion(self, job_id: Optional[int], max_wait: int = 120):
+    def wait_for_job_completion(self, job_id: Optional[int], max_wait: int = 180):
         """Poll job status until completion"""
         if not job_id:
             return
@@ -362,6 +373,45 @@ class RecipeUploadBehavior(TaskSet):
             time.sleep(5)  # Increased from 2s to 5s for production testing
 
         print(f"Job {job_id} timeout after {max_wait}s "
+              f"(normal for complex processing under load)")
+
+    def wait_for_multi_job_completion(self, multi_job_id: Optional[int], max_wait: int = 180):
+        """Poll multi-job status until completion"""
+        if not multi_job_id:
+            return
+
+        # For load testing, occasionally skip job completion checking
+        if random.random() < 0.3:  # 30% chance to skip waiting
+            print(f"Skipping multi-job {multi_job_id} completion check "
+                  f"(simulating user navigation)")
+            return
+
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            with self.client.get(
+                f"/api/recipes/multi-job-status/{multi_job_id}",
+                name="Check Multi-Job Status",
+                catch_response=True
+            ) as response:
+                if response.status_code == 200:
+                    job_data = response.json()
+                    status = job_data.get('status')
+
+                    if status in ['COMPLETED', 'FAILED']:
+                        print(f"Multi-job {multi_job_id} finished with status: {status}")
+                        response.success()
+                        return
+                    response.success()
+                elif response.status_code == 404:
+                    response.success()
+                    print(f"Multi-job {multi_job_id} not found (likely completed)")
+                    return
+                else:
+                    response.failure(f"Unexpected status code: {response.status_code}")
+
+            time.sleep(5)
+
+        print(f"Multi-job {multi_job_id} timeout after {max_wait}s "
               f"(normal for complex processing under load)")
 
 

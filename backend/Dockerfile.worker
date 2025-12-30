@@ -1,0 +1,59 @@
+# Celery worker Dockerfile for CookVault Backend
+# This Dockerfile builds a worker image for processing recipe uploads asynchronously
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies (including tesseract for OCR)
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libpq-dev \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster Python package management
+RUN pip install uv
+
+# Copy dependency files
+COPY ../README.md ../pyproject.toml ../uv.lock* ./
+
+# Install Python dependencies using uv
+RUN uv sync --frozen --no-dev
+
+# Remove conflicting JWT package if it exists (keep only PyJWT)
+RUN uv run pip uninstall -y jwt || true
+
+# Copy application code
+COPY backend/ .
+
+# Create uploads and logs directories
+RUN mkdir -p uploads logs
+
+# Copy and set permissions for worker startup script
+COPY backend/start_worker.sh .
+RUN chmod +x start_worker.sh
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
+
+# Ensure UV is available to the app user by creating a symlink
+RUN ln -sf /usr/local/bin/uv /usr/bin/uv || ln -sf $(which uv) /usr/bin/uv
+
+USER app
+
+# Set Python path and UV configuration
+ENV PYTHONPATH=/app
+ENV UV_PYTHON=python
+
+# Health check for Celery worker
+# Uses celery inspect ping to verify worker is responsive
+HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=3 \
+    CMD uv run celery -A celery_worker:celery inspect ping -d celery@$HOSTNAME 2>/dev/null || exit 1
+
+# Start the Celery worker
+CMD ["./start_worker.sh"]

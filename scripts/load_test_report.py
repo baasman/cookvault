@@ -45,12 +45,18 @@ class LoadTestReporter:
 
     def collect_system_metrics(self) -> Dict:
         """Collect current system metrics"""
+        # net_connections() requires elevated permissions on macOS
+        try:
+            network_connections = len(psutil.net_connections())
+        except psutil.AccessDenied:
+            network_connections = -1  # Indicates permission denied
+
         return {
             'cpu_percent': psutil.cpu_percent(interval=1),
             'memory_percent': psutil.virtual_memory().percent,
             'memory_available_gb': psutil.virtual_memory().available / (1024**3),
             'disk_usage_percent': psutil.disk_usage('/').percent,
-            'network_connections': len(psutil.net_connections()),
+            'network_connections': network_connections,
         }
 
     def generate_response_time_chart(self) -> str:

@@ -494,9 +494,13 @@ Return ONLY valid JSON, no markdown, no additional text.
             current_app.logger.info(f"Original image size: {original_size_mb:.1f}MB")
 
             # Open and aggressively optimize image to reduce memory usage
+            # Keep buffer open until all PIL operations complete (PIL lazy-loads)
             with Image.open(io.BytesIO(image_data)) as img:
                 original_dimensions = img.size
                 current_app.logger.info(f"Original dimensions: {original_dimensions[0]}x{original_dimensions[1]}")
+
+                # Force full load of image data before any transformations
+                img.load()
 
                 # Convert to RGB if needed (more memory efficient than keeping alpha channels)
                 if img.mode in ('RGBA', 'LA', 'P'):
@@ -516,18 +520,24 @@ Return ONLY valid JSON, no markdown, no additional text.
                     current_app.logger.info(f"Resized to: {new_width}x{new_height}")
 
                 # Compress as JPEG with configurable quality to reduce file size
-                img_buffer = io.BytesIO()
+                output_buffer = io.BytesIO()
                 jpeg_quality = current_app.config.get('JPEG_QUALITY', 95)  # Use higher quality for better OCR
                 current_app.logger.info(f"Using JPEG_QUALITY: {jpeg_quality}%")
-                img.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
+                img.save(output_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
 
-                # Get compressed size for logging
-                compressed_size = len(img_buffer.getvalue())
-                compressed_size_mb = compressed_size / (1024 * 1024)
-                current_app.logger.info(f"Compressed image size: {compressed_size_mb:.1f}MB (reduction: {((original_size_mb - compressed_size_mb) / original_size_mb * 100):.1f}%)")
+            # Image context manager closed - PIL resources freed
+            gc.collect()
 
-                img_bytes = img_buffer.getvalue()
-                img_buffer.close()  # Explicitly close buffer
+            # Get compressed size for logging
+            compressed_size = output_buffer.tell()
+            compressed_size_mb = compressed_size / (1024 * 1024)
+            current_app.logger.info(f"Compressed image size: {compressed_size_mb:.1f}MB (reduction: {((original_size_mb - compressed_size_mb) / original_size_mb * 100):.1f}%)")
+
+            # Get the bytes and immediately close buffer
+            output_buffer.seek(0)
+            img_bytes = output_buffer.read()
+            output_buffer.close()
+            del output_buffer
 
             # Force garbage collection after image processing
             gc.collect()
