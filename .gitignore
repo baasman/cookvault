@@ -92,6 +92,8 @@ dev_content*
 # Claude/AI specific
 .claude/
 tasks/
+# But allow Celery tasks
+!backend/app/tasks/
 
 # Security - specific files that should never be committed
 backend/scripts/seed_data/*.pdf
