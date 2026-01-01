@@ -9,7 +9,7 @@ echo "Starting CookVault backend..."
 # Set default environment variables if not provided
 export FLASK_ENV=${FLASK_ENV:-production}
 export PORT=${PORT:-8000}
-export GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+export GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
 export LOG_LEVEL=${LOG_LEVEL:-debug}
 
 # Validate required environment variables
