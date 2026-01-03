@@ -203,12 +203,12 @@ def get_recipes(current_user) -> Response:
     # Apply ownership and collection filtering based on user role and filter type
     if should_apply_user_filter(current_user):
         if filter_type == "mine":
-            # Only user's own uploaded recipes
-            query = query.filter(Recipe.user_id == current_user.id)
+            # Only recipes uploaded by this user (regardless of cookbook ownership)
+            query = query.filter(Recipe.uploaded_by_id == current_user.id)
         elif filter_type == "collection":
             # Only recipes in user's collection (both own and added from others)
             # Include recipes that are either:
-            # 1. Owned by the user (uploaded by them)
+            # 1. Uploaded by the user
             # 2. Explicitly added to their collection via UserRecipeCollection
             user_recipe_ids_subquery = (
                 db.session.query(UserRecipeCollection.recipe_id)
@@ -218,7 +218,7 @@ def get_recipes(current_user) -> Response:
 
             query = query.filter(
                 db.or_(
-                    Recipe.user_id == current_user.id,  # User's own recipes
+                    Recipe.uploaded_by_id == current_user.id,  # User's uploaded recipes
                     Recipe.id.in_(
                         user_recipe_ids_subquery
                     ),  # Explicitly collected recipes
@@ -228,7 +228,7 @@ def get_recipes(current_user) -> Response:
             # All public recipes from other users (for discovery)
             query = query.filter(
                 Recipe.is_public == True,
-                Recipe.user_id != current_user.id,  # Exclude user's own recipes
+                Recipe.uploaded_by_id != current_user.id,  # Exclude recipes uploaded by user
             )
             if search and search.strip():
                 # Debug logging
@@ -244,7 +244,7 @@ def get_recipes(current_user) -> Response:
     else:
         # Admins see all recipes, but can still use filters
         if filter_type == "mine":
-            query = query.filter(Recipe.user_id == current_user.id)
+            query = query.filter(Recipe.uploaded_by_id == current_user.id)
         elif filter_type == "collection":
             # For admins, collection filter shows all recipes (could be refined)
             pass  # No additional filter needed
@@ -365,6 +365,7 @@ def create_empty_recipe(current_user) -> Tuple[Response, int]:
         recipe = Recipe(
             title=title,
             user_id=current_user.id,
+            uploaded_by_id=current_user.id,
             cookbook_id=cookbook_id,
             description="",
             prep_time=0,
@@ -431,9 +432,9 @@ def delete_recipe(current_user, recipe_id: int) -> Response:
         if not recipe:
             return jsonify({"error": "Recipe not found"}), 404
 
-        # Check if user can delete this recipe (only owner or admin)
+        # Check if user can delete this recipe (only owner, uploader, or admin)
         is_admin = not should_apply_user_filter(current_user)
-        if not is_admin and recipe.user_id != current_user.id:
+        if not is_admin and recipe.user_id != current_user.id and recipe.uploaded_by_id != current_user.id:
             return jsonify({"error": "Access denied"}), 403
 
         current_app.logger.info(f"Deleting recipe {recipe_id} by user {current_user.id}")
@@ -547,12 +548,7 @@ def unfeature_recipe(current_user, recipe_id: int) -> Response:
 @rate_limit_upload
 def upload_recipe(current_user) -> Tuple[Response, int]:
     """Upload a recipe image and process it into a recipe."""
-    current_app.logger.info(
-        f"Recipe upload request from user {current_user.id} ({current_user.username})"
-    )
-    current_app.logger.info(f"Request headers: {dict(request.headers)}")
-    current_app.logger.info(f"Form data keys: {list(request.form.keys())}")
-    current_app.logger.info(f"Files: {list(request.files.keys())}")
+    current_app.logger.info(f"Recipe upload from user {current_user.id}")
 
     # Check for cache bypass header (used during load testing)
     skip_cache = request.headers.get('X-Skip-Cache', '').lower() == 'true'
@@ -692,6 +688,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         processing_job = ProcessingJob(
             image_id=recipe_image.id,
             cookbook_id=cookbook_id,
+            user_id=current_user.id,
             page_number=page_number,
             skip_cache=skip_cache,
         )
@@ -756,9 +753,12 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
 def update_recipe(current_user, recipe_id: int) -> Response:
     """Update recipe metadata (title, description, timing, etc.)."""
 
-    # Verify recipe exists and user has permission
+    # Verify recipe exists and user has permission (owner or uploader)
     if should_apply_user_filter(current_user):
-        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+        recipe = Recipe.query.filter(
+            Recipe.id == recipe_id,
+            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+        ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
 
@@ -881,9 +881,12 @@ def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
 def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
     """Update recipe ingredients list."""
 
-    # Verify recipe exists and user has permission
+    # Verify recipe exists and user has permission (owner or uploader)
     if should_apply_user_filter(current_user):
-        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+        recipe = Recipe.query.filter(
+            Recipe.id == recipe_id,
+            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+        ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
 
@@ -960,9 +963,12 @@ def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
 def update_recipe_instructions(current_user, recipe_id: int) -> Response:
     """Update recipe instructions list."""
 
-    # Verify recipe exists and user has permission
+    # Verify recipe exists and user has permission (owner or uploader)
     if should_apply_user_filter(current_user):
-        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+        recipe = Recipe.query.filter(
+            Recipe.id == recipe_id,
+            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+        ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
 
@@ -1037,9 +1043,12 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
 def update_recipe_tags(current_user, recipe_id: int) -> Response:
     """Update recipe tags list."""
 
-    # Verify recipe exists and user has permission
+    # Verify recipe exists and user has permission (owner or uploader)
     if should_apply_user_filter(current_user):
-        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+        recipe = Recipe.query.filter(
+            Recipe.id == recipe_id,
+            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+        ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
 
@@ -1502,7 +1511,11 @@ def _create_recipe_from_parsed_data(
     upload_user_id: int = None,
 ) -> Recipe:
     """Create recipe and all related records from parsed data."""
+    # The uploader is always the upload_user_id (tracks who actually uploaded)
+    uploaded_by_id = upload_user_id
+
     # Get user_id from cookbook if it exists, otherwise use the upload user_id
+    # user_id = cookbook owner (for shared cookbooks) or uploader (for own cookbooks)
     user_id = upload_user_id  # Default to the user who uploaded the image
     if job.cookbook_id:
         cookbook = Cookbook.query.get(job.cookbook_id)
@@ -1523,6 +1536,7 @@ def _create_recipe_from_parsed_data(
         servings=safe_int_conversion(parsed_recipe.get("servings")),
         difficulty=parsed_recipe.get("difficulty"),
         user_id=user_id,
+        uploaded_by_id=uploaded_by_id,  # Track the actual uploader
         is_public=False,  # New recipes are private by default
     )
 
@@ -2385,6 +2399,7 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
             difficulty=recipe.difficulty,
             source=recipe.source,
             user_id=current_user.id,
+            uploaded_by_id=current_user.id,
             is_public=False,  # Copied recipes are private by default
             cookbook_id=None,  # Remove cookbook association
             page_number=None,  # Remove page number
@@ -2623,6 +2638,7 @@ def upload_multi_recipe(current_user):
             processing_job = ProcessingJob(
                 image_id=recipe_image.id,
                 cookbook_id=cookbook_id,
+                user_id=current_user.id,
                 page_number=recipe_image.page_number,
                 is_multi_image=True,
                 multi_job_id=multi_job.id,
@@ -2830,6 +2846,7 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             cookbook_id=cookbook_id,
             page_number=page_number,
             user_id=current_user.id,
+            uploaded_by_id=current_user.id,
             is_public=False,  # Default to private
             prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
             cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
@@ -2912,22 +2929,18 @@ def get_job_status(current_user, job_id: int):
         if should_apply_user_filter(current_user):
             can_access = False
 
-            # If job has a recipe, check recipe ownership
-            if job.recipe_id:
+            # Check if user initiated this job
+            if job.user_id == current_user.id:
+                can_access = True
+            # If job has a recipe, check recipe ownership or uploader
+            elif job.recipe_id:
                 recipe = Recipe.query.get(job.recipe_id)
-                if recipe and recipe.user_id == current_user.id:
+                if recipe and (recipe.user_id == current_user.id or recipe.uploaded_by_id == current_user.id):
                     can_access = True
-            else:
-                # For jobs without recipe (pending/processing), check cookbook ownership
-                if job.cookbook_id:
-                    cookbook = Cookbook.query.get(job.cookbook_id)
-                    if cookbook and cookbook.user_id == current_user.id:
-                        can_access = True
-                else:
-                    # For jobs without cookbook (uploaded without cookbook), we check
-                    # if the current user uploaded this. Currently relying on job_id being
-                    # difficult to guess. Consider adding user_id field to ProcessingJob model
-                    # in future migration for better security tracking
+            # For jobs without recipe, also allow cookbook owner
+            elif job.cookbook_id:
+                cookbook = Cookbook.query.get(job.cookbook_id)
+                if cookbook and cookbook.user_id == current_user.id:
                     can_access = True
 
             if not can_access:
@@ -3427,6 +3440,7 @@ def process_multi_image_job(multi_job_id: int):
                 cookbook_id=cookbook_id,
                 page_number=page_number,
                 user_id=multi_job.user_id,
+                uploaded_by_id=multi_job.user_id,
                 is_public=False,  # Default to private
             )
             db.session.add(recipe)

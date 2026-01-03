@@ -341,7 +341,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
               {recipe.is_public && recipe.user && (
                 <div className="pt-3 border-t border-primary-200">
                   <p className="text-xs text-text-secondary">
-                    By: <Link 
+                    By: <Link
                       to={`/users/${recipe.user.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -349,10 +349,27 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
                       className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
                       style={{color: '#2563eb'}}
                     >
-                      {recipe.user.first_name && recipe.user.last_name 
-                        ? `${recipe.user.first_name} ${recipe.user.last_name}` 
+                      {recipe.user.first_name && recipe.user.last_name
+                        ? `${recipe.user.first_name} ${recipe.user.last_name}`
                         : recipe.user.username}
                     </Link>
+                    {/* Show uploader if different from owner */}
+                    {recipe.uploaded_by && recipe.uploaded_by.id !== recipe.user?.id && (
+                      <span className="ml-1">
+                        (uploaded by <Link
+                          to={`/users/${recipe.uploaded_by.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                          style={{color: '#2563eb'}}
+                        >
+                          {recipe.uploaded_by.first_name && recipe.uploaded_by.last_name
+                            ? `${recipe.uploaded_by.first_name} ${recipe.uploaded_by.last_name}`
+                            : recipe.uploaded_by.username}
+                        </Link>)
+                      </span>
+                    )}
                     {recipe.published_at && (
                       <span className="ml-2">
                         • Published {new Date(recipe.published_at).toLocaleDateString()}

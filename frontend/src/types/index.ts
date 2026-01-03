@@ -114,11 +114,18 @@ export interface Recipe {
   difficulty?: string;
   source?: string;
   user_id?: number;
+  uploaded_by_id?: number; // Tracks who actually uploaded the recipe
   is_public: boolean;
   published_at?: string;
   is_featured: boolean;
   featured_at?: string;
   user?: {
+    id: number;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+  };
+  uploaded_by?: {
     id: number;
     username: string;
     first_name?: string;

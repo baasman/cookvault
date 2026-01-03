@@ -341,8 +341,11 @@ class Recipe(db.Model):
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     featured_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
-    # User relationship
+    # User relationship (recipe owner - may be cookbook owner for shared cookbooks)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
+    # Track who actually uploaded the recipe (may differ from owner for shared cookbooks)
+    uploaded_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), index=True)
+
     cookbook: Mapped[Optional["Cookbook"]] = relationship(
         "Cookbook", back_populates="recipes"
     )
@@ -368,7 +371,10 @@ class Recipe(db.Model):
         "ProcessingJob", back_populates="recipe"
     )
     user: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="recipes"
+        "User", foreign_keys=[user_id], back_populates="recipes"
+    )
+    uploaded_by: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[uploaded_by_id], backref="uploaded_recipes"
     )
     user_collections: Mapped[List["UserRecipeCollection"]] = relationship(
         "UserRecipeCollection", back_populates="recipe", cascade="all, delete-orphan"
@@ -414,8 +420,8 @@ class Recipe(db.Model):
         if is_admin:
             return True
 
-        # Recipe owner can always view their own recipes
-        if self.user_id == user_id:
+        # Recipe owner or uploader can always view the recipe
+        if self.user_id == user_id or self.uploaded_by_id == user_id:
             return True
 
         # If recipe belongs to a purchasable cookbook, check purchase status
@@ -546,6 +552,7 @@ class Recipe(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "user_id": self.user_id,
+            "uploaded_by_id": self.uploaded_by_id,
             "has_full_access": has_full_access,
         }
 
@@ -576,6 +583,15 @@ class Recipe(db.Model):
                 "username": self.user.username,
                 "first_name": self.user.first_name,
                 "last_name": self.user.last_name,
+            }
+
+        # Include uploader information if different from owner
+        if self.uploaded_by_id and self.uploaded_by_id != self.user_id and self.uploaded_by:
+            result["uploaded_by"] = {
+                "id": self.uploaded_by.id,
+                "username": self.uploaded_by.username,
+                "first_name": self.uploaded_by.first_name,
+                "last_name": self.uploaded_by.last_name,
             }
 
         # Include collection status if current user is provided
@@ -670,6 +686,7 @@ class ProcessingJob(db.Model):
     recipe_id: Mapped[Optional[int]] = mapped_column(ForeignKey("recipe.id"))
     image_id: Mapped[int] = mapped_column(ForeignKey("recipe_image.id"), nullable=False)
     cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), index=True)
     page_number: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Multi-image support fields
@@ -707,6 +724,7 @@ class ProcessingJob(db.Model):
             "id": self.id,
             "recipe_id": self.recipe_id,
             "image_id": self.image_id,
+            "user_id": self.user_id,
             "is_multi_image": self.is_multi_image,
             "multi_job_id": self.multi_job_id,
             "image_order": self.image_order,

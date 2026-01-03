@@ -73,7 +73,9 @@ class User(db.Model):
     cookbooks: Mapped[List["Cookbook"]] = relationship(
         "Cookbook", back_populates="user"
     )
-    recipes: Mapped[List["Recipe"]] = relationship("Recipe", back_populates="user")
+    recipes: Mapped[List["Recipe"]] = relationship(
+        "Recipe", back_populates="user", foreign_keys="Recipe.user_id"
+    )
     user_sessions: Mapped[List["UserSession"]] = relationship(
         "UserSession", back_populates="user", cascade="all, delete-orphan"
     )

@@ -104,55 +104,33 @@ def should_apply_user_filter(user: User) -> bool:
 
 def get_current_user() -> Optional[User]:
     """Get the current authenticated user from JWT token or session."""
-    current_app.logger.debug("Getting current user - checking JWT first...")
-    
     # First try JWT authentication (preferred)
     user = get_current_user_jwt()
     if user:
-        current_app.logger.debug(f"JWT authentication successful for user {user.id}")
         return user
-        
-    current_app.logger.debug("JWT authentication failed, falling back to session...")
+
     # Fallback to session authentication for backward compatibility
-    session_user = get_current_user_session()
-    if session_user:
-        current_app.logger.debug(f"Session authentication successful for user {session_user.id}")
-    else:
-        current_app.logger.debug("Session authentication failed")
-    
-    return session_user
+    return get_current_user_session()
 
 
 def get_current_user_jwt() -> Optional[User]:
     """Get the current authenticated user from JWT token."""
-    current_app.logger.debug("Attempting JWT authentication...")
-    
     jwt_token = extract_jwt_from_request()
     if not jwt_token:
-        current_app.logger.debug("No JWT token found in request headers")
         return None
-        
-    current_app.logger.debug(f"JWT token found, attempting validation...")
+
     user = JWTTokenManager.get_user_from_token(jwt_token)
     if not user:
         current_app.logger.warning("Invalid or expired JWT token")
         return None
-        
-    current_app.logger.debug(f"Successfully authenticated user {user.id} via JWT")
+
     return user
 
 
 def get_current_user_session() -> Optional[User]:
     """Get the current authenticated user from session (legacy)."""
-    # Log all session data for debugging
-    current_app.logger.debug(f"Session data: {dict(session)}")
-    current_app.logger.debug(f"Session permanent: {session.permanent}")
-    current_app.logger.debug(f"Request cookies: {dict(request.cookies)}")
-
     session_token = session.get("session_token")
     if not session_token:
-        current_app.logger.warning("No session token found in session")
-        current_app.logger.warning(f"Available session keys: {list(session.keys())}")
         return None
 
     user_session = UserSession.query.filter_by(
@@ -182,23 +160,12 @@ def create_user_session(user: User, request) -> UserSession:
         expires_at=expires_at,
     )
 
-    current_app.logger.info(f"Adding user session to database for user {user.id}")
     db.session.add(user_session)
-
-    current_app.logger.info(f"Committing user session to database")
     db.session.commit()
-
-    current_app.logger.info(f"User session committed with ID: {user_session.id}")
 
     # Set session token in Flask session
     session["session_token"] = session_token
     session.permanent = True
-
-    current_app.logger.info(
-        f"Session token set in Flask session: {session_token[:10]}..."
-    )
-    current_app.logger.info(f"Session permanent: {session.permanent}")
-    current_app.logger.info(f"Session contents after setting: {dict(session)}")
 
     return user_session
 
@@ -263,21 +230,7 @@ def debug_auth() -> Response:
 def register() -> Tuple[Response, int]:
     """Register a new user account with email or SMS verification."""
     try:
-        current_app.logger.info(
-            f"Registration attempt - Request headers: {dict(request.headers)}"
-        )
-        current_app.logger.info(
-            f"Registration attempt - Request method: {request.method}"
-        )
-        current_app.logger.info(f"Registration attempt - Request URL: {request.url}")
-
         data = request.get_json()
-        current_app.logger.info(f"Registration attempt - Data received: {bool(data)}")
-
-        if data:
-            # Log data without password
-            safe_data = {k: v for k, v in data.items() if k != "password"}
-            current_app.logger.info(f"Registration attempt - Safe data: {safe_data}")
 
         if not data:
             return jsonify({"error": "No data provided"}), 400
@@ -330,28 +283,11 @@ def register() -> Tuple[Response, int]:
 
             # Use the formatted phone number (E.164 format)
             phone = formatted_phone_or_error
-            current_app.logger.info(f"Phone validated and formatted: {phone}")
-
-        # Test database connection and log user count
-        current_app.logger.info("Testing database connection before user creation")
-        try:
-            total_users = User.query.count()
-            current_app.logger.info(
-                f"Database connection OK - Total users in database: {total_users}"
-            )
-        except Exception as db_error:
-            current_app.logger.error(f"Database connection error: {str(db_error)}")
-            raise
 
         # Check if user already exists (email, username, or phone)
-        current_app.logger.info(
-            f"Checking for existing user with username '{username}' or email '{email}'"
-        )
-
         filters = [(User.username == username), (User.email == email)]
         if phone:
             filters.append(User.phone_number == phone)
-            current_app.logger.info(f"Also checking for existing phone: {phone}")
 
         existing_user = User.query.filter(db.or_(*filters)).first()
 
@@ -364,47 +300,25 @@ def register() -> Tuple[Response, int]:
                 return jsonify({"error": "Phone number already exists"}), 409
 
         # Create new user with pending verification status
-        current_app.logger.info(f"Creating user object for: {username}")
         user = User(
             username=username,
             email=email,
             phone_number=phone,
             first_name=data.get("first_name", "").strip(),
             last_name=data.get("last_name", "").strip(),
-            status=UserStatus.PENDING_VERIFICATION,  # Requires verification
-            is_verified=False,  # Not verified yet
+            status=UserStatus.PENDING_VERIFICATION,
+            is_verified=False,
         )
-
-        current_app.logger.info(f"Setting password for user: {username}")
         user.set_password(password)
 
         # Generate verification token based on method
         if verification_method == "email":
             verification_token = user.generate_verification_token()
-            current_app.logger.info(f"Generated email verification token for: {username}")
         else:  # SMS
             verification_token = user.generate_phone_verification_token()
-            current_app.logger.info(f"Generated SMS verification code for: {username}")
 
-        current_app.logger.info(f"Adding user to database session: {username}")
         db.session.add(user)
-
-        current_app.logger.info(f"Committing user to database: {username}")
         db.session.commit()
-
-        current_app.logger.info(f"User committed with ID: {user.id}")
-
-        # Verify user was actually saved by querying it back
-        verification_user = User.query.filter_by(username=username).first()
-        if not verification_user:
-            current_app.logger.error(
-                f"❌ User verification FAILED - user not found in database after commit!"
-            )
-            raise Exception("User was not saved to database despite successful commit")
-
-        current_app.logger.info(
-            f"✅ User saved successfully - found user ID: {verification_user.id}"
-        )
 
         # Send verification based on method
         verification_sent = False
@@ -415,29 +329,19 @@ def register() -> Tuple[Response, int]:
                 token=verification_token,
                 username=username
             )
-            current_app.logger.info(
-                f"Email verification sent to {email}: {verification_sent}"
-            )
         else:  # SMS
             sms_service = get_sms_service()
             verification_sent = sms_service.send_verification_sms(
                 phone_number=phone,
                 code=verification_token
             )
-            current_app.logger.info(
-                f"SMS verification sent to {phone}: {verification_sent}"
-            )
 
         if not verification_sent:
             current_app.logger.warning(
                 f"Verification {verification_method} failed to send for user {username}"
             )
-            # Note: User is still created even if verification fails to send
-            # They can request a resend later
 
-        current_app.logger.info(
-            f"New user registered (pending verification): {username} (ID: {user.id})"
-        )
+        current_app.logger.info(f"New user registered: {username} (ID: {user.id})")
 
         # Build response without JWT token (user must verify first)
         response_data = {
@@ -458,9 +362,6 @@ def register() -> Tuple[Response, int]:
 
         response = jsonify(response_data)
 
-        current_app.logger.info(
-            f"Registration response created - user must verify via {verification_method}"
-        )
         return response, 201
 
     except IntegrityError:
@@ -792,8 +693,6 @@ def login() -> Tuple[Response, int]:
         user_session = create_user_session(user, request)
 
         current_app.logger.info(f"User logged in: {user.username}")
-        current_app.logger.info(f"JWT token generated for user {user.id}")
-        current_app.logger.info(f"Session created for audit: {user_session.session_token[:10]}...")
 
         return jsonify({
             "message": "Login successful",
@@ -834,12 +733,6 @@ def logout(current_user: User) -> Tuple[Response, int]:
         session.clear()
 
         current_app.logger.info(f"User logged out: {current_user.username}")
-
-        # Log session cookie details for debugging
-        current_app.logger.info("Logout successful, clearing session data")
-        current_app.logger.info(f"Session cookie domain: {current_app.config.get('SESSION_COOKIE_DOMAIN')}")
-        current_app.logger.info(f"Session cookie secure: {current_app.config.get('SESSION_COOKIE_SECURE')}")
-        current_app.logger.info(f"Session cookie samesite: {current_app.config.get('SESSION_COOKIE_SAMESITE')}")
 
         return jsonify({"message": "Logout successful"}), 200
 

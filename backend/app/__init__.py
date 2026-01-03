@@ -181,44 +181,6 @@ def create_app(config_name: str | None = None) -> Flask:
             app.logger.info(f"{rule.rule} [{methods}] -> {rule.endpoint}")
         app.logger.info("===========================")
 
-    # Add session debugging middleware
-    @app.before_request
-    def debug_session_loading():
-        """Debug session loading process for troubleshooting"""
-        # Only log for API requests to avoid spam
-        if request.path.startswith('/api/'):
-            app.logger.debug(f"=== SESSION DEBUG: {request.method} {request.path} ===")
-            app.logger.debug(f"Request cookies: {dict(request.cookies)}")
-            app.logger.debug(f"Session before access: {getattr(g, 'session_loaded', 'not yet loaded')}")
-
-            # Force session loading by accessing it
-            try:
-                session_data = dict(session)
-                app.logger.debug(f"Session data loaded: {session_data}")
-                app.logger.debug(f"Session permanent: {session.permanent}")
-
-                # Check if session token exists
-                session_token = session.get('session_token')
-                if session_token:
-                    app.logger.debug(f"Session token found: {session_token[:10]}...")
-                else:
-                    app.logger.warning(f"No session token in session. Available keys: {list(session.keys())}")
-
-                # Log session cookie configuration at runtime
-                app.logger.debug(f"Runtime session config:")
-                app.logger.debug(f"  SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}")
-                app.logger.debug(f"  SESSION_COOKIE_DOMAIN: {app.config.get('SESSION_COOKIE_DOMAIN')}")
-                app.logger.debug(f"  SESSION_COOKIE_PATH: {app.config.get('SESSION_COOKIE_PATH')}")
-                app.logger.debug(f"  SESSION_COOKIE_SAMESITE: {app.config.get('SESSION_COOKIE_SAMESITE')}")
-                app.logger.debug(f"  SECRET_KEY length: {len(app.config.get('SECRET_KEY', ''))}")
-
-            except Exception as e:
-                app.logger.error(f"Session loading failed: {str(e)}")
-                import traceback
-                app.logger.error(f"Session loading traceback: {traceback.format_exc()}")
-
-            app.logger.debug("=== END SESSION DEBUG ===")
-
     # Register blueprints
     from app.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix="/api")
@@ -253,9 +215,7 @@ def create_app(config_name: str | None = None) -> Flask:
     # Add catch-all route for debugging API calls
     @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def api_catchall(path):
-        app.logger.error(f"CATCHALL: Unmatched API route /{path} with method {request.method}")
-        app.logger.error(f"CATCHALL: Request headers: {dict(request.headers)}")
-        app.logger.error(f"CATCHALL: Full URL: {request.url}")
+        app.logger.warning(f"Unmatched API route: /{path} [{request.method}]")
         return jsonify({
             "error": f"API endpoint not found: /{path}",
             "method": request.method,

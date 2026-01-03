@@ -38,8 +38,6 @@ class JWTTokenManager:
             raise ValueError("SECRET_KEY not configured")
             
         token = jwt.encode(payload, secret_key, algorithm='HS256')
-        current_app.logger.info(f"Generated JWT token for user {user.id} ({user.username})")
-        
         return token
     
     @staticmethod
@@ -60,8 +58,6 @@ class JWTTokenManager:
                 return None
                 
             payload = jwt.decode(token, secret_key, algorithms=['HS256'])
-            current_app.logger.debug(f"Successfully decoded JWT token for user {payload.get('user_id')}")
-            
             return payload
             
         except jwt.ExpiredSignatureError:
@@ -106,8 +102,7 @@ class JWTTokenManager:
         if user.status.value != payload.get('status'):
             current_app.logger.warning(f"User {user_id} status changed since token issued")
             return None
-            
-        current_app.logger.debug(f"Successfully retrieved user {user.id} from JWT token")
+
         return user
     
     @staticmethod
@@ -131,29 +126,16 @@ class JWTTokenManager:
 def extract_jwt_from_request() -> Optional[str]:
     """
     Extract JWT token from request headers
-    
+
     Returns:
         JWT token string or None
     """
-    from flask import request, current_app
-    
-    # Log request headers for debugging
-    current_app.logger.debug(f"Request headers: {dict(request.headers)}")
-    
+    from flask import request
+
     # Check Authorization header first (preferred)
     auth_header = request.headers.get('Authorization')
-    current_app.logger.debug(f"Authorization header: {auth_header}")
-    
     if auth_header and auth_header.startswith('Bearer '):
-        token = auth_header[7:]  # Remove "Bearer " prefix
-        current_app.logger.debug(f"Extracted JWT token: {token[:20]}..." if token else "None")
-        return token
-    
+        return auth_header[7:]  # Remove "Bearer " prefix
+
     # Fallback: check for token in custom header
-    token = request.headers.get('X-Auth-Token')
-    if token:
-        current_app.logger.debug(f"Found token in X-Auth-Token header: {token[:20]}...")
-        return token
-    
-    current_app.logger.debug("No JWT token found in request headers")
-    return None
+    return request.headers.get('X-Auth-Token')
