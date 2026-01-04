@@ -66,7 +66,6 @@ export interface RecipeImage {
   content_type: string;
   uploaded_at: string;
   image_order?: number;
-  page_number?: number;
   display_url?: string;
   // Cloudinary fields
   cloudinary_public_id?: string | null;
@@ -107,7 +106,6 @@ export interface Recipe {
   title: string;
   description?: string;
   cookbook?: Cookbook;
-  page_number?: number;
   prep_time?: number;
   cook_time?: number;
   servings?: number;
@@ -183,7 +181,6 @@ export interface UploadResponse {
   recipe_id?: number;
   image_id?: number;
   cookbook?: Cookbook;
-  page_number?: number;
 }
 
 export interface MultiUploadResponse {
@@ -267,7 +264,6 @@ export interface UploadFormData {
   isTextMode?: boolean; // Toggle for text upload mode
   recipeText?: string; // Recipe text for direct text upload
   cookbook_id?: number;
-  page_number?: number;
   // Upload mode selection
   no_cookbook?: boolean;
   // New cookbook creation fields
@@ -298,7 +294,6 @@ export interface RecipeFormData {
   title: string;
   description?: string;
   cookbook_id?: number;
-  page_number?: number;
   prep_time?: number;
   cook_time?: number;
   servings?: number;

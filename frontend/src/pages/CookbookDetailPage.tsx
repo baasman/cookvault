@@ -403,13 +403,7 @@ const CookbookDetailPage: React.FC = () => {
         {recipes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recipes
-              .sort((a, b) => {
-                // Sort by page number (nulls last), then by title
-                if (a.page_number === null && b.page_number === null) return a.title.localeCompare(b.title);
-                if (a.page_number === null) return 1;
-                if (b.page_number === null) return -1;
-                return (a.page_number || 0) - (b.page_number || 0);
-              })
+              .sort((a, b) => a.title.localeCompare(b.title))
               .map((recipe) => (
                 <div key={recipe.id} className="relative group">
                   {/* Remove Button - Show for cookbook owners OR for own recipes in Google Books cookbooks */}
@@ -450,15 +444,6 @@ const CookbookDetailPage: React.FC = () => {
                             </div>
                           }
                         />
-
-                        {/* Page Number Badge */}
-                        {recipe.page_number && (
-                          <div className="absolute top-3 left-3">
-                            <span className="px-2 py-1 text-xs font-medium text-white rounded-full bg-accent">
-                              Page {recipe.page_number}
-                            </span>
-                          </div>
-                        )}
                       </div>
 
                     {/* Recipe Info */}

@@ -260,7 +260,7 @@ class RecipesApi {
     }
   }
 
-  async linkRecipeToCookbook(recipeId: number, cookbookId: number | null, pageNumber?: number): Promise<Recipe> {
+  async linkRecipeToCookbook(recipeId: number, cookbookId: number | null): Promise<Recipe> {
     try {
       const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/cookbook`, {
         method: 'PUT',
@@ -269,7 +269,6 @@ class RecipesApi {
         },
         body: JSON.stringify({
           cookbook_id: cookbookId,
-          page_number: pageNumber,
         }),
       });
 
@@ -683,21 +682,17 @@ class RecipesApi {
   }
 
   // Multi-image upload methods
-  async uploadMultipleImages(images: File[], cookbook_id?: number, page_number?: number): Promise<MultiUploadResponse> {
+  async uploadMultipleImages(images: File[], cookbook_id?: number): Promise<MultiUploadResponse> {
     try {
       const formData = new FormData();
-      
+
       // Add all images to form data
       images.forEach((image) => {
         formData.append('images', image);
       });
-      
+
       if (cookbook_id) {
         formData.append('cookbook_id', cookbook_id.toString());
-      }
-      
-      if (page_number) {
-        formData.append('page_number', page_number.toString());
       }
 
       const response = await apiFetch(`${this.baseUrl}/recipes/upload-multi`, {
@@ -736,10 +731,6 @@ class RecipesApi {
         payload.cookbook_id = formData.selected_existing_cookbook_id;
       } else if (formData.cookbook_id) {
         payload.cookbook_id = formData.cookbook_id;
-      }
-
-      if (formData.page_number) {
-        payload.page_number = formData.page_number;
       }
 
       const response = await apiFetch(`${this.baseUrl}/recipes/upload-text`, {

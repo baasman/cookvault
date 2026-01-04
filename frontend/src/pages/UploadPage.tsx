@@ -55,8 +55,7 @@ const UploadPage: React.FC = () => {
 
         const result = await recipesApi.uploadMultipleImages(
           formData.images,
-          cookbook_id,
-          formData.page_number
+          cookbook_id
         );
 
         setMultiJobId(result.multi_job_id);
@@ -90,10 +89,6 @@ const UploadPage: React.FC = () => {
           uploadData.append('cookbook_id', formData.selected_existing_cookbook_id.toString());
         } else if (formData.cookbook_id) {
           uploadData.append('cookbook_id', formData.cookbook_id.toString());
-        }
-        
-        if (formData.page_number) {
-          uploadData.append('page_number', formData.page_number.toString());
         }
 
         const apiUrl = import.meta.env.VITE_API_URL || '/api';
@@ -250,9 +245,6 @@ const UploadPage: React.FC = () => {
                 <>
                   {'cookbook' in success && success.cookbook && (
                     <p>Added to cookbook: {success.cookbook.title}</p>
-                  )}
-                  {'page_number' in success && success.page_number && (
-                    <p>Page: {success.page_number}</p>
                   )}
                   {success.recipe_id && (
                     <p className="mt-2">

@@ -20,7 +20,6 @@ const LinkRecipeModal: React.FC<LinkRecipeModalProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRecipeId, setSelectedRecipeId] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState<string>('');
   const queryClient = useQueryClient();
 
   // Fetch user's recipes (filter=mine)
@@ -37,8 +36,8 @@ const LinkRecipeModal: React.FC<LinkRecipeModalProps> = ({
 
   // Mutation to link recipe to cookbook
   const linkMutation = useMutation({
-    mutationFn: ({ recipeId, pageNum }: { recipeId: number; pageNum?: number }) =>
-      recipesApi.linkRecipeToCookbook(recipeId, cookbookId, pageNum),
+    mutationFn: ({ recipeId }: { recipeId: number }) =>
+      recipesApi.linkRecipeToCookbook(recipeId, cookbookId),
     onSuccess: () => {
       // Invalidate and refetch cookbook data
       queryClient.invalidateQueries({ queryKey: ['cookbook', cookbookId] });
@@ -46,7 +45,6 @@ const LinkRecipeModal: React.FC<LinkRecipeModalProps> = ({
 
       // Reset form and close modal
       setSelectedRecipeId(null);
-      setPageNumber('');
       setSearchTerm('');
       onClose();
     },
@@ -56,13 +54,11 @@ const LinkRecipeModal: React.FC<LinkRecipeModalProps> = ({
     e.preventDefault();
     if (!selectedRecipeId) return;
 
-    const pageNum = pageNumber ? parseInt(pageNumber, 10) : undefined;
-    linkMutation.mutate({ recipeId: selectedRecipeId, pageNum });
+    linkMutation.mutate({ recipeId: selectedRecipeId });
   };
 
   const handleClose = () => {
     setSelectedRecipeId(null);
-    setPageNumber('');
     setSearchTerm('');
     onClose();
   };
@@ -148,7 +144,6 @@ const LinkRecipeModal: React.FC<LinkRecipeModalProps> = ({
                       {recipe.cookbook && (
                         <p className="text-xs text-text-secondary mt-1">
                           Currently in: {recipe.cookbook.title}
-                          {recipe.page_number && ` (Page ${recipe.page_number})`}
                         </p>
                       )}
                     </div>
@@ -156,23 +151,6 @@ const LinkRecipeModal: React.FC<LinkRecipeModalProps> = ({
                 </div>
               ))}
             </div>
-
-            {/* Page Number Input */}
-            {selectedRecipeId && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-text-primary mb-2">
-                  Page Number (Optional)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={pageNumber}
-                  onChange={(e) => setPageNumber(e.target.value)}
-                  placeholder="Enter page number..."
-                  className="w-full px-4 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-                />
-              </div>
-            )}
 
             {/* Error Message */}
             {linkMutation.isError && (

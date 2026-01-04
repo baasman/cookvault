@@ -389,7 +389,6 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
                     >
                       {recipe.cookbook.title}
                     </button>
-                    {recipe.page_number && ` • Page ${recipe.page_number}`}
                   </p>
                 </div>
               )}

@@ -124,9 +124,7 @@ def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
             )
         )
 
-    recipes = recipe_query.order_by(
-        Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()
-    ).all()
+    recipes = recipe_query.order_by(Recipe.created_at.desc()).all()
 
     cookbook_dict = cookbook.to_dict()
     cookbook_dict["recipes"] = [recipe.to_dict() for recipe in recipes]
@@ -174,7 +172,7 @@ def get_cookbook_recipes(current_user, cookbook_id: int) -> Response:
         )
 
     recipes_pagination = recipe_query.order_by(
-        Recipe.page_number.asc().nullslast(), Recipe.created_at.desc()
+        Recipe.created_at.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify(

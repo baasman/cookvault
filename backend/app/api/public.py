@@ -336,8 +336,8 @@ def get_public_cookbook_recipes(cookbook_id):
                 Recipe.description.ilike(f'%{search}%')
             )
         
-        # Order by page number if available, otherwise by title
-        query = query.order_by(Recipe.page_number.asc().nullslast(), Recipe.title)
+        # Order by title
+        query = query.order_by(Recipe.title)
         
         # Paginate results
         recipes_pagination = query.paginate(

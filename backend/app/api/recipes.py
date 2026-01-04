@@ -610,7 +610,6 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
 
     # Get cookbook information from form data
     cookbook_id = request.form.get("cookbook_id")
-    page_number = request.form.get("page_number")
     create_new_cookbook = request.form.get("create_new_cookbook") == "true"
 
     # Handle new cookbook creation
@@ -671,13 +670,6 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         except ValueError:
             return jsonify({"error": "Invalid cookbook_id"}), 400
 
-    # Validate page_number if provided
-    if page_number:
-        try:
-            page_number = int(page_number)
-        except ValueError:
-            return jsonify({"error": "Invalid page_number"}), 400
-
     try:
         # Use the new helper function to handle image processing
         recipe_image = process_and_save_image(file, file.filename, folder="recipes")
@@ -689,7 +681,6 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
             image_id=recipe_image.id,
             cookbook_id=cookbook_id,
             user_id=current_user.id,
-            page_number=page_number,
             skip_cache=skip_cache,
         )
 
@@ -724,7 +715,6 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
                     "image_id": recipe_image.id,
                     "image": recipe_image.to_dict(),  # Include image data for immediate preview
                     "cookbook": cookbook.to_dict() if cookbook else None,
-                    "page_number": page_number,
                     "status": "processing",
                     "processing_info": "Your recipe is being extracted and parsed. Check back in a few moments.",
                     "status_url": f"/api/recipes/job-status/{processing_job.id}",
@@ -829,7 +819,6 @@ def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
             return jsonify({"error": "No data provided"}), 400
 
         cookbook_id = data.get("cookbook_id")
-        page_number = data.get("page_number")
 
         # Allow unlinking from cookbook by setting cookbook_id to null
         if cookbook_id is not None:
@@ -851,7 +840,6 @@ def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
 
         # Update recipe's cookbook association
         recipe.cookbook_id = cookbook_id
-        recipe.page_number = safe_int_conversion(page_number) if page_number else None
 
         db.session.commit()
         current_app.logger.info(
@@ -1530,7 +1518,6 @@ def _create_recipe_from_parsed_data(
         title=title,
         description=parsed_recipe.get("description"),
         cookbook_id=job.cookbook_id,
-        page_number=job.page_number,
         prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
         cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
         servings=safe_int_conversion(parsed_recipe.get("servings")),
@@ -2402,7 +2389,6 @@ def copy_recipe(current_user, recipe_id: int) -> Response:
             uploaded_by_id=current_user.id,
             is_public=False,  # Copied recipes are private by default
             cookbook_id=None,  # Remove cookbook association
-            page_number=None,  # Remove page number
         )
 
         db.session.add(new_recipe)
@@ -2582,7 +2568,6 @@ def upload_multi_recipe(current_user):
 
         # Get optional cookbook information
         cookbook_id = request.form.get("cookbook_id")
-        page_number = safe_int_conversion(request.form.get("page_number"))
 
         # Validate cookbook if provided
         cookbook = None
@@ -2629,7 +2614,6 @@ def upload_multi_recipe(current_user):
 
             # Set multi-image specific fields
             recipe_image.image_order = i  # Set order based on upload sequence
-            recipe_image.page_number = page_number + i if page_number else i + 1
 
             db.session.add(recipe_image)
             db.session.flush()  # Get the ID
@@ -2639,7 +2623,6 @@ def upload_multi_recipe(current_user):
                 image_id=recipe_image.id,
                 cookbook_id=cookbook_id,
                 user_id=current_user.id,
-                page_number=recipe_image.page_number,
                 is_multi_image=True,
                 multi_job_id=multi_job.id,
                 image_order=i,
@@ -2761,7 +2744,6 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
 
         # Get optional cookbook information
         cookbook_id = data.get("cookbook_id")
-        page_number = data.get("page_number")
         create_new_cookbook = data.get("create_new_cookbook", False)
 
         # Handle new cookbook creation (same logic as image upload)
@@ -2821,13 +2803,6 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid cookbook_id"}), 400
 
-        # Validate page_number if provided
-        if page_number:
-            try:
-                page_number = int(page_number)
-            except (ValueError, TypeError):
-                return jsonify({"error": "Invalid page_number"}), 400
-
         # Process the text directly using the recipe parser
         recipe_parser = RecipeParser()
         parsed_recipe = recipe_parser.parse_recipe_text(recipe_text)
@@ -2844,7 +2819,6 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             title=recipe_title,
             description=parsed_recipe.get("description"),
             cookbook_id=cookbook_id,
-            page_number=page_number,
             user_id=current_user.id,
             uploaded_by_id=current_user.id,
             is_public=False,  # Default to private
@@ -2894,7 +2868,6 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
                         "title": recipe.title,
                         "description": recipe.description,
                         "cookbook_id": recipe.cookbook_id,
-                        "page_number": recipe.page_number,
                         "prep_time": recipe.prep_time,
                         "cook_time": recipe.cook_time,
                         "servings": recipe.servings,
@@ -3417,14 +3390,12 @@ def process_multi_image_job(multi_job_id: int):
                 f"Recipe instructions count: {len(parsed_recipe.get('instructions', []))}"
             )
 
-            # Get cookbook_id and page_number from processing jobs if available
+            # Get cookbook_id from processing jobs if available
             cookbook_id = None
-            page_number = None
             if successful_jobs:
                 cookbook_id = successful_jobs[0].cookbook_id
-                page_number = successful_jobs[0].page_number
                 current_app.logger.info(
-                    f"Setting recipe cookbook_id to: {cookbook_id}, page_number to: {page_number}"
+                    f"Setting recipe cookbook_id to: {cookbook_id}"
                 )
 
             # Ensure we have a valid title
@@ -3438,7 +3409,6 @@ def process_multi_image_job(multi_job_id: int):
                 title=recipe_title,
                 description=parsed_recipe.get("description"),
                 cookbook_id=cookbook_id,
-                page_number=page_number,
                 user_id=multi_job.user_id,
                 uploaded_by_id=multi_job.user_id,
                 is_public=False,  # Default to private

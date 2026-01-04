@@ -20,7 +20,6 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     isTextMode: false, // Start in image mode by default
     recipeText: '',
     cookbook_id: undefined,
-    page_number: undefined,
     create_new_cookbook: false,
     new_cookbook_title: '',
     new_cookbook_author: '',
@@ -679,8 +678,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                     no_cookbook: true,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
-                    selected_google_book: null,
-                    page_number: undefined 
+                    selected_google_book: null
                   }))}
                   className="mr-2 text-accent"
                 />
@@ -691,16 +689,15 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   type="radio"
                   name="cookbook_mode"
                   checked={formData.search_google_books}
-                  onChange={() => setFormData(prev => ({ 
-                    ...prev, 
+                  onChange={() => setFormData(prev => ({
+                    ...prev,
                     create_new_cookbook: false,
                     search_existing_cookbook: false,
                     search_google_books: true,
                     no_cookbook: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
-                    selected_google_book: null,
-                    page_number: undefined 
+                    selected_google_book: null
                   }))}
                   className="mr-2 text-accent"
                 />
@@ -711,16 +708,15 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   type="radio"
                   name="cookbook_mode"
                   checked={formData.search_existing_cookbook}
-                  onChange={() => setFormData(prev => ({ 
-                    ...prev, 
+                  onChange={() => setFormData(prev => ({
+                    ...prev,
                     create_new_cookbook: false,
                     search_existing_cookbook: true,
                     search_google_books: false,
                     no_cookbook: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
-                    selected_google_book: null,
-                    page_number: undefined 
+                    selected_google_book: null
                   }))}
                   className="mr-2 text-accent"
                 />
@@ -731,16 +727,15 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   type="radio"
                   name="cookbook_mode"
                   checked={formData.create_new_cookbook}
-                  onChange={() => setFormData(prev => ({ 
-                    ...prev, 
+                  onChange={() => setFormData(prev => ({
+                    ...prev,
                     create_new_cookbook: true,
                     search_existing_cookbook: false,
                     search_google_books: false,
                     no_cookbook: false,
                     cookbook_id: undefined,
                     selected_existing_cookbook_id: undefined,
-                    selected_google_book: null,
-                    page_number: undefined 
+                    selected_google_book: null
                   }))}
                   className="mr-2 text-accent"
                 />
@@ -836,21 +831,6 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   </div>
                 )}
                 
-                {/* Page Number for online database selection */}
-                {formData.selected_google_book && (
-                  <div className="w-full sm:w-48">
-                    <Input
-                      label="Page Number"
-                      type="number"
-                      placeholder="Page number in cookbook"
-                      value={formData.page_number?.toString() || ''}
-                      onChange={(value) => setFormData(prev => ({ 
-                        ...prev, 
-                        page_number: value ? parseInt(value, 10) : undefined 
-                      }))}
-                    />
-                  </div>
-                )}
               </>
             ) : formData.search_existing_cookbook ? (
               /* Cookbook Search */
@@ -893,22 +873,6 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                     </button>
                   </div>
                 )}
-                
-                {/* Page Number for selected cookbook */}
-                {formData.selected_existing_cookbook_id && (
-                  <div className="w-full sm:w-48">
-                    <Input
-                      label="Page Number"
-                      type="number"
-                      placeholder="Page number in cookbook"
-                      value={formData.page_number?.toString() || ''}
-                      onChange={(value) => setFormData(prev => ({ 
-                        ...prev, 
-                        page_number: value ? parseInt(value, 10) : undefined 
-                      }))}
-                    />
-                  </div>
-                )}
               </>
             ) : (
               /* New Cookbook Creation Form */
@@ -944,22 +908,12 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="w-full sm:w-48">
                   <Input
                     label="Publication Date"
                     type="date"
                     value={formData.new_cookbook_publication_date || ''}
                     onChange={(value) => setFormData(prev => ({ ...prev, new_cookbook_publication_date: value }))}
-                  />
-                  <Input
-                    label="Page Number"
-                    type="number"
-                    placeholder="Page number in cookbook"
-                    value={formData.page_number?.toString() || ''}
-                    onChange={(value) => setFormData(prev => ({ 
-                      ...prev, 
-                      page_number: value ? parseInt(value, 10) : undefined 
-                    }))}
                   />
                 </div>
                 

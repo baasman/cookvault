@@ -322,7 +322,6 @@ class Recipe(db.Model):
     cookbook_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cookbook.id"), nullable=True
     )
-    page_number: Mapped[Optional[int]] = mapped_column(Integer)
     prep_time: Mapped[Optional[int]] = mapped_column(Integer)
     cook_time: Mapped[Optional[int]] = mapped_column(Integer)
     servings: Mapped[Optional[int]] = mapped_column(Integer)
@@ -538,7 +537,6 @@ class Recipe(db.Model):
             "title": self.title,
             "description": self.description,
             "cookbook": self.cookbook.to_dict(current_user_id) if self.cookbook else None,
-            "page_number": self.page_number,
             "status": self.get_status(),
             "prep_time": self.prep_time,
             "cook_time": self.cook_time,
@@ -633,7 +631,6 @@ class RecipeImage(db.Model):
 
     # Multi-image support fields
     image_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    page_number: Mapped[Optional[int]] = mapped_column(Integer)
 
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -666,7 +663,6 @@ class RecipeImage(db.Model):
             "file_size": self.file_size,
             "content_type": self.content_type,
             "image_order": self.image_order,
-            "page_number": self.page_number,
             "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
             # Cloudinary fields
             "cloudinary_public_id": self.cloudinary_public_id,
@@ -687,7 +683,6 @@ class ProcessingJob(db.Model):
     image_id: Mapped[int] = mapped_column(ForeignKey("recipe_image.id"), nullable=False)
     cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), index=True)
-    page_number: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Multi-image support fields
     is_multi_image: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

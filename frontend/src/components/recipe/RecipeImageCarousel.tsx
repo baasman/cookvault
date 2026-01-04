@@ -120,21 +120,18 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
               <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
             </svg>
             <span>{currentIndex + 1} of {sortedImages.length}</span>
-            {currentImage.page_number && (
-              <span>• Page {currentImage.page_number}</span>
-            )}
           </div>
         )}
 
         {/* Main image display */}
-        <div 
+        <div
           ref={carouselRef}
           className="aspect-square bg-gradient-to-br from-background-secondary to-primary-200 rounded-xl overflow-hidden relative group"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
           role="img"
-          aria-label={`Recipe image ${currentIndex + 1} of ${sortedImages.length}${currentImage.page_number ? `, page ${currentImage.page_number}` : ''}`}
+          aria-label={`Recipe image ${currentIndex + 1} of ${sortedImages.length}`}
         >
           <CloudinaryImage
             cloudinaryUrl={currentImage.cloudinary_url}
@@ -225,7 +222,7 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                 role="tab"
                 aria-selected={index === currentIndex}
                 aria-controls={`image-panel-${index}`}
-                aria-label={`View image ${index + 1}${image.page_number ? ` (Page ${image.page_number})` : ''}`}
+                aria-label={`View image ${index + 1}`}
                 tabIndex={index === currentIndex ? 0 : -1}
               >
                 <CloudinaryImage
@@ -236,11 +233,6 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                   className="w-full h-full object-cover"
                   preferThumbnail={true}
                 />
-                {image.page_number && (
-                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 text-white text-xs text-center py-1">
-                    {image.page_number}
-                  </div>
-                )}
               </button>
             ))}
           </div>
@@ -280,7 +272,6 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
             <div className="absolute top-4 left-4 text-white bg-black bg-opacity-50 rounded-lg px-3 py-2 z-10">
               <div className="text-sm font-medium" role="status" aria-live="polite">
                 Image {currentIndex + 1} of {sortedImages.length}
-                {currentImage.page_number && ` • Page ${currentImage.page_number}`}
               </div>
             </div>
 
