@@ -1181,13 +1181,23 @@ def get_user_profile(current_user: User) -> Response:
         # Get basic user info
         user_info = current_user.to_dict(include_sensitive=True)
 
-        # Calculate recipe statistics
-        total_recipes = Recipe.query.filter_by(user_id=current_user.id).count()
+        # Calculate recipe statistics (include both owned and uploaded recipes)
+        total_recipes = Recipe.query.filter(
+            db.or_(
+                Recipe.user_id == current_user.id,
+                Recipe.uploaded_by_id == current_user.id
+            )
+        ).distinct().count()
 
         # Recipe difficulty breakdown
         difficulty_stats = (
             db.session.query(Recipe.difficulty, func.count(Recipe.id).label("count"))
-            .filter_by(user_id=current_user.id)
+            .filter(
+                db.or_(
+                    Recipe.user_id == current_user.id,
+                    Recipe.uploaded_by_id == current_user.id
+                )
+            )
             .group_by(Recipe.difficulty)
             .all()
         )
@@ -1203,7 +1213,13 @@ def get_user_profile(current_user: User) -> Response:
         # Average cook time
         avg_cook_time_result = (
             db.session.query(func.avg(Recipe.cook_time))
-            .filter(Recipe.user_id == current_user.id, Recipe.cook_time.isnot(None))
+            .filter(
+                db.or_(
+                    Recipe.user_id == current_user.id,
+                    Recipe.uploaded_by_id == current_user.id
+                ),
+                Recipe.cook_time.isnot(None)
+            )
             .scalar()
         )
 
@@ -1238,9 +1254,14 @@ def get_user_profile(current_user: User) -> Response:
                     "recipe_count": top_cookbook.recipe_count,
                 }
 
-        # Recent activity (last 10 recipes)
+        # Recent activity (last 10 recipes - include both owned and uploaded)
         recent_recipes = (
-            Recipe.query.filter_by(user_id=current_user.id)
+            Recipe.query.filter(
+                db.or_(
+                    Recipe.user_id == current_user.id,
+                    Recipe.uploaded_by_id == current_user.id
+                )
+            )
             .order_by(Recipe.created_at.desc())
             .limit(10)
             .all()
