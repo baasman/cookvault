@@ -379,6 +379,24 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
                 </div>
               )}
 
+              {/* Uploader info for private recipes uploaded to shared cookbooks */}
+              {!recipe.is_public && recipe.uploaded_by && recipe.uploaded_by.id !== recipe.user?.id && (
+                <div className="pt-3 border-t border-primary-200">
+                  <p className="text-xs text-text-secondary">
+                    Uploaded by: <Link
+                      to={`/users/${recipe.uploaded_by.id}`}
+                      onClick={(e) => { e.stopPropagation(); }}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                      style={{color: '#2563eb'}}
+                    >
+                      {recipe.uploaded_by.first_name && recipe.uploaded_by.last_name
+                        ? `${recipe.uploaded_by.first_name} ${recipe.uploaded_by.last_name}`
+                        : recipe.uploaded_by.username}
+                    </Link>
+                  </p>
+                </div>
+              )}
+
               {/* Cookbook info */}
               {recipe.cookbook && (
                 <div className={`pt-3 border-t border-primary-200 ${recipe.is_public && recipe.user ? 'pt-2' : ''}`}>

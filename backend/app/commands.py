@@ -158,6 +158,64 @@ def stats():
         raise
 
 
+@click.group()
+def user():
+    """User management commands."""
+    pass
+
+
+@user.command()
+@click.argument('username')
+@click.argument('email')
+@click.argument('password')
+@click.option('--first-name', default=None, help='First name')
+@click.option('--last-name', default=None, help='Last name')
+@click.option('--admin', is_flag=True, help='Make user an admin')
+@with_appcontext
+def create(username, email, password, first_name, last_name, admin):
+    """Create a new user with the given credentials."""
+    try:
+        from app.models.user import User, UserRole, UserStatus
+
+        # Check if user already exists
+        existing = User.query.filter(
+            (User.username == username) | (User.email == email)
+        ).first()
+
+        if existing:
+            click.echo(f"❌ User with username '{username}' or email '{email}' already exists")
+            return
+
+        # Create user
+        user = User(
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            role=UserRole.ADMIN if admin else UserRole.USER,
+            status=UserStatus.ACTIVE,
+            is_verified=True
+        )
+        user.set_password(password)
+
+        db.session.add(user)
+        db.session.commit()
+
+        click.echo(f"✅ Successfully created user '{username}' (ID: {user.id})")
+        click.echo(f"   Email: {email}")
+        click.echo(f"   Role: {'admin' if admin else 'user'}")
+        click.echo(f"   Status: active, verified")
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creating user: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        click.echo(f"❌ Error: {str(e)}")
+        raise
+
+
 def init_app(app):
     """Initialize CLI commands with the Flask app."""
     app.cli.add_command(subscription)
+    app.cli.add_command(user)
