@@ -2122,8 +2122,8 @@ def save_recipe_note(current_user, recipe_id: int) -> Response:
     # First, check if the recipe exists and user owns it
     recipe = Recipe.query.get_or_404(recipe_id)
 
-    # Only recipe owners can create/edit notes
-    if recipe.user_id != current_user.id:
+    # Only recipe owners or uploaders can create/edit notes
+    if recipe.user_id != current_user.id and recipe.uploaded_by_id != current_user.id:
         return jsonify({"error": "Only recipe owners can create notes"}), 403
 
     data = request.get_json()
@@ -2168,8 +2168,8 @@ def delete_recipe_note(current_user, recipe_id: int) -> Response:
     # First, check if the recipe exists and user owns it
     recipe = Recipe.query.get_or_404(recipe_id)
 
-    # Only recipe owners can delete notes
-    if recipe.user_id != current_user.id:
+    # Only recipe owners or uploaders can delete notes
+    if recipe.user_id != current_user.id and recipe.uploaded_by_id != current_user.id:
         return jsonify({"error": "Only recipe owners can delete notes"}), 403
 
     # Get user's note for this recipe

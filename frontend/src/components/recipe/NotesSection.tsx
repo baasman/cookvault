@@ -12,8 +12,13 @@ interface NotesSectionProps {
 const NotesSection: React.FC<NotesSectionProps> = ({ recipe }) => {
   const { user } = useAuth();
   
-  // Check if current user owns the recipe (for editing permissions)
-  const isOwnRecipe = Boolean(user && recipe.user_id && user.id && recipe.user_id === parseInt(user.id));
+  // Check if current user owns or uploaded the recipe (for editing permissions)
+  const isOwnRecipe = Boolean(
+    user && user.id && (
+      (recipe.user_id && recipe.user_id === parseInt(user.id)) ||
+      (recipe.uploaded_by_id && recipe.uploaded_by_id === parseInt(user.id))
+    )
+  );
   
   const [isExpanded, setIsExpanded] = useState(false);
   const [noteContent, setNoteContent] = useState('');
