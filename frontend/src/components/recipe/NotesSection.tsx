@@ -208,7 +208,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ recipe }) => {
                     <button
                       onClick={handleSaveClick}
                       disabled={isSaving || !noteContent.trim() || isOverLimit || !hasUnsavedChanges}
-                      className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{backgroundColor: '#f15f1c', color: 'white'}}
                     >
                       {isSaving ? 'Saving...' : 'Save Note'}
                     </button>
