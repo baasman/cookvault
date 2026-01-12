@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { setAuthContext, apiFetch, clearAuthErrors } from '../utils/apiInterceptor';
 import { debugAuth, debugCookies } from '../utils/authDebug';
+import { getAuthToken, setAuthToken, removeAuthToken } from '../services/storageService';
 
 interface User {
   id: string;
@@ -17,7 +18,7 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (usernameOrEmail: string, password: string) => Promise<void>;
   register: (userData: RegisterData) => Promise<RegisterResponse>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -78,8 +79,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         debugAuth('Starting auth check');
         debugCookies();
-        
-        const token = localStorage.getItem('auth_token');
+
+        const token = await getAuthToken();
         debugAuth('Auth token status', token ? 'present' : 'missing');
         
         if (token) {
@@ -109,14 +110,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } else {
             debugAuth('Auth check failed - invalid token', { status: response.status });
             // Token is invalid, remove it
-            localStorage.removeItem('auth_token');
+            await removeAuthToken();
           }
         }
       } catch (error) {
         debugAuth('Auth check error', error);
         console.error('Auth check failed:', error);
         // Remove invalid token
-        localStorage.removeItem('auth_token');
+        await removeAuthToken();
       } finally {
         setIsLoading(false);
       }
@@ -163,7 +164,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       // Store JWT token instead of session token
-      localStorage.setItem('auth_token', data.access_token);
+      await setAuthToken(data.access_token);
       debugAuth('JWT token stored', { tokenType: data.token_type });
       
       // Clear any authentication error tracking
@@ -239,7 +240,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
 
         // Store JWT token from registration response
-        localStorage.setItem('auth_token', data.access_token);
+        await setAuthToken(data.access_token);
 
         // Clear any authentication error tracking
         clearAuthErrors();
@@ -254,10 +255,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     debugAuth('Logout initiated');
     setUser(null);
-    localStorage.removeItem('auth_token');
+    await removeAuthToken();
     // Clear all React Query cache to prevent data leakage between users
     queryClient.clear();
     // Redirect to login page using window.location for better compatibility

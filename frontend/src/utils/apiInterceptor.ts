@@ -1,8 +1,9 @@
 import { toast } from 'react-hot-toast';
 import { debugAuth } from './authDebug';
+import { getAuthToken, removeAuthToken } from '../services/storageService';
 
 interface AuthContext {
-  logout: () => void;
+  logout: () => void | Promise<void>;
 }
 
 let authContext: AuthContext | null = null;
@@ -62,9 +63,9 @@ export const authenticatedFetch = async (
   // Log the actual URL being requested
   console.debug('authenticatedFetch - Requesting URL:', url);
   console.debug('authenticatedFetch - Method:', options.method || 'GET');
-  
+
   // Add JWT token to headers if available
-  const authToken = localStorage.getItem('auth_token');
+  const authToken = await getAuthToken();
   const headers = {
     ...options.headers,
     ...(authToken && { 'Authorization': `Bearer ${authToken}` })
@@ -117,17 +118,17 @@ export const authenticatedFetch = async (
         toast.error('Your session has expired. Please log in again.');
         sessionStorage.setItem(sessionKey, 'true');
       }
-      
+
       // Clear any stored auth tokens
-      localStorage.removeItem('auth_token');
-      
+      await removeAuthToken();
+
       // Logout and redirect
       if (authContext) {
         authContext.logout();
       } else {
         window.location.href = '/login';
       }
-      
+
       return response;
     }
 
@@ -207,9 +208,9 @@ export function withAuthHandling<T extends (...args: any[]) => Promise<any>>(
             toast.error('Your session has expired. Please log in again.');
             sessionStorage.setItem(sessionKey, 'true');
           }
-          
-          localStorage.removeItem('auth_token');
-          
+
+          await removeAuthToken();
+
           if (authContext) {
             authContext.logout();
           } else {
@@ -234,18 +235,18 @@ export const isAuthError = (response: Response): boolean => {
 /**
  * Handle authentication error from a response (legacy support)
  */
-export const handleAuthError = (response: Response): void => {
+export const handleAuthError = async (response: Response): Promise<void> => {
   if (isAuthError(response)) {
     console.warn('Legacy auth error handler called');
-    
+
     const sessionKey = 'auth_error_shown';
     if (!sessionStorage.getItem(sessionKey)) {
       toast.error('Your session has expired. Please log in again.');
       sessionStorage.setItem(sessionKey, 'true');
     }
-    
-    localStorage.removeItem('auth_token');
-    
+
+    await removeAuthToken();
+
     if (authContext) {
       authContext.logout();
     } else {
