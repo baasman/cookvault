@@ -1,9 +1,9 @@
 {
-  "total_requests": 385,
-  "total_failures": 2,
-  "avg_response_time": 259.79010388103933,
-  "min_response_time": 7.8943330445326865,
-  "max_response_time": 6651.9300829968415,
-  "requests_per_second": 2.0,
+  "total_requests": 26,
+  "total_failures": 0,
+  "avg_response_time": 1167.8194951537955,
+  "min_response_time": 276.6447909998533,
+  "max_response_time": 6660.850707999998,
+  "requests_per_second": 0.4,
   "failures_per_second": 0.0
 }

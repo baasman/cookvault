@@ -3,6 +3,8 @@ import { Button, Input } from '../ui';
 import { CookbookSearch } from '../cookbook/CookbookSearch';
 import { GoogleBooksSearch } from '../cookbook/GoogleBooksSearch';
 import { cookbooksApi, type GoogleBook } from '../../services/cookbooksApi';
+import { captureRecipePhoto } from '../../services/cameraService';
+import { isNativePlatform } from '../../utils/platform';
 import type { UploadFormData, ImagePreview } from '../../types';
 
 interface UploadFormProps {
@@ -270,14 +272,34 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
   };
 
   const clearImage = () => {
-    setFormData(prev => ({ 
-      ...prev, 
+    setFormData(prev => ({
+      ...prev,
       image: null,
-      isMultiImage: false 
+      isMultiImage: false
     }));
     setImagePreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle image selection - use Capacitor Camera on native, file input on web
+  const handleImageSelect = async () => {
+    if (isNativePlatform()) {
+      try {
+        const result = await captureRecipePhoto();
+        if (result?.file) {
+          // Use the file from camera service (already compressed and resized)
+          handleFileSelect(result.file);
+        }
+      } catch (error) {
+        console.error('Failed to capture photo:', error);
+        // Fall back to file input if camera fails
+        fileInputRef.current?.click();
+      }
+    } else {
+      // On web, use standard file input
+      fileInputRef.current?.click();
     }
   };
 
@@ -603,7 +625,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handleImageSelect}
             >
               <input
                 ref={fileInputRef}
