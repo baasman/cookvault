@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { setAuthContext, apiFetch, clearAuthErrors } from '../utils/apiInterceptor';
 import { debugAuth, debugCookies } from '../utils/authDebug';
 import { getAuthToken, setAuthToken, removeAuthToken } from '../services/storageService';
+import { getApiUrl } from '../utils/getApiUrl';
 
 interface User {
   id: string;
@@ -82,10 +83,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         const token = await getAuthToken();
         debugAuth('Auth token status', token ? 'present' : 'missing');
-        
+
         if (token) {
           // Validate token with backend
-          const apiUrl = import.meta.env.VITE_API_URL || '/api';
+          const apiUrl = getApiUrl();
           const response = await apiFetch(`${apiUrl}/auth/me`, {
             method: 'GET',
             headers: {
@@ -131,8 +132,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       debugAuth('Login attempt', { login: usernameOrEmail });
       debugCookies();
-      
-      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+
+      const apiUrl = getApiUrl();
       const response = await apiFetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
@@ -187,9 +188,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('Attempting registration with data:', { ...userData, password: '[REDACTED]' });
 
-      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const apiUrl = getApiUrl();
       const fullUrl = `${apiUrl}/auth/register`;
-      console.log('API URL from env:', import.meta.env.VITE_API_URL);
       console.log('Using API base URL:', apiUrl);
       console.log('Full registration URL:', fullUrl);
 

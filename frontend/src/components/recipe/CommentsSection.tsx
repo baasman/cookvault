@@ -96,14 +96,14 @@ const CommentItem: React.FC<CommentItemProps> = ({
         </div>
         
         <div className="flex-1 min-w-0">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
+          {/* Header - stacks on mobile */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2 min-w-0">
               <span className="text-xs text-text-secondary">Posted by</span>
-              <span className="font-semibold text-text-primary">{displayName}</span>
+              <span className="font-semibold text-text-primary truncate max-w-[150px] sm:max-w-none">{displayName}</span>
               <span className="text-xs text-text-secondary">•</span>
-              <span 
-                className="text-xs text-text-secondary hover:text-text-primary cursor-help" 
+              <span
+                className="text-xs text-text-secondary hover:text-text-primary cursor-help whitespace-nowrap"
                 title={new Date(comment.created_at).toLocaleString()}
               >
                 {formatDate(comment.created_at)}
@@ -113,7 +113,7 @@ const CommentItem: React.FC<CommentItemProps> = ({
               )}
             </div>
             {isOwnComment && !isEditing && (
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1 flex-shrink-0">
                 <button
                   onClick={() => setIsEditing(true)}
                   className="text-xs text-accent hover:text-accent-hover transition-colors"

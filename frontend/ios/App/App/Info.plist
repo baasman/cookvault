@@ -47,5 +47,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Cookle needs camera access to take photos of your recipes</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Cookle needs photo library access to select recipe images</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Cookle needs permission to save recipe images to your photo library</string>
 </dict>
 </plist>

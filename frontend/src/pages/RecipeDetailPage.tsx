@@ -28,6 +28,7 @@ const RecipeDetailPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [scaleFactor, setScaleFactor] = useState(1);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [desiredServings, setDesiredServings] = useState<number | undefined>(undefined);
 
   const { 
@@ -212,7 +213,7 @@ const RecipeDetailPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Back Navigation and Edit Button */}
+      {/* Back Navigation and Action Buttons */}
       <div className="mb-6 flex justify-between items-center">
         <button
           onClick={() => navigate('/recipes')}
@@ -223,39 +224,29 @@ const RecipeDetailPage: React.FC = () => {
           </svg>
           <span>Back to Recipes</span>
         </button>
-        
-        <div className="flex items-center space-x-3">
-          {/* Add to Collection Button - show for authenticated users viewing public recipes not owned by them */}
+
+        {/* Desktop: horizontal buttons (hidden on mobile) */}
+        <div className="hidden md:flex items-center space-x-3">
           {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && !isEditing && (
             <AddToCollectionButton recipe={recipe} />
           )}
-          
-          {/* Add to Group Button - show for authenticated users viewing any recipe */}
           {recipe && isAuthenticated && !isEditing && (
             <AddToGroupButton recipe={recipe} size="sm" />
           )}
-          
-          {/* Copy Recipe Button - show for authenticated users viewing public recipes not owned by them */}
           {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && !isEditing && (
             <CopyRecipeButton recipe={recipe} size="sm" />
           )}
-          
-          {/* Make Public Button - show for recipes owned by current user */}
           {recipe && isOwnRecipe && !isEditing && (
             <MakePublicButton recipe={recipe} size="sm" />
           )}
-
-          {/* Feature Toggle Button - show for admins only */}
           {recipe && !isEditing && (
-            <FeatureToggleButton 
-              recipe={recipe} 
+            <FeatureToggleButton
+              recipe={recipe}
               onUpdate={(updatedRecipe) => {
                 queryClient.setQueryData(['recipe', recipeId], updatedRecipe);
-              }} 
+              }}
             />
           )}
-          
-          {/* Edit Button */}
           {canEdit && !isEditing && (
             <Button onClick={() => setIsEditing(true)} variant="secondary" size="sm">
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -264,8 +255,6 @@ const RecipeDetailPage: React.FC = () => {
               Edit Recipe
             </Button>
           )}
-          
-          {/* Export Button */}
           {recipe.has_full_access && (
             <ExportButton
               type="recipe"
@@ -275,12 +264,10 @@ const RecipeDetailPage: React.FC = () => {
               className="ml-2"
             />
           )}
-          
-          {/* Delete Button */}
           {canEdit && !isEditing && (
-            <Button 
-              onClick={handleDeleteClick} 
-              variant="secondary" 
+            <Button
+              onClick={handleDeleteClick}
+              variant="secondary"
               size="sm"
               className="ml-2 bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
             >
@@ -291,6 +278,97 @@ const RecipeDetailPage: React.FC = () => {
             </Button>
           )}
         </div>
+
+        {/* Mobile: overflow menu (hidden on desktop) */}
+        {!isEditing && (
+          <div className="md:hidden relative">
+            <button
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label="More actions"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+              </svg>
+            </button>
+
+            {showMobileMenu && (
+              <>
+                {/* Backdrop to close menu */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowMobileMenu(false)}
+                />
+
+                {/* Dropdown menu - unified styling */}
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border z-50 min-w-[200px] py-1" style={{borderColor: '#e8d7cf'}}>
+                  {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <AddToCollectionButton recipe={recipe} />
+                    </div>
+                  )}
+                  {recipe && isAuthenticated && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <AddToGroupButton recipe={recipe} size="sm" />
+                    </div>
+                  )}
+                  {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <CopyRecipeButton recipe={recipe} size="sm" />
+                    </div>
+                  )}
+                  {recipe && isOwnRecipe && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <MakePublicButton recipe={recipe} size="sm" />
+                    </div>
+                  )}
+                  {recipe && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <FeatureToggleButton
+                        recipe={recipe}
+                        onUpdate={(updatedRecipe) => {
+                          queryClient.setQueryData(['recipe', recipeId], updatedRecipe);
+                        }}
+                      />
+                    </div>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => { setIsEditing(true); setShowMobileMenu(false); }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center"
+                    >
+                      <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit Recipe
+                    </button>
+                  )}
+                  {recipe.has_full_access && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <ExportButton
+                        type="recipe"
+                        recipeId={recipeId}
+                        buttonText="Export PDF"
+                        showOptions={true}
+                      />
+                    </div>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => { handleDeleteClick(); setShowMobileMenu(false); }}
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center"
+                    >
+                      <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete Recipe
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Recipe Content */}
