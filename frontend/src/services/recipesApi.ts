@@ -1,6 +1,7 @@
 import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse, Instruction } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
 import { getApiUrl } from '../utils/getApiUrl';
+import { getAuthToken } from './storageService';
 
 interface FetchRecipesParams {
   page?: number;
@@ -126,11 +127,11 @@ class RecipesApi {
 
   async fetchRecipe(id: number): Promise<Recipe> {
     try {
-      // Check if user is authenticated by looking for auth token
-      const authToken = localStorage.getItem('auth_token');
-      
+      // Check if user is authenticated by looking for auth token (works on web and native)
+      const authToken = await getAuthToken();
+
       let response: Response;
-      
+
       if (authToken) {
         // If authenticated, try private API first, fallback to public if needed
         response = await apiFetch(`${this.baseUrl}/recipes/${id}`, {
@@ -142,7 +143,7 @@ class RecipesApi {
 
         // If private API fails with 401, try public API
         if (!response.ok && response.status === 401) {
-          response = await fetch(`${this.baseUrl}/public/recipes/${id}`, {
+          response = await apiFetch(`${this.baseUrl}/public/recipes/${id}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -151,7 +152,7 @@ class RecipesApi {
         }
       } else {
         // If not authenticated, go directly to public API
-        response = await fetch(`${this.baseUrl}/public/recipes/${id}`, {
+        response = await apiFetch(`${this.baseUrl}/public/recipes/${id}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui';
 import { apiFetch } from '../utils/apiInterceptor';
+import { getApiUrl } from '../utils/getApiUrl';
 
 const VerifyEmailPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -21,7 +22,7 @@ const VerifyEmailPage: React.FC = () => {
       }
 
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || '/api';
+        const apiUrl = getApiUrl();
         const response = await apiFetch(`${apiUrl}/auth/verify-email`, {
           method: 'POST',
           headers: {

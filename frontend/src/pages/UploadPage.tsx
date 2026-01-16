@@ -6,6 +6,7 @@ import { MultiProcessingProgress } from '../components/upload/MultiProcessingPro
 import { UploadLimitWarning, useCanUpload } from '../components/payments';
 import { recipesApi } from '../services/recipesApi';
 import { apiFetch } from '../utils/apiInterceptor';
+import { getApiUrl } from '../utils/getApiUrl';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
 
 const UploadPage: React.FC = () => {
@@ -91,7 +92,7 @@ const UploadPage: React.FC = () => {
           uploadData.append('cookbook_id', formData.cookbook_id.toString());
         }
 
-        const apiUrl = import.meta.env.VITE_API_URL || '/api';
+        const apiUrl = getApiUrl();
         const response = await apiFetch(`${apiUrl}/recipes/upload`, {
           method: 'POST',
           body: uploadData,

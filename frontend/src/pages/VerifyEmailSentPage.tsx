@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Button } from '../components/ui';
 import { apiFetch } from '../utils/apiInterceptor';
+import { getApiUrl } from '../utils/getApiUrl';
 
 const VerifyEmailSentPage: React.FC = () => {
   const location = useLocation();
@@ -18,7 +19,7 @@ const VerifyEmailSentPage: React.FC = () => {
     setResendError('');
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const apiUrl = getApiUrl();
       const response = await apiFetch(`${apiUrl}/auth/resend-verification`, {
         method: 'POST',
         headers: {
