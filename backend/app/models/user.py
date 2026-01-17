@@ -235,11 +235,17 @@ class User(db.Model):
 
     def can_upload_recipe(self) -> bool:
         """Check if user can upload another recipe based on their plan."""
+        # Admins can always upload
+        if self.role == UserRole.ADMIN:
+            return True
         subscription = self.get_or_create_subscription()
         return subscription.can_upload_recipe()
 
     def get_remaining_uploads(self) -> int:
         """Get remaining uploads for current period."""
+        # Admins have unlimited uploads
+        if self.role == UserRole.ADMIN:
+            return -1
         subscription = self.get_or_create_subscription()
         return subscription.get_remaining_uploads()
 
