@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
+import { hideKeyboard } from './hooks/useKeyboard';
+import { isNativePlatform } from './utils/platform';
 import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -16,10 +18,28 @@ import TermsOfServicePage from './pages/TermsOfServicePage';
 // Create a client
 const queryClient = new QueryClient();
 
+// Handle tap outside inputs to dismiss keyboard on iOS
+const handleTapOutside = (e: React.MouseEvent) => {
+  if (!isNativePlatform()) return;
+
+  const target = e.target as HTMLElement;
+  const isInteractiveElement =
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.isContentEditable ||
+    target.closest('input, textarea, select, [contenteditable="true"]');
+
+  if (!isInteractiveElement) {
+    hideKeyboard();
+  }
+};
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <div onClick={handleTapOutside}>
         <Router>
           <Layout>
             <Routes>
@@ -47,7 +67,8 @@ function App() {
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
             </Routes>
           </Layout>
-      </Router>
+        </Router>
+        </div>
       </AuthProvider>
     </QueryClientProvider>
   );

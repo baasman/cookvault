@@ -319,6 +319,7 @@ export interface InputProps {
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   disabled?: boolean;
   required?: boolean;
   error?: string;

@@ -1,9 +1,19 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
 import type { InputProps } from '../../types';
+import { hideKeyboard } from '../../hooks/useKeyboard';
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, placeholder, value, onChange, disabled, required, error, type = 'text', icon, className, ...props }, ref) => {
+  ({ label, placeholder, value, onChange, disabled, required, error, type = 'text', icon, className, onKeyDown, ...props }, ref) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // Dismiss keyboard on Enter for single-line inputs
+      if (e.key === 'Enter') {
+        hideKeyboard();
+      }
+      // Call any existing onKeyDown handler
+      onKeyDown?.(e);
+    };
+
     return (
       <div className="space-y-2">
         {label && (
@@ -24,6 +34,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             placeholder={placeholder}
             value={value}
             onChange={(e) => onChange?.(e.target.value)}
+            onKeyDown={handleKeyDown}
             disabled={disabled}
             required={required}
             className={cn(
