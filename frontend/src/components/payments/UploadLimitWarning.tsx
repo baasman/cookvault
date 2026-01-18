@@ -78,10 +78,7 @@ export const UploadLimitWarning: React.FC<UploadLimitWarningProps> = ({
                   variant="secondary"
                   size="sm"
                   className="ml-3"
-                  onClick={() => {
-                    // You could implement a "learn more" modal here
-                    window.open('/pricing', '_blank');
-                  }}
+                  onClick={() => setShowUpgradeModal(true)}
                 >
                   Learn More
                 </Button>
