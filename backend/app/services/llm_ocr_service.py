@@ -577,22 +577,13 @@ Return ONLY valid JSON, no markdown, no additional text.
             # Force garbage collection after image processing
             gc.collect()
 
-            # Encode to base64 with streaming for memory efficiency
-            # Use chunked encoding to reduce peak memory usage
-            import math
-
-            chunk_size = 1024 * 1024  # 1MB chunks
-            base64_chunks = []
-
-            for i in range(0, len(img_bytes), chunk_size):
-                chunk = img_bytes[i:i + chunk_size]
-                base64_chunk = base64.b64encode(chunk).decode('utf-8')
-                base64_chunks.append(base64_chunk)
-                del chunk  # Free chunk memory immediately
-
-            base64_data = ''.join(base64_chunks)
-            del base64_chunks  # Free chunk list
+            # Encode to base64 - must encode entire image at once for valid base64
+            # (chunked encoding corrupts data because base64 works on 3-byte groups)
+            base64_data = base64.b64encode(img_bytes).decode('utf-8')
             del img_bytes  # Free the original bytes data
+
+            # Force garbage collection after encoding
+            gc.collect()
 
             current_app.logger.info(f"Base64 encoded image ready for LLM (final memory optimization complete)")
 
