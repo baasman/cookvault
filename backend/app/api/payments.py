@@ -140,6 +140,10 @@ def get_user_subscription():
         subscription = user.get_or_create_subscription()
         sub_dict = subscription.to_dict()
 
+        # Override with User model methods that include admin check
+        sub_dict['can_upload'] = user.can_upload_recipe()
+        sub_dict['remaining_uploads'] = user.get_remaining_uploads()
+
         return jsonify({
             'success': True,
             'subscription': sub_dict
