@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ScanIcon, BookIcon, CollectionIcon } from '../components/icons';
-import { HeroSection } from '../components/homepage';
+import { HeroSection, AppStoreBanner } from '../components/homepage';
 import { FeaturedRecipes } from '../components/recipe/FeaturedRecipes';
 import { AuthenticatedDashboard } from '../components/dashboard';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,6 +32,7 @@ const HomePage: React.FC = () => {
   // Show marketing landing page for unauthenticated users
   return (
     <>
+      <AppStoreBanner />
       <HeroSection />
 
       <FeaturedRecipes />

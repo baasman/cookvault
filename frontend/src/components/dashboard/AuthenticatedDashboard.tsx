@@ -6,6 +6,7 @@ import { userApi } from '../../services/userApi';
 import { StatCard } from '../user/StatCard';
 import { QuickActions } from './QuickActions';
 import { RecentActivity } from './RecentActivity';
+import { AppStoreBanner } from '../homepage/AppStoreBanner';
 
 const AuthenticatedDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -70,7 +71,9 @@ const AuthenticatedDashboard: React.FC = () => {
   const { statistics, recent_activity } = profileData;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <>
+      <AppStoreBanner />
+      <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Welcome Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{ color: '#1c120d' }}>
@@ -262,6 +265,7 @@ const AuthenticatedDashboard: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
