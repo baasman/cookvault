@@ -405,7 +405,7 @@ def create_empty_recipe(current_user) -> Tuple[Response, int]:
 
 
 @bp.route("/recipes/<int:recipe_id>", methods=["GET"])
-@require_auth
+@optional_auth
 def get_recipe(current_user, recipe_id: int) -> Response:
     # Check if recipe exists and user can access it
     recipe = Recipe.query.options(db.joinedload(Recipe.images)).get(recipe_id)
@@ -413,13 +413,15 @@ def get_recipe(current_user, recipe_id: int) -> Response:
         return jsonify({"error": "Recipe not found"}), 404
 
     # Check access permissions: owner, admin, or public recipe
-    is_admin = not should_apply_user_filter(current_user)
-    can_view = recipe.can_be_viewed_by(current_user.id, is_admin)
+    # current_user may be None for unauthenticated requests
+    user_id = current_user.id if current_user else None
+    is_admin = current_user and not should_apply_user_filter(current_user)
+    can_view = recipe.can_be_viewed_by(user_id, is_admin)
 
     if not can_view:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
-    return jsonify(recipe.to_dict(include_user=True, current_user_id=current_user.id, is_admin=is_admin))
+    return jsonify(recipe.to_dict(include_user=True, current_user_id=user_id, is_admin=is_admin))
 
 
 @bp.route("/recipes/<int:recipe_id>", methods=["DELETE"])

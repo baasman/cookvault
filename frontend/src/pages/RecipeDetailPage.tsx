@@ -11,6 +11,7 @@ import { CopyRecipeButton } from '../components/recipe/CopyRecipeButton';
 import { AddToGroupButton } from '../components/recipe/AddToGroupButton';
 import { MakePublicButton } from '../components/recipe/MakePublicButton';
 import { FeatureToggleButton } from '../components/recipe/FeatureToggleButton';
+import { ShareButton } from '../components/recipe/ShareButton';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import { PaywallMessage } from '../components/recipe/PaywallMessage';
@@ -264,6 +265,9 @@ const RecipeDetailPage: React.FC = () => {
               className="ml-2"
             />
           )}
+          {recipe && recipe.is_public && !isEditing && (
+            <ShareButton recipe={recipe} size="sm" />
+          )}
           {canEdit && !isEditing && (
             <Button
               onClick={handleDeleteClick}
@@ -351,6 +355,11 @@ const RecipeDetailPage: React.FC = () => {
                         buttonText="Export PDF"
                         showOptions={true}
                       />
+                    </div>
+                  )}
+                  {recipe && recipe.is_public && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <ShareButton recipe={recipe} size="sm" />
                     </div>
                   )}
                   {canEdit && (
