@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import { getApiUrl } from '../../utils/getApiUrl';
 import { apiFetch } from '../../utils/apiInterceptor';
+import { Button } from '../ui';
 
 interface ExportButtonProps {
   type: 'recipe' | 'cookbook' | 'collection';
@@ -12,6 +13,7 @@ interface ExportButtonProps {
   className?: string;
   buttonText?: string;
   showOptions?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 interface ExportOptions {
@@ -32,7 +34,8 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
   collectionTitle = 'My Recipe Collection',
   className = '',
   buttonText = 'Export PDF',
-  showOptions = false
+  showOptions = false,
+  size = 'sm'
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -217,15 +220,16 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
 
   return (
     <>
-      <button
+      <Button
         onClick={handleQuickExport}
         disabled={isExporting}
-        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-        style={{ backgroundColor: isExporting ? '#9ca3af' : '#f15f1c' }}
+        variant="primary"
+        size={size}
+        className={className}
       >
-        <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
+        <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
         {isExporting ? 'Exporting...' : buttonText}
-      </button>
+      </Button>
 
       {showModal && (
         <ExportOptionsModal

@@ -1,5 +1,7 @@
 ### RULES
 
+* At the start of a new session, check if `.implementation-history/active-plan.md` exists. If so, read it and inform the user about the in-progress implementation plan.
+
 * When running a script, always use the interpreter from the virtual environment, location in .venv/
 
 * When catching exceptions in python code, always ensure that the original error is logged, and the traceback is printed out

@@ -3,14 +3,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipesApi } from '../../services/recipesApi';
 import type { Recipe } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { Button } from '../ui';
 
 interface FeatureToggleButtonProps {
   recipe: Recipe;
+  size?: 'sm' | 'md' | 'lg';
   onUpdate?: (updatedRecipe: Recipe) => void;
 }
 
 export const FeatureToggleButton: React.FC<FeatureToggleButtonProps> = ({
   recipe,
+  size = 'sm',
   onUpdate
 }) => {
   const { isAdmin } = useAuth();
@@ -68,30 +71,24 @@ export const FeatureToggleButton: React.FC<FeatureToggleButtonProps> = ({
   const isProcessing = isLoading || featureMutation.isPending || unfeatureMutation.isPending;
 
   return (
-    <button
+    <Button
       onClick={handleToggleFeature}
       disabled={isProcessing}
-      className={`
-        inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
-        ${recipe.is_featured
-          ? 'bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100'
-          : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
-        }
-        ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-      `}
+      variant="secondary"
+      size={size}
+      style={recipe.is_featured ? { backgroundColor: '#fef9c3', color: '#a16207' } : undefined}
       title={recipe.is_featured ? 'Remove from featured recipes' : 'Add to featured recipes (max 3)'}
     >
       {isProcessing ? (
-        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
       ) : (
-        <span className="text-lg">
+        <span className="text-lg mr-2">
           {recipe.is_featured ? '⭐' : '☆'}
         </span>
       )}
-      
       <span>
         {recipe.is_featured ? 'Featured' : 'Feature Recipe'}
       </span>
-    </button>
+    </Button>
   );
 };

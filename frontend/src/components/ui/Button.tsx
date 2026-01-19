@@ -18,9 +18,9 @@ const buttonVariants = cva(
         pill: "rounded-full",
       },
       size: {
-        sm: "h-8 px-4 text-sm",
-        md: "h-10 px-4 text-sm font-bold leading-normal",
-        lg: "h-14 px-6 text-base font-bold leading-normal",
+        sm: "h-10 px-6 text-sm gap-2",
+        md: "h-12 px-8 text-sm font-bold leading-normal gap-2",
+        lg: "h-14 px-10 text-base font-bold leading-normal gap-3",
       },
     },
     defaultVariants: {

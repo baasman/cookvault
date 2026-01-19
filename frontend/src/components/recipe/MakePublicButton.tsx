@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { recipesApi } from '../../services/recipesApi';
 import { CopyrightConsentModal } from '../ui/CopyrightConsentModal';
+import { Button } from '../ui';
 import type { Recipe } from '../../types';
 
 interface MakePublicButtonProps {
@@ -68,32 +69,6 @@ const MakePublicButton: React.FC<MakePublicButtonProps> = ({
     setShowCopyrightModal(false);
   };
 
-  const getSizeClasses = () => {
-    switch (size) {
-      case 'sm':
-        return 'px-2 py-1 text-xs';
-      case 'lg':
-        return 'px-6 py-3 text-base';
-      case 'md':
-      default:
-        return 'px-4 py-2 text-sm';
-    }
-  };
-
-  const getVariantClasses = () => {
-    if (recipe.is_public) {
-      return 'bg-green-100 text-green-800 border border-green-200 hover:bg-green-200';
-    }
-    
-    switch (variant) {
-      case 'primary':
-        return 'bg-blue-600 text-white hover:bg-blue-700';
-      case 'secondary':
-      default:
-        return 'bg-gray-100 text-gray-900 border border-gray-300 hover:bg-gray-200';
-    }
-  };
-
   const getIcon = () => {
     if (togglePrivacyMutation.isPending) {
       return (
@@ -140,18 +115,16 @@ const MakePublicButton: React.FC<MakePublicButtonProps> = ({
 
   return (
     <>
-      <button
+      <Button
         onClick={handleClick}
         disabled={togglePrivacyMutation.isPending}
-        className={`
-          inline-flex items-center justify-center space-x-1 font-medium rounded-md
-          transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
-          ${getSizeClasses()} ${getVariantClasses()}
-        `}
+        variant={variant}
+        size={size}
+        style={recipe.is_public ? { backgroundColor: '#dcfce7', color: '#166534' } : undefined}
       >
         {getIcon()}
-        <span>{getButtonText()}</span>
-      </button>
+        <span className="ml-1">{getButtonText()}</span>
+      </Button>
 
       {/* Copyright Consent Modal */}
       <CopyrightConsentModal
