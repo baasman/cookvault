@@ -23,16 +23,7 @@ import type { Recipe } from '../types';
 const RecipeDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, user, isLoading: authLoading } = useAuth();
-
-  // Debug logging for route issues
-  console.log('RecipeDetailPage mounted:', {
-    url: window.location.href,
-    pathname: window.location.pathname,
-    id,
-    isAuthenticated,
-    authLoading
-  });
+  const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const recipeId = id ? parseInt(id, 10) : null;
   const [isEditing, setIsEditing] = useState(false);
