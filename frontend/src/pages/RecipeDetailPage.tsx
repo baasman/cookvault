@@ -12,6 +12,9 @@ import { AddToGroupButton } from '../components/recipe/AddToGroupButton';
 import { MakePublicButton } from '../components/recipe/MakePublicButton';
 import { FeatureToggleButton } from '../components/recipe/FeatureToggleButton';
 import { ShareButton } from '../components/recipe/ShareButton';
+import { HaveMadeButton } from '../components/recipe/HaveMadeButton';
+import { WantToMakeButton } from '../components/recipe/WantToMakeButton';
+import { RecipeActionsDropdown } from '../components/recipe/RecipeActionsDropdown';
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import { PaywallMessage } from '../components/recipe/PaywallMessage';
@@ -226,60 +229,28 @@ const RecipeDetailPage: React.FC = () => {
           <span>Back to Recipes</span>
         </button>
 
-        {/* Desktop: horizontal buttons (hidden on mobile) */}
-        <div className="hidden md:flex items-center space-x-3">
-          {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && !isEditing && (
-            <AddToCollectionButton recipe={recipe} />
+        {/* Desktop: simplified action buttons (hidden on mobile) */}
+        <div className="hidden md:flex items-center space-x-2">
+          {/* Quick toggle buttons - icon only */}
+          {recipe && isAuthenticated && !isEditing && (
+            <HaveMadeButton recipe={recipe} size="sm" iconOnly />
           )}
           {recipe && isAuthenticated && !isEditing && (
-            <AddToGroupButton recipe={recipe} size="sm" />
+            <WantToMakeButton recipe={recipe} size="sm" iconOnly />
           )}
-          {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && !isEditing && (
-            <CopyRecipeButton recipe={recipe} size="sm" />
-          )}
-          {recipe && isOwnRecipe && !isEditing && (
-            <MakePublicButton recipe={recipe} size="sm" />
-          )}
+
+          {/* More actions dropdown */}
           {recipe && !isEditing && (
-            <FeatureToggleButton
+            <RecipeActionsDropdown
               recipe={recipe}
-              onUpdate={(updatedRecipe) => {
+              isOwnRecipe={isOwnRecipe}
+              canEdit={canEdit}
+              onEditClick={() => setIsEditing(true)}
+              onDeleteClick={handleDeleteClick}
+              onRecipeUpdate={(updatedRecipe) => {
                 queryClient.setQueryData(['recipe', recipeId], updatedRecipe);
               }}
             />
-          )}
-          {canEdit && !isEditing && (
-            <Button onClick={() => setIsEditing(true)} variant="secondary" size="sm">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Edit Recipe
-            </Button>
-          )}
-          {recipe.has_full_access && (
-            <ExportButton
-              type="recipe"
-              recipeId={recipeId}
-              buttonText="Export PDF"
-              showOptions={true}
-              className="ml-2"
-            />
-          )}
-          {recipe && recipe.is_public && !isEditing && (
-            <ShareButton recipe={recipe} size="sm" />
-          )}
-          {canEdit && !isEditing && (
-            <Button
-              onClick={handleDeleteClick}
-              variant="secondary"
-              size="sm"
-              className="ml-2 bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Delete Recipe
-            </Button>
           )}
         </div>
 
@@ -314,6 +285,16 @@ const RecipeDetailPage: React.FC = () => {
                   {recipe && isAuthenticated && (
                     <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
                       <AddToGroupButton recipe={recipe} size="sm" />
+                    </div>
+                  )}
+                  {recipe && isAuthenticated && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <HaveMadeButton recipe={recipe} size="sm" />
+                    </div>
+                  )}
+                  {recipe && isAuthenticated && (
+                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                      <WantToMakeButton recipe={recipe} size="sm" />
                     </div>
                   )}
                   {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && (

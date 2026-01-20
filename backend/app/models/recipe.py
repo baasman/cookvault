@@ -163,6 +163,9 @@ class RecipeGroup(db.Model):
     cover_image_url: Mapped[Optional[str]] = mapped_column(String(500))
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     is_private: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # System group fields - for special groups like "Have Made" and "Want to Make"
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    system_type: Mapped[Optional[str]] = mapped_column(String(50))  # 'have_made' or 'want_to_make'
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -184,6 +187,8 @@ class RecipeGroup(db.Model):
             "cover_image_url": self.cover_image_url,
             "user_id": self.user_id,
             "is_private": self.is_private,
+            "is_system": self.is_system,
+            "system_type": self.system_type,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "recipe_count": len(self.recipes)
@@ -606,14 +611,26 @@ class Recipe(db.Model):
 
             # Include groups that this recipe belongs to (only for the current user's groups)
             user_groups = []
+            have_made = False
+            want_to_make = False
             for group in self.groups:
                 if group.user_id == current_user_id:
                     user_groups.append({
                         "id": group.id,
                         "name": group.name,
-                        "description": group.description
+                        "description": group.description,
+                        "is_system": group.is_system,
+                        "system_type": group.system_type
                     })
+                    # Track system group membership
+                    if group.is_system:
+                        if group.system_type == 'have_made':
+                            have_made = True
+                        elif group.system_type == 'want_to_make':
+                            want_to_make = True
             result["groups"] = user_groups
+            result["have_made"] = have_made
+            result["want_to_make"] = want_to_make
 
         return result
 

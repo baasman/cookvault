@@ -141,9 +141,13 @@ export interface Recipe {
     id: number;
     name: string;
     description?: string;
+    is_system?: boolean;
+    system_type?: string;
   }[];
   has_full_access?: boolean;
   paywall_message?: string;
+  have_made?: boolean;
+  want_to_make?: boolean;
 }
 
 export interface ProcessingJob {

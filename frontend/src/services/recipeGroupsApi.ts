@@ -9,6 +9,8 @@ export interface RecipeGroup {
   cover_image_url?: string;
   user_id: number;
   is_private: boolean;
+  is_system?: boolean;
+  system_type?: 'have_made' | 'want_to_make';
   created_at: string;
   updated_at: string;
   recipe_count: number;
@@ -210,6 +212,59 @@ class RecipeGroupsApi {
       return await response.json();
     } catch (error) {
       console.error('Error removing recipe from group:', error);
+      throw error;
+    }
+  }
+
+  async toggleSystemGroup(
+    systemType: 'have_made' | 'want_to_make',
+    recipeId: number
+  ): Promise<{ message: string; is_member: boolean; system_type: string }> {
+    try {
+      const response = await apiFetch(
+        `${this.baseUrl}/recipe-groups/system/${systemType}/recipes/${recipeId}/toggle`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error toggling system group membership:', error);
+      throw error;
+    }
+  }
+
+  async getSystemGroupStatus(
+    recipeId: number
+  ): Promise<{ recipe_id: number; have_made: boolean; want_to_make: boolean }> {
+    try {
+      const response = await apiFetch(
+        `${this.baseUrl}/recipe-groups/system/status/${recipeId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error getting system group status:', error);
       throw error;
     }
   }

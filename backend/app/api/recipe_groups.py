@@ -1,6 +1,8 @@
 """
 Recipe Groups API - Endpoints for managing user recipe groups
 """
+import traceback
+from datetime import datetime
 
 from flask import Response, current_app, jsonify, request
 from werkzeug.utils import secure_filename
@@ -14,20 +16,77 @@ from app.api.auth import require_auth
 from app.models import RecipeGroup, Recipe, User, recipe_group_memberships
 
 
+# System group definitions
+SYSTEM_GROUPS = {
+    'have_made': {
+        'name': 'Have Made',
+        'description': 'Recipes you have cooked before'
+    },
+    'want_to_make': {
+        'name': 'Want to Make',
+        'description': 'Recipes you want to try'
+    }
+}
+
+
+def ensure_system_groups_exist(user_id: int) -> dict:
+    """
+    Create system groups for the user if they don't exist, return them.
+    Returns a dict mapping system_type to RecipeGroup.
+    """
+    try:
+        result = {}
+
+        for system_type, config in SYSTEM_GROUPS.items():
+            # Check if system group already exists
+            group = RecipeGroup.query.filter_by(
+                user_id=user_id,
+                system_type=system_type,
+                is_system=True
+            ).first()
+
+            if not group:
+                # Create the system group
+                group = RecipeGroup(
+                    name=config['name'],
+                    description=config['description'],
+                    user_id=user_id,
+                    is_private=True,
+                    is_system=True,
+                    system_type=system_type
+                )
+                db.session.add(group)
+
+            result[system_type] = group
+
+        db.session.commit()
+        return result
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creating system groups for user {user_id}: {e}")
+        current_app.logger.error(traceback.format_exc())
+        raise
+
+
 @bp.route("/recipe-groups", methods=["GET"])
 @require_auth
 def get_recipe_groups(current_user) -> Response:
     """Get all recipe groups for the current user."""
     try:
+        # Ensure system groups exist for this user (lazy creation)
+        ensure_system_groups_exist(current_user.id)
+
+        # Get all groups, ordering system groups first, then by updated_at
         groups = RecipeGroup.query.filter_by(user_id=current_user.id).order_by(
+            RecipeGroup.is_system.desc(),  # System groups first
             RecipeGroup.updated_at.desc()
         ).all()
-        
+
         # For each group without a cover image, try to set it to the first recipe's image
         groups_data = []
         for group in groups:
             group_dict = group.to_dict()
-            
+
             # If no cover image, try to get the first recipe's image
             if not group_dict.get('cover_image_url') and group.recipes:
                 first_recipe = group.recipes[0]
@@ -38,16 +97,17 @@ def get_recipe_groups(current_user) -> Response:
                         group_dict['cover_image_url'] = first_image.cloudinary_url
                     else:
                         group_dict['cover_image_url'] = f"/api/images/{first_image.filename}"
-            
+
             groups_data.append(group_dict)
-        
+
         return jsonify({
             "groups": groups_data,
             "total": len(groups)
         }), 200
-        
+
     except Exception as e:
         current_app.logger.error(f"Error fetching recipe groups: {e}")
+        current_app.logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to fetch recipe groups"}), 500
 
 
@@ -188,53 +248,58 @@ def update_recipe_group(current_user, group_id: int) -> Response:
     """Update a recipe group."""
     try:
         group = RecipeGroup.query.filter_by(
-            id=group_id, 
+            id=group_id,
             user_id=current_user.id
         ).first()
-        
+
         if not group:
             return jsonify({"error": "Recipe group not found"}), 404
-        
+
+        # Block modifications to system groups (name and description)
+        if group.is_system:
+            return jsonify({"error": "System groups cannot be modified"}), 403
+
         data = request.get_json()
         if not data:
             return jsonify({"error": "No data provided"}), 400
-        
+
         # Update fields if provided
         if "name" in data:
             name = data["name"].strip()
             if not name:
                 return jsonify({"error": "Group name cannot be empty"}), 400
-            
+
             if len(name) > 200:
                 return jsonify({"error": "Group name cannot exceed 200 characters"}), 400
-            
+
             # Check for duplicate names (excluding current group)
             existing_group = RecipeGroup.query.filter_by(
-                user_id=current_user.id, 
+                user_id=current_user.id,
                 name=name
             ).filter(RecipeGroup.id != group_id).first()
-            
+
             if existing_group:
                 return jsonify({"error": "A group with this name already exists"}), 400
-            
+
             group.name = name
-        
+
         if "description" in data:
             group.description = data["description"].strip() or None
-        
+
         if "is_private" in data:
             group.is_private = bool(data["is_private"])
-        
+
         db.session.commit()
-        
+
         return jsonify({
             "group": group.to_dict(),
             "message": "Recipe group updated successfully"
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error updating recipe group: {e}")
+        current_app.logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to update recipe group"}), 500
 
 
@@ -244,22 +309,27 @@ def delete_recipe_group(current_user, group_id: int) -> Response:
     """Delete a recipe group."""
     try:
         group = RecipeGroup.query.filter_by(
-            id=group_id, 
+            id=group_id,
             user_id=current_user.id
         ).first()
-        
+
         if not group:
             return jsonify({"error": "Recipe group not found"}), 404
-        
+
+        # Block deletion of system groups
+        if group.is_system:
+            return jsonify({"error": "System groups cannot be deleted"}), 403
+
         # Delete the group (this will also remove all recipe associations)
         db.session.delete(group)
         db.session.commit()
-        
+
         return jsonify({"message": "Recipe group deleted successfully"}), 200
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error deleting recipe group: {e}")
+        current_app.logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to delete recipe group"}), 500
 
 
@@ -402,4 +472,108 @@ def remove_recipe_from_group(current_user, group_id: int, recipe_id: int) -> Res
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error removing recipe from group: {e}")
+        current_app.logger.error(traceback.format_exc())
         return jsonify({"error": "Failed to remove recipe from group"}), 500
+
+
+@bp.route("/recipe-groups/system/<system_type>/recipes/<int:recipe_id>/toggle", methods=["POST"])
+@require_auth
+def toggle_system_group_membership(current_user, system_type: str, recipe_id: int) -> Response:
+    """Toggle a recipe's membership in a system group (have_made or want_to_make)."""
+    try:
+        # Validate system_type
+        if system_type not in SYSTEM_GROUPS:
+            return jsonify({"error": f"Invalid system group type. Must be one of: {', '.join(SYSTEM_GROUPS.keys())}"}), 400
+
+        # Verify the recipe exists
+        recipe = Recipe.query.get(recipe_id)
+        if not recipe:
+            return jsonify({"error": "Recipe not found"}), 404
+
+        # Check if user can access this recipe (owns it or it's public)
+        if recipe.user_id != current_user.id and not recipe.is_public:
+            return jsonify({"error": "Recipe not accessible"}), 403
+
+        # Ensure system groups exist and get the specific one
+        system_groups = ensure_system_groups_exist(current_user.id)
+        group = system_groups[system_type]
+
+        # Check if recipe is already in the group
+        existing_membership = db.session.execute(
+            recipe_group_memberships.select().where(
+                recipe_group_memberships.c.group_id == group.id,
+                recipe_group_memberships.c.recipe_id == recipe_id
+            )
+        ).first()
+
+        if existing_membership:
+            # Remove from group
+            db.session.execute(
+                recipe_group_memberships.delete().where(
+                    recipe_group_memberships.c.group_id == group.id,
+                    recipe_group_memberships.c.recipe_id == recipe_id
+                )
+            )
+            db.session.commit()
+            return jsonify({
+                "message": f"Recipe removed from '{SYSTEM_GROUPS[system_type]['name']}'",
+                "is_member": False,
+                "system_type": system_type
+            }), 200
+        else:
+            # Add to group
+            membership = recipe_group_memberships.insert().values(
+                group_id=group.id,
+                recipe_id=recipe_id,
+                order=0,
+                added_at=datetime.utcnow()
+            )
+            db.session.execute(membership)
+            db.session.commit()
+            return jsonify({
+                "message": f"Recipe added to '{SYSTEM_GROUPS[system_type]['name']}'",
+                "is_member": True,
+                "system_type": system_type
+            }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error toggling system group membership: {e}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to toggle system group membership"}), 500
+
+
+@bp.route("/recipe-groups/system/status/<int:recipe_id>", methods=["GET"])
+@require_auth
+def get_system_group_status(current_user, recipe_id: int) -> Response:
+    """Get the status of a recipe in both system groups."""
+    try:
+        # Verify the recipe exists
+        recipe = Recipe.query.get(recipe_id)
+        if not recipe:
+            return jsonify({"error": "Recipe not found"}), 404
+
+        # Ensure system groups exist
+        system_groups = ensure_system_groups_exist(current_user.id)
+
+        # Check membership in each system group
+        status = {}
+        for system_type, group in system_groups.items():
+            membership = db.session.execute(
+                recipe_group_memberships.select().where(
+                    recipe_group_memberships.c.group_id == group.id,
+                    recipe_group_memberships.c.recipe_id == recipe_id
+                )
+            ).first()
+            status[system_type] = membership is not None
+
+        return jsonify({
+            "recipe_id": recipe_id,
+            "have_made": status.get('have_made', False),
+            "want_to_make": status.get('want_to_make', False)
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error getting system group status: {e}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to get system group status"}), 500

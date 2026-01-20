@@ -109,10 +109,13 @@ const RecipeGroupDetail: React.FC<RecipeGroupDetailProps> = ({ groupId: propGrou
 
   // Check if current user owns this group
   const canEdit = Boolean(
-    group && 
-    user && 
+    group &&
+    user &&
     (user.role === 'admin' || group.user_id === parseInt(user.id))
   );
+
+  // System groups cannot be edited or deleted
+  const canModifyGroup = canEdit && !group?.is_system;
 
   // Event handlers
   const handleEditSave = () => {
@@ -208,7 +211,7 @@ const RecipeGroupDetail: React.FC<RecipeGroupDetailProps> = ({ groupId: propGrou
           <span>Back to All Groups</span>
         </button>
         
-        {canEdit && !isEditing && (
+        {canModifyGroup && !isEditing && (
           <div className="flex items-center space-x-3">
             <Button onClick={() => setIsEditing(true)} variant="secondary" size="sm">
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,9 +219,9 @@ const RecipeGroupDetail: React.FC<RecipeGroupDetailProps> = ({ groupId: propGrou
               </svg>
               Edit Group
             </Button>
-            <Button 
-              onClick={handleDeleteGroup} 
-              variant="secondary" 
+            <Button
+              onClick={handleDeleteGroup}
+              variant="secondary"
               size="sm"
               className="text-red-600 hover:text-red-700"
               disabled={deleteGroupMutation.isPending}
@@ -305,9 +308,16 @@ const RecipeGroupDetail: React.FC<RecipeGroupDetailProps> = ({ groupId: propGrou
               </div>
             ) : (
               <>
-                <h1 className="text-3xl font-bold mb-4" style={{color: '#1c120d'}}>
-                  {group.name}
-                </h1>
+                <div className="flex items-center gap-3 mb-4">
+                  <h1 className="text-3xl font-bold" style={{color: '#1c120d'}}>
+                    {group.name}
+                  </h1>
+                  {group.is_system && (
+                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                      System
+                    </span>
+                  )}
+                </div>
 
                 {group.description && (
                   <p className="text-lg text-text-secondary mb-6">
