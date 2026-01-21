@@ -188,6 +188,44 @@ def safe_int_conversion(value: Any) -> int | None:
         return None
 
 
+@bp.route("/ingredients/search", methods=["GET"])
+def search_ingredients() -> Response:
+    """Search for ingredients by name for autocomplete functionality."""
+    try:
+        query = request.args.get("q", "").strip()
+        limit = request.args.get("limit", 10, type=int)
+
+        if not query or len(query) < 2:
+            return jsonify({"ingredients": []})
+
+        # Limit the limit to prevent abuse
+        limit = min(limit, 50)
+
+        ingredients = (
+            Ingredient.query.filter(Ingredient.name.ilike(f"%{query}%"))
+            .order_by(Ingredient.name)
+            .limit(limit)
+            .all()
+        )
+
+        # Return unique ingredient names (since Ingredient table may have duplicates)
+        seen_names = set()
+        unique_ingredients = []
+        for ing in ingredients:
+            name_lower = ing.name.lower()
+            if name_lower not in seen_names:
+                seen_names.add(name_lower)
+                unique_ingredients.append({"id": ing.id, "name": ing.name})
+
+        return jsonify({"ingredients": unique_ingredients})
+
+    except Exception as e:
+        current_app.logger.error(f"Error searching ingredients: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to search ingredients", "details": str(e)}), 500
+
+
 @bp.route("/recipes", methods=["GET"])
 @require_auth
 def get_recipes(current_user) -> Response:
@@ -271,6 +309,41 @@ def get_recipes(current_user) -> Response:
                 Recipe.description.ilike(f"%{search}%"),
             )
         )
+
+    # Ingredient filtering
+    ingredients_param = request.args.get("ingredients", "").strip()
+    ingredient_match = request.args.get("ingredient_match", "any")
+
+    if ingredients_param:
+        ingredient_names = [
+            name.strip().lower() for name in ingredients_param.split(",") if name.strip()
+        ]
+
+        if ingredient_names:
+            if ingredient_match == "all":
+                # ALL mode: must have every ingredient
+                for ingredient_name in ingredient_names:
+                    subquery = (
+                        db.session.query(recipe_ingredients.c.recipe_id)
+                        .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                        .filter(Ingredient.name.ilike(f"%{ingredient_name}%"))
+                        .subquery()
+                    )
+                    query = query.filter(Recipe.id.in_(subquery))
+            else:
+                # ANY mode: has at least one ingredient
+                subquery = (
+                    db.session.query(recipe_ingredients.c.recipe_id)
+                    .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                    .filter(
+                        db.or_(
+                            *[Ingredient.name.ilike(f"%{name}%") for name in ingredient_names]
+                        )
+                    )
+                    .distinct()
+                    .subquery()
+                )
+                query = query.filter(Recipe.id.in_(subquery))
 
     # Order by creation date (newest first)
     query = query.order_by(Recipe.created_at.desc())
@@ -2070,6 +2143,41 @@ def discover_recipes(current_user) -> Response:
             )
         )
 
+    # Ingredient filtering
+    ingredients_param = request.args.get("ingredients", "").strip()
+    ingredient_match = request.args.get("ingredient_match", "any")
+
+    if ingredients_param:
+        ingredient_names = [
+            name.strip().lower() for name in ingredients_param.split(",") if name.strip()
+        ]
+
+        if ingredient_names:
+            if ingredient_match == "all":
+                # ALL mode: must have every ingredient
+                for ingredient_name in ingredient_names:
+                    subquery = (
+                        db.session.query(recipe_ingredients.c.recipe_id)
+                        .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                        .filter(Ingredient.name.ilike(f"%{ingredient_name}%"))
+                        .subquery()
+                    )
+                    query = query.filter(Recipe.id.in_(subquery))
+            else:
+                # ANY mode: has at least one ingredient
+                subquery = (
+                    db.session.query(recipe_ingredients.c.recipe_id)
+                    .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                    .filter(
+                        db.or_(
+                            *[Ingredient.name.ilike(f"%{name}%") for name in ingredient_names]
+                        )
+                    )
+                    .distinct()
+                    .subquery()
+                )
+                query = query.filter(Recipe.id.in_(subquery))
+
     # Order by publication date (newest first)
     query = query.order_by(Recipe.published_at.desc())
 
@@ -2079,8 +2187,8 @@ def discover_recipes(current_user) -> Response:
         {
             "recipes": [
                 recipe.to_dict(
-                    include_user=True, 
-                    current_user_id=current_user.id, 
+                    include_user=True,
+                    current_user_id=current_user.id,
                     is_admin=not should_apply_user_filter(current_user)
                 )
                 for recipe in recipes.items

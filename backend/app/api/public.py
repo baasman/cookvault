@@ -4,7 +4,7 @@ Public API endpoints for browsing public recipes without authentication
 from flask import jsonify, request
 from sqlalchemy import desc
 from app.api import bp
-from app.models.recipe import Recipe, Cookbook
+from app.models.recipe import Recipe, Cookbook, Ingredient, recipe_ingredients
 from app.models.user import User
 from app import db
 
@@ -34,7 +34,42 @@ def get_public_recipes():
         # Apply difficulty filter if provided
         if difficulty:
             query = query.filter(Recipe.difficulty.ilike(f'%{difficulty}%'))
-        
+
+        # Ingredient filtering
+        ingredients_param = request.args.get("ingredients", "").strip()
+        ingredient_match = request.args.get("ingredient_match", "any")
+
+        if ingredients_param:
+            ingredient_names = [
+                name.strip().lower() for name in ingredients_param.split(",") if name.strip()
+            ]
+
+            if ingredient_names:
+                if ingredient_match == "all":
+                    # ALL mode: must have every ingredient
+                    for ingredient_name in ingredient_names:
+                        subquery = (
+                            db.session.query(recipe_ingredients.c.recipe_id)
+                            .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                            .filter(Ingredient.name.ilike(f"%{ingredient_name}%"))
+                            .subquery()
+                        )
+                        query = query.filter(Recipe.id.in_(subquery))
+                else:
+                    # ANY mode: has at least one ingredient
+                    subquery = (
+                        db.session.query(recipe_ingredients.c.recipe_id)
+                        .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                        .filter(
+                            db.or_(
+                                *[Ingredient.name.ilike(f"%{name}%") for name in ingredient_names]
+                            )
+                        )
+                        .distinct()
+                        .subquery()
+                    )
+                    query = query.filter(Recipe.id.in_(subquery))
+
         # Order by published date (newest first)
         query = query.order_by(desc(Recipe.published_at))
         

@@ -8,6 +8,13 @@ interface FetchRecipesParams {
   per_page?: number;
   search?: string;
   filter?: 'collection' | 'discover' | 'mine';
+  ingredients?: string[];
+  ingredientMatch?: 'any' | 'all';
+}
+
+interface IngredientSuggestion {
+  id: number;
+  name: string;
 }
 
 interface UpdateRecipeParams {
@@ -72,7 +79,7 @@ class RecipesApi {
 
   async fetchRecipes(params: FetchRecipesParams = {}): Promise<RecipesResponse> {
     const { page = 1, per_page = 12, filter = 'collection' } = params;
-    
+
     const searchParams = new URLSearchParams({
       page: page.toString(),
       per_page: per_page.toString(),
@@ -82,6 +89,14 @@ class RecipesApi {
     // Add search parameter to the request
     if (params.search && params.search.trim()) {
       searchParams.append('search', params.search.trim());
+    }
+
+    // Add ingredient filter parameters
+    if (params.ingredients && params.ingredients.length > 0) {
+      searchParams.append('ingredients', params.ingredients.join(','));
+      if (params.ingredientMatch) {
+        searchParams.append('ingredient_match', params.ingredientMatch);
+      }
     }
 
     try {
@@ -472,9 +487,9 @@ class RecipesApi {
     }
   }
 
-  async fetchDiscoverRecipes(params: { page?: number; per_page?: number; search?: string } = {}): Promise<RecipesResponse> {
+  async fetchDiscoverRecipes(params: { page?: number; per_page?: number; search?: string; ingredients?: string[]; ingredientMatch?: 'any' | 'all' } = {}): Promise<RecipesResponse> {
     const { page = 1, per_page = 12, search } = params;
-    
+
     const searchParams = new URLSearchParams({
       page: page.toString(),
       per_page: per_page.toString(),
@@ -482,6 +497,14 @@ class RecipesApi {
 
     if (search && search.trim()) {
       searchParams.append('search', search.trim());
+    }
+
+    // Add ingredient filter parameters
+    if (params.ingredients && params.ingredients.length > 0) {
+      searchParams.append('ingredients', params.ingredients.join(','));
+      if (params.ingredientMatch) {
+        searchParams.append('ingredient_match', params.ingredientMatch);
+      }
     }
 
     try {
@@ -501,6 +524,29 @@ class RecipesApi {
     } catch (error) {
       console.error('Error fetching discover recipes:', error);
       throw new Error('Failed to fetch discover recipes');
+    }
+  }
+
+  async searchIngredients(query: string, limit = 10): Promise<{ ingredients: IngredientSuggestion[] }> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/ingredients/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error searching ingredients:', error);
+      return { ingredients: [] };
     }
   }
 

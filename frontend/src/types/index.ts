@@ -41,6 +41,11 @@ export interface Ingredient {
   order: number;
 }
 
+export interface IngredientSuggestion {
+  id: number;
+  name: string;
+}
+
 export interface Instruction {
   id: number;
   step_number: number;

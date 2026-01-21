@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SearchBar, Button, Modal } from '../components/ui';
+import { SearchBar, Button, Modal, IngredientChipInput } from '../components/ui';
 import { RecipeCard } from '../components/recipe';
 import { RecipeGroupCard } from '../components/recipe/RecipeGroupCard';
 import { recipesApi } from '../services/recipesApi';
@@ -22,31 +22,38 @@ const RecipesPage: React.FC = () => {
   const [showCreateGroupForm, setShowCreateGroupForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
+  const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
+  const [ingredientMatchMode, setIngredientMatchMode] = useState<'any' | 'all'>('any');
+  const [showIngredientFilter, setShowIngredientFilter] = useState(false);
   const recipesPerPage = 12;
 
   // Fetch recipes using React Query - different behavior for authenticated vs unauthenticated users
-  const { 
-    data: recipesData, 
-    isLoading, 
-    error, 
-    refetch 
+  const {
+    data: recipesData,
+    isLoading,
+    error,
+    refetch
   } = useQuery({
-    queryKey: ['recipes', currentPage, searchTerm, activeFilter, isAuthenticated],
+    queryKey: ['recipes', currentPage, searchTerm, activeFilter, isAuthenticated, selectedIngredients, ingredientMatchMode],
     queryFn: () => {
       if (!isAuthenticated) {
         // For unauthenticated users, always show discover recipes
-        return recipesApi.fetchDiscoverRecipes({ 
-          page: currentPage, 
+        return recipesApi.fetchDiscoverRecipes({
+          page: currentPage,
           per_page: recipesPerPage,
           search: searchTerm,
+          ingredients: selectedIngredients.length > 0 ? selectedIngredients : undefined,
+          ingredientMatch: selectedIngredients.length > 0 ? ingredientMatchMode : undefined,
         });
       } else {
         // For authenticated users, use normal filtering
-        return recipesApi.fetchRecipes({ 
-          page: currentPage, 
+        return recipesApi.fetchRecipes({
+          page: currentPage,
           per_page: recipesPerPage,
           search: searchTerm,
-          filter: activeFilter === 'groups' ? 'mine' : activeFilter
+          filter: activeFilter === 'groups' ? 'mine' : activeFilter,
+          ingredients: selectedIngredients.length > 0 ? selectedIngredients : undefined,
+          ingredientMatch: selectedIngredients.length > 0 ? ingredientMatchMode : undefined,
         });
       }
     },
@@ -67,10 +74,10 @@ const RecipesPage: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Reset to page 1 when search term or filter changes
+  // Reset to page 1 when search term, filter, or ingredient filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, activeFilter]);
+  }, [searchTerm, activeFilter, selectedIngredients, ingredientMatchMode]);
 
   // Set appropriate filter for unauthenticated users
   useEffect(() => {
@@ -238,7 +245,7 @@ const RecipesPage: React.FC = () => {
       </div>
 
       {/* Search Bar */}
-      <div className="flex justify-center mb-8">
+      <div className="flex justify-center mb-4">
         <SearchBar
           value={searchTerm}
           onChange={handleSearch}
@@ -246,6 +253,51 @@ const RecipesPage: React.FC = () => {
           className="w-full max-w-2xl"
         />
       </div>
+
+      {/* Ingredient Filter Toggle - Only show for recipe views (not groups) */}
+      {activeFilter !== 'groups' && (
+        <div className="max-w-2xl mx-auto mb-8">
+          <button
+            onClick={() => setShowIngredientFilter(!showIngredientFilter)}
+            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <svg
+              className={`w-4 h-4 transition-transform ${showIngredientFilter ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <span>Filter by ingredients</span>
+            {selectedIngredients.length > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-accent/10 text-accent text-xs rounded-full">
+                {selectedIngredients.length}
+              </span>
+            )}
+          </button>
+
+          {/* Collapsible ingredient filter section */}
+          {showIngredientFilter && (
+            <div className="mt-4 p-4 bg-background-secondary rounded-lg border border-gray-200">
+              <IngredientChipInput
+                selectedIngredients={selectedIngredients}
+                onIngredientsChange={setSelectedIngredients}
+                matchMode={ingredientMatchMode}
+                onMatchModeChange={setIngredientMatchMode}
+              />
+              {selectedIngredients.length > 0 && (
+                <button
+                  onClick={() => setSelectedIngredients([])}
+                  className="mt-3 text-sm text-text-secondary hover:text-accent transition-colors"
+                >
+                  Clear all ingredients
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Login prompt for unauthenticated users */}
       {!isAuthenticated && (

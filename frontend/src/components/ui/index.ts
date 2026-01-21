@@ -7,3 +7,4 @@ export { Modal } from './Modal';
 export { CopyrightConsentModal } from './CopyrightConsentModal';
 export { AuthenticatedImage } from './AuthenticatedImage';
 export { CloudinaryImage } from './CloudinaryImage';
+export { IngredientChipInput } from './IngredientChipInput';
