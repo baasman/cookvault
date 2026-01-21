@@ -91,6 +91,7 @@ const AuthenticatedDashboard: React.FC = () => {
           title="Total Recipes"
           value={statistics.total_recipes}
           subtitle="recipes created"
+          to="/recipes?filter=uploads"
           icon={
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -107,6 +108,7 @@ const AuthenticatedDashboard: React.FC = () => {
           title="Total Cookbooks"
           value={statistics.total_cookbooks}
           subtitle="cookbooks owned"
+          to="/cookbooks"
           icon={
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path

@@ -238,13 +238,13 @@ const CookbookDetailPage: React.FC = () => {
               cookbook.user_id === parseInt(user?.id || '0') ||
               cookbook.is_google_books
             ) && (
-              <div className="flex justify-center gap-3 mb-6">
+              <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 mb-6">
                 {/* Add Recipe Dropdown */}
-                <div className="relative">
-                  <div className="flex">
+                <div className="relative w-full sm:w-auto">
+                  <div className="flex w-full">
                     <Button
                       onClick={() => navigate(`/upload?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`)}
-                      className="rounded-r-none"
+                      className="rounded-r-none flex-1 sm:flex-initial"
                     >
                       Upload New Recipe
                     </Button>
@@ -292,6 +292,7 @@ const CookbookDetailPage: React.FC = () => {
                       cookbookId={cookbookId}
                       buttonText="Export to PDF"
                       showOptions={true}
+                      className="w-full sm:w-auto"
                     />
                     {/* Only show print button for user-owned cookbooks, not Google Books */}
                     {!cookbook.is_google_books && (
@@ -300,6 +301,7 @@ const CookbookDetailPage: React.FC = () => {
                         cookbookTitle={cookbook.title}
                         buttonText="Order Print Copy"
                         variant="primary"
+                        className="w-full sm:w-auto"
                       />
                     )}
                   </>
@@ -311,12 +313,13 @@ const CookbookDetailPage: React.FC = () => {
             {isAuthenticated && recipes.length > 0 && cookbook.user_id !== parseInt(user?.id || '0') && (
               cookbook.has_purchased || user?.role === 'admin'
             ) && (
-              <div className="flex justify-center gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 mb-6">
                 <ExportButton
                   type="cookbook"
                   cookbookId={cookbookId}
                   buttonText="Export to PDF"
                   showOptions={true}
+                  className="w-full sm:w-auto"
                 />
                 {/* Only show print button for user-owned cookbooks, not Google Books */}
                 {!cookbook.is_google_books && (
@@ -325,6 +328,7 @@ const CookbookDetailPage: React.FC = () => {
                     cookbookTitle={cookbook.title}
                     buttonText="Order Print Copy"
                     variant="primary"
+                    className="w-full sm:w-auto"
                   />
                 )}
               </div>

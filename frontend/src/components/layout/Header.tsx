@@ -159,7 +159,14 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Mobile Navigation Menu */}
           {isMobileMenuOpen && (
-            <div className="md:hidden border-t" style={{borderColor: '#e8d7cf'}}>
+            <>
+              {/* Overlay to close menu when clicking outside */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-hidden="true"
+              />
+              <div className="md:hidden border-t relative z-50" style={{borderColor: '#e8d7cf', backgroundColor: '#fcf9f8'}}>
               <div className="px-2 pt-2 pb-3 space-y-1">
                 {displayNavItems.map((item) => (
                   <Link
@@ -250,6 +257,7 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
               </div>
             </div>
+            </>
           )}
         </div>
         
