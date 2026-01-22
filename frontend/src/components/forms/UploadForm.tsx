@@ -323,24 +323,70 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     }
   };
 
-  // Convert single image to multi-image mode (for adding more photos)
-  const convertToMultiImageMode = () => {
-    if (formData.image && imagePreview) {
-      const file = formData.image;
-      const preview: ImagePreview = {
-        file,
-        preview: imagePreview,
+  // Convert single image to multi-image mode AND capture another photo
+  const addMoreToSingleImage = async () => {
+    if (!formData.image || !imagePreview) return;
+
+    // Store the current single image data before any state changes
+    const existingFile = formData.image;
+    const existingPreviewUrl = imagePreview;
+
+    if (isNativePlatform()) {
+      try {
+        const result = await captureRecipePhoto();
+        if (result?.file) {
+          const newFile = result.file;
+          // Create preview for the existing image
+          const existingImagePreview: ImagePreview = {
+            file: existingFile,
+            preview: existingPreviewUrl,
+            id: generateImageId(),
+            order: 0
+          };
+
+          // Create preview for the new image
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const newImagePreview: ImagePreview = {
+              file: newFile,
+              preview: e.target?.result as string,
+              id: generateImageId(),
+              order: 1
+            };
+
+            // Update all state at once with both images
+            setImagePreviews([existingImagePreview, newImagePreview]);
+            setFormData(prev => ({
+              ...prev,
+              images: [existingFile, newFile],
+              image: null,
+              isMultiImage: true
+            }));
+            setImagePreview(null);
+          };
+          reader.readAsDataURL(newFile);
+        }
+      } catch (error) {
+        console.error('Failed to capture photo:', error);
+      }
+    } else {
+      // On web, convert to multi-image mode and open file picker
+      const existingImagePreview: ImagePreview = {
+        file: existingFile,
+        preview: existingPreviewUrl,
         id: generateImageId(),
         order: 0
       };
-      setImagePreviews([preview]);
+      setImagePreviews([existingImagePreview]);
       setFormData(prev => ({
         ...prev,
-        images: [file],
+        images: [existingFile],
         image: null,
         isMultiImage: true
       }));
       setImagePreview(null);
+      // Small delay to let state update, then open file picker
+      setTimeout(() => multiFileInputRef.current?.click(), 50);
     }
   };
 
@@ -746,15 +792,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    convertToMultiImageMode();
-                    // Small delay to ensure state update, then trigger add more
-                    setTimeout(() => {
-                      if (isNativePlatform()) {
-                        handleAddMorePhotos();
-                      } else {
-                        multiFileInputRef.current?.click();
-                      }
-                    }, 100);
+                    addMoreToSingleImage();
                   }}
                   className="mt-3 w-full py-2 px-4 border-2 border-dashed rounded-lg text-sm font-medium transition-colors hover:border-accent hover:bg-accent/5"
                   style={{ borderColor: '#e8d7cf', color: '#9b644b' }}
