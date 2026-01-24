@@ -295,7 +295,7 @@ const RecipeActionsDropdown: React.FC<RecipeActionsDropdownProps> = ({
                 <ExportButton
                   type="recipe"
                   recipeId={recipe.id}
-                  buttonText="Export PDF"
+                  buttonText="Download"
                   showOptions={true}
                   size="sm"
                 />

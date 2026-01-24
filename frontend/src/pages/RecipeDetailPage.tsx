@@ -329,11 +329,11 @@ const RecipeDetailPage: React.FC = () => {
                     </button>
                   )}
                   {recipe.has_full_access && (
-                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
+                    <div className="mobile-menu-item" onClick={(e) => e.stopPropagation()}>
                       <ExportButton
                         type="recipe"
                         recipeId={recipeId}
-                        buttonText="Export PDF"
+                        buttonText="Download"
                         showOptions={true}
                       />
                     </div>
@@ -470,6 +470,21 @@ const RecipeDetailPage: React.FC = () => {
                           {tag.name}
                         </span>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Publish Restriction Notice - shown for own recipes that cannot be made public */}
+                {isOwnRecipe && !recipe.is_public && recipe.can_be_published === false && (
+                  <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+                    <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <div>
+                      <p className="text-sm text-blue-700 font-medium">Personal Recipe</p>
+                      <p className="text-sm text-blue-600">
+                        {recipe.publish_restriction_reason || 'This recipe is saved for personal use only and cannot be shared publicly.'}
+                      </p>
                     </div>
                   </div>
                 )}

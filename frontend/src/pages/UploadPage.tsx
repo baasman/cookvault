@@ -56,7 +56,8 @@ const UploadPage: React.FC = () => {
 
         const result = await recipesApi.uploadMultipleImages(
           formData.images,
-          cookbook_id
+          cookbook_id,
+          formData.is_original_recipe
         );
 
         setMultiJobId(result.multi_job_id);
@@ -90,6 +91,11 @@ const UploadPage: React.FC = () => {
           uploadData.append('cookbook_id', formData.selected_existing_cookbook_id.toString());
         } else if (formData.cookbook_id) {
           uploadData.append('cookbook_id', formData.cookbook_id.toString());
+        }
+
+        // Add recipe source information for copyright protection
+        if (formData.is_original_recipe !== undefined) {
+          uploadData.append('is_original_recipe', formData.is_original_recipe.toString());
         }
 
         const apiUrl = getApiUrl();

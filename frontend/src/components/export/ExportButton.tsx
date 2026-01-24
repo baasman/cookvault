@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { DocumentArrowDownIcon } from '@heroicons/react/24/outline';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import toast from 'react-hot-toast';
 import { getApiUrl } from '../../utils/getApiUrl';
 import { apiFetch } from '../../utils/apiInterceptor';
 import { Button } from '../ui';
+import { isNativePlatform, isIOS } from '../../utils/platform';
 
 interface ExportButtonProps {
   type: 'recipe' | 'cookbook' | 'collection';
@@ -33,7 +37,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
   recipeIds = [],
   collectionTitle = 'My Recipe Collection',
   className = '',
-  buttonText = 'Export PDF',
+  buttonText = 'Download',
   showOptions = false,
   size = 'sm'
 }) => {
@@ -191,15 +195,56 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
         throw new Error('Invalid export configuration');
       }
 
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      // Handle download based on platform
+      if (isNativePlatform() && isIOS()) {
+        // iOS: Write to file and share via native share sheet
+        try {
+          toast.loading('Preparing PDF...', { id: 'pdf-export' });
+
+          // Convert blob to base64
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const base64 = reader.result as string;
+              // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+              const base64Data = base64.split(',')[1];
+              resolve(base64Data);
+            };
+            reader.onerror = reject;
+          });
+          reader.readAsDataURL(blob);
+          const base64Data = await base64Promise;
+
+          // Write to a temporary file
+          const result = await Filesystem.writeFile({
+            path: filename,
+            data: base64Data,
+            directory: Directory.Cache,
+          });
+
+          toast.dismiss('pdf-export');
+
+          // Share the file - this opens the iOS share sheet
+          await Share.share({
+            title: filename,
+            url: result.uri,
+            dialogTitle: 'Save or Share PDF',
+          });
+        } catch (err) {
+          console.error('iOS export failed:', err);
+          toast.error('Failed to export PDF. Please try again.', { id: 'pdf-export' });
+        }
+      } else {
+        // Web/Android: Use standard download approach
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
 
       setShowModal(false);
     } catch (error) {
@@ -228,7 +273,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
         className={className}
       >
         <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
-        {isExporting ? 'Exporting...' : buttonText}
+        {isExporting ? 'Downloading...' : buttonText}
       </Button>
 
       {showModal && (
@@ -387,7 +432,7 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
             className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: isExporting ? '#9ca3af' : '#f15f1c' }}
           >
-            {isExporting ? 'Exporting...' : 'Export PDF'}
+            {isExporting ? 'Downloading...' : 'Download'}
           </button>
         </div>
       </div>

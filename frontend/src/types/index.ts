@@ -153,6 +153,10 @@ export interface Recipe {
   paywall_message?: string;
   have_made?: boolean;
   want_to_make?: boolean;
+  // Recipe source and publishability for copyright protection
+  is_original_recipe?: boolean; // true = user's own recipe, false = from a cookbook/source
+  can_be_published?: boolean; // whether this recipe can be made public
+  publish_restriction_reason?: string | null; // reason if can_be_published is false
 }
 
 export interface ProcessingJob {
@@ -290,6 +294,8 @@ export interface UploadFormData {
   // Google Books search fields
   search_google_books?: boolean;
   selected_google_book?: any; // GoogleBook type from cookbooksApi
+  // Recipe source for copyright protection
+  is_original_recipe?: boolean; // true = user's own recipe, false = from a cookbook/source
 }
 
 export interface ImagePreview {

@@ -729,7 +729,7 @@ class RecipesApi {
   }
 
   // Multi-image upload methods
-  async uploadMultipleImages(images: File[], cookbook_id?: number): Promise<MultiUploadResponse> {
+  async uploadMultipleImages(images: File[], cookbook_id?: number, is_original_recipe?: boolean): Promise<MultiUploadResponse> {
     try {
       const formData = new FormData();
 
@@ -740,6 +740,11 @@ class RecipesApi {
 
       if (cookbook_id) {
         formData.append('cookbook_id', cookbook_id.toString());
+      }
+
+      // Add recipe source information for copyright protection
+      if (is_original_recipe !== undefined) {
+        formData.append('is_original_recipe', is_original_recipe.toString());
       }
 
       const response = await apiFetch(`${this.baseUrl}/recipes/upload-multi`, {
@@ -778,6 +783,11 @@ class RecipesApi {
         payload.cookbook_id = formData.selected_existing_cookbook_id;
       } else if (formData.cookbook_id) {
         payload.cookbook_id = formData.cookbook_id;
+      }
+
+      // Add recipe source information for copyright protection
+      if (formData.is_original_recipe !== undefined) {
+        payload.is_original_recipe = formData.is_original_recipe;
       }
 
       const response = await apiFetch(`${this.baseUrl}/recipes/upload-text`, {

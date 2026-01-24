@@ -22,6 +22,10 @@ const MakePublicButton: React.FC<MakePublicButtonProps> = ({
   const queryClient = useQueryClient();
   const [showCopyrightModal, setShowCopyrightModal] = useState(false);
 
+  // Check if recipe can be published
+  const canBePublished = recipe.can_be_published !== false;
+  const publishRestrictionReason = recipe.publish_restriction_reason;
+
   const togglePrivacyMutation = useMutation({
     mutationFn: (params: { isPublic: boolean; consents?: Record<string, boolean> }) => 
       recipesApi.toggleRecipePrivacy(recipe.id, params.isPublic, params.consents),
@@ -112,6 +116,35 @@ const MakePublicButton: React.FC<MakePublicButtonProps> = ({
     }
     return recipe.is_public ? 'Make Private' : 'Make Public';
   };
+
+  // If recipe is already public, show the make private button
+  // If recipe cannot be published, show disabled button with restriction reason
+  // Otherwise show the make public button
+
+  if (!recipe.is_public && !canBePublished) {
+    // Show disabled button with tooltip explaining why
+    return (
+      <div className="relative group">
+        <Button
+          onClick={(e) => e.preventDefault()}
+          disabled={true}
+          variant={variant}
+          size={size}
+          className="opacity-50 cursor-not-allowed"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+          </svg>
+          <span className="ml-1">Personal Only</span>
+        </Button>
+        {/* Tooltip */}
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 max-w-xs text-center">
+          {publishRestrictionReason || 'This recipe cannot be made public'}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

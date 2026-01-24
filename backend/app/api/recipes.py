@@ -687,6 +687,12 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     cookbook_id = request.form.get("cookbook_id")
     create_new_cookbook = request.form.get("create_new_cookbook") == "true"
 
+    # Get recipe source information (is_original_recipe)
+    is_original_recipe_str = request.form.get("is_original_recipe")
+    is_original_recipe = None
+    if is_original_recipe_str is not None:
+        is_original_recipe = is_original_recipe_str.lower() == "true"
+
     # Handle new cookbook creation
     cookbook = None
     if create_new_cookbook:
@@ -742,6 +748,11 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
             if not cookbook:
                 return jsonify({"error": "Cookbook not found"}), 400
             # Note: We allow adding recipes to any existing cookbook for sharing
+
+            # If cookbook is from Google Books, force is_original_recipe = False
+            # (recipes from published cookbooks cannot be made public)
+            if cookbook.google_books_id:
+                is_original_recipe = False
         except ValueError:
             return jsonify({"error": "Invalid cookbook_id"}), 400
 
@@ -757,6 +768,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
             cookbook_id=cookbook_id,
             user_id=current_user.id,
             skip_cache=skip_cache,
+            is_original_recipe=is_original_recipe,
         )
 
         db.session.add(processing_job)
@@ -1600,6 +1612,7 @@ def _create_recipe_from_parsed_data(
         user_id=user_id,
         uploaded_by_id=uploaded_by_id,  # Track the actual uploader
         is_public=False,  # New recipes are private by default
+        is_original_recipe=job.is_original_recipe,  # Track recipe source for copyright protection
     )
 
     db.session.add(recipe)
@@ -1891,6 +1904,21 @@ def toggle_recipe_privacy(current_user, recipe_id: int) -> Response:
                 ),
                 400,
             )
+
+        # Check if recipe can be published (copyright protection)
+        if is_public and not recipe.is_public:
+            can_publish, restriction_reason = recipe.can_be_published()
+            if not can_publish:
+                return (
+                    jsonify(
+                        {
+                            "error": restriction_reason,
+                            "can_be_published": False,
+                            "is_original_recipe": recipe.is_original_recipe,
+                        }
+                    ),
+                    403,
+                )
 
         # When making recipe public, require copyright consent
         if is_public and not recipe.is_public:
@@ -2679,6 +2707,12 @@ def upload_multi_recipe(current_user):
         # Get optional cookbook information
         cookbook_id = request.form.get("cookbook_id")
 
+        # Get recipe source information (is_original_recipe)
+        is_original_recipe_str = request.form.get("is_original_recipe")
+        is_original_recipe = None
+        if is_original_recipe_str is not None:
+            is_original_recipe = is_original_recipe_str.lower() == "true"
+
         # Validate cookbook if provided
         cookbook = None
         if cookbook_id:
@@ -2701,6 +2735,11 @@ def upload_multi_recipe(current_user):
                     return jsonify({
                         "error": "You don't have permission to add recipes to this cookbook"
                     }), 403
+
+                # If cookbook is from Google Books, force is_original_recipe = False
+                # (recipes from published cookbooks cannot be made public)
+                if cookbook.google_books_id:
+                    is_original_recipe = False
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid cookbook ID"}), 400
 
@@ -2710,6 +2749,7 @@ def upload_multi_recipe(current_user):
             total_images=len(validated_files),
             status=ProcessingStatus.PENDING,
             skip_cache=skip_cache,
+            is_original_recipe=is_original_recipe,
         )
         db.session.add(multi_job)
         db.session.flush()  # Get the ID
@@ -2856,6 +2896,10 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
         cookbook_id = data.get("cookbook_id")
         create_new_cookbook = data.get("create_new_cookbook", False)
 
+        # Get recipe source information (is_original_recipe)
+        is_original_recipe = data.get("is_original_recipe")
+        # is_original_recipe can be True, False, or None (not specified)
+
         # Handle new cookbook creation (same logic as image upload)
         cookbook = None
         if create_new_cookbook:
@@ -2910,6 +2954,11 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
                 cookbook = Cookbook.query.get(cookbook_id)
                 if not cookbook:
                     return jsonify({"error": "Cookbook not found"}), 400
+
+                # If cookbook is from Google Books, force is_original_recipe = False
+                # (recipes from published cookbooks cannot be made public)
+                if cookbook.google_books_id:
+                    is_original_recipe = False
             except (ValueError, TypeError):
                 return jsonify({"error": "Invalid cookbook_id"}), 400
 
@@ -2932,6 +2981,7 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             user_id=current_user.id,
             uploaded_by_id=current_user.id,
             is_public=False,  # Default to private
+            is_original_recipe=is_original_recipe,  # Track recipe source for copyright protection
             prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
             cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
             servings=safe_int_conversion(parsed_recipe.get("servings")),
@@ -3522,6 +3572,7 @@ def process_multi_image_job(multi_job_id: int):
                 user_id=multi_job.user_id,
                 uploaded_by_id=multi_job.user_id,
                 is_public=False,  # Default to private
+                is_original_recipe=multi_job.is_original_recipe,  # Track recipe source for copyright protection
             )
             db.session.add(recipe)
             db.session.flush()  # Get recipe ID

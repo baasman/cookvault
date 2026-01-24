@@ -264,6 +264,9 @@ class MultiRecipeJob(db.Model):
     # Cache control for load testing
     skip_cache: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Recipe source tracking - passed through to created recipe
+    is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean)
+
     # Relationships
     user: Mapped["User"] = relationship("User")
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe")
@@ -350,6 +353,11 @@ class Recipe(db.Model):
     # Track who actually uploaded the recipe (may differ from owner for shared cookbooks)
     uploaded_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), index=True)
 
+    # Recipe source tracking for copyright protection
+    # True = user's own recipe (can be published), False = from a cookbook/other source (cannot be published)
+    # None = legacy recipes (default to True for backwards compatibility)
+    is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+
     cookbook: Mapped[Optional["Cookbook"]] = relationship(
         "Cookbook", back_populates="recipes"
     )
@@ -413,6 +421,23 @@ class Recipe(db.Model):
         """Unpublish the recipe to make it private."""
         self.is_public = False
         self.published_at = None
+
+    def can_be_published(self) -> tuple:
+        """Check if this recipe can be made public.
+
+        Returns:
+            tuple: (can_publish: bool, reason: str) - whether recipe can be published and why not if False
+        """
+        # Block if from Google Books cookbook (copyright-protected published cookbooks)
+        if self.cookbook and self.cookbook.google_books_id:
+            return False, "Recipes from published cookbooks cannot be made public due to copyright restrictions"
+
+        # Block if explicitly marked as not original (from a cookbook or other source)
+        if self.is_original_recipe is False:
+            return False, "Only original recipes can be made public. This recipe is from a cookbook or other source."
+
+        # Allow publishing for original recipes or legacy recipes (is_original_recipe is None or True)
+        return True, ""
 
     def can_be_viewed_by(self, user_id: Optional[int] = None, is_admin: bool = False) -> bool:
         """Check if a recipe can be viewed by a given user."""
@@ -536,6 +561,9 @@ class Recipe(db.Model):
         # Check if user has full access to recipe content
         has_full_access = self.has_full_access(current_user_id, is_admin)
 
+        # Check publishability status
+        can_publish, publish_restriction_reason = self.can_be_published()
+
         # Base recipe information (always available)
         result = {
             "id": self.id,
@@ -557,6 +585,9 @@ class Recipe(db.Model):
             "user_id": self.user_id,
             "uploaded_by_id": self.uploaded_by_id,
             "has_full_access": has_full_access,
+            "is_original_recipe": self.is_original_recipe,
+            "can_be_published": can_publish,
+            "publish_restriction_reason": publish_restriction_reason if not can_publish else None,
         }
 
         # Restricted content (only for users with full access)
@@ -719,6 +750,9 @@ class ProcessingJob(db.Model):
 
     # Cache control for load testing
     skip_cache: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Recipe source tracking - passed through to created recipe
+    is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)

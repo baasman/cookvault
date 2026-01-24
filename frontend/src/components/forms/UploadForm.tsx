@@ -35,28 +35,17 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     search_google_books: false,
     selected_google_book: null,
     no_cookbook: true, // Default to no cookbook
+    is_original_recipe: true, // Default to "my own recipe" (publishable)
   });
   
-  const [copyrightConsents, setCopyrightConsents] = useState({
-    rightsToShare: false,
-    understandsPublic: false,
-    personalUseOnly: false,
-    noCopyrightViolation: false
-  });
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleConsentChange = (key: keyof typeof copyrightConsents) => {
-    setCopyrightConsents(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const allConsentsGiven = Object.values(copyrightConsents).every(Boolean);
+  // Check if a Google Books cookbook is selected (restricts recipe source choice)
+  const isGoogleBooksCookbook = formData.search_google_books && formData.selected_google_book;
 
   const generateImageId = () => Math.random().toString(36).substr(2, 9);
 
@@ -260,12 +249,22 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       return;
     }
 
-    // No validation needed for no_cookbook option - it's always valid
-
-    // Validate copyright consent
-    if (!allConsentsGiven) {
-      alert('Please acknowledge all copyright consent requirements before uploading.');
+    // Validate recipe source selection
+    if (formData.is_original_recipe === undefined) {
+      alert('Please indicate whether this is your own recipe or from another source.');
       return;
+    }
+
+    // If recipe is from a cookbook/source, require linking to a cookbook
+    if (formData.is_original_recipe === false) {
+      const hasCookbook = formData.create_new_cookbook ||
+                          formData.search_existing_cookbook ||
+                          formData.search_google_books ||
+                          formData.cookbook_id;
+      if (!hasCookbook || formData.no_cookbook) {
+        alert('Please link this recipe to a cookbook. Since this recipe is from a cookbook or other source, you must specify which cookbook it belongs to.');
+        return;
+      }
     }
 
     onSubmit(formData);
@@ -486,6 +485,16 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       }));
     }
   }, [initialCookbookData]);
+
+  // Auto-set is_original_recipe to false when Google Books cookbook is selected
+  useEffect(() => {
+    if (formData.search_google_books && formData.selected_google_book) {
+      setFormData(prev => ({
+        ...prev,
+        is_original_recipe: false // Recipes from published cookbooks cannot be made public
+      }));
+    }
+  }, [formData.search_google_books, formData.selected_google_book]);
 
 
   return (
@@ -1100,78 +1109,74 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           </div>
         </div>
 
-        {/* Copyright Consent Section */}
+        {/* Recipe Source Section */}
         <div className="flex flex-col gap-4">
           <h3 className="text-lg font-medium" style={{color: '#1c120d'}}>
-            Copyright Consent
+            Recipe Source
           </h3>
-          
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-gray-900 mb-2">Important Copyright Notice</h4>
-            <p className="text-sm text-gray-700">
-              Recipe ingredients and basic cooking methods are generally not copyrightable. However, 
-              detailed creative descriptions, personal stories, unique presentations, and substantial 
-              portions of published cookbooks may be protected by copyright.
-            </p>
-          </div>
+          <p className="text-sm text-gray-600">
+            This helps us understand what can be shared publicly.
+          </p>
 
           <div className="space-y-3">
-            <label className="flex items-start space-x-3 cursor-pointer">
+            <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+              formData.is_original_recipe === true ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:bg-gray-50'
+            } ${isGoogleBooksCookbook ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <input
-                type="checkbox"
-                checked={copyrightConsents.rightsToShare}
-                onChange={() => handleConsentChange('rightsToShare')}
-                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-                disabled={isLoading}
+                type="radio"
+                name="recipe_source"
+                checked={formData.is_original_recipe === true}
+                onChange={() => setFormData({...formData, is_original_recipe: true})}
+                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500"
+                disabled={isLoading || isGoogleBooksCookbook}
               />
-              <span className="text-sm text-gray-700">
-                <strong>I have the right to share this recipe.</strong> I either created this recipe myself, 
-                have permission to share it, or believe it contains only non-copyrightable factual cooking information.
-              </span>
+              <div>
+                <span className="font-medium text-gray-900">This is my own recipe</span>
+                <p className="text-sm text-gray-500">
+                  I created this recipe myself or it's a family recipe. I can choose to share it publicly later.
+                </p>
+              </div>
             </label>
 
-            <label className="flex items-start space-x-3 cursor-pointer">
+            <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+              formData.is_original_recipe === false ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:bg-gray-50'
+            }`}>
               <input
-                type="checkbox"
-                checked={copyrightConsents.understandsPublic}
-                onChange={() => handleConsentChange('understandsPublic')}
-                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                type="radio"
+                name="recipe_source"
+                checked={formData.is_original_recipe === false}
+                onChange={() => setFormData({...formData, is_original_recipe: false})}
+                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500"
                 disabled={isLoading}
               />
-              <span className="text-sm text-gray-700">
-                <strong>I understand this recipe may be made public.</strong> I may choose to make this recipe 
-                publicly visible later, allowing other users to view, search for, and access it.
-              </span>
-            </label>
-
-            <label className="flex items-start space-x-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={copyrightConsents.personalUseOnly}
-                onChange={() => handleConsentChange('personalUseOnly')}
-                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-                disabled={isLoading}
-              />
-              <span className="text-sm text-gray-700">
-                <strong>I grant others permission for personal use.</strong> If I make this recipe public, 
-                I allow other users to use it for their personal, non-commercial cooking and meal preparation.
-              </span>
-            </label>
-
-            <label className="flex items-start space-x-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={copyrightConsents.noCopyrightViolation}
-                onChange={() => handleConsentChange('noCopyrightViolation')}
-                className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-                disabled={isLoading}
-              />
-              <span className="text-sm text-gray-700">
-                <strong>I will not violate copyright.</strong> I have not copied substantial portions of copyrighted 
-                cookbooks, magazine articles, or other protected content without permission.
-              </span>
+              <div>
+                <span className="font-medium text-gray-900">This is from a cookbook or other source</span>
+                <p className="text-sm text-gray-500">
+                  I'm saving this for personal use only. It will remain private and cannot be shared publicly.
+                </p>
+              </div>
             </label>
           </div>
+
+          {isGoogleBooksCookbook && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                Since you're adding this recipe from a published cookbook, it will be saved for personal use only and cannot be made public.
+              </p>
+            </div>
+          )}
+
+          {/* Warning when "from cookbook" is selected but no cookbook is linked */}
+          {formData.is_original_recipe === false && formData.no_cookbook && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+              <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-sm text-amber-700">
+                Please select a cookbook option above. Since this recipe is from a cookbook or other source, you must link it to a cookbook.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Error Message */}
@@ -1192,7 +1197,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                 ? !formData.recipeText || formData.recipeText.trim() === ''
                 : (formData.isMultiImage ? formData.images.length === 0 : !formData.image)
               ) ||
-              !allConsentsGiven}
+              formData.is_original_recipe === undefined ||
+              (formData.is_original_recipe === false && formData.no_cookbook)}
             className="min-w-[200px]"
           >
             {isLoading ? (
