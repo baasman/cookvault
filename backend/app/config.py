@@ -116,6 +116,7 @@ class Config:
         app.config['EMAIL_FROM_NAME'] = os.environ.get("EMAIL_FROM_NAME", "Cookbook Creator")
         app.config['FRONTEND_URL'] = os.environ.get("FRONTEND_URL", "http://localhost:5173")
         app.config['VERIFICATION_TOKEN_EXPIRY_HOURS'] = int(os.environ.get("VERIFICATION_TOKEN_EXPIRY_HOURS", 24))
+        app.config['REQUIRE_EMAIL_VERIFICATION'] = os.environ.get("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
 
         # SMS verification settings (Twilio)
         app.config['TWILIO_ACCOUNT_SID'] = os.environ.get("TWILIO_ACCOUNT_SID")

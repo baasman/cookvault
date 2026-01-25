@@ -299,70 +299,113 @@ def register() -> Tuple[Response, int]:
             elif phone and existing_user.phone_number == phone:
                 return jsonify({"error": "Phone number already exists"}), 409
 
-        # Create new user with pending verification status
-        user = User(
-            username=username,
-            email=email,
-            phone_number=phone,
-            first_name=data.get("first_name", "").strip(),
-            last_name=data.get("last_name", "").strip(),
-            status=UserStatus.PENDING_VERIFICATION,
-            is_verified=False,
-        )
-        user.set_password(password)
+        # Check if email verification is required
+        require_verification = current_app.config.get('REQUIRE_EMAIL_VERIFICATION', False)
 
-        # Generate verification token based on method
-        if verification_method == "email":
-            verification_token = user.generate_verification_token()
-        else:  # SMS
-            verification_token = user.generate_phone_verification_token()
-
-        db.session.add(user)
-        db.session.commit()
-
-        # Send verification based on method
-        verification_sent = False
-        if verification_method == "email":
-            email_service = get_email_service()
-            verification_sent = email_service.send_verification_email(
+        if require_verification:
+            # Create new user with pending verification status
+            user = User(
+                username=username,
                 email=email,
-                token=verification_token,
-                username=username
-            )
-        else:  # SMS
-            sms_service = get_sms_service()
-            verification_sent = sms_service.send_verification_sms(
                 phone_number=phone,
-                code=verification_token
+                first_name=data.get("first_name", "").strip(),
+                last_name=data.get("last_name", "").strip(),
+                status=UserStatus.PENDING_VERIFICATION,
+                is_verified=False,
             )
+            user.set_password(password)
 
-        if not verification_sent:
-            current_app.logger.warning(
-                f"Verification {verification_method} failed to send for user {username}"
-            )
+            # Generate verification token based on method
+            if verification_method == "email":
+                verification_token = user.generate_verification_token()
+            else:  # SMS
+                verification_token = user.generate_phone_verification_token()
 
-        current_app.logger.info(f"New user registered: {username} (ID: {user.id})")
+            db.session.add(user)
+            db.session.commit()
 
-        # Build response without JWT token (user must verify first)
-        response_data = {
-            "message": "Registration successful. Please verify your account.",
-            "requires_verification": True,
-            "verification_method": verification_method,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
+            # Send verification based on method
+            verification_sent = False
+            if verification_method == "email":
+                email_service = get_email_service()
+                verification_sent = email_service.send_verification_email(
+                    email=email,
+                    token=verification_token,
+                    username=username
+                )
+            else:  # SMS
+                sms_service = get_sms_service()
+                verification_sent = sms_service.send_verification_sms(
+                    phone_number=phone,
+                    code=verification_token
+                )
+
+            if not verification_sent:
+                current_app.logger.warning(
+                    f"Verification {verification_method} failed to send for user {username}"
+                )
+
+            current_app.logger.info(f"New user registered: {username} (ID: {user.id})")
+
+            # Build response without JWT token (user must verify first)
+            response_data = {
+                "message": "Registration successful. Please verify your account.",
+                "requires_verification": True,
+                "verification_method": verification_method,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                }
             }
-        }
 
-        if verification_method == "email":
-            response_data["email"] = email
+            if verification_method == "email":
+                response_data["email"] = email
+            else:
+                response_data["phone"] = phone
+
+            response = jsonify(response_data)
+
+            return response, 201
         else:
-            response_data["phone"] = phone
+            # Verification disabled - create user as already verified and active
+            user = User(
+                username=username,
+                email=email,
+                phone_number=phone,
+                first_name=data.get("first_name", "").strip(),
+                last_name=data.get("last_name", "").strip(),
+                status=UserStatus.ACTIVE,
+                is_verified=True,
+            )
+            user.set_password(password)
 
-        response = jsonify(response_data)
+            db.session.add(user)
+            db.session.commit()
 
-        return response, 201
+            current_app.logger.info(f"New user registered (verification disabled): {username} (ID: {user.id})")
+
+            # Generate JWT token for immediate login
+            jwt_token = JWTTokenManager.generate_token(user)
+
+            # Create session for the user
+            user_session = create_user_session(user, request)
+
+            response_data = {
+                "message": "Registration successful.",
+                "requires_verification": False,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role.value
+                },
+                "access_token": jwt_token,
+                "token_type": "Bearer",
+                "session_token": user_session.session_token
+            }
+
+            return jsonify(response_data), 201
 
     except IntegrityError:
         db.session.rollback()
@@ -531,6 +574,13 @@ def verify_phone() -> Tuple[Response, int]:
 def resend_verification() -> Tuple[Response, int]:
     """Resend verification email or SMS to unverified user."""
     try:
+        # Check if email verification is required
+        require_verification = current_app.config.get('REQUIRE_EMAIL_VERIFICATION', False)
+        if not require_verification:
+            return jsonify({
+                "error": "Email verification is not required. You can log in directly."
+            }), 400
+
         data = request.get_json()
 
         if not data:
