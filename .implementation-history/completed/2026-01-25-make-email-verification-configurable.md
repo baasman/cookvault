@@ -1,7 +1,7 @@
 # Make Email Verification Configurable
 
 **Task ID:** 2026-01-25-1200
-**Status:** In Progress
+**Status:** Completed
 
 ## Original Plan
 
@@ -100,10 +100,25 @@ To re-enable later, change to `true` and ensure SendGrid API key is valid.
 
 ## Timeline
 - Started: 2026-01-25T12:00:00Z
-- Completed:
+- Completed: 2026-01-25T23:10:00Z
 
 ## Deviations
 None.
 
 ## Results Summary
-[To be added on completion]
+Successfully implemented configurable email verification:
+
+**Files modified:**
+- `backend/app/config.py` - Added `REQUIRE_EMAIL_VERIFICATION` config (line 119)
+- `backend/app/api/auth.py` - Conditional registration logic (lines 302-408) and early return in resend endpoint (lines 577-582)
+- `.env` - Added `REQUIRE_EMAIL_VERIFICATION=false`
+- `render.env` - Added `REQUIRE_EMAIL_VERIFICATION=false` (local only, gitignored)
+- `CLAUDE.md` - Added mandatory plan-history skill rule
+
+**Deployment:**
+- Pushed commit `5b1e187` to main
+- Updated Render environment variable via API
+- Deploy completed successfully
+
+**Outcome:**
+New users can now register and are immediately logged in without email verification. The feature can be re-enabled by setting `REQUIRE_EMAIL_VERIFICATION=true` when SendGrid API key issues are resolved.
