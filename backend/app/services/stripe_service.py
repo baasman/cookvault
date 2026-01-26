@@ -72,30 +72,95 @@ class StripeService:
         
         return self.create_customer(user)
 
-    def create_subscription_payment_intent(self, user: User) -> Dict[str, Any]:
-        """Create a payment intent for premium subscription upgrade."""
+    def create_subscription(self, user: User) -> Dict[str, Any]:
+        """Create a Stripe subscription for premium upgrade."""
         try:
             customer_id = self.get_or_create_customer(user)
-            
-            # Get premium price from config
-            premium_price = current_app.config.get('STRIPE_PREMIUM_PRICE', 299)  # $2.99 in cents
-            
-            payment_intent = stripe.PaymentIntent.create(
-                amount=premium_price,
-                currency='usd',
+            price_id = current_app.config.get('STRIPE_PREMIUM_PRICE_ID')
+
+            if not price_id:
+                logger.error("STRIPE_PREMIUM_PRICE_ID not configured")
+                raise ValueError("Stripe premium price ID not configured")
+
+            # Create subscription with payment_behavior for immediate charge
+            subscription = stripe.Subscription.create(
                 customer=customer_id,
-                metadata={
-                    'user_id': str(user.id),
-                    'payment_type': PaymentType.SUBSCRIPTION.value,
-                    'tier': SubscriptionTier.PREMIUM.value
-                },
-                automatic_payment_methods={'enabled': True}
+                items=[{'price': price_id}],
+                payment_behavior='default_incomplete',
+                payment_settings={'save_default_payment_method': 'on_subscription'},
+                expand=['latest_invoice'],
+                metadata={'user_id': str(user.id)}
             )
-            
+
+            logger.info(f"Subscription created: {subscription.id}, status: {subscription.status}")
+
+            # Get the payment intent from the invoice
+            # We need to retrieve the invoice with payment_intent expansion
+            payment_intent = None
+            client_secret = None
+            latest_invoice = subscription.latest_invoice
+
+            if latest_invoice:
+                invoice_id = latest_invoice.id if hasattr(latest_invoice, 'id') else latest_invoice
+                logger.info(f"Retrieving invoice {invoice_id} with payment_intent expansion")
+
+                # Retrieve the invoice with payment_intent expanded
+                invoice = stripe.Invoice.retrieve(
+                    invoice_id,
+                    expand=['payment_intent']
+                )
+
+                # Safely access payment_intent using get() on the underlying dict
+                pi = invoice.get('payment_intent') if hasattr(invoice, 'get') else None
+                logger.info(f"Invoice payment_intent (via get): {pi}")
+
+                if pi:
+                    if hasattr(pi, 'client_secret'):
+                        payment_intent = pi
+                        client_secret = pi.client_secret
+                    elif isinstance(pi, str):
+                        # It's just an ID, retrieve it
+                        payment_intent = stripe.PaymentIntent.retrieve(pi)
+                        client_secret = payment_intent.client_secret
+                    logger.info(f"Got client_secret: {client_secret[:20] if client_secret else None}...")
+                else:
+                    # No payment intent - the invoice doesn't automatically create one
+                    # Create a PaymentIntent manually for the subscription
+                    logger.info("No payment_intent on invoice, creating one manually...")
+
+                    payment_intent = stripe.PaymentIntent.create(
+                        amount=invoice.amount_due,
+                        currency=invoice.currency,
+                        customer=customer_id,
+                        setup_future_usage='off_session',
+                        metadata={
+                            'user_id': str(user.id),
+                            'subscription_id': subscription.id,
+                            'invoice_id': invoice_id,
+                            'payment_type': PaymentType.SUBSCRIPTION.value,
+                            'tier': SubscriptionTier.PREMIUM.value
+                        },
+                        automatic_payment_methods={'enabled': True}
+                    )
+                    client_secret = payment_intent.client_secret
+                    logger.info(f"Manually created payment intent: {payment_intent.id}, client_secret: {client_secret[:20] if client_secret else None}...")
+            else:
+                logger.warning("No latest_invoice on subscription")
+
+            premium_price = current_app.config.get('STRIPE_PREMIUM_PRICE', 299)
+
+            # Get payment intent ID for the payment record
+            payment_intent_id = None
+            if payment_intent:
+                if hasattr(payment_intent, 'id'):
+                    payment_intent_id = payment_intent.id
+                elif isinstance(payment_intent, dict):
+                    payment_intent_id = payment_intent.get('id')
+
             # Create payment record
             payment = Payment(
                 user_id=user.id,
-                stripe_payment_intent_id=payment_intent.id,
+                stripe_payment_intent_id=payment_intent_id,
                 payment_type=PaymentType.SUBSCRIPTION,
                 status=PaymentStatus.PENDING,
                 amount=Decimal(premium_price) / 100,
@@ -103,19 +168,27 @@ class StripeService:
                 description=f"Premium subscription upgrade for {user.username}"
             )
             db.session.add(payment)
+
+            # Update user's subscription record with Stripe subscription ID
+            user_subscription = user.get_or_create_subscription()
+            user_subscription.stripe_subscription_id = subscription.id
+
             db.session.commit()
-            
-            logger.info(f"Created subscription payment intent {payment_intent.id} for user {user.id}")
-            
+
+            logger.info(f"Created subscription {subscription.id} for user {user.id}")
+
             return {
-                'client_secret': payment_intent.client_secret,
-                'payment_intent_id': payment_intent.id,
+                'subscription_id': subscription.id,
+                'client_secret': client_secret,
+                'status': subscription.status,
                 'amount': premium_price,
                 'currency': 'usd'
             }
-            
+
         except stripe.error.StripeError as e:
-            logger.error(f"Failed to create subscription payment intent for user {user.id}: {str(e)}")
+            logger.error(f"Failed to create subscription for user {user.id}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
     def create_cookbook_payment_intent(self, user: User, cookbook: Cookbook) -> Dict[str, Any]:
@@ -448,27 +521,255 @@ class StripeService:
             event = stripe.Webhook.construct_event(
                 payload, signature, self.webhook_secret
             )
-            
+
             event_type = event['type']
-            
+            event_data = event['data']['object']
+
+            # Payment intent events (for one-time payments like cookbooks)
             if event_type == 'payment_intent.succeeded':
-                self.handle_payment_succeeded(event['data']['object'])
+                self.handle_payment_succeeded(event_data)
             elif event_type == 'payment_intent.payment_failed':
-                self.handle_payment_failed(event['data']['object'])
+                self.handle_payment_failed(event_data)
+            # Subscription events
+            elif event_type == 'customer.subscription.created':
+                self._handle_subscription_created(event_data)
+            elif event_type == 'customer.subscription.updated':
+                self._handle_subscription_updated(event_data)
+            elif event_type == 'customer.subscription.deleted':
+                self._handle_subscription_deleted(event_data)
+            # Invoice events (for recurring subscription payments)
+            elif event_type == 'invoice.payment_succeeded':
+                self._handle_invoice_paid(event_data)
+            elif event_type == 'invoice.payment_failed':
+                self._handle_invoice_failed(event_data)
             else:
                 logger.info(f"Unhandled webhook event type: {event_type}")
-            
+
             return True
-            
+
         except ValueError as e:
             logger.error(f"Invalid webhook payload: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
         except stripe.error.SignatureVerificationError as e:
             logger.error(f"Invalid webhook signature: {str(e)}")
             return False
         except Exception as e:
             logger.error(f"Failed to process webhook: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
+
+    def _handle_subscription_created(self, subscription_data: Dict[str, Any]) -> None:
+        """Handle subscription created event."""
+        try:
+            subscription_id = subscription_data['id']
+            customer_id = subscription_data['customer']
+            user_id = subscription_data.get('metadata', {}).get('user_id')
+            status = subscription_data['status']
+
+            logger.info(f"Subscription created: {subscription_id}, status: {status}, user_id: {user_id}")
+
+            if not user_id:
+                # Try to find user by customer ID
+                user = User.query.filter_by(stripe_customer_id=customer_id).first()
+                if user:
+                    user_id = user.id
+                else:
+                    logger.warning(f"Could not find user for subscription {subscription_id}")
+                    return
+
+            user = User.query.get(int(user_id))
+            if not user:
+                logger.error(f"User {user_id} not found for subscription {subscription_id}")
+                return
+
+            # Update subscription record
+            user_subscription = user.get_or_create_subscription()
+            user_subscription.stripe_subscription_id = subscription_id
+
+            # If subscription is active, upgrade to premium
+            if status == 'active':
+                user_subscription.tier = SubscriptionTier.PREMIUM
+                user_subscription.status = SubscriptionStatus.ACTIVE
+                user_subscription.monthly_upload_count = 0
+                logger.info(f"User {user_id} upgraded to premium (subscription active)")
+
+            db.session.commit()
+
+        except Exception as e:
+            logger.error(f"Failed to handle subscription created for {subscription_data.get('id')}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+
+    def _handle_subscription_updated(self, subscription_data: Dict[str, Any]) -> None:
+        """Handle subscription updated event."""
+        try:
+            subscription_id = subscription_data['id']
+            status = subscription_data['status']
+            cancel_at_period_end = subscription_data.get('cancel_at_period_end', False)
+            current_period_end = subscription_data.get('current_period_end')
+
+            logger.info(f"Subscription updated: {subscription_id}, status: {status}")
+
+            # Find user subscription by Stripe subscription ID
+            user_subscription = Subscription.query.filter_by(
+                stripe_subscription_id=subscription_id
+            ).first()
+
+            if not user_subscription:
+                logger.warning(f"Subscription record not found for {subscription_id}")
+                return
+
+            # Update subscription status based on Stripe status
+            if status == 'active':
+                user_subscription.tier = SubscriptionTier.PREMIUM
+                user_subscription.status = SubscriptionStatus.ACTIVE
+            elif status == 'past_due':
+                user_subscription.status = SubscriptionStatus.PAST_DUE
+            elif status == 'canceled':
+                user_subscription.status = SubscriptionStatus.CANCELED
+                user_subscription.tier = SubscriptionTier.FREE
+            elif status == 'unpaid':
+                user_subscription.status = SubscriptionStatus.PAST_DUE
+
+            # Handle cancellation at period end
+            user_subscription.cancel_at_period_end = cancel_at_period_end
+
+            # Update period dates
+            if current_period_end:
+                user_subscription.current_period_end = datetime.fromtimestamp(current_period_end)
+
+            current_period_start = subscription_data.get('current_period_start')
+            if current_period_start:
+                user_subscription.current_period_start = datetime.fromtimestamp(current_period_start)
+
+            db.session.commit()
+            logger.info(f"Updated subscription {subscription_id} to status {status}")
+
+        except Exception as e:
+            logger.error(f"Failed to handle subscription updated for {subscription_data.get('id')}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+
+    def _handle_subscription_deleted(self, subscription_data: Dict[str, Any]) -> None:
+        """Handle subscription deleted/canceled event."""
+        try:
+            subscription_id = subscription_data['id']
+            logger.info(f"Subscription deleted: {subscription_id}")
+
+            # Find user subscription by Stripe subscription ID
+            user_subscription = Subscription.query.filter_by(
+                stripe_subscription_id=subscription_id
+            ).first()
+
+            if not user_subscription:
+                logger.warning(f"Subscription record not found for {subscription_id}")
+                return
+
+            # Downgrade to free tier
+            user_subscription.tier = SubscriptionTier.FREE
+            user_subscription.status = SubscriptionStatus.CANCELED
+            user_subscription.canceled_at = datetime.utcnow()
+
+            db.session.commit()
+            logger.info(f"Downgraded user {user_subscription.user_id} to free tier")
+
+        except Exception as e:
+            logger.error(f"Failed to handle subscription deleted for {subscription_data.get('id')}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+
+    def _handle_invoice_paid(self, invoice_data: Dict[str, Any]) -> None:
+        """Handle successful invoice payment (subscription renewal)."""
+        try:
+            invoice_id = invoice_data['id']
+            subscription_id = invoice_data.get('subscription')
+            billing_reason = invoice_data.get('billing_reason')
+
+            logger.info(f"Invoice paid: {invoice_id}, subscription: {subscription_id}, reason: {billing_reason}")
+
+            if not subscription_id:
+                logger.info(f"Invoice {invoice_id} is not for a subscription, skipping")
+                return
+
+            # Find user subscription
+            user_subscription = Subscription.query.filter_by(
+                stripe_subscription_id=subscription_id
+            ).first()
+
+            if not user_subscription:
+                logger.warning(f"Subscription record not found for {subscription_id}")
+                return
+
+            # Ensure subscription is active and premium
+            user_subscription.tier = SubscriptionTier.PREMIUM
+            user_subscription.status = SubscriptionStatus.ACTIVE
+
+            # Update payment record if exists
+            payment_intent_id = invoice_data.get('payment_intent')
+            if payment_intent_id:
+                payment = Payment.query.filter_by(
+                    stripe_payment_intent_id=payment_intent_id
+                ).first()
+                if payment:
+                    payment.status = PaymentStatus.SUCCEEDED
+                    payment.subscription_id = user_subscription.id
+
+            db.session.commit()
+            logger.info(f"Processed invoice payment for subscription {subscription_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to handle invoice paid for {invoice_data.get('id')}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+
+    def _handle_invoice_failed(self, invoice_data: Dict[str, Any]) -> None:
+        """Handle failed invoice payment."""
+        try:
+            invoice_id = invoice_data['id']
+            subscription_id = invoice_data.get('subscription')
+
+            logger.warning(f"Invoice payment failed: {invoice_id}, subscription: {subscription_id}")
+
+            if not subscription_id:
+                return
+
+            # Find user subscription
+            user_subscription = Subscription.query.filter_by(
+                stripe_subscription_id=subscription_id
+            ).first()
+
+            if not user_subscription:
+                logger.warning(f"Subscription record not found for {subscription_id}")
+                return
+
+            # Mark subscription as past due
+            user_subscription.status = SubscriptionStatus.PAST_DUE
+
+            # Update payment record if exists
+            payment_intent_id = invoice_data.get('payment_intent')
+            if payment_intent_id:
+                payment = Payment.query.filter_by(
+                    stripe_payment_intent_id=payment_intent_id
+                ).first()
+                if payment:
+                    payment.status = PaymentStatus.FAILED
+                    payment.failure_reason = "Invoice payment failed"
+
+            db.session.commit()
+            logger.warning(f"Marked subscription {subscription_id} as past due")
+
+        except Exception as e:
+            logger.error(f"Failed to handle invoice failed for {invoice_data.get('id')}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
 
     def cancel_subscription(self, user: User) -> bool:
         """Cancel user's premium subscription."""
@@ -477,18 +778,33 @@ class StripeService:
             if not subscription or not subscription.is_premium():
                 logger.warning(f"No active premium subscription found for user {user.id}")
                 return False
-            
-            # Update subscription status
+
+            # Cancel Stripe subscription if exists
+            if subscription.stripe_subscription_id:
+                try:
+                    # Cancel at period end so user keeps access until current period ends
+                    stripe.Subscription.modify(
+                        subscription.stripe_subscription_id,
+                        cancel_at_period_end=True
+                    )
+                    logger.info(f"Set Stripe subscription {subscription.stripe_subscription_id} to cancel at period end")
+                except stripe.error.InvalidRequestError as e:
+                    # Subscription may already be canceled
+                    logger.warning(f"Could not modify Stripe subscription {subscription.stripe_subscription_id}: {str(e)}")
+
+            # Update local subscription status
             subscription.status = SubscriptionStatus.CANCELED
-            subscription.canceled_at = db.func.now()
+            subscription.canceled_at = datetime.utcnow()
             subscription.cancel_at_period_end = True
-            
+
             db.session.commit()
             logger.info(f"Canceled subscription for user {user.id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to cancel subscription for user {user.id}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             db.session.rollback()
             return False
 

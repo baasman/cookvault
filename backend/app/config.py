@@ -96,6 +96,7 @@ class Config:
         app.config['STRIPE_PUBLISHABLE_KEY'] = os.environ.get("STRIPE_PUBLISHABLE_KEY")
         app.config['STRIPE_WEBHOOK_SECRET'] = os.environ.get("STRIPE_WEBHOOK_SECRET")
         app.config['STRIPE_PREMIUM_PRICE'] = int(os.environ.get("STRIPE_PREMIUM_PRICE", 299))  # $2.99 in cents
+        app.config['STRIPE_PREMIUM_PRICE_ID'] = os.environ.get("STRIPE_PREMIUM_PRICE_ID")  # Stripe Price ID for recurring subscription
         app.config['FREE_TIER_UPLOAD_LIMIT'] = int(os.environ.get("FREE_TIER_UPLOAD_LIMIT", 10))
         app.config['PREMIUM_COOKBOOK_DISCOUNT_PERCENT'] = int(os.environ.get("PREMIUM_COOKBOOK_DISCOUNT_PERCENT", 20))  # 20% discount for premium users
 

@@ -51,10 +51,12 @@ export interface CookbookPurchase {
 
 export interface PaymentIntent {
   client_secret: string;
-  payment_intent_id: string;
+  payment_intent_id?: string;
+  subscription_id?: string;
   amount: number;
   currency: string;
   cookbook?: any;
+  status?: string;
 }
 
 export interface PaymentMethod {
@@ -91,15 +93,42 @@ class PaymentsApi {
 
   // Subscription Management
   async createSubscriptionUpgrade(): Promise<PaymentIntent> {
-    const response = await this.request<{ success: boolean; payment_intent: PaymentIntent }>('/subscription/upgrade', {
+    const response = await this.request<{
+      success: boolean;
+      subscription?: {
+        subscription_id: string;
+        client_secret: string;
+        status: string;
+        amount: number;
+        currency: string;
+      };
+      client_secret?: string;
+      payment_intent?: PaymentIntent;
+    }>('/subscription/upgrade', {
       method: 'POST',
     });
-    
+
     if (!response.success) {
       throw new Error('Failed to create subscription upgrade');
     }
-    
-    return response.payment_intent;
+
+    // Handle new subscription-based response format
+    if (response.subscription) {
+      return {
+        client_secret: response.subscription.client_secret || response.client_secret || '',
+        subscription_id: response.subscription.subscription_id,
+        amount: response.subscription.amount,
+        currency: response.subscription.currency,
+        status: response.subscription.status,
+      };
+    }
+
+    // Fallback for legacy payment_intent format
+    if (response.payment_intent) {
+      return response.payment_intent;
+    }
+
+    throw new Error('Invalid response format from subscription upgrade');
   }
 
   async cancelSubscription(): Promise<void> {

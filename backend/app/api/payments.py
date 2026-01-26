@@ -35,7 +35,7 @@ def get_jwt_identity():
 @bp.route('/payments/subscription/upgrade', methods=['POST'])
 @jwt_required
 def create_subscription_upgrade():
-    """Create payment intent for premium subscription upgrade."""
+    """Create Stripe subscription for premium upgrade."""
     try:
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
@@ -48,16 +48,23 @@ def create_subscription_upgrade():
             return jsonify({'error': 'User already has premium subscription'}), 400
 
         stripe_service = StripeService()
-        payment_intent_data = stripe_service.create_subscription_payment_intent(user)
+        subscription_data = stripe_service.create_subscription(user)
 
         return jsonify({
             'success': True,
-            'payment_intent': payment_intent_data
+            'subscription': subscription_data,
+            # Include client_secret at top level for frontend compatibility
+            'client_secret': subscription_data.get('client_secret')
         }), 200
 
+    except ValueError as e:
+        logger.error(f"Configuration error for subscription upgrade: {str(e)}")
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         logger.error(f"Failed to create subscription upgrade for user {user_id}: {str(e)}")
-        return jsonify({'error': 'Failed to create payment intent'}), 500
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': 'Failed to create subscription'}), 500
 
 
 @bp.route('/payments/cookbook/<int:cookbook_id>/purchase', methods=['POST'])

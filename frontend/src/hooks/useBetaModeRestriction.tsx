@@ -22,7 +22,8 @@ export const useBetaModeRestriction = () => {
     feature: 'premium' | 'cookbook',
     options?: { cookbookTitle?: string; price?: number }
   ): boolean => {
-    if (isBetaRestricted) {
+    // Only restrict cookbook purchases, not premium subscriptions
+    if (feature === 'cookbook' && isBetaRestricted) {
       setBetaModalState({
         isOpen: true,
         feature,
@@ -31,7 +32,7 @@ export const useBetaModeRestriction = () => {
       });
       return true; // Restricted
     }
-    return false; // Not restricted
+    return false; // Premium is not restricted, cookbooks for admins not restricted
   };
 
   const closeBetaModal = () => {
