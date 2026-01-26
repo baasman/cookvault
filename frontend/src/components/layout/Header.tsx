@@ -51,9 +51,9 @@ const Header: React.FC<HeaderProps> = ({
     setShowUpgradeModal(false);
   };
 
-  // Add Profile to navigation only when authenticated
-  const displayNavItems = isAuthenticated 
-    ? [...navItems, { label: 'Profile', href: '/profile' }]
+  // Add Profile and Settings to navigation only when authenticated
+  const displayNavItems = isAuthenticated
+    ? [...navItems, { label: 'Profile', href: '/profile' }, { label: 'Settings', href: '/settings' }]
     : navItems;
 
   return (
