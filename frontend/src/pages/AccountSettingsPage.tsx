@@ -47,7 +47,7 @@ const AccountSettingsPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-500">
                 Username
               </label>
-              <p className="mt-1 text-gray-900">{user?.username}</p>
+              <p className="mt-1 text-gray-900">{user?.name}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-500">

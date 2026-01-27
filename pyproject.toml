@@ -53,6 +53,7 @@ dev = [
     "sqlalchemy>=2.0.41",
     "sqlalchemy-stubs>=0.4",
     "pytest>=8.4.0",
+    "honcho>=2.0.0",
 ]
 
 [project.scripts]
