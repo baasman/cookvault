@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,19 +12,37 @@ interface HeaderProps {
   navItems?: NavItem[];
 }
 
-const Header: React.FC<HeaderProps> = ({ 
+const Header: React.FC<HeaderProps> = ({
   navItems = [
     { label: 'Recipes', href: '/recipes' },
     { label: 'Cookbooks', href: '/cookbooks' }
   ]
 }) => {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
   // Beta mode restriction hook
   const { checkBetaRestriction, betaModalState, closeBetaModal } = useBetaModeRestriction();
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+      if (addMenuRef.current && !addMenuRef.current.contains(event.target as Node)) {
+        setIsAddMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -51,10 +69,13 @@ const Header: React.FC<HeaderProps> = ({
     setShowUpgradeModal(false);
   };
 
-  // Add Profile and Settings to navigation only when authenticated
-  const displayNavItems = isAuthenticated
-    ? [...navItems, { label: 'Profile', href: '/profile' }, { label: 'Settings', href: '/settings' }]
-    : navItems;
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (user?.name) {
+      return user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    return user?.email?.[0]?.toUpperCase() || 'U';
+  };
 
   return (
     <header className="border-b sticky top-0 z-50" style={{backgroundColor: '#fcf9f8', borderColor: '#e8d7cf', paddingTop: 'env(safe-area-inset-top)'}}>
@@ -71,7 +92,7 @@ const Header: React.FC<HeaderProps> = ({
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-8">
-              {displayNavItems.map((item) => (
+              {navItems.map((item) => (
                 <Link
                   key={item.href}
                   to={item.href}
@@ -84,56 +105,132 @@ const Header: React.FC<HeaderProps> = ({
             </nav>
 
             {/* Desktop Auth & Actions */}
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden md:flex items-center space-x-3">
               {isAuthenticated ? (
                 <>
-                  <div className="flex items-center space-x-2">
-                    {/* Show upgrade button if not premium */}
-                    {subscription && !subscription.is_premium && (
-                      <Button 
-                        variant="primary" 
-                        size="sm"
-                        onClick={() => {
-                          if (checkBetaRestriction('premium')) {
-                            return; // Beta modal will be shown by hook
-                          }
-                          setShowUpgradeModal(true);
-                        }}
-                        className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white"
+                  {/* Add Recipe Dropdown */}
+                  <div className="relative" ref={addMenuRef}>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+                    >
+                      + Add Recipe
+                    </Button>
+                    {isAddMenuOpen && (
+                      <div
+                        className="absolute right-0 mt-2 w-48 rounded-lg shadow-lg py-1 z-50 border"
+                        style={{ backgroundColor: '#fff', borderColor: '#e8d7cf' }}
                       >
-                        ⭐ Upgrade to Premium
-                      </Button>
+                        <Link
+                          to="/upload"
+                          className="block px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
+                          style={{ color: '#1c120d' }}
+                          onClick={() => setIsAddMenuOpen(false)}
+                        >
+                          📷 Upload from Image
+                        </Link>
+                        <Link
+                          to="/recipes/create"
+                          className="block px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
+                          style={{ color: '#1c120d' }}
+                          onClick={() => setIsAddMenuOpen(false)}
+                        >
+                          ✏️ Create Manually
+                        </Link>
+                      </div>
                     )}
-                    {/* Show premium badge if premium */}
-                    {subscription && subscription.is_premium && (
-                      <span className="px-3 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
-                        ⭐ Premium
-                      </span>
-                    )}
-                    <Link to="/recipes/create">
-                      <Button variant="secondary" size="md">
-                        Create Recipe
-                      </Button>
-                    </Link>
-                    <Link to="/upload">
-                      <Button variant="primary" size="md">
-                        Upload Recipe
-                      </Button>
-                    </Link>
                   </div>
-                  <Button variant="secondary" size="sm" onClick={handleLogout}>
-                    Logout
-                  </Button>
+
+                  {/* User Menu Dropdown */}
+                  <div className="relative" ref={userMenuRef}>
+                    <button
+                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                      className="flex items-center space-x-2 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium text-white"
+                        style={{ backgroundColor: '#e27b36' }}
+                      >
+                        {getUserInitials()}
+                      </div>
+                    </button>
+                    {isUserMenuOpen && (
+                      <div
+                        className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg py-1 z-50 border"
+                        style={{ backgroundColor: '#fff', borderColor: '#e8d7cf' }}
+                      >
+                        {/* User info */}
+                        <div className="px-4 py-3 border-b" style={{ borderColor: '#e8d7cf' }}>
+                          <p className="text-sm font-medium" style={{ color: '#1c120d' }}>
+                            {user?.name || 'User'}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                          {subscription?.is_premium && (
+                            <span className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
+                              ⭐ Premium
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Menu items */}
+                        <Link
+                          to="/profile"
+                          className="block px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
+                          style={{ color: '#1c120d' }}
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                        <Link
+                          to="/settings"
+                          className="block px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
+                          style={{ color: '#1c120d' }}
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          Settings
+                        </Link>
+
+                        {/* Upgrade option if not premium */}
+                        {subscription && !subscription.is_premium && (
+                          <button
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              if (checkBetaRestriction('premium')) {
+                                return;
+                              }
+                              setShowUpgradeModal(true);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
+                            style={{ color: '#e27b36' }}
+                          >
+                            ⭐ Upgrade to Premium
+                          </button>
+                        )}
+
+                        <div className="border-t my-1" style={{ borderColor: '#e8d7cf' }} />
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            handleLogout();
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-orange-50 transition-colors text-gray-600"
+                        >
+                          Logout
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
                   <Link to="/login">
-                    <Button variant="secondary" size="md">
+                    <Button variant="secondary" size="sm">
                       Login
                     </Button>
                   </Link>
                   <Link to="/register">
-                    <Button variant="primary" size="md">
+                    <Button variant="primary" size="sm">
                       Register
                     </Button>
                   </Link>
@@ -167,96 +264,134 @@ const Header: React.FC<HeaderProps> = ({
                 aria-hidden="true"
               />
               <div className="md:hidden border-t relative z-50" style={{borderColor: '#e8d7cf', backgroundColor: '#fcf9f8'}}>
-              <div className="px-2 pt-2 pb-3 space-y-1">
-                {displayNavItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    className="block px-3 py-2 rounded-md text-base font-medium transition-colors hover:text-orange-500"
-                    style={{color: '#9b644b'}}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-                
-                {/* Mobile Auth Actions */}
-                <div className="pt-4 border-t" style={{borderColor: '#e8d7cf'}}>
-                  {isAuthenticated ? (
-                    <div className="space-y-2">
-                      {/* Show upgrade button if not premium */}
-                      {subscription && !subscription.is_premium && (
-                        <Button 
-                          variant="primary" 
-                          size="md"
-                          onClick={() => {
-                            if (checkBetaRestriction('premium')) {
-                              setIsMobileMenuOpen(false);
-                              return; // Beta modal will be shown by hook
-                            }
-                            setShowUpgradeModal(true);
-                            setIsMobileMenuOpen(false);
-                          }}
-                          className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white"
+                <div className="px-2 pt-2 pb-3 space-y-1">
+                  {/* User info when authenticated */}
+                  {isAuthenticated && (
+                    <div className="px-3 py-3 mb-2 border-b" style={{ borderColor: '#e8d7cf' }}>
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium text-white"
+                          style={{ backgroundColor: '#e27b36' }}
                         >
-                          ⭐ Upgrade to Premium
-                        </Button>
-                      )}
-                      {/* Show premium badge if premium */}
-                      {subscription && subscription.is_premium && (
-                        <div className="text-center py-2">
-                          <span className="px-3 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
-                            ⭐ Premium Member
-                          </span>
+                          {getUserInitials()}
                         </div>
+                        <div>
+                          <p className="font-medium" style={{ color: '#1c120d' }}>
+                            {user?.name || 'User'}
+                          </p>
+                          <p className="text-sm text-gray-500">{user?.email}</p>
+                        </div>
+                      </div>
+                      {subscription?.is_premium && (
+                        <span className="inline-block mt-2 px-2 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">
+                          ⭐ Premium
+                        </span>
                       )}
-                      <Link
-                        to="/recipes/create"
-                        className="block w-full"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Button variant="secondary" size="md" className="w-full">
-                          Create Recipe
-                        </Button>
-                      </Link>
-                      <Link
-                        to="/upload"
-                        className="block w-full"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Button variant="primary" size="md" className="w-full">
-                          Upload Recipe
-                        </Button>
-                      </Link>
-                      <Button variant="secondary" size="sm" onClick={handleLogout} className="w-full">
-                        Logout
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Link
-                        to="/login"
-                        className="block w-full"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Button variant="secondary" size="md" className="w-full">
-                          Login
-                        </Button>
-                      </Link>
-                      <Link
-                        to="/register"
-                        className="block w-full"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Button variant="primary" size="md" className="w-full">
-                          Register
-                        </Button>
-                      </Link>
                     </div>
                   )}
+
+                  {/* Navigation links */}
+                  {navItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      to={item.href}
+                      className="block px-3 py-2 rounded-md text-base font-medium transition-colors hover:text-orange-500"
+                      style={{color: '#9b644b'}}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+
+                  {/* Auth-specific links */}
+                  {isAuthenticated && (
+                    <>
+                      <Link
+                        to="/profile"
+                        className="block px-3 py-2 rounded-md text-base font-medium transition-colors hover:text-orange-500"
+                        style={{color: '#9b644b'}}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        Profile
+                      </Link>
+                      <Link
+                        to="/settings"
+                        className="block px-3 py-2 rounded-md text-base font-medium transition-colors hover:text-orange-500"
+                        style={{color: '#9b644b'}}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        Settings
+                      </Link>
+                    </>
+                  )}
+
+                  {/* Mobile Auth Actions */}
+                  <div className="pt-4 border-t" style={{borderColor: '#e8d7cf'}}>
+                    {isAuthenticated ? (
+                      <div className="space-y-2">
+                        {/* Upgrade option if not premium */}
+                        {subscription && !subscription.is_premium && (
+                          <button
+                            onClick={() => {
+                              setIsMobileMenuOpen(false);
+                              if (checkBetaRestriction('premium')) {
+                                return;
+                              }
+                              setShowUpgradeModal(true);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors hover:bg-orange-50"
+                            style={{ color: '#e27b36' }}
+                          >
+                            ⭐ Upgrade to Premium
+                          </button>
+                        )}
+                        <Link
+                          to="/upload"
+                          className="block w-full"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <Button variant="primary" size="md" className="w-full">
+                            📷 Upload from Image
+                          </Button>
+                        </Link>
+                        <Link
+                          to="/recipes/create"
+                          className="block w-full"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <Button variant="secondary" size="md" className="w-full">
+                            ✏️ Create Manually
+                          </Button>
+                        </Link>
+                        <Button variant="secondary" size="sm" onClick={handleLogout} className="w-full mt-4">
+                          Logout
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Link
+                          to="/login"
+                          className="block w-full"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <Button variant="secondary" size="md" className="w-full">
+                            Login
+                          </Button>
+                        </Link>
+                        <Link
+                          to="/register"
+                          className="block w-full"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <Button variant="primary" size="md" className="w-full">
+                            Register
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
             </>
           )}
         </div>

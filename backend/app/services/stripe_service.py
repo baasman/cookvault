@@ -82,7 +82,7 @@ class StripeService:
                 logger.error("STRIPE_PREMIUM_PRICE_ID not configured")
                 raise ValueError("Stripe premium price ID not configured")
 
-            # Create subscription with payment_behavior for immediate charge
+            # Create subscription - it will be incomplete until first payment
             subscription = stripe.Subscription.create(
                 customer=customer_id,
                 items=[{'price': price_id}],
@@ -94,68 +94,39 @@ class StripeService:
 
             logger.info(f"Subscription created: {subscription.id}, status: {subscription.status}")
 
-            # Get the payment intent from the invoice
-            # We need to retrieve the invoice with payment_intent expansion
-            payment_intent = None
-            client_secret = None
+            # Get the invoice
             latest_invoice = subscription.latest_invoice
+            if not latest_invoice:
+                raise ValueError("Subscription has no invoice")
 
-            if latest_invoice:
-                invoice_id = latest_invoice.id if hasattr(latest_invoice, 'id') else latest_invoice
-                logger.info(f"Retrieving invoice {invoice_id} with payment_intent expansion")
+            invoice_id = latest_invoice.id
+            invoice_amount = latest_invoice.amount_due
+            logger.info(f"Invoice ID: {invoice_id}, amount_due: {invoice_amount}")
 
-                # Retrieve the invoice with payment_intent expanded
-                invoice = stripe.Invoice.retrieve(
-                    invoice_id,
-                    expand=['payment_intent']
-                )
+            # Create a PaymentIntent for the invoice amount
+            # This will be used to collect payment, and then we'll pay the invoice
+            payment_intent = stripe.PaymentIntent.create(
+                amount=invoice_amount,
+                currency='usd',
+                customer=customer_id,
+                setup_future_usage='off_session',
+                metadata={
+                    'user_id': str(user.id),
+                    'subscription_id': subscription.id,
+                    'invoice_id': invoice_id,
+                    'payment_type': PaymentType.SUBSCRIPTION.value,
+                },
+                automatic_payment_methods={'enabled': True}
+            )
 
-                # Safely access payment_intent using get() on the underlying dict
-                pi = invoice.get('payment_intent') if hasattr(invoice, 'get') else None
-                logger.info(f"Invoice payment_intent (via get): {pi}")
+            client_secret = payment_intent.client_secret
+            payment_intent_id = payment_intent.id
+            logger.info(f"Created PaymentIntent {payment_intent_id} for invoice {invoice_id}")
 
-                if pi:
-                    if hasattr(pi, 'client_secret'):
-                        payment_intent = pi
-                        client_secret = pi.client_secret
-                    elif isinstance(pi, str):
-                        # It's just an ID, retrieve it
-                        payment_intent = stripe.PaymentIntent.retrieve(pi)
-                        client_secret = payment_intent.client_secret
-                    logger.info(f"Got client_secret: {client_secret[:20] if client_secret else None}...")
-                else:
-                    # No payment intent - the invoice doesn't automatically create one
-                    # Create a PaymentIntent manually for the subscription
-                    logger.info("No payment_intent on invoice, creating one manually...")
-
-                    payment_intent = stripe.PaymentIntent.create(
-                        amount=invoice.amount_due,
-                        currency=invoice.currency,
-                        customer=customer_id,
-                        setup_future_usage='off_session',
-                        metadata={
-                            'user_id': str(user.id),
-                            'subscription_id': subscription.id,
-                            'invoice_id': invoice_id,
-                            'payment_type': PaymentType.SUBSCRIPTION.value,
-                            'tier': SubscriptionTier.PREMIUM.value
-                        },
-                        automatic_payment_methods={'enabled': True}
-                    )
-                    client_secret = payment_intent.client_secret
-                    logger.info(f"Manually created payment intent: {payment_intent.id}, client_secret: {client_secret[:20] if client_secret else None}...")
-            else:
-                logger.warning("No latest_invoice on subscription")
+            if not client_secret:
+                raise ValueError("Could not obtain client_secret for payment")
 
             premium_price = current_app.config.get('STRIPE_PREMIUM_PRICE', 299)
-
-            # Get payment intent ID for the payment record
-            payment_intent_id = None
-            if payment_intent:
-                if hasattr(payment_intent, 'id'):
-                    payment_intent_id = payment_intent.id
-                elif isinstance(payment_intent, dict):
-                    payment_intent_id = payment_intent.get('id')
 
             # Create payment record
             payment = Payment(

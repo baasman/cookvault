@@ -135,10 +135,22 @@ class PaymentsApi {
     const response = await this.request<{ success: boolean; message: string }>('/subscription/cancel', {
       method: 'POST',
     });
-    
+
     if (!response.success) {
       throw new Error('Failed to cancel subscription');
     }
+  }
+
+  async confirmSubscription(): Promise<Subscription> {
+    const response = await this.request<{ success: boolean; subscription: Subscription; message?: string }>('/subscription/confirm', {
+      method: 'POST',
+    });
+
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to confirm subscription');
+    }
+
+    return response.subscription;
   }
 
   async getUserSubscription(): Promise<Subscription> {

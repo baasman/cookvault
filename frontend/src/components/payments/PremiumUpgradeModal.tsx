@@ -42,7 +42,7 @@ const PaymentForm: React.FC<{
       const paymentIntent: PaymentIntent = await paymentsApi.createSubscriptionUpgrade();
 
       // Confirm payment with card
-      const { error: stripeError } = await stripe.confirmCardPayment(
+      const { error: stripeError, paymentIntent: confirmedPayment } = await stripe.confirmCardPayment(
         paymentIntent.client_secret,
         {
           payment_method: {
@@ -53,8 +53,19 @@ const PaymentForm: React.FC<{
 
       if (stripeError) {
         onError(stripeError.message || 'Payment failed');
+      } else if (confirmedPayment?.status === 'succeeded') {
+        // Payment succeeded, confirm subscription on backend
+        try {
+          await paymentsApi.confirmSubscription();
+          onSuccess();
+        } catch (confirmError) {
+          console.error('Failed to confirm subscription:', confirmError);
+          // Payment succeeded but confirmation failed - still show success
+          // The webhook should eventually update the subscription
+          onSuccess();
+        }
       } else {
-        onSuccess();
+        onError('Payment was not completed. Please try again.');
       }
     } catch (err) {
       console.error('Premium upgrade failed:', err);

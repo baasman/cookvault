@@ -5,7 +5,7 @@ from functools import wraps
 from app import db
 from app.models.user import User
 from app.models.recipe import Cookbook
-from app.models.payment import Payment, PaymentStatus, Subscription
+from app.models.payment import Payment, PaymentStatus, PaymentType, Subscription
 from app.services.stripe_service import StripeService
 from app.api import bp
 from app.api.auth import get_current_user
@@ -101,6 +101,178 @@ def create_cookbook_purchase():
     except Exception as e:
         logger.error(f"Failed to create cookbook purchase for user {user_id}, cookbook {cookbook_id}: {str(e)}")
         return jsonify({'error': 'Failed to create payment intent'}), 500
+
+
+@bp.route('/payments/subscription/confirm', methods=['POST'])
+@jwt_required
+def confirm_subscription():
+    """Confirm subscription after successful payment - pays the invoice and activates subscription."""
+    import stripe
+    from datetime import datetime
+    from app.models.payment import SubscriptionTier, SubscriptionStatus
+
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        subscription = user.get_or_create_subscription()
+
+        if not subscription.stripe_subscription_id:
+            return jsonify({'error': 'No subscription found to confirm'}), 400
+
+        # Get the subscription and its invoice
+        stripe_sub = stripe.Subscription.retrieve(
+            subscription.stripe_subscription_id,
+            expand=['latest_invoice']
+        )
+        logger.info(f"Subscription {stripe_sub.id} status: {stripe_sub.status}")
+
+        # If already active, just update local DB
+        if stripe_sub.status in ['active', 'trialing']:
+            subscription.tier = SubscriptionTier.PREMIUM
+            subscription.status = SubscriptionStatus.ACTIVE
+            subscription.monthly_upload_count = 0
+
+            # Safely get period dates
+            period_start = getattr(stripe_sub, 'current_period_start', None)
+            period_end = getattr(stripe_sub, 'current_period_end', None)
+            if period_start:
+                subscription.current_period_start = datetime.fromtimestamp(period_start)
+            if period_end:
+                subscription.current_period_end = datetime.fromtimestamp(period_end)
+
+            db.session.commit()
+            logger.info(f"User {user_id} subscription already active")
+
+            return jsonify({
+                'success': True,
+                'message': 'Subscription confirmed',
+                'subscription': subscription.to_dict()
+            }), 200
+
+        # Subscription is incomplete - need to pay the invoice
+        latest_invoice = stripe_sub.latest_invoice
+        if not latest_invoice:
+            return jsonify({'error': 'No invoice found for subscription'}), 400
+
+        invoice_id = latest_invoice.id
+        invoice_status = latest_invoice.status
+        logger.info(f"Invoice {invoice_id} status: {invoice_status}")
+
+        # If invoice is already paid, activate subscription
+        if invoice_status == 'paid':
+            subscription.tier = SubscriptionTier.PREMIUM
+            subscription.status = SubscriptionStatus.ACTIVE
+            subscription.monthly_upload_count = 0
+
+            period_start = getattr(stripe_sub, 'current_period_start', None)
+            period_end = getattr(stripe_sub, 'current_period_end', None)
+            if period_start:
+                subscription.current_period_start = datetime.fromtimestamp(period_start)
+            if period_end:
+                subscription.current_period_end = datetime.fromtimestamp(period_end)
+
+            db.session.commit()
+            logger.info(f"User {user_id} invoice already paid, subscription activated")
+
+            return jsonify({
+                'success': True,
+                'message': 'Subscription confirmed',
+                'subscription': subscription.to_dict()
+            }), 200
+
+        # Find the most recent successful payment for this user
+        # (the one just completed by the frontend)
+        recent_payments = Payment.query.filter_by(
+            user_id=user_id,
+            payment_type=PaymentType.SUBSCRIPTION
+        ).order_by(Payment.created_at.desc()).limit(5).all()
+
+        payment_method_id = None
+        for payment in recent_payments:
+            if payment.stripe_payment_intent_id:
+                try:
+                    pi = stripe.PaymentIntent.retrieve(payment.stripe_payment_intent_id)
+                    logger.info(f"Found PaymentIntent {pi.id} with status {pi.status}")
+                    if pi.status == 'succeeded' and pi.payment_method:
+                        payment_method_id = pi.payment_method
+                        logger.info(f"Found successful payment method: {payment_method_id}")
+                        break
+                except stripe.error.StripeError as e:
+                    logger.warning(f"Could not retrieve payment intent: {e}")
+                    continue
+
+        if payment_method_id:
+            # Attach payment method to customer if needed
+            try:
+                stripe.PaymentMethod.attach(
+                    payment_method_id,
+                    customer=subscription.stripe_customer_id or stripe_sub.customer,
+                )
+                logger.info(f"Attached payment method {payment_method_id} to customer")
+            except stripe.error.StripeError as e:
+                # May already be attached
+                logger.info(f"Payment method attach result: {e}")
+
+            # Set as default payment method for invoices
+            stripe.Customer.modify(
+                stripe_sub.customer,
+                invoice_settings={'default_payment_method': payment_method_id}
+            )
+            logger.info(f"Set default payment method for customer")
+
+            # Now pay the invoice
+            try:
+                paid_invoice = stripe.Invoice.pay(invoice_id)
+                logger.info(f"Invoice {invoice_id} paid, status: {paid_invoice.status}")
+
+                if paid_invoice.status == 'paid':
+                    # Refresh subscription status
+                    stripe_sub = stripe.Subscription.retrieve(subscription.stripe_subscription_id)
+
+                    subscription.tier = SubscriptionTier.PREMIUM
+                    subscription.status = SubscriptionStatus.ACTIVE
+                    subscription.monthly_upload_count = 0
+
+                    period_start = getattr(stripe_sub, 'current_period_start', None)
+                    period_end = getattr(stripe_sub, 'current_period_end', None)
+                    if period_start:
+                        subscription.current_period_start = datetime.fromtimestamp(period_start)
+                    if period_end:
+                        subscription.current_period_end = datetime.fromtimestamp(period_end)
+
+                    db.session.commit()
+                    logger.info(f"User {user_id} subscription activated after invoice payment")
+
+                    return jsonify({
+                        'success': True,
+                        'message': 'Subscription confirmed and activated',
+                        'subscription': subscription.to_dict()
+                    }), 200
+
+            except stripe.error.StripeError as e:
+                logger.error(f"Failed to pay invoice: {e}")
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to pay invoice: {str(e)}',
+                    'status': 'incomplete'
+                }), 200
+
+        # No payment method found
+        return jsonify({
+            'success': False,
+            'message': 'No successful payment found to activate subscription',
+            'status': stripe_sub.status
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to confirm subscription for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': 'Failed to confirm subscription'}), 500
 
 
 @bp.route('/payments/subscription/cancel', methods=['POST'])

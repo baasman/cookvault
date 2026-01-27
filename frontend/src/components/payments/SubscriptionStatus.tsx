@@ -90,21 +90,22 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
   }
 
   const isPremium = subscription.is_premium;
+  const hasUnlimitedUploads = subscription.remaining_uploads === -1;
   // const isCanceled = subscription.canceled_at !== null;
   const willCancel = subscription.cancel_at_period_end;
 
   return (
     <div className={className}>
-      <div className={`rounded-lg p-4 border ${isPremium ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'}`}>
+      <div className={`rounded-lg p-4 border ${isPremium || hasUnlimitedUploads ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'}`}>
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold text-gray-900">
-                {isPremium ? 'Premium Plan' : 'Free Plan'}
+                {isPremium || hasUnlimitedUploads ? 'Premium Plan' : 'Free Plan'}
               </h3>
-              {isPremium && (
+              {(isPremium || hasUnlimitedUploads) && (
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                  Premium
+                  {hasUnlimitedUploads && !isPremium ? 'Admin' : 'Premium'}
                 </span>
               )}
               {willCancel && (
@@ -115,7 +116,7 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
             </div>
             
             <div className="text-sm text-gray-600">
-              {isPremium ? (
+              {isPremium || subscription.remaining_uploads === -1 ? (
                 <div>
                   <p>Unlimited recipe uploads</p>
                   {subscription.current_period_end && (
@@ -127,24 +128,31 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
                 </div>
               ) : (
                 <div>
-                  <p>
-                    {subscription.remaining_uploads} of {subscription.remaining_uploads + subscription.monthly_upload_count} uploads remaining this month
-                  </p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{
-                        width: `${Math.max(0, (subscription.remaining_uploads / (subscription.remaining_uploads + subscription.monthly_upload_count)) * 100)}%`
-                      }}
-                    ></div>
-                  </div>
+                  {(() => {
+                    const totalLimit = subscription.remaining_uploads + subscription.monthly_upload_count;
+                    return (
+                      <>
+                        <p>
+                          {subscription.remaining_uploads} of {totalLimit} uploads remaining this month
+                        </p>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
+                            style={{
+                              width: `${totalLimit > 0 ? Math.max(0, (subscription.remaining_uploads / totalLimit) * 100) : 0}%`
+                            }}
+                          ></div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
           </div>
 
           <div className="flex gap-2">
-            {!isPremium && showUpgradeButton && (
+            {!isPremium && !hasUnlimitedUploads && showUpgradeButton && (
               <Button
                 variant="primary"
                 size="sm"
@@ -153,7 +161,7 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
                 Upgrade to Premium
               </Button>
             )}
-            
+
             {isPremium && !willCancel && (
               <Button
                 variant="secondary"
