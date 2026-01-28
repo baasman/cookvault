@@ -96,9 +96,6 @@ const PaymentForm: React.FC<{
             }}
           />
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Use test card: 4242 4242 4242 4242, any expiry/CVC
-        </p>
       </div>
 
       <Button
