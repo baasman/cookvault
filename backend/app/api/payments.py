@@ -115,6 +115,9 @@ def confirm_subscription():
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
 
+        # Initialize Stripe API key (StripeService sets stripe.api_key in __init__)
+        stripe_service = StripeService()
+
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
