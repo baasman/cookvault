@@ -71,26 +71,6 @@ const AccountSettingsPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Payment History Link */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4" style={{ color: '#1c120d' }}>
-          Orders & Payments
-        </h2>
-        <div
-          className="bg-white rounded-lg border p-6"
-          style={{ borderColor: '#e8d7cf' }}
-        >
-          <p className="text-gray-600 mb-4">
-            View your print orders and payment history.
-          </p>
-          <Link to="/orders">
-            <Button variant="secondary" size="sm">
-              View Orders
-            </Button>
-          </Link>
-        </div>
-      </section>
-
       {/* Danger Zone */}
       <section>
         <h2 className="text-xl font-semibold mb-4 text-red-600">Danger Zone</h2>
