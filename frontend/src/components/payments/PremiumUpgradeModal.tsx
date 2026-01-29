@@ -110,7 +110,7 @@ const PaymentForm: React.FC<{
             Processing...
           </>
         ) : (
-          'Confirm Payment ($2.99/month)'
+          'Confirm Payment ($0.99/month)'
         )}
       </Button>
     </form>
@@ -169,8 +169,14 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
 
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-6">
               <div className="text-center mb-4">
-                <span className="text-3xl font-bold text-indigo-600">$2.99</span>
-                <span className="text-gray-600 ml-2">/ month</span>
+                <div className="inline-block bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full mb-2">
+                  Early Adopter Price
+                </div>
+                <div>
+                  <span className="text-3xl font-bold text-indigo-600">$0.99</span>
+                  <span className="text-gray-600 ml-2">/ month</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Lock in this price forever</p>
               </div>
 
               <ul className="space-y-3 text-sm">
@@ -233,8 +239,13 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                 Enter your payment details to upgrade to Premium
               </p>
               <div className="mt-2">
-                <span className="text-xl font-bold text-indigo-600">$2.99</span>
-                <span className="text-gray-600 ml-1">/ month</span>
+                <span className="inline-block bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full mb-1">
+                  Early Adopter Price
+                </span>
+                <div>
+                  <span className="text-xl font-bold text-indigo-600">$0.99</span>
+                  <span className="text-gray-600 ml-1">/ month</span>
+                </div>
               </div>
             </div>
 
