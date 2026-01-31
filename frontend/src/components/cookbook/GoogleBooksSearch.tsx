@@ -37,13 +37,19 @@ const GoogleBooksSearch: React.FC<GoogleBooksSearchProps> = ({
   const searchBooks = async (query: string) => {
     setIsSearching(true);
     setError(null);
-    
+
     try {
       const data = await cookbooksApi.searchGoogleBooks(query, 8);
       setBooks(data.books);
       setShowResults(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred while searching');
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred while searching';
+      // Show friendlier message for rate limiting
+      if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('too many')) {
+        setError('Search is temporarily limited. Please wait a moment and try again, or enter details manually.');
+      } else {
+        setError(errorMsg);
+      }
       setBooks([]);
     } finally {
       setIsSearching(false);
@@ -71,10 +77,10 @@ const GoogleBooksSearch: React.FC<GoogleBooksSearchProps> = ({
     <div className={`space-y-4 ${className}`}>
       <div className="text-center">
         <h3 className="text-lg font-semibold mb-2" style={{ color: '#1c120d' }}>
-          Search Online Database
+          Search for Cookbook
         </h3>
         <p className="text-sm mb-4" style={{ color: '#9b644b' }}>
-          Find your cookbook automatically or enter details manually
+          Find your cookbook or enter details manually
         </p>
       </div>
 
