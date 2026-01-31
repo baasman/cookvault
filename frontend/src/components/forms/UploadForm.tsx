@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input } from '../ui';
-import { CookbookSearch } from '../cookbook/CookbookSearch';
 import { GoogleBooksSearch } from '../cookbook/GoogleBooksSearch';
 import { cookbooksApi, type GoogleBook } from '../../services/cookbooksApi';
 import { captureRecipePhoto } from '../../services/cameraService';
@@ -237,15 +236,9 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       return;
     }
 
-    // Validate cookbook search selection if selected
-    if (formData.search_existing_cookbook && !formData.selected_existing_cookbook_id) {
-      alert('Please select a cookbook from the search results');
-      return;
-    }
-
-    // Validate online database selection if selected
+    // Validate cookbook selection if selected
     if (formData.search_google_books && !formData.selected_google_book) {
-      alert('Please select a cookbook from the online database or enter details manually');
+      alert('Please select a cookbook or enter details manually');
       return;
     }
 
@@ -258,7 +251,6 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     // If recipe is from a cookbook/source, require linking to a cookbook
     if (formData.is_original_recipe === false) {
       const hasCookbook = formData.create_new_cookbook ||
-                          formData.search_existing_cookbook ||
                           formData.search_google_books ||
                           formData.cookbook_id;
       if (!hasCookbook || formData.no_cookbook) {
@@ -471,16 +463,16 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     setFormData(prev => ({ ...prev, isMultiImage: shouldBeMultiImage }));
   };
 
-  // Initialize form with cookbook data if provided
+  // Initialize form with cookbook data if provided (e.g., adding recipe from cookbook page)
   useEffect(() => {
     if (initialCookbookData?.cookbookId) {
       setFormData(prev => ({
         ...prev,
-        search_existing_cookbook: true,
         no_cookbook: false,
         create_new_cookbook: false,
         search_google_books: false,
-        selected_existing_cookbook_id: initialCookbookData.cookbookId,
+        search_existing_cookbook: false,
+        cookbook_id: initialCookbookData.cookbookId,
         cookbook_search_query: initialCookbookData.cookbookTitle || `Cookbook ID: ${initialCookbookData.cookbookId}`
       }));
     }
@@ -875,26 +867,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   }))}
                   className="mr-2 text-accent"
                 />
-                <span className="text-sm font-medium" style={{color: '#1c120d'}}>Search Online Database</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="cookbook_mode"
-                  checked={formData.search_existing_cookbook}
-                  onChange={() => setFormData(prev => ({
-                    ...prev,
-                    create_new_cookbook: false,
-                    search_existing_cookbook: true,
-                    search_google_books: false,
-                    no_cookbook: false,
-                    cookbook_id: undefined,
-                    selected_existing_cookbook_id: undefined,
-                    selected_google_book: null
-                  }))}
-                  className="mr-2 text-accent"
-                />
-                <span className="text-sm font-medium" style={{color: '#1c120d'}}>Search for existing cookbook</span>
+                <span className="text-sm font-medium" style={{color: '#1c120d'}}>Search for cookbook</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -1005,48 +978,6 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   </div>
                 )}
                 
-              </>
-            ) : formData.search_existing_cookbook ? (
-              /* Cookbook Search */
-              <>
-                <CookbookSearch
-                  onSelect={(cookbook) => {
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      selected_existing_cookbook_id: cookbook.id,
-                      cookbook_search_query: cookbook.title 
-                    }));
-                  }}
-                  onCreateNew={() => {
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      create_new_cookbook: true,
-                      search_existing_cookbook: false,
-                      search_google_books: false,
-                      selected_existing_cookbook_id: undefined,
-                      selected_google_book: null 
-                    }));
-                  }}
-                />
-                
-                {/* Show selected cookbook info */}
-                {formData.selected_existing_cookbook_id && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm font-medium text-green-800 mb-1">Selected Cookbook:</p>
-                    <p className="text-sm text-green-700">{formData.cookbook_search_query}</p>
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ 
-                        ...prev, 
-                        selected_existing_cookbook_id: undefined,
-                        cookbook_search_query: '' 
-                      }))}
-                      className="text-xs text-green-600 hover:text-green-800 mt-1"
-                    >
-                      Change selection
-                    </button>
-                  </div>
-                )}
               </>
             ) : (
               /* New Cookbook Creation Form */

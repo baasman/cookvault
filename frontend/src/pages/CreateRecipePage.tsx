@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { recipesApi } from '../services/recipesApi';
 import { RecipeForm } from '../components/recipe/RecipeForm';
 import { Button, Input } from '../components/ui';
-import { CookbookSearch } from '../components/cookbook/CookbookSearch';
 import { GoogleBooksSearch } from '../components/cookbook/GoogleBooksSearch';
 import { UploadLimitWarning, useCanUpload } from '../components/payments';
 import { cookbooksApi, type GoogleBook } from '../services/cookbooksApi';
@@ -50,11 +49,6 @@ const CreateRecipePage: React.FC = () => {
       return;
     }
 
-    if (initialData.search_existing_cookbook && !initialData.selected_existing_cookbook_id) {
-      setError('Please select a cookbook');
-      return;
-    }
-
     if (initialData.search_google_books && !initialData.selected_google_book) {
       setError('Please select a cookbook from the online database');
       return;
@@ -78,8 +72,6 @@ const CreateRecipePage: React.FC = () => {
           publication_date: initialData.new_cookbook_publication_date || undefined,
         });
         cookbook_id = cookbook.id;
-      } else if (initialData.search_existing_cookbook && initialData.selected_existing_cookbook_id) {
-        cookbook_id = initialData.selected_existing_cookbook_id;
       } else if (initialData.search_google_books && initialData.cookbook_id) {
         cookbook_id = initialData.cookbook_id;
       }
@@ -210,8 +202,8 @@ const CreateRecipePage: React.FC = () => {
                   type="radio"
                   name="cookbook_mode"
                   checked={initialData.search_google_books}
-                  onChange={() => setInitialData(prev => ({ 
-                    ...prev, 
+                  onChange={() => setInitialData(prev => ({
+                    ...prev,
                     no_cookbook: false,
                     create_new_cookbook: false,
                     search_existing_cookbook: false,
@@ -223,29 +215,7 @@ const CreateRecipePage: React.FC = () => {
                   className="mr-2 text-accent"
                 />
                 <span className="text-sm font-medium" style={{color: '#1c120d'}}>
-                  Search Online Database
-                </span>
-              </label>
-
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="cookbook_mode"
-                  checked={initialData.search_existing_cookbook}
-                  onChange={() => setInitialData(prev => ({ 
-                    ...prev, 
-                    no_cookbook: false,
-                    create_new_cookbook: false,
-                    search_existing_cookbook: true,
-                    search_google_books: false,
-                    selected_existing_cookbook_id: undefined,
-                    selected_google_book: null,
-                    cookbook_id: undefined
-                  }))}
-                  className="mr-2 text-accent"
-                />
-                <span className="text-sm font-medium" style={{color: '#1c120d'}}>
-                  Add to existing cookbook
+                  Search for cookbook
                 </span>
               </label>
 
@@ -297,24 +267,6 @@ const CreateRecipePage: React.FC = () => {
                   }));
                 }}
                 isLoading={loading}
-              />
-            )}
-
-            {initialData.search_existing_cookbook && (
-              <CookbookSearch
-                onSelect={(cookbook) => {
-                  setInitialData(prev => ({ 
-                    ...prev, 
-                    selected_existing_cookbook_id: cookbook.id
-                  }));
-                }}
-                onCreateNew={() => {
-                  setInitialData(prev => ({ 
-                    ...prev, 
-                    create_new_cookbook: true,
-                    search_existing_cookbook: false
-                  }));
-                }}
               />
             )}
 
