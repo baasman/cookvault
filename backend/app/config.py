@@ -118,6 +118,8 @@ class Config:
         app.config['FRONTEND_URL'] = os.environ.get("FRONTEND_URL", "http://localhost:5173")
         app.config['VERIFICATION_TOKEN_EXPIRY_HOURS'] = int(os.environ.get("VERIFICATION_TOKEN_EXPIRY_HOURS", 24))
         app.config['REQUIRE_EMAIL_VERIFICATION'] = os.environ.get("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
+        # Development email override - all emails will be sent to this address instead of the actual recipient
+        app.config['DEV_EMAIL_OVERRIDE'] = os.environ.get("DEV_EMAIL_OVERRIDE")
 
         # SMS verification settings (Twilio)
         app.config['TWILIO_ACCOUNT_SID'] = os.environ.get("TWILIO_ACCOUNT_SID")

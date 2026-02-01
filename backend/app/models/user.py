@@ -66,6 +66,10 @@ class User(db.Model):
     # Stripe integration
     stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
 
+    # Account deletion (7-day soft delete)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    deletion_scheduled_for: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
     # Relationships
     passwords: Mapped[List["Password"]] = relationship(
         "Password", back_populates="user", cascade="all, delete-orphan"
@@ -256,6 +260,32 @@ class User(db.Model):
                 return True
         return False
 
+    def schedule_deletion(self, days: int = 7) -> datetime:
+        """Schedule account for deletion after the specified number of days.
+
+        Args:
+            days: Number of days until permanent deletion (default 7)
+
+        Returns:
+            datetime: The scheduled deletion date
+        """
+        self.deletion_scheduled_for = datetime.utcnow() + timedelta(days=days)
+        self.status = UserStatus.INACTIVE
+        return self.deletion_scheduled_for
+
+    def cancel_deletion(self) -> None:
+        """Cancel a pending account deletion."""
+        self.deletion_scheduled_for = None
+        self.status = UserStatus.ACTIVE
+
+    def is_pending_deletion(self) -> bool:
+        """Check if account is pending deletion."""
+        return self.deletion_scheduled_for is not None and self.deleted_at is None
+
+    def is_deleted(self) -> bool:
+        """Check if account has been deleted."""
+        return self.deleted_at is not None
+
     def to_dict(self, include_sensitive: bool = False) -> dict:
         """Convert user to dictionary representation."""
         data = {
@@ -282,6 +312,12 @@ class User(db.Model):
                     "email_verified_at": (
                         self.email_verified_at.isoformat()
                         if self.email_verified_at
+                        else None
+                    ),
+                    "is_pending_deletion": self.is_pending_deletion(),
+                    "deletion_scheduled_for": (
+                        self.deletion_scheduled_for.isoformat()
+                        if self.deletion_scheduled_for
                         else None
                     ),
                 }

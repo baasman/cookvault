@@ -36,8 +36,14 @@ def require_auth(f):
         if user.is_account_locked():
             return jsonify({"error": "Account is locked"}), 423
 
+        # Allow users pending deletion to access account management endpoints
+        # They have INACTIVE status but should still be able to cancel deletion
         if user.status != UserStatus.ACTIVE:
-            return jsonify({"error": "Account is not active"}), 403
+            if user.is_pending_deletion():
+                # Allow access - user can cancel deletion or view their data
+                pass
+            else:
+                return jsonify({"error": "Account is not active"}), 403
 
         # Store user in g for rate limiting
         g.current_user = user
@@ -1520,3 +1526,455 @@ def get_public_user_profile_by_username(username: str) -> Response:
     except Exception as e:
         current_app.logger.error(f"Failed to get public user profile by username: {str(e)}")
         return jsonify({"error": "Failed to retrieve user profile"}), 500
+
+
+# =============================================================================
+# Account Deletion Endpoints
+# =============================================================================
+
+
+@bp.route("/auth/account", methods=["DELETE"])
+@require_auth
+def request_account_deletion(user: User) -> Response:
+    """
+    Request account deletion with 7-day grace period.
+
+    The account will be scheduled for deletion 7 days from now.
+    During this period, the user can still log in and cancel the deletion.
+    After 7 days, a background task will permanently delete all user data.
+
+    Requires password confirmation in request body.
+
+    Returns:
+        JSON response with deletion scheduled date
+    """
+    import traceback
+
+    try:
+        data = request.get_json() or {}
+        password = data.get("password")
+
+        if not password:
+            return jsonify({"error": "Password confirmation required"}), 400
+
+        # Verify password
+        if not user.check_password(password):
+            return jsonify({"error": "Incorrect password"}), 401
+
+        # Check if already pending deletion
+        if user.is_pending_deletion():
+            return jsonify({
+                "error": "Account is already scheduled for deletion",
+                "deletion_scheduled_for": user.deletion_scheduled_for.isoformat()
+            }), 400
+
+        # Schedule deletion for 7 days from now
+        deletion_date = user.schedule_deletion(days=7)
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Account deletion scheduled for user {user.id} ({user.email}) "
+            f"on {deletion_date.isoformat()}"
+        )
+
+        # Send confirmation email
+        try:
+            from app.services.email_service import get_email_service
+            email_service = get_email_service()
+            _send_deletion_scheduled_email(email_service, user, deletion_date)
+        except Exception as email_error:
+            current_app.logger.warning(
+                f"Failed to send deletion confirmation email to {user.email}: {email_error}"
+            )
+
+        return jsonify({
+            "message": "Account scheduled for deletion",
+            "deletion_scheduled_for": deletion_date.isoformat(),
+            "days_until_deletion": 7
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Failed to schedule account deletion for user {user.id}: {str(e)}\n"
+            f"Traceback: {traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to schedule account deletion"}), 500
+
+
+@bp.route("/auth/account/cancel-deletion", methods=["POST"])
+@require_auth
+def cancel_account_deletion(user: User) -> Response:
+    """
+    Cancel a pending account deletion.
+
+    Can only be called during the 7-day grace period before permanent deletion.
+
+    Returns:
+        JSON response confirming cancellation
+    """
+    import traceback
+
+    try:
+        if not user.is_pending_deletion():
+            return jsonify({"error": "No pending deletion to cancel"}), 400
+
+        user.cancel_deletion()
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Account deletion cancelled for user {user.id} ({user.email})"
+        )
+
+        return jsonify({
+            "message": "Account deletion cancelled",
+            "status": user.status.value
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Failed to cancel account deletion for user {user.id}: {str(e)}\n"
+            f"Traceback: {traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to cancel account deletion"}), 500
+
+
+@bp.route("/auth/account/deletion-status", methods=["GET"])
+@require_auth
+def get_deletion_status(user: User) -> Response:
+    """
+    Get the current account deletion status.
+
+    Returns:
+        JSON response with deletion status information
+    """
+    try:
+        if user.is_pending_deletion():
+            return jsonify({
+                "is_pending_deletion": True,
+                "deletion_scheduled_for": user.deletion_scheduled_for.isoformat(),
+                "can_cancel": True
+            })
+        else:
+            return jsonify({
+                "is_pending_deletion": False,
+                "deletion_scheduled_for": None,
+                "can_cancel": False
+            })
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to get deletion status: {str(e)}")
+        return jsonify({"error": "Failed to get deletion status"}), 500
+
+
+def _send_deletion_scheduled_email(email_service, user: User, deletion_date: datetime) -> bool:
+    """Send email notifying user that account deletion has been scheduled."""
+    if not email_service.client:
+        return False
+
+    try:
+        from sendgrid.helpers.mail import Mail, To, From, Content
+
+        frontend_url = email_service._get_frontend_url()
+        settings_url = f"{frontend_url}/settings"
+
+        html_content = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #e74c3c;">Account Deletion Scheduled</h2>
+              <p>Hello {user.username},</p>
+              <p>Your Cookle account has been scheduled for deletion on <strong>{deletion_date.strftime('%B %d, %Y')}</strong>.</p>
+              <p>After this date, all your data will be permanently deleted, including:</p>
+              <ul>
+                <li>Your recipes and images</li>
+                <li>Your cookbooks</li>
+                <li>Your profile information</li>
+                <li>Your subscription (if any)</li>
+              </ul>
+              <p style="margin: 30px 0;">
+                <strong>Changed your mind?</strong> You can cancel the deletion anytime before {deletion_date.strftime('%B %d, %Y')} by visiting your account settings:
+              </p>
+              <p>
+                <a href="{settings_url}"
+                   style="background-color: #3498db; color: white; padding: 12px 30px;
+                          text-decoration: none; border-radius: 5px; display: inline-block;">
+                  Cancel Deletion
+                </a>
+              </p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+              <p style="font-size: 12px; color: #7f8c8d;">
+                If you didn't request this deletion, please contact support immediately at boudeyz@gmail.com
+              </p>
+            </div>
+          </body>
+        </html>
+        """
+
+        text_content = f"""
+        Hello {user.username},
+
+        Your Cookle account has been scheduled for deletion on {deletion_date.strftime('%B %d, %Y')}.
+
+        After this date, all your data will be permanently deleted.
+
+        Changed your mind? You can cancel the deletion by visiting: {settings_url}
+
+        If you didn't request this deletion, please contact support immediately at boudeyz@gmail.com
+        """
+
+        # Get recipient (may be overridden in dev)
+        recipient = email_service._get_recipient_email(user.email)
+
+        message = Mail(
+            from_email=From(email_service._get_from_email(), email_service._get_from_name()),
+            to_emails=To(recipient),
+            subject="Your Cookle Account is Scheduled for Deletion",
+            plain_text_content=Content("text/plain", text_content),
+            html_content=Content("text/html", html_content)
+        )
+
+        response = email_service.client.send(message)
+        return response.status_code in [200, 201, 202]
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to send deletion email: {e}")
+        return False
+
+
+# =============================================================================
+# Data Export Endpoints
+# =============================================================================
+
+
+@bp.route("/auth/export", methods=["GET"])
+@require_auth
+def export_user_data(user: User) -> Response:
+    """
+    Export all user data as a ZIP file.
+
+    Generates a ZIP archive containing:
+    - profile.json: User profile information
+    - recipes.json: All user recipes with metadata
+    - cookbooks.json: All user cookbooks
+    - payments.json: Payment history
+    - images/: Folder with all recipe images (as URLs, not actual files)
+
+    Returns:
+        ZIP file download
+    """
+    import json
+    import zipfile
+    import traceback
+    from io import BytesIO
+    from datetime import datetime
+    from flask import send_file
+
+    try:
+        current_app.logger.info(f"Starting data export for user {user.id}")
+
+        # Create in-memory ZIP file
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Export profile data
+            profile_data = {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "bio": user.bio,
+                "avatar_url": user.avatar_url,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "is_verified": user.is_verified,
+                "is_premium": user.is_premium(),
+                "exported_at": datetime.utcnow().isoformat()
+            }
+            zip_file.writestr(
+                "profile.json",
+                json.dumps(profile_data, indent=2, ensure_ascii=False)
+            )
+
+            # Export recipes
+            recipes_data = []
+            image_urls = []
+
+            for recipe in user.recipes:
+                recipe_dict = {
+                    "id": recipe.id,
+                    "title": recipe.title,
+                    "description": recipe.description,
+                    "prep_time": recipe.prep_time,
+                    "cook_time": recipe.cook_time,
+                    "total_time": recipe.total_time,
+                    "servings": recipe.servings,
+                    "difficulty": recipe.difficulty.value if recipe.difficulty else None,
+                    "cuisine": recipe.cuisine,
+                    "category": recipe.category,
+                    "is_public": recipe.is_public,
+                    "created_at": recipe.created_at.isoformat() if recipe.created_at else None,
+                    "updated_at": recipe.updated_at.isoformat() if recipe.updated_at else None,
+                    "ingredients": [],
+                    "instructions": [],
+                    "tags": [],
+                    "images": [],
+                    "notes": []
+                }
+
+                # Add ingredients
+                for ingredient in recipe.ingredients:
+                    recipe_dict["ingredients"].append({
+                        "name": ingredient.name,
+                        "amount": ingredient.amount,
+                        "unit": ingredient.unit,
+                        "notes": ingredient.notes,
+                        "order": ingredient.order
+                    })
+
+                # Add instructions
+                for instruction in recipe.instructions:
+                    recipe_dict["instructions"].append({
+                        "step_number": instruction.step_number,
+                        "text": instruction.text,
+                        "image_url": instruction.image_url
+                    })
+
+                # Add tags
+                for tag in recipe.tags:
+                    recipe_dict["tags"].append(tag.name)
+
+                # Add images
+                for image in recipe.images:
+                    image_info = {
+                        "url": image.url,
+                        "is_primary": image.is_primary,
+                        "order": image.order
+                    }
+                    recipe_dict["images"].append(image_info)
+                    if image.url:
+                        image_urls.append({
+                            "recipe_id": recipe.id,
+                            "recipe_title": recipe.title,
+                            "url": image.url
+                        })
+
+                # Add user's notes for this recipe
+                for note in recipe.recipe_notes:
+                    if note.user_id == user.id:
+                        recipe_dict["notes"].append({
+                            "content": note.content,
+                            "created_at": note.created_at.isoformat() if note.created_at else None
+                        })
+
+                recipes_data.append(recipe_dict)
+
+            zip_file.writestr(
+                "recipes.json",
+                json.dumps(recipes_data, indent=2, ensure_ascii=False)
+            )
+
+            # Export cookbooks
+            cookbooks_data = []
+            for cookbook in user.cookbooks:
+                cookbook_dict = {
+                    "id": cookbook.id,
+                    "title": cookbook.title,
+                    "description": cookbook.description,
+                    "cover_image_url": cookbook.cover_image_url,
+                    "author": cookbook.author,
+                    "publisher": cookbook.publisher,
+                    "isbn": cookbook.isbn,
+                    "published_year": cookbook.published_year,
+                    "is_purchasable": cookbook.is_purchasable,
+                    "price": str(cookbook.price) if cookbook.price else None,
+                    "created_at": cookbook.created_at.isoformat() if cookbook.created_at else None,
+                    "recipe_ids": [r.id for r in cookbook.recipes]
+                }
+                cookbooks_data.append(cookbook_dict)
+
+            zip_file.writestr(
+                "cookbooks.json",
+                json.dumps(cookbooks_data, indent=2, ensure_ascii=False)
+            )
+
+            # Export payment history (anonymized payment methods)
+            payments_data = []
+            for payment in user.payments:
+                payment_dict = {
+                    "id": payment.id,
+                    "amount": str(payment.amount),
+                    "currency": payment.currency,
+                    "status": payment.status.value if hasattr(payment.status, 'value') else str(payment.status),
+                    "payment_type": payment.payment_type.value if hasattr(payment.payment_type, 'value') else str(payment.payment_type),
+                    "created_at": payment.created_at.isoformat() if payment.created_at else None,
+                    "description": payment.description
+                }
+                payments_data.append(payment_dict)
+
+            zip_file.writestr(
+                "payments.json",
+                json.dumps(payments_data, indent=2, ensure_ascii=False)
+            )
+
+            # Export image URLs manifest (for reference)
+            zip_file.writestr(
+                "images/image_manifest.json",
+                json.dumps(image_urls, indent=2, ensure_ascii=False)
+            )
+
+            # Add README
+            readme_content = f"""# Cookle Data Export
+
+Exported on: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
+User: {user.username}
+
+## Contents
+
+- profile.json: Your account information
+- recipes.json: All your recipes with ingredients, instructions, and tags
+- cookbooks.json: Your cookbook collections
+- payments.json: Your payment history
+- images/image_manifest.json: List of all image URLs
+
+## Note on Images
+
+Images are stored on our CDN (Cloudinary). The image_manifest.json file contains
+URLs to your images. You can download them directly from those URLs.
+
+## Data Format
+
+All files are in JSON format and can be opened with any text editor or
+imported into other applications.
+
+## Questions?
+
+Contact us at boudeyz@gmail.com
+"""
+            zip_file.writestr("README.txt", readme_content)
+
+        # Prepare response
+        zip_buffer.seek(0)
+
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        filename = f"cookle_data_export_{timestamp}.zip"
+
+        current_app.logger.info(
+            f"Data export completed for user {user.id}. "
+            f"Exported {len(recipes_data)} recipes, {len(cookbooks_data)} cookbooks"
+        )
+
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
+        current_app.logger.error(
+            f"Failed to export data for user {user.id}: {str(e)}\n"
+            f"Traceback: {traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to export data"}), 500

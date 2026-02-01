@@ -34,3 +34,22 @@ export const isWeb = (): boolean => {
 export const getPlatform = (): 'ios' | 'android' | 'web' => {
   return Capacitor.getPlatform() as 'ios' | 'android' | 'web';
 };
+
+/**
+ * Open an external URL or mailto link.
+ * On native platforms, uses the system browser/mail app.
+ * On web, uses window.open or location.href.
+ */
+export const openExternalUrl = async (url: string): Promise<void> => {
+  if (url.startsWith('mailto:')) {
+    // For mailto links, use window.location to trigger native mail handler
+    window.location.href = url;
+  } else if (isNativePlatform()) {
+    // For regular URLs on native, use the Browser plugin
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url });
+  } else {
+    // On web, use window.open
+    window.open(url, '_blank');
+  }
+};

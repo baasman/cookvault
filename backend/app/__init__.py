@@ -2,6 +2,7 @@ import os
 import logging
 from pathlib import Path
 
+import sentry_sdk
 from flask import Flask, send_from_directory, request, session, g, make_response, jsonify
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
@@ -13,6 +14,23 @@ from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import config, load_environment_config
+
+# Initialize Sentry for error tracking (before Flask app creation)
+_sentry_dsn = os.environ.get("SENTRY_DSN")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        # Set traces_sample_rate to capture performance data
+        # Adjust this value in production (0.1 = 10% of transactions)
+        traces_sample_rate=0.1,
+        # Set profiles_sample_rate to profile performance
+        profiles_sample_rate=0.1,
+        # Send default PII like user IPs (disable if privacy is a concern)
+        send_default_pii=False,
+        # Environment tag
+        environment=os.environ.get("FLASK_ENV", "development"),
+    )
+    logging.getLogger(__name__).info("Sentry initialized for error tracking")
 
 db = SQLAlchemy()
 migrate = Migrate()

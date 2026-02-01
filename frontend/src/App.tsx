@@ -15,6 +15,7 @@ import { CookbookPurchaseSuccessPage } from './pages/CookbookPurchaseSuccessPage
 import { CreateCookbookPage } from './pages/CreateCookbookPage';
 import CopyrightPolicyPage from './pages/CopyrightPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ function App() {
               <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
               <Route path="/copyright-policy" element={<CopyrightPolicyPage />} />
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
             </Routes>
           </Layout>
         </Router>

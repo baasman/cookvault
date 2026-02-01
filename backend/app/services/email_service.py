@@ -44,6 +44,18 @@ class EmailService:
         """Get the frontend URL from configuration."""
         return current_app.config.get("FRONTEND_URL", "http://localhost:5173")
 
+    def _get_recipient_email(self, email: str) -> str:
+        """Get the recipient email, applying dev override if configured.
+
+        In development, all emails can be redirected to a single address
+        for testing purposes by setting DEV_EMAIL_OVERRIDE.
+        """
+        dev_override = current_app.config.get("DEV_EMAIL_OVERRIDE")
+        if dev_override:
+            logger.info(f"DEV_EMAIL_OVERRIDE active: redirecting email from {email} to {dev_override}")
+            return dev_override
+        return email
+
     def send_verification_email(
         self,
         email: str,
@@ -116,10 +128,13 @@ class EmailService:
             If you didn't create an account, please ignore this email.
             """
 
+            # Get recipient (may be overridden in dev)
+            recipient = self._get_recipient_email(email)
+
             # Create message
             message = Mail(
                 from_email=From(self._get_from_email(), self._get_from_name()),
-                to_emails=To(email),
+                to_emails=To(recipient),
                 subject="Verify Your Email - Cookbook Creator",
                 plain_text_content=Content("text/plain", text_content),
                 html_content=Content("text/html", html_content)
@@ -129,7 +144,7 @@ class EmailService:
             response = self.client.send(message)
 
             if response.status_code in [200, 201, 202]:
-                logger.info(f"Verification email sent successfully to {email}")
+                logger.info(f"Verification email sent successfully to {recipient} (original: {email})")
 
                 # Update rate limit cache
                 if rate_limit_cache is not None:
@@ -219,10 +234,13 @@ class EmailService:
             Cookbook Creator - Your Digital Recipe Collection
             """
 
+            # Get recipient (may be overridden in dev)
+            recipient = self._get_recipient_email(email)
+
             # Create message
             message = Mail(
                 from_email=From(self._get_from_email(), self._get_from_name()),
-                to_emails=To(email),
+                to_emails=To(recipient),
                 subject="Reset Your Password - Cookbook Creator",
                 plain_text_content=Content("text/plain", text_content),
                 html_content=Content("text/html", html_content)
@@ -232,7 +250,7 @@ class EmailService:
             response = self.client.send(message)
 
             if response.status_code in [200, 201, 202]:
-                logger.info(f"Password reset email sent successfully to {email}")
+                logger.info(f"Password reset email sent successfully to {recipient} (original: {email})")
                 return True
             else:
                 logger.error(
