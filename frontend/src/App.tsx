@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import { hideKeyboard } from './hooks/useKeyboard';
 import { isNativePlatform } from './utils/platform';
 import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage } from './pages';
@@ -16,6 +17,7 @@ import { CreateCookbookPage } from './pages/CreateCookbookPage';
 import CopyrightPolicyPage from './pages/CopyrightPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -39,12 +41,13 @@ const handleTapOutside = (e: React.MouseEvent) => {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <div onClick={handleTapOutside}>
-        <Router>
-          <Layout>
-            <Routes>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <div onClick={handleTapOutside}>
+          <Router>
+            <Layout>
+              <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/recipes" element={<RecipesPage />} />
               <Route path="/recipes/:id" element={<RecipeDetailPage />} />
@@ -69,12 +72,15 @@ function App() {
               <Route path="/copyright-policy" element={<CopyrightPolicyPage />} />
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-            </Routes>
-          </Layout>
-        </Router>
-        </div>
-      </AuthProvider>
-    </QueryClientProvider>
+              {/* Catch-all route for 404 */}
+              <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </Layout>
+          </Router>
+          </div>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
