@@ -87,10 +87,11 @@ export const MultiProcessingProgress: React.FC<MultiProcessingProgressProps> = (
     switch (status.status) {
       case 'pending':
         return '10%';
-      case 'processing':
+      case 'processing': {
         // Calculate based on processed images
         const processingProgress = Math.min((processed / total) * 80 + 10, 90);
         return `${processingProgress}%`;
+      }
       case 'completed':
         return '100%';
       case 'failed':

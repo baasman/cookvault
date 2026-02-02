@@ -43,7 +43,7 @@ const CommentItem: React.FC<CommentItemProps> = ({
       await onEdit(comment.id, editContent.trim());
       setIsEditing(false);
       toast.success('Comment updated');
-    } catch (error) {
+    } catch {
       toast.error('Failed to update comment');
     } finally {
       setIsLoading(false);
@@ -60,7 +60,7 @@ const CommentItem: React.FC<CommentItemProps> = ({
       try {
         await onDelete(comment.id);
         toast.success('Comment deleted');
-      } catch (error) {
+      } catch {
         toast.error('Failed to delete comment');
       }
     }

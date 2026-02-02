@@ -97,7 +97,7 @@ export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
       } else {
         throw new Error('Failed to fetch print options');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load print options. Please try again.');
     } finally {
       setLoading(false);

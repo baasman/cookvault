@@ -116,11 +116,12 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({
       case 'cardNumber':
         if (value.replace(/\s/g, '').length < 13) return 'Card number must be at least 13 digits';
         break;
-      case 'expiryDate':
+      case 'expiryDate': {
         if (!/^\d{2}\/\d{2}$/.test(value)) return 'Format must be MM/YY';
         const [month] = value.split('/');
         if (parseInt(month) < 1 || parseInt(month) > 12) return 'Invalid month';
         break;
+      }
       case 'cvv':
         if (value.length < 3) return 'CVV must be at least 3 digits';
         break;

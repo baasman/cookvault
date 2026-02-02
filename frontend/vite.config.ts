@@ -40,7 +40,6 @@ export default defineConfig(({ mode }) => {
             vendor: ['react', 'react-dom'],
             router: ['react-router-dom'],
             query: ['@tanstack/react-query'],
-            ui: ['@headlessui/react', '@heroicons/react'],
           },
         },
       },
