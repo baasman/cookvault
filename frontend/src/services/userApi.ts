@@ -123,6 +123,76 @@ class UserApi {
       throw error;
     }
   }
+
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error requesting password reset:', error);
+      throw error;
+    }
+  }
+
+  async validateResetToken(token: string): Promise<{ valid: boolean; email?: string; error?: string }> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/auth/validate-reset-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      const data = await response.json();
+
+      // Even if response is not ok, we still want to return the data
+      // since the backend returns { valid: false, error: "..." }
+      return data;
+    } catch (error) {
+      console.error('Error validating reset token:', error);
+      return { valid: false, error: 'Failed to validate token' };
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token,
+          new_password: newPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      throw error;
+    }
+  }
 }
 
 export const userApi = new UserApi();

@@ -1171,6 +1171,200 @@ def revoke_session(current_user: User, session_id: int) -> Tuple[Response, int]:
         return jsonify({"error": "Session revocation failed"}), 500
 
 
+# =============================================================================
+# Password Reset (Forgot Password) Endpoints
+# =============================================================================
+
+
+@bp.route("/auth/forgot-password", methods=["POST"])
+@rate_limit_auth
+def forgot_password() -> Tuple[Response, int]:
+    """
+    Request a password reset email.
+
+    Always returns 200 to prevent email enumeration attacks.
+
+    Request:  { "email": "user@example.com" }
+    Response: { "message": "If an account exists with this email, you will receive a password reset link." }
+    """
+    import traceback
+
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        email = data.get("email", "").strip().lower()
+
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
+
+        # Validate email format (basic check)
+        if "@" not in email or "." not in email:
+            return jsonify({"error": "Invalid email format"}), 400
+
+        # Generic message to prevent email enumeration
+        success_message = "If an account exists with this email, you will receive a password reset link."
+
+        # Find user by email
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            # Don't reveal that the email doesn't exist
+            current_app.logger.info(f"Password reset requested for non-existent email: {email}")
+            return jsonify({"message": success_message}), 200
+
+        # Check if user is active
+        if user.status != UserStatus.ACTIVE:
+            current_app.logger.info(f"Password reset requested for inactive user: {email}")
+            return jsonify({"message": success_message}), 200
+
+        # Generate password reset token
+        token = user.generate_password_reset_token()
+        db.session.commit()
+
+        # Send password reset email
+        email_service = get_email_service()
+        email_sent = email_service.send_password_reset_email(
+            email=user.email,
+            token=token,
+            username=user.username
+        )
+
+        if email_sent:
+            current_app.logger.info(f"Password reset email sent to {email}")
+        else:
+            current_app.logger.warning(f"Failed to send password reset email to {email}")
+
+        return jsonify({"message": success_message}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Password reset request failed: {str(e)}\n"
+            f"Traceback: {traceback.format_exc()}"
+        )
+        # Return generic message even on error to prevent info leakage
+        return jsonify({"message": "If an account exists with this email, you will receive a password reset link."}), 200
+
+
+@bp.route("/auth/validate-reset-token", methods=["POST"])
+@rate_limit_auth
+def validate_reset_token() -> Tuple[Response, int]:
+    """
+    Validate a password reset token before showing the reset form.
+
+    Request:  { "token": "abc123..." }
+    Response: { "valid": true, "email": "u***@example.com" }
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        token = data.get("token", "").strip()
+
+        if not token:
+            return jsonify({"error": "Token is required"}), 400
+
+        # Find user with this reset token
+        user = User.query.filter_by(password_reset_token=token).first()
+
+        if not user:
+            current_app.logger.warning(f"Invalid password reset token: {token[:8]}...")
+            return jsonify({"valid": False, "error": "Invalid or expired reset token"}), 400
+
+        # Check if token is valid (not expired)
+        if not user.is_password_reset_valid():
+            current_app.logger.warning(f"Expired password reset token for user: {user.username}")
+            return jsonify({"valid": False, "error": "Reset token has expired"}), 400
+
+        # Mask email for display (e.g., "t***@example.com")
+        email = user.email
+        at_index = email.find("@")
+        if at_index > 1:
+            masked_email = email[0] + "***" + email[at_index:]
+        else:
+            masked_email = "***" + email[at_index:]
+
+        return jsonify({
+            "valid": True,
+            "email": masked_email
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Token validation failed: {str(e)}")
+        return jsonify({"valid": False, "error": "Token validation failed"}), 400
+
+
+@bp.route("/auth/reset-password", methods=["POST"])
+@rate_limit_auth
+def reset_password() -> Tuple[Response, int]:
+    """
+    Reset password using a valid reset token.
+
+    Request:  { "token": "abc123...", "new_password": "newPassword123" }
+    Response: { "message": "Password has been reset successfully." }
+    """
+    import traceback
+
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        token = data.get("token", "").strip()
+        new_password = data.get("new_password", "")
+
+        if not token:
+            return jsonify({"error": "Token is required"}), 400
+
+        if not new_password:
+            return jsonify({"error": "New password is required"}), 400
+
+        # Validate password strength
+        if len(new_password) < 8:
+            return jsonify({"error": "Password must be at least 8 characters long"}), 400
+
+        # Find user with this reset token
+        user = User.query.filter_by(password_reset_token=token).first()
+
+        if not user:
+            current_app.logger.warning(f"Password reset attempt with invalid token: {token[:8]}...")
+            return jsonify({"error": "Invalid or expired reset token"}), 400
+
+        # Check if token is valid (not expired)
+        if not user.is_password_reset_valid():
+            current_app.logger.warning(f"Password reset attempt with expired token for user: {user.username}")
+            return jsonify({"error": "Reset token has expired. Please request a new password reset."}), 400
+
+        # Set new password
+        user.set_password(new_password)
+
+        # Clear the reset token
+        user.clear_password_reset()
+
+        # Invalidate all existing sessions for security
+        UserSession.query.filter_by(user_id=user.id, is_active=True).update({"is_active": False})
+
+        db.session.commit()
+
+        current_app.logger.info(f"Password reset successful for user: {user.username} (ID: {user.id})")
+
+        return jsonify({"message": "Password has been reset successfully. You can now log in with your new password."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Password reset failed: {str(e)}\n"
+            f"Traceback: {traceback.format_exc()}"
+        )
+        return jsonify({"error": "Password reset failed. Please try again."}), 500
+
+
 @bp.route("/auth/change-password", methods=["POST"])
 @require_auth
 def change_password(current_user: User) -> Tuple[Response, int]:

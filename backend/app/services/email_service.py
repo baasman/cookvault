@@ -1,36 +1,37 @@
-"""Email service for sending verification and transactional emails."""
+"""Email service for sending verification and transactional emails using Resend."""
 import logging
+import traceback
 from datetime import datetime, timedelta
 from typing import Optional
 
+import resend
 from flask import current_app, render_template
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, To, From, Content
 
 logger = logging.getLogger(__name__)
 
 
 class EmailService:
-    """Service for sending emails using SendGrid."""
+    """Service for sending emails using Resend."""
 
     def __init__(self):
-        """Initialize EmailService with SendGrid client."""
-        self.client = None
+        """Initialize EmailService with Resend API key."""
+        self.initialized = False
         self._initialize_client()
 
     def _initialize_client(self) -> None:
-        """Initialize SendGrid client from configuration."""
+        """Initialize Resend with API key from configuration."""
         try:
-            api_key = current_app.config.get("SENDGRID_API_KEY")
+            api_key = current_app.config.get("RESEND_API_KEY")
             if not api_key:
-                logger.warning("SENDGRID_API_KEY not configured - email sending disabled")
+                logger.warning("RESEND_API_KEY not configured - email sending disabled")
                 return
 
-            self.client = SendGridAPIClient(api_key)
-            logger.info("SendGrid client initialized successfully")
+            resend.api_key = api_key
+            self.initialized = True
+            logger.info("Resend client initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize SendGrid client: {e}")
-            self.client = None
+            logger.error(f"Failed to initialize Resend client: {e}\n{traceback.format_exc()}")
+            self.initialized = False
 
     def _get_from_email(self) -> str:
         """Get the from email address from configuration."""
@@ -38,7 +39,11 @@ class EmailService:
 
     def _get_from_name(self) -> str:
         """Get the from name from configuration."""
-        return current_app.config.get("EMAIL_FROM_NAME", "Cookbook Creator")
+        return current_app.config.get("EMAIL_FROM_NAME", "Cookle")
+
+    def _get_from_formatted(self) -> str:
+        """Get formatted from address like 'Name <email>'."""
+        return f"{self._get_from_name()} <{self._get_from_email()}>"
 
     def _get_frontend_url(self) -> str:
         """Get the frontend URL from configuration."""
@@ -75,8 +80,8 @@ class EmailService:
         Returns:
             bool: True if email sent successfully, False otherwise
         """
-        if not self.client:
-            logger.error("SendGrid client not initialized - cannot send email")
+        if not self.initialized:
+            logger.error("Resend client not initialized - cannot send email")
             return False
 
         # Rate limiting check
@@ -106,45 +111,45 @@ class EmailService:
                 # Fallback to simple HTML if template fails
                 html_content = f"""
                 <html>
-                  <body>
-                    <h2>Welcome to Cookbook Creator, {username}!</h2>
-                    <p>Please verify your email address by clicking the link below:</p>
-                    <p><a href="{verification_url}">Verify Email Address</a></p>
-                    <p>This link will expire in 24 hours.</p>
-                    <p>If you didn't create an account, please ignore this email.</p>
+                  <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                      <h2 style="color: #f15f1c;">Welcome to Cookle, {username}!</h2>
+                      <p>Please verify your email address by clicking the button below:</p>
+                      <p style="margin: 30px 0;">
+                        <a href="{verification_url}"
+                           style="background-color: #f15f1c; color: white; padding: 12px 30px;
+                                  text-decoration: none; border-radius: 5px; display: inline-block;">
+                          Verify Email Address
+                        </a>
+                      </p>
+                      <p>This link will expire in 24 hours.</p>
+                      <p style="color: #666; margin-top: 20px;">
+                        If you didn't create an account, please ignore this email.
+                      </p>
+                      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                      <p style="font-size: 12px; color: #999;">
+                        Cookle - Your Digital Recipe Collection
+                      </p>
+                    </div>
                   </body>
                 </html>
                 """
 
-            # Plain text version
-            text_content = f"""
-            Welcome to Cookbook Creator, {username}!
-
-            Please verify your email address by visiting this link:
-            {verification_url}
-
-            This link will expire in 24 hours.
-
-            If you didn't create an account, please ignore this email.
-            """
-
             # Get recipient (may be overridden in dev)
             recipient = self._get_recipient_email(email)
 
-            # Create message
-            message = Mail(
-                from_email=From(self._get_from_email(), self._get_from_name()),
-                to_emails=To(recipient),
-                subject="Verify Your Email - Cookbook Creator",
-                plain_text_content=Content("text/plain", text_content),
-                html_content=Content("text/html", html_content)
-            )
+            # Send email using Resend
+            params: resend.Emails.SendParams = {
+                "from": self._get_from_formatted(),
+                "to": [recipient],
+                "subject": "Verify Your Email - Cookle",
+                "html": html_content,
+            }
 
-            # Send email
-            response = self.client.send(message)
+            response = resend.Emails.send(params)
 
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"Verification email sent successfully to {recipient} (original: {email})")
+            if response and response.get("id"):
+                logger.info(f"Verification email sent successfully to {recipient} (original: {email}), id: {response['id']}")
 
                 # Update rate limit cache
                 if rate_limit_cache is not None:
@@ -152,14 +157,11 @@ class EmailService:
 
                 return True
             else:
-                logger.error(
-                    f"Failed to send email to {email}. "
-                    f"Status: {response.status_code}, Body: {response.body}"
-                )
+                logger.error(f"Failed to send email to {email}. Response: {response}")
                 return False
 
         except Exception as e:
-            logger.error(f"Error sending verification email to {email}: {e}", exc_info=True)
+            logger.error(f"Error sending verification email to {email}: {e}\n{traceback.format_exc()}")
             return False
 
     def send_password_reset_email(
@@ -179,8 +181,8 @@ class EmailService:
         Returns:
             bool: True if email sent successfully, False otherwise
         """
-        if not self.client:
-            logger.error("SendGrid client not initialized - cannot send email")
+        if not self.initialized:
+            logger.error("Resend client not initialized - cannot send email")
             return False
 
         try:
@@ -188,17 +190,17 @@ class EmailService:
             frontend_url = self._get_frontend_url()
             reset_url = f"{frontend_url}/reset-password?token={token}"
 
-            # Simple HTML email
+            # HTML email content
             html_content = f"""
             <html>
               <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h2 style="color: #2c3e50;">Password Reset Request</h2>
+                  <h2 style="color: #f15f1c;">Password Reset Request</h2>
                   <p>Hello {username},</p>
-                  <p>We received a request to reset your password for your Cookbook Creator account.</p>
+                  <p>We received a request to reset your password for your Cookle account.</p>
                   <p style="margin: 30px 0;">
                     <a href="{reset_url}"
-                       style="background-color: #3498db; color: white; padding: 12px 30px;
+                       style="background-color: #f15f1c; color: white; padding: 12px 30px;
                               text-decoration: none; border-radius: 5px; display: inline-block;">
                       Reset Password
                     </a>
@@ -209,58 +211,36 @@ class EmailService:
                     Your password will remain unchanged.
                   </p>
                   <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-                  <p style="font-size: 12px; color: #7f8c8d;">
-                    Cookbook Creator - Your Digital Recipe Collection
+                  <p style="font-size: 12px; color: #999;">
+                    Cookle - Your Digital Recipe Collection
                   </p>
                 </div>
               </body>
             </html>
             """
 
-            # Plain text version
-            text_content = f"""
-            Hello {username},
-
-            We received a request to reset your password for your Cookbook Creator account.
-
-            Please visit this link to reset your password:
-            {reset_url}
-
-            This link will expire in 24 hours.
-
-            If you didn't request this, please ignore this email. Your password will remain unchanged.
-
-            ---
-            Cookbook Creator - Your Digital Recipe Collection
-            """
-
             # Get recipient (may be overridden in dev)
             recipient = self._get_recipient_email(email)
 
-            # Create message
-            message = Mail(
-                from_email=From(self._get_from_email(), self._get_from_name()),
-                to_emails=To(recipient),
-                subject="Reset Your Password - Cookbook Creator",
-                plain_text_content=Content("text/plain", text_content),
-                html_content=Content("text/html", html_content)
-            )
+            # Send email using Resend
+            params: resend.Emails.SendParams = {
+                "from": self._get_from_formatted(),
+                "to": [recipient],
+                "subject": "Reset Your Password - Cookle",
+                "html": html_content,
+            }
 
-            # Send email
-            response = self.client.send(message)
+            response = resend.Emails.send(params)
 
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"Password reset email sent successfully to {recipient} (original: {email})")
+            if response and response.get("id"):
+                logger.info(f"Password reset email sent successfully to {recipient} (original: {email}), id: {response['id']}")
                 return True
             else:
-                logger.error(
-                    f"Failed to send password reset email to {email}. "
-                    f"Status: {response.status_code}"
-                )
+                logger.error(f"Failed to send password reset email to {email}. Response: {response}")
                 return False
 
         except Exception as e:
-            logger.error(f"Error sending password reset email to {email}: {e}", exc_info=True)
+            logger.error(f"Error sending password reset email to {email}: {e}\n{traceback.format_exc()}")
             return False
 
 

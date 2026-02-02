@@ -5,7 +5,7 @@ import { Layout } from './components/layout/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { hideKeyboard, useKeyboardScrollFix } from './hooks/useKeyboard';
 import { isNativePlatform } from './utils/platform';
-import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage } from './pages';
+import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage, ForgotPasswordPage, ResetPasswordPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { EditProfilePage } from './pages/EditProfilePage';
@@ -72,6 +72,8 @@ function App() {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/copyright-policy" element={<CopyrightPolicyPage />} />
               <Route path="/terms-of-service" element={<TermsOfServicePage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

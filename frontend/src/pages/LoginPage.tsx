@@ -63,13 +63,20 @@ const LoginPage: React.FC = () => {
             required
           />
 
-          <PasswordInput
-            label="Password"
-            value={password}
-            onChange={setPassword}
-            placeholder="Enter your password"
-            required
-          />
+          <div>
+            <PasswordInput
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              placeholder="Enter your password"
+              required
+            />
+            <div className="mt-1 text-right">
+              <Link to="/forgot-password" className="text-sm font-medium hover:underline" style={{color: '#f15f1c'}}>
+                Forgot your password?
+              </Link>
+            </div>
+          </div>
 
           {error && (
             <div className="p-3 rounded-md" style={{backgroundColor: '#fef2f2', border: '1px solid #fecaca'}}>

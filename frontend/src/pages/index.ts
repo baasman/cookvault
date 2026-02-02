@@ -10,3 +10,5 @@ export { UserPage } from './UserPage';
 export { OrdersPage } from './OrdersPage';
 export { VerifyEmailPage } from './VerifyEmailPage';
 export { VerifyEmailSentPage } from './VerifyEmailSentPage';
+export { ForgotPasswordPage } from './ForgotPasswordPage';
+export { ResetPasswordPage } from './ResetPasswordPage';
