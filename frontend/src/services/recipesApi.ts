@@ -833,7 +833,6 @@ class RecipesApi {
 
   async getJobStatus(jobId: number) {
     try {
-      console.log(`Making request to: ${this.baseUrl}/recipes/job-status/${jobId}`);
       const response = await apiFetch(`${this.baseUrl}/recipes/job-status/${jobId}`, {
         method: 'GET',
         headers: {
@@ -841,17 +840,12 @@ class RecipesApi {
         },
       });
 
-      console.log('Job status response status:', response.status);
-      console.log('Job status response headers:', response.headers);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.log('Error response body:', errorText);
         throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('Job status result:', result);
       return result;
     } catch (error) {
       console.error('Error getting job status:', error);

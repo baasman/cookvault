@@ -28,9 +28,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
 
     const pollJobStatus = async () => {
       try {
-        console.log('Polling job status for job ID:', jobId);
         const jobStatus = await recipesApi.getJobStatus(jobId);
-        console.log('Job status response:', jobStatus);
         setStatus(jobStatus);
 
         // Update status text based on job state
@@ -56,7 +54,6 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
         }
       } catch (error) {
         console.error('Error polling job status:', error);
-        console.error('Error details:', error);
         setIsPolling(false);
         onError(`Unable to check processing status: ${error instanceof Error ? error.message : 'Unknown error'}. Please refresh the page.`);
       }

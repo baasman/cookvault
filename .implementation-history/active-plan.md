@@ -117,6 +117,9 @@ Comprehensive roadmap to prepare Cookle (cookbook/recipe app) for iOS App Store 
 ## Deviations
 - 2026-01-31T15:00:00Z: Phase 2.5 (Fix Placeholder Emails) was completed early as part of Phase 1.2 since it was a quick win while working on the Footer component.
 - 2026-02-01T00:00:00Z: Completed remaining Phase 2 items (2.2-2.4) - Error Boundary, 404/Error pages, and Offline handling.
+- 2026-02-01T18:30:00Z: Skipped Phase 3.1 (Deep Linking) - user doesn't have App Store account yet; will add later.
+- 2026-02-01T18:30:00Z: Phase 3.2-3.3 already complete (Info.plist, App Icons).
+- 2026-02-01T18:30:00Z: Phase 4 completed - Onboarding modal, empty states already existed, added skeleton loading, enhanced settings page.
 
 ## Results Summary
 [To be added on completion]

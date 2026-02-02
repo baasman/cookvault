@@ -61,7 +61,6 @@ class CookbooksApi {
         console.error('WARNING: API URL is undefined, defaulting to /api');
         this._baseUrl = '/api';
       }
-      console.debug('CookbooksApi baseUrl resolved to:', this._baseUrl);
     }
     return this._baseUrl;
   }
@@ -221,10 +220,7 @@ class CookbooksApi {
   async createCookbook(data: CreateCookbookData): Promise<Cookbook> {
     try {
       const url = `${this.baseUrl}/cookbooks`;
-      console.log('Creating cookbook with URL:', url);
-      console.log('Base URL is:', this.baseUrl);
-      console.log('Request data:', data);
-      
+
       const response = await apiFetch(url, {
         method: 'POST',
         headers: {

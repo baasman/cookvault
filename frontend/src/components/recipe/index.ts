@@ -4,3 +4,4 @@ export { AddToCollectionButton } from './AddToCollectionButton';
 export { CopyRecipeButton } from './CopyRecipeButton';
 export { AddToGroupModal } from './AddToGroupModal';
 export { AddToGroupButton } from './AddToGroupButton';
+export { RecipeCardSkeleton } from './RecipeCardSkeleton';

@@ -29,8 +29,6 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
       
       // Show success toast
       toast.success(data.message || 'Recipe added to collection!');
-      console.log('Recipe added to collection:', recipe.title);
-      
       onSuccess?.();
     },
     onError: (error) => {
@@ -49,8 +47,6 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
       
       // Show success toast
       toast.success(data.message || 'Recipe removed from collection');
-      console.log('Recipe removed from collection:', recipe.title);
-      
       onSuccess?.();
     },
     onError: (error) => {
@@ -68,13 +64,6 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
     e.stopPropagation();
     
     if (isProcessing) return;
-
-    console.log('AddToCollectionButton clicked:', {
-      recipeId: recipe.id,
-      recipeTitle: recipe.title,
-      isInCollection,
-      isProcessing
-    });
 
     if (isInCollection) {
       removeFromCollectionMutation.mutate();

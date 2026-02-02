@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -7,9 +7,26 @@ import { StatCard } from '../user/StatCard';
 import { QuickActions } from './QuickActions';
 import { RecentActivity } from './RecentActivity';
 import { AppStoreBanner } from '../homepage/AppStoreBanner';
+import OnboardingModal from '../onboarding/OnboardingModal';
+
+const ONBOARDING_KEY = 'cookle_has_seen_onboarding';
 
 const AuthenticatedDashboard: React.FC = () => {
   const { user } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Check if user has seen onboarding
+    const hasSeenOnboarding = localStorage.getItem(ONBOARDING_KEY);
+    if (!hasSeenOnboarding) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem(ONBOARDING_KEY, 'true');
+    setShowOnboarding(false);
+  };
 
   const {
     data: profileData,
@@ -72,6 +89,7 @@ const AuthenticatedDashboard: React.FC = () => {
 
   return (
     <>
+      {showOnboarding && <OnboardingModal onComplete={handleOnboardingComplete} />}
       <AppStoreBanner />
       <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Welcome Header */}

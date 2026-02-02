@@ -333,16 +333,13 @@ export const RecipeEditForm: React.FC<RecipeEditFormProps> = ({
             recipeId={recipe.id}
             instructionObjects={recipe.instructions}
             onInstructionUpdate={(updatedInstruction) => {
-              console.log('Instruction updated:', updatedInstruction);
               // Update the recipe's instruction objects when an image is added/removed
               const updatedRecipe = {
                 ...recipe,
-                instructions: recipe.instructions?.map(inst => 
+                instructions: recipe.instructions?.map(inst =>
                   inst.id === updatedInstruction.id ? updatedInstruction : inst
                 ) || []
               };
-              console.log('Updated recipe:', updatedRecipe);
-              
               // Use onRecipeUpdate to update data without triggering navigation
               if (onRecipeUpdate) {
                 onRecipeUpdate(updatedRecipe);

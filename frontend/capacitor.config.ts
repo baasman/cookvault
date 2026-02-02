@@ -24,8 +24,9 @@ const config: CapacitorConfig = {
     },
 
     Keyboard: {
-      resize: 'body',
+      resize: 'native',
       resizeOnFullScreen: true,
+      scrollPadding: 100,
     },
 
     StatusBar: {

@@ -110,24 +110,13 @@ export function getTextExcerpt(text: string, maxLength: number = 500): string {
 
   const cleanText = decodeHtmlEntities(text);
 
-  // DEBUG: Log input and parameters
-  console.log('getTextExcerpt DEBUG:', {
-    originalLength: text.length,
-    cleanLength: cleanText.length,
-    maxLength,
-    originalStart: text.substring(0, 50) + '...',
-    cleanStart: cleanText.substring(0, 50) + '...'
-  });
-
-  // For excerpts, show more text - be much less conservative
   if (cleanText.length <= maxLength) {
-    console.log('getTextExcerpt DEBUG: Returning full text (no truncation needed)');
     return cleanText;
   }
 
   const truncated = cleanText.substring(0, maxLength);
 
-  // Try to find the last sentence boundary but be much less picky
+  // Try to find the last sentence boundary
   const lastPeriod = truncated.lastIndexOf('.');
   const lastExclamation = truncated.lastIndexOf('!');
   const lastQuestion = truncated.lastIndexOf('?');
@@ -135,21 +124,15 @@ export function getTextExcerpt(text: string, maxLength: number = 500): string {
   const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion);
 
   if (lastSentenceEnd > maxLength * 0.3) {
-    // Much more aggressive - if we find ANY sentence boundary in the last 70% of text, use it
-    const result = truncated.substring(0, lastSentenceEnd + 1);
-    console.log('getTextExcerpt DEBUG: Cut at sentence boundary, result length:', result.length);
-    return result;
+    // If we find a sentence boundary in the last 70% of text, use it
+    return truncated.substring(0, lastSentenceEnd + 1);
   } else {
-    // Otherwise, just cut at word boundary near the end
+    // Otherwise, cut at word boundary near the end
     const lastSpaceIndex = truncated.lastIndexOf(' ');
     if (lastSpaceIndex > maxLength * 0.8) {
-      const result = truncated.substring(0, lastSpaceIndex) + '...';
-      console.log('getTextExcerpt DEBUG: Cut at word boundary, result length:', result.length);
-      return result;
+      return truncated.substring(0, lastSpaceIndex) + '...';
     } else {
-      const result = truncated + '...';
-      console.log('getTextExcerpt DEBUG: Cut at max length, result length:', result.length);
-      return result;
+      return truncated + '...';
     }
   }
 }

@@ -11,6 +11,11 @@
     border-color: #e8d7cf;
   }
   
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', sans-serif;
     background-color: #fcf9f8;

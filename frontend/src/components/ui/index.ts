@@ -8,3 +8,4 @@ export { CopyrightConsentModal } from './CopyrightConsentModal';
 export { AuthenticatedImage } from './AuthenticatedImage';
 export { CloudinaryImage } from './CloudinaryImage';
 export { IngredientChipInput } from './IngredientChipInput';
+export { Skeleton } from './Skeleton';

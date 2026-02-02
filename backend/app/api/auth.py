@@ -13,10 +13,6 @@ from app.services.sms_service import get_sms_service
 
 from app import db
 from app.api import bp
-
-# Log that this module is being loaded
-print(f"Loading auth.py - Blueprint: {bp}")
-print("Auth blueprint loaded")
 from app.models import User, UserSession, UserRole, UserStatus, Recipe, Cookbook
 from sqlalchemy import func
 

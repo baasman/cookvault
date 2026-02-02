@@ -6,13 +6,11 @@ import { Capacitor } from '@capacitor/core';
 export function getApiUrl(): string {
   // In Capacitor native app, always use production API
   if (Capacitor.isNativePlatform()) {
-    console.debug('Native platform detected, using production API');
     return 'https://cookvault-exaq.onrender.com/api';
   }
 
   // First check if VITE_API_URL is explicitly set
   if (import.meta.env.VITE_API_URL) {
-    console.debug('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
 
@@ -36,11 +34,9 @@ export function getApiUrl(): string {
       return `https://${backendHost}/api`;
     }
     // If we're in production but don't match any known patterns, still return /api
-    console.warn('Production mode but no matching URL pattern, defaulting to /api');
     return '/api';
   }
 
   // Default to relative URL for development or unknown environments
-  console.debug('Development mode or unknown environment, using /api');
   return '/api';
 }

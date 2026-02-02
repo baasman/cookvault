@@ -14,7 +14,7 @@ const Layout: React.FC<LayoutProps> = ({ children, className = '' }) => {
   const { isActive, progress } = useSwipeBack();
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#fcf9f8' }}>
+    <div className="min-h-screen flex flex-col overflow-x-hidden" style={{ backgroundColor: '#fcf9f8' }}>
       {/* Swipe back indicator */}
       {isActive && (
         <div
@@ -61,7 +61,7 @@ const Layout: React.FC<LayoutProps> = ({ children, className = '' }) => {
       <BetaBanner />
       <OfflineBanner />
       <Header />
-      <main className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 ${className}`}>
+      <main className={`max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 overflow-x-hidden ${className}`}>
         {children}
       </main>
       <Footer />

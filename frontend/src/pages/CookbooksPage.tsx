@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SearchBar, Button } from '../components/ui';
-import { CookbookCard } from '../components/cookbook';
+import { CookbookCard, CookbookCardSkeleton } from '../components/cookbook';
 import { cookbooksApi } from '../services/cookbooksApi';
 import { useAuth } from '../contexts/AuthContext';
 import type { Cookbook } from '../types';
@@ -174,13 +174,12 @@ const CookbooksPage: React.FC = () => {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading State - Show skeletons */}
       {isLoading && (
-        <div className="flex justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{borderColor: '#f15f1c'}}></div>
-            <p style={{color: '#9b644b'}}>Loading your cookbooks...</p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <CookbookCardSkeleton key={i} />
+          ))}
         </div>
       )}
 

@@ -20,13 +20,6 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
   // Get the first image from the recipe
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
 
-  // Debug logging
-  console.log('RecipeImageDisplay Debug:', {
-    canEdit,
-    hasImages: !!primaryImage,
-    recipeId: recipe.id
-  });
-
   const uploadMutation = useMutation({
     mutationFn: (file: File) => recipesApi.uploadRecipeImage(recipe.id, file),
     onSuccess: () => {

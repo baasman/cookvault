@@ -22,9 +22,7 @@ export const MultiProcessingProgress: React.FC<MultiProcessingProgressProps> = (
 
     const pollMultiJobStatus = async () => {
       try {
-        console.log('Polling multi-job status for job ID:', multiJobId);
         const jobStatus = await recipesApi.getMultiJobStatus(multiJobId);
-        console.log('Multi-job status response:', jobStatus);
         setStatus(jobStatus);
 
         // Update status text based on job state

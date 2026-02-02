@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SearchBar, Button, Modal, IngredientChipInput } from '../components/ui';
-import { RecipeCard } from '../components/recipe';
+import { RecipeCard, RecipeCardSkeleton } from '../components/recipe';
 import { RecipeGroupCard } from '../components/recipe/RecipeGroupCard';
 import { recipesApi } from '../services/recipesApi';
 import { recipeGroupsApi } from '../services/recipeGroupsApi';
@@ -207,7 +207,7 @@ const RecipesPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full overflow-hidden">
       {/* Page Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{color: '#1c120d'}}>
@@ -219,8 +219,8 @@ const RecipesPage: React.FC = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex justify-center mb-6">
-        <div className="flex bg-background-secondary rounded-lg p-1">
+      <div className="flex justify-center mb-6 overflow-x-auto px-4 -mx-4">
+        <div className="flex bg-background-secondary rounded-lg p-1 min-w-min">
           {(isAuthenticated ? [
             { key: 'discover', label: 'Discover' },
             { key: 'collection', label: 'My Collection' },
@@ -232,7 +232,7 @@ const RecipesPage: React.FC = () => {
             <button
               key={key}
               onClick={() => handleFilterChange(key as RecipeFilter)}
-              className={`px-6 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`px-4 sm:px-6 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
                 activeFilter === key
                   ? 'bg-white text-text-primary shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
@@ -326,13 +326,12 @@ const RecipesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading State - Show skeletons */}
       {(isLoading || isLoadingGroups) && (
-        <div className="flex justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{borderColor: '#f15f1c'}}></div>
-            <p style={{color: '#9b644b'}}>Loading your {activeFilter === 'groups' ? 'recipe groups' : 'recipes'}...</p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <RecipeCardSkeleton key={i} />
+          ))}
         </div>
       )}
 

@@ -38,13 +38,11 @@ export const InstructionImageUpload: React.FC<InstructionImageUploadProps> = ({
     setIsUploading(true);
 
     try {
-      console.log('Uploading image for instruction:', instruction.id);
       const updatedInstruction = await recipesApi.uploadInstructionImage(
-        recipeId, 
-        instruction.id, 
+        recipeId,
+        instruction.id,
         file
       );
-      console.log('Upload successful, updated instruction:', updatedInstruction);
       onImageUpdate(updatedInstruction);
       toast.success('Step image uploaded successfully!');
     } catch (error) {
@@ -59,12 +57,10 @@ export const InstructionImageUpload: React.FC<InstructionImageUploadProps> = ({
     setIsUploading(true);
 
     try {
-      console.log('Removing image for instruction:', instruction.id);
       const updatedInstruction = await recipesApi.removeInstructionImage(
-        recipeId, 
+        recipeId,
         instruction.id
       );
-      console.log('Remove successful, updated instruction:', updatedInstruction);
       onImageUpdate(updatedInstruction);
       toast.success('Step image removed successfully!');
     } catch (error) {

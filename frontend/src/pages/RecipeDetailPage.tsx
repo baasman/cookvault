@@ -74,26 +74,6 @@ const RecipeDetailPage: React.FC = () => {
     recipe.user_id === parseInt(user.id)
   );
 
-  // Debug logging for button visibility issues
-  if (recipe && user) {
-    console.log('RecipeDetailPage Debug:', {
-      recipeId: recipe.id,
-      recipeTitle: recipe.title,
-      recipeUserId: recipe.user_id,
-      recipeUserIdType: typeof recipe.user_id,
-      currentUserId: user.id,
-      currentUserIdType: typeof user.id,
-      parsedUserId: parseInt(user.id),
-      canEdit,
-      isOwnRecipe,
-      userRole: user.role,
-      isAdmin: user.role === 'admin',
-      isInCollection: recipe.is_in_collection,
-      hasIsInCollection: 'is_in_collection' in recipe,
-      isPublic: recipe.is_public,
-      isEditing
-    });
-  }
 
   const handleSaveEdit = (updatedRecipe: Recipe) => {
     // Update the query cache with the new recipe data

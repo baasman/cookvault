@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
-import { hideKeyboard } from './hooks/useKeyboard';
+import { hideKeyboard, useKeyboardScrollFix } from './hooks/useKeyboard';
 import { isNativePlatform } from './utils/platform';
 import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
@@ -40,6 +40,9 @@ const handleTapOutside = (e: React.MouseEvent) => {
 };
 
 function App() {
+  // Enable keyboard scroll fix for iOS
+  useKeyboardScrollFix();
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

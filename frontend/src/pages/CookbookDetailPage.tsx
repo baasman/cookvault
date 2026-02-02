@@ -309,10 +309,11 @@ const CookbookDetailPage: React.FC = () => {
               </div>
             )}
 
-            {/* Export and Print Buttons - only show for purchasers or admins (non-owners) */}
-            {isAuthenticated && recipes.length > 0 && cookbook.user_id !== parseInt(user?.id || '0') && (
-              cookbook.has_purchased || user?.role === 'admin'
-            ) && (
+            {/* Export and Print Buttons - only show for purchasers or admins (non-owners, non-Google Books) */}
+            {isAuthenticated && recipes.length > 0 &&
+              !cookbook.is_google_books &&
+              cookbook.user_id !== parseInt(user?.id || '0') &&
+              (cookbook.has_purchased || user?.role === 'admin') && (
               <div className="flex flex-col sm:flex-row justify-center items-stretch sm:items-center gap-3 mb-6">
                 <ExportButton
                   type="cookbook"
@@ -321,16 +322,13 @@ const CookbookDetailPage: React.FC = () => {
                   showOptions={true}
                   className="w-full sm:w-auto"
                 />
-                {/* Only show print button for user-owned cookbooks, not Google Books */}
-                {!cookbook.is_google_books && (
-                  <PrintOrderButton
-                    cookbookId={cookbookId!}
-                    cookbookTitle={cookbook.title}
-                    buttonText="Order Print Copy"
-                    variant="primary"
-                    className="w-full sm:w-auto"
-                  />
-                )}
+                <PrintOrderButton
+                  cookbookId={cookbookId!}
+                  cookbookTitle={cookbook.title}
+                  buttonText="Order Print Copy"
+                  variant="primary"
+                  className="w-full sm:w-auto"
+                />
               </div>
             )}
           </div>

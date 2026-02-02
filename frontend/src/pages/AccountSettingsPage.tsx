@@ -265,6 +265,52 @@ const AccountSettingsPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Notifications Section */}
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold mb-4" style={{ color: '#1c120d' }}>
+          Notifications
+        </h2>
+        <div
+          className="bg-white rounded-lg border p-6"
+          style={{ borderColor: '#e8d7cf' }}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-gray-900">Email Notifications</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Receive updates about your account, new features, and tips.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+              </label>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+              <div>
+                <h3 className="font-medium text-gray-900">Recipe Tips</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Get occasional cooking tips and recipe suggestions.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Data & Privacy Section */}
       <section className="mb-8">
         <h2 className="text-xl font-semibold mb-4" style={{ color: '#1c120d' }}>
@@ -334,6 +380,61 @@ const AccountSettingsPage: React.FC = () => {
           </div>
         </section>
       )}
+
+      {/* About Section */}
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold mb-4" style={{ color: '#1c120d' }}>
+          About
+        </h2>
+        <div
+          className="bg-white rounded-lg border p-6"
+          style={{ borderColor: '#e8d7cf' }}
+        >
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium text-gray-900">Cookle</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Version 1.0.0
+              </p>
+            </div>
+            <div className="pt-4 border-t border-gray-200">
+              <h3 className="font-medium text-gray-900">Support</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Have questions or feedback? We'd love to hear from you.
+              </p>
+              <a
+                href="mailto:boudeyz@gmail.com"
+                className="inline-block mt-2 text-sm text-amber-600 hover:text-amber-700"
+              >
+                Contact Support
+              </a>
+            </div>
+            <div className="pt-4 border-t border-gray-200">
+              <h3 className="font-medium text-gray-900">Legal</h3>
+              <div className="flex flex-wrap gap-4 mt-2">
+                <Link
+                  to="/terms-of-service"
+                  className="text-sm text-amber-600 hover:text-amber-700"
+                >
+                  Terms of Service
+                </Link>
+                <Link
+                  to="/privacy-policy"
+                  className="text-sm text-amber-600 hover:text-amber-700"
+                >
+                  Privacy Policy
+                </Link>
+                <Link
+                  to="/copyright-policy"
+                  className="text-sm text-amber-600 hover:text-amber-700"
+                >
+                  Copyright Policy
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Delete Confirmation Modal */}
       <Modal

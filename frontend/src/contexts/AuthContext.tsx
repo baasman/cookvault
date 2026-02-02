@@ -186,12 +186,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (userData: RegisterData): Promise<RegisterResponse> => {
     setIsLoading(true);
     try {
-      console.log('Attempting registration with data:', { ...userData, password: '[REDACTED]' });
-
       const apiUrl = getApiUrl();
       const fullUrl = `${apiUrl}/auth/register`;
-      console.log('Using API base URL:', apiUrl);
-      console.log('Full registration URL:', fullUrl);
 
       const response = await apiFetch(fullUrl, {
         method: 'POST',
@@ -201,21 +197,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         body: JSON.stringify(userData),
       });
 
-      console.log('Registration response status:', response.status);
-      console.log('Registration response headers:', Object.fromEntries(response.headers.entries()));
-
       // Check if response has content before trying to parse JSON
       const contentType = response.headers.get('content-type');
-      console.log('Response content-type:', contentType);
 
       if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.log('Non-JSON response:', text);
         throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
       }
 
       const data: RegisterResponse = await response.json();
-      console.log('Registration response data:', { ...data, access_token: data.access_token ? '[PRESENT]' : '[ABSENT]' });
 
       if (!response.ok) {
         // Backend returns errors in 'error' field, not 'message'
@@ -224,7 +213,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Check if verification is required
       if (data.requires_verification) {
-        console.log('Verification required - user not logged in yet');
         // Don't set user or token - user needs to verify first
         return data;
       }

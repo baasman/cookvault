@@ -15,17 +15,7 @@ const loadingImages = new Set<string>();
  */
 export function getImageUrl(filename: string): string {
   const apiUrl = getApiUrl();
-  const imageUrl = `${apiUrl}/images/${filename}`;
-  
-  // Only log in development or if there's an issue
-  if (import.meta.env.DEV) {
-    console.log('Image URL Debug:', {
-      filename,
-      imageUrl
-    });
-  }
-  
-  return imageUrl;
+  return `${apiUrl}/images/${filename}`;
 }
 
 /**
