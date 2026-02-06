@@ -46,66 +46,14 @@ run_uv() {
 # Run database migrations
 echo "Running database migrations..."
 
-# Check if this is a fresh database or if migrations need to be synced
-echo "Checking migration state..."
-
-# First, check if alembic version table exists and has any records
-MIGRATION_STATE_CHECK=$(run_uv run python -c "
-from app import create_app, db
-from sqlalchemy import text
-import sys
-
-app = create_app()
-with app.app_context():
-    try:
-        # Check if alembic_version table exists and has records
-        result = db.session.execute(text('SELECT version_num FROM alembic_version LIMIT 1')).fetchone()
-        if result:
-            print('HAS_MIGRATION_STATE')
-        else:
-            print('NO_MIGRATION_STATE')
-    except Exception as e:
-        # Table doesn't exist or other error
-        print('NO_MIGRATION_STATE')
-        sys.exit(0)
-" 2>/dev/null)
-
-echo "Migration state check result: $MIGRATION_STATE_CHECK"
-
-if [ "$MIGRATION_STATE_CHECK" = "HAS_MIGRATION_STATE" ]; then
-    echo "Migration state found, running upgrade..."
-    run_uv run flask db upgrade
-else
-    echo "No migration state found. Checking if database has existing tables..."
-
-    # Check if ingredient table exists (one of our core tables)
-    TABLE_EXISTS_CHECK=$(run_uv run python -c "
-from app import create_app, db
-from sqlalchemy import text
-import sys
-
-app = create_app()
-with app.app_context():
-    try:
-        # Check if ingredient table exists
-        result = db.session.execute(text('SELECT 1 FROM ingredient LIMIT 1')).fetchone()
-        print('TABLES_EXIST')
-    except Exception as e:
-        print('TABLES_DO_NOT_EXIST')
-        sys.exit(0)
-" 2>/dev/null)
-
-    echo "Table existence check result: $TABLE_EXISTS_CHECK"
-
-    if [ "$TABLE_EXISTS_CHECK" = "TABLES_EXIST" ]; then
-        echo "Database has existing tables. Marking current migration as applied without running it..."
-        run_uv run flask db stamp head
-        echo "Migration state synchronized."
-    else
-        echo "Fresh database detected. Running initial migration..."
-        run_uv run flask db upgrade
-    fi
-fi
+# Simply run flask db upgrade - it's idempotent and handles all cases:
+# - Fresh database: runs all migrations
+# - Existing database with migrations: runs any pending migrations
+# - Up-to-date database: does nothing
+# This avoids the expensive Flask app initialization that was happening
+# in the migration state check (which added 10-20 seconds to startup)
+run_uv run flask db upgrade
+echo "Migrations complete."
 
 # Create logs directory
 mkdir -p logs
