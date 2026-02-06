@@ -253,6 +253,28 @@ class RecipesApi {
     }
   }
 
+  async uploadPrimaryRecipeImage(recipeId: number, imageFile: File): Promise<{message: string; image: any; recipe: Recipe}> {
+    try {
+      const formData = new FormData();
+      formData.append('image', imageFile);
+
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/images/primary`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading primary recipe image:', error);
+      throw error;
+    }
+  }
+
   async updateRecipe(recipeId: number, params: UpdateRecipeParams): Promise<Recipe> {
     try {
       const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}`, {

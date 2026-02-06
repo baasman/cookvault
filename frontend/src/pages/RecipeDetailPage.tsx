@@ -356,8 +356,9 @@ const RecipeDetailPage: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-8">
               {/* Recipe Images */}
               <div className="w-full lg:w-1/3 mb-6 lg:mb-0">
-                <RecipeImageCarousel 
+                <RecipeImageCarousel
                   recipe={recipe}
+                  canEdit={canEdit}
                 />
               </div>
 

@@ -1,5 +1,6 @@
 import os
 import re
+import traceback
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -1220,6 +1221,88 @@ def upload_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
             f"Image upload failed for recipe {recipe_id}: {str(e)}"
         )
         return jsonify({"error": "Image upload failed"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/images/primary", methods=["POST"])
+@require_auth
+def upload_primary_recipe_image(current_user, recipe_id: int) -> Tuple[Response, int]:
+    """Upload a primary image (food photo) for an existing recipe.
+
+    This shifts all existing images' image_order up by 1 and
+    saves the new image with image_order=0, making it the primary display image.
+    """
+    # Verify recipe exists and user has permission
+    if should_apply_user_filter(current_user):
+        recipe = Recipe.query.filter_by(id=recipe_id, user_id=current_user.id).first()
+    else:
+        recipe = Recipe.query.get(recipe_id)
+
+    if not recipe:
+        return jsonify({"error": "Recipe not found or access denied"}), 404
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files["image"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({"error": "File type not allowed"}), 400
+
+    try:
+        # Log current image orders before modification
+        existing_images = RecipeImage.query.filter_by(recipe_id=recipe.id).all()
+        current_app.logger.info(
+            f"Recipe {recipe_id} existing images before shift: {[(img.id, img.image_order) for img in existing_images]}"
+        )
+
+        # Shift all existing images' order up by 1
+        for img in existing_images:
+            img.image_order = (img.image_order or 0) + 1
+
+        # Flush to persist the order changes before adding new image
+        db.session.flush()
+
+        # Process and save the new image with image_order=0 (primary)
+        recipe_image = process_and_save_image(file, file.filename, folder="recipes")
+        recipe_image.recipe_id = recipe.id
+        recipe_image.image_order = 0
+
+        db.session.add(recipe_image)
+        db.session.commit()
+
+        # Expire the images relationship to force reload with correct ordering
+        db.session.expire(recipe, ['images'])
+
+        # Log the final image orders
+        current_app.logger.info(
+            f"Recipe {recipe_id} images after upload: {[(img.id, img.image_order) for img in recipe.images]}"
+        )
+
+        current_app.logger.info(
+            f"Primary image uploaded for recipe {recipe_id} by user {current_user.id}"
+        )
+
+        # Return the recipe with updated images
+        is_admin = current_user.role.value == "admin" if current_user.role else False
+        return (
+            jsonify(
+                {
+                    "message": "Primary image uploaded successfully",
+                    "image": recipe_image.to_dict(),
+                    "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin),
+                }
+            ),
+            201,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Primary image upload failed for recipe {recipe_id}: {str(e)}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Primary image upload failed"}), 500
 
 
 @bp.route("/jobs/<int:job_id>", methods=["GET"])

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CloudinaryImage } from '../ui/CloudinaryImage';
+import { AddFoodPhotoButton } from './AddFoodPhotoButton';
 import type { Recipe } from '../../types';
 
 interface RecipeImageCarouselProps {
   recipe: Recipe;
   className?: string;
+  canEdit?: boolean;
 }
 
-const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, className = '' }) => {
+const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, className = '', canEdit = false }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -15,8 +17,9 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
   const carouselRef = useRef<HTMLDivElement>(null);
 
   // Sort images by image_order, fallback to id if order is not set
-  const sortedImages = recipe.images 
-    ? [...recipe.images].sort((a, b) => (a.image_order || a.id) - (b.image_order || b.id))
+  // Use nullish coalescing (??) instead of || to handle image_order=0 correctly
+  const sortedImages = recipe.images
+    ? [...recipe.images].sort((a, b) => (a.image_order ?? a.id) - (b.image_order ?? b.id))
     : [];
 
   const hasMultipleImages = sortedImages.length > 1;
@@ -215,8 +218,8 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
                 key={image.id}
                 onClick={() => goToIndex(index)}
                 className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 ${
-                  index === currentIndex 
-                    ? 'border-accent shadow-md ring-2 ring-accent ring-offset-1' 
+                  index === currentIndex
+                    ? 'border-accent shadow-md ring-2 ring-accent ring-offset-1'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
                 role="tab"
@@ -236,6 +239,11 @@ const RecipeImageCarousel: React.FC<RecipeImageCarouselProps> = ({ recipe, class
               </button>
             ))}
           </div>
+        )}
+
+        {/* Add Food Photo button for recipe owners */}
+        {canEdit && (
+          <AddFoodPhotoButton recipe={recipe} />
         )}
       </div>
 
