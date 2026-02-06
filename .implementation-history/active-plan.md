@@ -120,6 +120,7 @@ Comprehensive roadmap to prepare Cookle (cookbook/recipe app) for iOS App Store 
 - 2026-02-01T18:30:00Z: Skipped Phase 3.1 (Deep Linking) - user doesn't have App Store account yet; will add later.
 - 2026-02-01T18:30:00Z: Phase 3.2-3.3 already complete (Info.plist, App Icons).
 - 2026-02-01T18:30:00Z: Phase 4 completed - Onboarding modal, empty states already existed, added skeleton loading, enhanced settings page.
+- 2026-02-04T00:00:00Z: Phase 5.1 completed - Guarded all debug/test endpoints (auth/test, auth/debug, auth/cookie-test, auth/jwt-debug, auth/env-check, auth/secret-key-test, print-webhooks/test) to only work in development mode. Frontend logging already properly guarded.
 
 ## Results Summary
 [To be added on completion]

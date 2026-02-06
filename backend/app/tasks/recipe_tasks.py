@@ -7,15 +7,14 @@ asynchronous, queued execution for better memory management.
 import logging
 import traceback
 
-from celery import shared_task
-
 from app import db
+from app.celery_app import celery
 from app.models.recipe import ProcessingJob, ProcessingStatus, MultiRecipeJob
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+@celery.task(bind=True, max_retries=2, default_retry_delay=30)
 def process_single_recipe_task(self, job_id: int, user_id: int = None):
     """
     Celery task to process a single recipe image.
@@ -67,7 +66,7 @@ def process_single_recipe_task(self, job_id: int, user_id: int = None):
         raise self.retry(exc=e)
 
 
-@shared_task(bind=True, max_retries=1, default_retry_delay=60)
+@celery.task(bind=True, max_retries=1, default_retry_delay=60)
 def process_multi_recipe_task(self, multi_job_id: int):
     """
     Celery task to process multiple images for a single recipe.

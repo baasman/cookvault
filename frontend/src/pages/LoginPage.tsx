@@ -73,7 +73,7 @@ const LoginPage: React.FC = () => {
             />
             <div className="mt-1 text-right">
               <Link to="/forgot-password" className="text-sm font-medium hover:underline" style={{color: '#f15f1c'}}>
-                Forgot your password?
+                Forgot username or password?
               </Link>
             </div>
           </div>

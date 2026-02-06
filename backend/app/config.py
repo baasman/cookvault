@@ -111,8 +111,8 @@ class Config:
         app.config['OCR_ENABLE_LLM_FALLBACK'] = os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"
         app.config['OCR_QUALITY_CACHE_TTL'] = int(os.environ.get("OCR_QUALITY_CACHE_TTL", 3600))
 
-        # Email verification settings (SendGrid)
-        app.config['SENDGRID_API_KEY'] = os.environ.get("SENDGRID_API_KEY")
+        # Email settings (Resend)
+        app.config['RESEND_API_KEY'] = os.environ.get("RESEND_API_KEY")
         app.config['EMAIL_FROM_ADDRESS'] = os.environ.get("EMAIL_FROM_ADDRESS", "noreply@cookbook-creator.com")
         app.config['EMAIL_FROM_NAME'] = os.environ.get("EMAIL_FROM_NAME", "Cookbook Creator")
         app.config['FRONTEND_URL'] = os.environ.get("FRONTEND_URL", "http://localhost:5173")

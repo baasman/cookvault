@@ -322,7 +322,9 @@ def handle_lulu_validation_webhook():
 
 @bp.route('/test', methods=['POST', 'GET'])
 def test_webhook():
-    """Test endpoint for webhook development and debugging."""
+    """Test endpoint for webhook development and debugging. Development only."""
+    if not current_app.debug:
+        return jsonify({'error': 'Not found'}), 404
     if request.method == 'GET':
         return jsonify({
             'status': 'ok',

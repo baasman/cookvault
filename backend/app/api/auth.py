@@ -174,7 +174,9 @@ def create_user_session(user: User, request) -> UserSession:
 
 @bp.route("/auth/test", methods=["GET", "POST"])
 def test_auth() -> Response:
-    """Simple test endpoint."""
+    """Simple test endpoint. Development only."""
+    if not current_app.debug:
+        return jsonify({"error": "Not found"}), 404
     current_app.logger.info(f"Test endpoint called with method {request.method}")
     return jsonify(
         {
@@ -188,7 +190,9 @@ def test_auth() -> Response:
 
 @bp.route("/auth/debug", methods=["GET"])
 def debug_auth() -> Response:
-    """Debug endpoint to test API connectivity and session state."""
+    """Debug endpoint to test API connectivity and session state. Development only."""
+    if not current_app.debug:
+        return jsonify({"error": "Not found"}), 404
     current_app.logger.info("Debug endpoint called")
 
     # Get session info
@@ -832,7 +836,9 @@ def get_auth_status() -> Response:
 
 @bp.route("/auth/cookie-test", methods=["GET", "POST"])
 def cookie_test() -> Response:
-    """Test cookie setting and retrieval for debugging session issues."""
+    """Test cookie setting and retrieval for debugging session issues. Development only."""
+    if not current_app.debug:
+        return jsonify({"error": "Not found"}), 404
     if request.method == "POST":
         # Set test values in session
         session["test_value"] = "cookie_test_123"
@@ -902,10 +908,12 @@ def cookie_test() -> Response:
 
 @bp.route("/auth/jwt-debug", methods=["GET"])
 def jwt_debug() -> Response:
-    """Debug JWT authentication flow."""
+    """Debug JWT authentication flow. Development only."""
+    if not current_app.debug:
+        return jsonify({"error": "Not found"}), 404
     from flask import request
     from app.utils.jwt_utils import extract_jwt_from_request, JWTTokenManager
-    
+
     debug_info = {
         "request_headers": dict(request.headers),
         "authorization_header": request.headers.get('Authorization'),
@@ -958,7 +966,9 @@ def jwt_debug() -> Response:
 
 @bp.route("/auth/env-check", methods=["GET"])
 def env_check() -> Response:
-    """Check environment variables and runtime configuration for debugging."""
+    """Check environment variables and runtime configuration for debugging. Development only."""
+    if not current_app.debug:
+        return jsonify({"error": "Not found"}), 404
     import os
 
     env_vars = {
@@ -1008,7 +1018,9 @@ def env_check() -> Response:
 
 @bp.route("/auth/secret-key-test", methods=["GET", "POST"])
 def secret_key_test() -> Response:
-    """Test SECRET_KEY consistency by manually validating session signatures."""
+    """Test SECRET_KEY consistency by manually validating session signatures. Development only."""
+    if not current_app.debug:
+        return jsonify({"error": "Not found"}), 404
     if request.method == "POST":
         # Set a test session value and return details for signature analysis
         session["secret_test"] = "test_signature_consistency"
