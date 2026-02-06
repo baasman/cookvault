@@ -8,7 +8,8 @@ import { Button, SearchBar, CloudinaryImage } from '../components/ui';
 import { CookbookImageDisplay } from '../components/cookbook/CookbookImageDisplay';
 import { LinkRecipeModal } from '../components/cookbook';
 import { ExportButton } from '../components/export';
-import { PrintOrderButton } from '../components/print';
+// PrintOrderButton import removed - print ordering coming soon
+// import { PrintOrderButton } from '../components/print';
 import { formatTextForDisplay, decodeHtmlEntities } from '../utils/textUtils';
 import type { Recipe } from '../types';
 
@@ -294,15 +295,18 @@ const CookbookDetailPage: React.FC = () => {
                       showOptions={true}
                       className="w-full sm:w-auto"
                     />
-                    {/* Only show print button for user-owned cookbooks, not Google Books */}
+                    {/* Print ordering coming soon */}
                     {!cookbook.is_google_books && (
-                      <PrintOrderButton
-                        cookbookId={cookbookId!}
-                        cookbookTitle={cookbook.title}
-                        buttonText="Order Print Copy"
-                        variant="primary"
-                        className="w-full sm:w-auto"
-                      />
+                      <button
+                        disabled
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed"
+                        title="Print ordering coming soon!"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print Copy (Coming Soon)
+                      </button>
                     )}
                   </>
                 )}
@@ -322,13 +326,16 @@ const CookbookDetailPage: React.FC = () => {
                   showOptions={true}
                   className="w-full sm:w-auto"
                 />
-                <PrintOrderButton
-                  cookbookId={cookbookId!}
-                  cookbookTitle={cookbook.title}
-                  buttonText="Order Print Copy"
-                  variant="primary"
-                  className="w-full sm:w-auto"
-                />
+                <button
+                  disabled
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed"
+                  title="Print ordering coming soon!"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print Copy (Coming Soon)
+                </button>
               </div>
             )}
           </div>
