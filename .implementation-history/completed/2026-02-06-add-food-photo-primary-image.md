@@ -1,7 +1,7 @@
 # Add Food Photo as Primary Image Feature
 
 **Task ID:** 2026-02-06-1430
-**Status:** In Progress
+**Status:** Completed
 
 ## Original Plan
 
@@ -101,13 +101,34 @@ async uploadPrimaryRecipeImage(recipeId: number, imageFile: File): Promise<{mess
 
 ## Timeline
 - Started: 2026-02-06T14:30:00Z
-- Completed:
+- Completed: 2026-02-08T00:00:00Z
 
 ## Deviations
 - 2026-02-06T14:35:00Z: Added `traceback` import to recipes.py for better error logging with full stack traces (not explicitly in plan but follows CLAUDE.md requirement for exception logging)
 - 2026-02-06T14:45:00Z: Changed button styling from `bg-accent` class to inline style `backgroundColor: '#f15f1c'` to match project's Button component pattern - the accent class wasn't rendering correctly
 - 2026-02-06T14:50:00Z: Added `db.session.flush()` after shifting existing image orders and `db.session.expire(recipe, ['images'])` after commit to ensure proper ordering when returning updated recipe data
 - 2026-02-06T17:10:00Z: Fixed JavaScript falsy bug in RecipeImageCarousel sorting - changed `||` to `??` (nullish coalescing) so `image_order=0` is handled correctly instead of falling back to `id`
+- 2026-02-06T22:55:00Z: Fixed unrelated migration issue blocking deployment - made `_alembic_tmp_recipe` drop conditional in migration 22db193b35d3
+- 2026-02-06T23:15:00Z: Optimized startup script to reduce deployment time - removed expensive migration state check that was creating Flask app twice (added 10-20 seconds). The `flask db upgrade` command is idempotent and handles all cases.
 
 ## Results Summary
-[To be added on completion]
+Successfully implemented the "Add Food Photo as Primary Image" feature.
+
+**Files Created:**
+- `frontend/src/components/recipe/AddFoodPhotoButton.tsx` - New component with camera/file picker support
+
+**Files Modified:**
+- `backend/app/api/recipes.py` - Added POST `/recipes/:id/images/primary` endpoint
+- `frontend/src/services/recipesApi.ts` - Added `uploadPrimaryRecipeImage()` method
+- `frontend/src/components/recipe/RecipeImageCarousel.tsx` - Integrated button, fixed image sorting
+- `frontend/src/pages/RecipeDetailPage.tsx` - Passed `canEdit` prop to carousel
+- `backend/migrations/versions/22db193b35d3_*.py` - Fixed conditional table drop
+- `backend/start.sh` - Optimized startup time by simplifying migration checks
+
+**Key Fixes:**
+- Fixed button visibility (white-on-white) by using inline styles instead of Tailwind class
+- Fixed image ordering bug where `image_order=0` was treated as falsy (used `??` instead of `||`)
+- Fixed migration issue blocking deployment
+- Optimized startup script to reduce deployment time by 10-20 seconds
+
+**Note:** Render deployments were failing due to health check timeout (unrelated to this feature). The app takes ~40 seconds to start, which exceeds Render's default timeout. Recommend configuring `/api/health` as the health check path in Render dashboard.
