@@ -1683,7 +1683,8 @@ def _create_recipe_from_parsed_data(
     user_id = upload_user_id  # Default to the user who uploaded the image
     if job.cookbook_id:
         cookbook = Cookbook.query.get(job.cookbook_id)
-        if cookbook:
+        # Only use cookbook.user_id if it's not None (i.e., not a global cookbook)
+        if cookbook and cookbook.user_id is not None:
             user_id = cookbook.user_id
 
     # Generate robust title with smart fallbacks
