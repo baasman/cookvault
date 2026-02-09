@@ -1683,6 +1683,18 @@ def _create_recipe_from_parsed_data(
     # Generate robust title with smart fallbacks
     title = _generate_recipe_title(parsed_recipe, extracted_text, job)
 
+    # Extract translation metadata
+    is_translated = parsed_recipe.get("is_translated", False)
+    source_language = parsed_recipe.get("source_language")
+    source_language_name = parsed_recipe.get("source_language_name")
+    original_title = parsed_recipe.get("original_title") if is_translated else None
+    original_description = parsed_recipe.get("original_description") if is_translated else None
+
+    # Update job with detected language
+    if source_language:
+        job.detected_language = source_language
+        job.detected_language_name = source_language_name
+
     # Create base recipe
     recipe = Recipe(
         title=title,
@@ -1696,13 +1708,20 @@ def _create_recipe_from_parsed_data(
         uploaded_by_id=uploaded_by_id,  # Track the actual uploader
         is_public=False,  # New recipes are private by default
         is_original_recipe=job.is_original_recipe,  # Track recipe source for copyright protection
+        # Translation fields
+        source_language=source_language,
+        source_language_name=source_language_name,
+        is_translated=is_translated,
+        original_title=original_title,
+        original_description=original_description,
     )
 
     db.session.add(recipe)
     db.session.flush()
 
-    # Create related records
-    _create_instructions(recipe.id, parsed_recipe, extracted_text)
+    # Create related records (pass original instructions for translation support)
+    original_instructions = parsed_recipe.get("original_instructions") if is_translated else None
+    _create_instructions(recipe.id, parsed_recipe, extracted_text, original_instructions)
     _create_tags(recipe.id, parsed_recipe)
     _create_ingredients(recipe.id, parsed_recipe)
 
@@ -1710,18 +1729,32 @@ def _create_recipe_from_parsed_data(
 
 
 def _create_instructions(
-    recipe_id: int, parsed_recipe: Dict[str, Any], fallback_text: str
+    recipe_id: int, parsed_recipe: Dict[str, Any], fallback_text: str, original_instructions: list = None
 ) -> None:
-    """Create instruction records for the recipe."""
+    """Create instruction records for the recipe, with optional original text for translations."""
     instructions = parsed_recipe.get("instructions", [])
     if isinstance(instructions, str):
         instructions = [instructions]
     elif not isinstance(instructions, list):
         instructions = [fallback_text]
 
+    # Ensure original_instructions is a list if provided
+    if original_instructions and not isinstance(original_instructions, list):
+        original_instructions = None
+
     for i, instruction_text in enumerate(instructions, 1):
+        # Get corresponding original text if available
+        original_text = None
+        if original_instructions and i <= len(original_instructions):
+            original_text = original_instructions[i - 1]
+            if isinstance(original_text, str):
+                original_text = original_text.strip()
+
         instruction = Instruction(
-            recipe_id=recipe_id, step_number=i, text=instruction_text.strip()
+            recipe_id=recipe_id,
+            step_number=i,
+            text=instruction_text.strip(),
+            original_text=original_text
         )
         db.session.add(instruction)
 

@@ -93,9 +93,24 @@ class LLMOCRService:
                 time.sleep(delay)
 
     def _build_literal_extraction_prompt(self) -> str:
-        """Build a prompt focused purely on literal text extraction."""
+        """Build a prompt focused purely on literal text extraction with language detection."""
         return """
 This is a page from a published cookbook. Your task is to transcribe the recipe text for a cookbook digitization application.
+
+LANGUAGE DETECTION:
+At the very beginning of your response, on a single line, indicate the detected language of the recipe:
+[LANGUAGE: <iso_code>|<language_name>]
+Example: [LANGUAGE: fr|French]
+Example: [LANGUAGE: en|English]
+Example: [LANGUAGE: es|Spanish]
+Example: [LANGUAGE: zh|Chinese]
+Example: [LANGUAGE: de|German]
+Example: [LANGUAGE: it|Italian]
+Example: [LANGUAGE: ja|Japanese]
+Example: [LANGUAGE: ko|Korean]
+Example: [LANGUAGE: pt|Portuguese]
+
+Use the ISO 639-1 two-letter language code. If you cannot determine the language, use: [LANGUAGE: en|English]
 
 EXTRACTION RULES:
 1. Transcribe EVERY word exactly as written - preserve spelling, punctuation, capitalization
@@ -105,41 +120,103 @@ EXTRACTION RULES:
 5. Include ALL text: titles, ingredients, cooking instructions, notes, times, etc.
 6. Preserve numbers and fractions exactly (1/2, 2-3, etc.)
 
-This is standard culinary content from a professionally published cookbook. Return ONLY the raw extracted text, exactly as you see it in the image.
+This is standard culinary content from a professionally published cookbook. After the language tag, return ONLY the raw extracted text, exactly as you see it in the image.
 """
 
-    def _build_minimal_parsing_prompt(self, extracted_text: str) -> str:
-        """Build a prompt for minimal parsing of already-extracted text."""
+    def _parse_language_from_extraction(self, extracted_text: str) -> tuple:
+        """
+        Parse the language tag from the extraction response.
+
+        Args:
+            extracted_text: The raw extraction response that may contain a language tag
+
+        Returns:
+            Tuple of (language_code, language_name, cleaned_text)
+            Defaults to ('en', 'English', extracted_text) if no tag found
+        """
+        # Default values
+        language_code = 'en'
+        language_name = 'English'
+        cleaned_text = extracted_text
+
+        # Try to parse the language tag from the beginning of the response
+        # Format: [LANGUAGE: <iso_code>|<language_name>]
+        language_pattern = re.compile(r'^\s*\[LANGUAGE:\s*([a-z]{2,3})\|([^\]]+)\]\s*', re.IGNORECASE | re.MULTILINE)
+        match = language_pattern.match(extracted_text)
+
+        if match:
+            language_code = match.group(1).lower()
+            language_name = match.group(2).strip()
+            # Remove the language tag from the extracted text
+            cleaned_text = extracted_text[match.end():].strip()
+            current_app.logger.info(f"Detected language: {language_code} ({language_name})")
+        else:
+            current_app.logger.info("No language tag found in extraction, defaulting to English")
+
+        return (language_code, language_name, cleaned_text)
+
+    def _build_minimal_parsing_prompt(self, extracted_text: str, source_language: str = None, source_language_name: str = None) -> str:
+        """Build a prompt for minimal parsing of already-extracted text, with optional translation."""
+        # Determine if translation is needed
+        needs_translation = source_language and source_language.lower() != 'en'
+
+        translation_instructions = ""
+        if needs_translation:
+            translation_instructions = f"""
+TRANSLATION REQUIRED:
+The original text is in {source_language_name} ({source_language}). You MUST:
+1. Translate ALL content to English
+2. For each translated field, also provide the original text in "original_*" fields
+3. Translate ingredient names, quantities descriptions, and instructions
+4. Keep measurements in their original units (do not convert)
+5. Translate cooking terms appropriately (e.g., "cuillère à soupe" -> "tablespoon")
+
+"""
+
+        original_fields = ""
+        if needs_translation:
+            original_fields = """
+    "original_title": "original title in source language or null",
+    "original_description": "original description in source language or null",
+    "original_ingredients": [
+        "original ingredient line 1 in source language",
+        "original ingredient line 2 in source language"
+    ],
+    "original_instructions": [
+        "original instruction step 1 in source language",
+        "original instruction step 2 in source language"
+    ],"""
+
         return f"""
 You have been given text that was literally extracted from a recipe image. Your job is to organize it into a structured format with MINIMAL changes.
-
+{translation_instructions}
 EXTRACTED TEXT:
 {extracted_text}
 
 STRUCTURING RULES:
-1. Use the text EXACTLY as provided - do not rephrase or improve
-2. Only add structure (JSON format) - preserve all original wording
+1. {"Translate to English while preserving the meaning" if needs_translation else "Use the text EXACTLY as provided - do not rephrase or improve"}
+2. Only add structure (JSON format) - {"translate but" if needs_translation else ""} preserve all original wording
 3. Split into logical sections (title, ingredients, instructions) based on context
 4. Maintain exact quantities, measurements, and ingredient names
-5. Keep instruction text word-for-word from the extraction
+5. {"Translate instruction text while preserving cooking steps" if needs_translation else "Keep instruction text word-for-word from the extraction"}
 6. Use null for any missing information - do not infer or add content
 
 Return a JSON object with this structure:
 {{
-    "title": "exact title from text or null",
-    "description": "exact description from text or null",
+    "title": "{'translated ' if needs_translation else ''}title from text or null",
+    "description": "{'translated ' if needs_translation else ''}description from text or null",{original_fields}
     "prep_time": time_in_minutes_if_explicitly_stated_or_null,
     "cook_time": time_in_minutes_if_explicitly_stated_or_null,
     "total_time": time_in_minutes_if_explicitly_stated_or_null,
-    "servings": "exact_servings_text_or_null",
+    "servings": "{'translated ' if needs_translation else ''}servings_text_or_null",
     "difficulty": "only_if_explicitly_stated_or_null",
     "ingredients": [
-        "exact ingredient line 1 as extracted",
-        "exact ingredient line 2 as extracted"
+        "{'translated ' if needs_translation else ''}ingredient line 1",
+        "{'translated ' if needs_translation else ''}ingredient line 2"
     ],
     "instructions": [
-        "exact instruction step 1 as extracted",
-        "exact instruction step 2 as extracted"
+        "{'translated ' if needs_translation else ''}instruction step 1",
+        "{'translated ' if needs_translation else ''}instruction step 2"
     ],
     "tags": [],
     "source": "source_if_visible_or_null"
@@ -278,17 +355,19 @@ Return ONLY valid JSON, no markdown, no additional text.
         """
         Extract text from image using true two-step approach: literal extraction first, then minimal parsing.
         This ensures maximum fidelity to the source text.
+        Includes language detection and automatic translation for non-English recipes.
 
         Args:
-            image_path: Path to the image file
+            image_data: Image data as bytes
+            source_info: Optional string for logging (path or URL)
             use_cache: Whether to use caching for the extraction
 
         Returns:
-            Dictionary containing both extracted text and parsed recipe data
+            Dictionary containing extracted text, parsed recipe data, and language metadata
         """
         try:
-            # Generate cache key from image content
-            cache_key = f"recipe_extract_parse_v2_{self._generate_cache_key_from_data(image_data)}"
+            # Generate cache key from image content (v3 for translation support)
+            cache_key = f"recipe_extract_parse_v3_{self._generate_cache_key_from_data(image_data)}"
 
             # Check cache if enabled and Redis is available
             if use_cache and self.redis_client:
@@ -300,28 +379,48 @@ Return ONLY valid JSON, no markdown, no additional text.
                     current_app.logger.warning("Cached result failed validation, invalidating cache")
                     self._invalidate_cache(cache_key)
 
-            # STEP 1: Pure literal text extraction
-            current_app.logger.info("Step 1: Starting literal text extraction")
-            extracted_text = self._extract_literal_text(image_data, source_info)
+            # STEP 1: Pure literal text extraction with language detection
+            current_app.logger.info("Step 1: Starting literal text extraction with language detection")
+            raw_extracted_text = self._extract_literal_text(image_data, source_info)
 
-            # STEP 2: Minimal parsing of extracted text
+            # Parse language from extraction response
+            language_code, language_name, extracted_text = self._parse_language_from_extraction(raw_extracted_text)
+
+            # Determine if translation is needed
+            is_translated = language_code.lower() != 'en'
+            current_app.logger.info(f"Language: {language_code} ({language_name}), Translation needed: {is_translated}")
+
+            # STEP 2: Minimal parsing of extracted text (with translation if needed)
             current_app.logger.info("Step 2: Starting minimal parsing of extracted text")
-            parsed_recipe = self._parse_extracted_text(extracted_text)
+            parsed_recipe = self._parse_extracted_text(
+                extracted_text,
+                source_language=language_code if is_translated else None,
+                source_language_name=language_name if is_translated else None
+            )
+
+            # Add language metadata to parsed recipe
+            parsed_recipe["source_language"] = language_code
+            parsed_recipe["source_language_name"] = language_name
+            parsed_recipe["is_translated"] = is_translated
 
             # Combine results
             result = {
-                "text": extracted_text,
+                "text": extracted_text,  # Use cleaned text without language tag
                 "parsed_recipe": parsed_recipe,
                 "method": "two_step_literal",
                 "quality_score": 10,
-                "success": True
+                "success": True,
+                # Language metadata at top level for easy access
+                "detected_language": language_code,
+                "detected_language_name": language_name,
+                "is_translated": is_translated
             }
 
             # Cache the result if caching is enabled and Redis is available
             if use_cache and self.redis_client:
                 self._set_in_cache(cache_key, result)
 
-            current_app.logger.info("Two-step extract+parse completed successfully")
+            current_app.logger.info(f"Two-step extract+parse completed successfully (language: {language_name})")
             return result
 
         except Exception as e:
@@ -422,18 +521,24 @@ Return ONLY valid JSON, no markdown, no additional text.
             current_app.logger.error(f"Literal text extraction failed: {str(e)}", exc_info=True)
             raise
 
-    def _parse_extracted_text(self, extracted_text: str) -> dict:
-        """Step 2: Minimally parse the already-extracted text."""
-        # Minimal parsing prompt
-        prompt = self._build_minimal_parsing_prompt(extracted_text)
+    def _parse_extracted_text(self, extracted_text: str, source_language: str = None, source_language_name: str = None) -> dict:
+        """Step 2: Minimally parse the already-extracted text, with optional translation."""
+        # Minimal parsing prompt (includes translation instructions if source_language is non-English)
+        prompt = self._build_minimal_parsing_prompt(extracted_text, source_language, source_language_name)
+
+        # Adjust system prompt for translation
+        if source_language and source_language.lower() != 'en':
+            system_prompt = f"You are a recipe structuring and translation assistant. Translate recipe content from {source_language_name} to English while organizing it into structured format. Preserve original text in original_* fields."
+        else:
+            system_prompt = "You are a recipe structuring assistant. Organize extracted text with minimal changes."
 
         # LLM call for minimal parsing with retry logic
         def make_api_call():
             return self.client.messages.create(
                 model=self.text_model,
-                max_tokens=2000,
+                max_tokens=4000,  # Increased for translation + original text
                 temperature=0.0,  # Maximum determinism
-                system="You are a recipe structuring assistant. Organize extracted text with minimal changes.",
+                system=system_prompt,
                 messages=[{"role": "user", "content": prompt}]
             )
 

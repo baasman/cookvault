@@ -291,7 +291,7 @@ const RecipeActionsDropdown: React.FC<RecipeActionsDropdownProps> = ({
             )}
 
             {showExport && (
-              <div className="px-4 py-2 hover:bg-gray-50" onClick={() => setIsOpen(false)}>
+              <div className="px-4 py-2 hover:bg-gray-50" onClick={(e) => e.stopPropagation()}>
                 <ExportButton
                   type="recipe"
                   recipeId={recipe.id}

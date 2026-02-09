@@ -212,6 +212,9 @@ class Instruction(db.Model):
     step_number: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Translation field - stores original text before translation
+    original_text: Mapped[Optional[str]] = mapped_column(Text)
+
     # Optional image fields for step illustrations
     image_filename: Mapped[Optional[str]] = mapped_column(String(255))
     image_url: Mapped[Optional[str]] = mapped_column(String(500))
@@ -225,9 +228,10 @@ class Instruction(db.Model):
 
     def to_dict(self) -> dict:
         return {
-            "id": self.id, 
-            "step_number": self.step_number, 
+            "id": self.id,
+            "step_number": self.step_number,
             "text": self.text,
+            "original_text": self.original_text,
             "image_filename": self.image_filename,
             "image_url": self.image_url,
             "cloudinary_public_id": self.cloudinary_public_id,
@@ -357,6 +361,13 @@ class Recipe(db.Model):
     # True = user's own recipe (can be published), False = from a cookbook/other source (cannot be published)
     # None = legacy recipes (default to True for backwards compatibility)
     is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
+
+    # Translation fields
+    source_language: Mapped[Optional[str]] = mapped_column(String(10))  # ISO 639-1 code (e.g., 'fr', 'es', 'zh')
+    source_language_name: Mapped[Optional[str]] = mapped_column(String(50))  # Human-readable (e.g., 'French')
+    is_translated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    original_title: Mapped[Optional[str]] = mapped_column(String(200))  # Original title before translation
+    original_description: Mapped[Optional[str]] = mapped_column(Text)  # Original description before translation
 
     cookbook: Mapped[Optional["Cookbook"]] = relationship(
         "Cookbook", back_populates="recipes"
@@ -588,6 +599,12 @@ class Recipe(db.Model):
             "is_original_recipe": self.is_original_recipe,
             "can_be_published": can_publish,
             "publish_restriction_reason": publish_restriction_reason if not can_publish else None,
+            # Translation fields
+            "source_language": self.source_language,
+            "source_language_name": self.source_language_name,
+            "is_translated": self.is_translated,
+            "original_title": self.original_title,
+            "original_description": self.original_description,
         }
 
         # Restricted content (only for users with full access)
@@ -754,6 +771,10 @@ class ProcessingJob(db.Model):
     # Recipe source tracking - passed through to created recipe
     is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean)
 
+    # Language detection fields
+    detected_language: Mapped[Optional[str]] = mapped_column(String(10))  # ISO 639-1 code
+    detected_language_name: Mapped[Optional[str]] = mapped_column(String(50))  # Human-readable name
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
@@ -779,6 +800,8 @@ class ProcessingJob(db.Model):
             "ocr_method": self.ocr_method,
             "ocr_quality_score": self.ocr_quality_score,
             "ocr_fallback_used": self.ocr_fallback_used,
+            "detected_language": self.detected_language,
+            "detected_language_name": self.detected_language_name,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": (
                 self.completed_at.isoformat() if self.completed_at else None

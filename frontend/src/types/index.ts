@@ -50,6 +50,8 @@ export interface Instruction {
   id: number;
   step_number: number;
   text: string;
+  // Translation field - stores original text before translation
+  original_text?: string | null;
   // Optional image fields for step illustrations
   image_filename?: string | null;
   image_url?: string | null;
@@ -157,6 +159,12 @@ export interface Recipe {
   is_original_recipe?: boolean; // true = user's own recipe, false = from a cookbook/source
   can_be_published?: boolean; // whether this recipe can be made public
   publish_restriction_reason?: string | null; // reason if can_be_published is false
+  // Translation fields
+  source_language?: string; // ISO 639-1 code (e.g., 'fr', 'es', 'zh')
+  source_language_name?: string; // Human-readable name (e.g., 'French')
+  is_translated?: boolean; // true if recipe was translated from another language
+  original_title?: string | null; // Original title before translation
+  original_description?: string | null; // Original description before translation
 }
 
 export interface ProcessingJob {

@@ -34,6 +34,7 @@ const RecipeDetailPage: React.FC = () => {
   const [scaleFactor, setScaleFactor] = useState(1);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [desiredServings, setDesiredServings] = useState<number | undefined>(undefined);
+  const [showOriginalText, setShowOriginalText] = useState(false);
 
   const { 
     data: recipe, 
@@ -364,13 +365,46 @@ const RecipeDetailPage: React.FC = () => {
 
               {/* Recipe Info */}
               <div className="flex-1">
+                {/* Translation Badge */}
+                {recipe.is_translated && recipe.source_language_name && (
+                  <div className="mb-3 flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                      <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                      </svg>
+                      Translated from {recipe.source_language_name}
+                    </span>
+                    <button
+                      onClick={() => setShowOriginalText(!showOriginalText)}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                    >
+                      {showOriginalText ? (
+                        <>
+                          <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          Show English
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                          </svg>
+                          Show Original
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 <h1 className="text-3xl font-bold mb-4" style={{color: '#1c120d'}}>
-                  {recipe.title}
+                  {showOriginalText && recipe.original_title ? recipe.original_title : recipe.title}
                 </h1>
 
-                {recipe.description && (
+                {(recipe.description || (showOriginalText && recipe.original_description)) && (
                   <p className="text-lg text-text-secondary mb-6">
-                    {recipe.description}
+                    {showOriginalText && recipe.original_description ? recipe.original_description : recipe.description}
                   </p>
                 )}
 
@@ -658,34 +692,41 @@ const RecipeDetailPage: React.FC = () => {
                   <ol className="space-y-4">
                     {recipe.instructions
                       .sort((a, b) => a.step_number - b.step_number)
-                      .map((instruction) => (
-                        <li key={instruction.id} className="flex space-x-4">
-                          <div className="flex-shrink-0 w-8 h-8 bg-accent text-black rounded-full flex items-center justify-center font-medium">
-                            {instruction.step_number}
-                          </div>
-                          <div className="flex-1 pt-1">
-                            <p className="text-text-primary leading-relaxed mb-3">{instruction.text}</p>
-                            
-                            {/* Step image if available */}
-                            {(instruction.cloudinary_thumbnail_url || instruction.image_url) && (
-                              <div className="mt-3">
-                                <img
-                                  src={instruction.cloudinary_thumbnail_url || instruction.image_url || undefined}
-                                  alt={`Step ${instruction.step_number} illustration`}
-                                  className="max-w-sm h-48 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => {
-                                    // Open larger image in new tab/window
-                                    const fullImageUrl = instruction.cloudinary_url || instruction.image_url;
-                                    if (fullImageUrl) {
-                                      window.open(fullImageUrl, '_blank');
-                                    }
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </li>
-                      ))}
+                      .map((instruction) => {
+                        // Determine which text to display based on toggle
+                        const displayText = showOriginalText && instruction.original_text
+                          ? instruction.original_text
+                          : instruction.text;
+
+                        return (
+                          <li key={instruction.id} className="flex space-x-4">
+                            <div className="flex-shrink-0 w-8 h-8 bg-accent text-black rounded-full flex items-center justify-center font-medium">
+                              {instruction.step_number}
+                            </div>
+                            <div className="flex-1 pt-1">
+                              <p className="text-text-primary leading-relaxed mb-3">{displayText}</p>
+
+                              {/* Step image if available */}
+                              {(instruction.cloudinary_thumbnail_url || instruction.image_url) && (
+                                <div className="mt-3">
+                                  <img
+                                    src={instruction.cloudinary_thumbnail_url || instruction.image_url || undefined}
+                                    alt={`Step ${instruction.step_number} illustration`}
+                                    className="max-w-sm h-48 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => {
+                                      // Open larger image in new tab/window
+                                      const fullImageUrl = instruction.cloudinary_url || instruction.image_url;
+                                      if (fullImageUrl) {
+                                        window.open(fullImageUrl, '_blank');
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                   </ol>
                 ) : (
                   <p className="text-text-secondary">No instructions provided</p>
