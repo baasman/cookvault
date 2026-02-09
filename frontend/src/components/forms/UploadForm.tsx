@@ -35,6 +35,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     selected_google_book: null,
     no_cookbook: true, // Default to no cookbook
     is_original_recipe: true, // Default to "my own recipe" (publishable)
+    translate_to_english: false, // Default to no translation
   });
   
   const [dragActive, setDragActive] = useState(false);
@@ -821,6 +822,31 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           )}
         </div>
         )}
+
+        {/* Translation Option */}
+        <div className="flex flex-col gap-2">
+          <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors hover:bg-gray-50"
+            style={{ borderColor: formData.translate_to_english ? '#f15f1c' : '#e8d7cf', backgroundColor: formData.translate_to_english ? '#fcf9f8' : 'transparent' }}>
+            <input
+              type="checkbox"
+              checked={formData.translate_to_english || false}
+              onChange={(e) => setFormData(prev => ({ ...prev, translate_to_english: e.target.checked }))}
+              className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+              disabled={isLoading}
+            />
+            <div>
+              <span className="font-medium text-gray-900 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                </svg>
+                Translate to English
+              </span>
+              <p className="text-sm text-gray-500">
+                If the recipe is in another language, automatically translate it to English. The original text will be preserved.
+              </p>
+            </div>
+          </label>
+        </div>
 
         {/* Cookbook Information */}
         <div className="flex flex-col gap-4">

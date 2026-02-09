@@ -57,7 +57,8 @@ const UploadPage: React.FC = () => {
         const result = await recipesApi.uploadMultipleImages(
           formData.images,
           cookbook_id,
-          formData.is_original_recipe
+          formData.is_original_recipe,
+          formData.translate_to_english
         );
 
         setMultiJobId(result.multi_job_id);
@@ -96,6 +97,11 @@ const UploadPage: React.FC = () => {
         // Add recipe source information for copyright protection
         if (formData.is_original_recipe !== undefined) {
           uploadData.append('is_original_recipe', formData.is_original_recipe.toString());
+        }
+
+        // Add translation option
+        if (formData.translate_to_english) {
+          uploadData.append('translate_to_english', 'true');
         }
 
         const apiUrl = getApiUrl();

@@ -351,23 +351,25 @@ Return ONLY valid JSON, no markdown, no additional text.
             "parsing_error": error_msg
         }
 
-    def extract_and_parse_recipe(self, image_data: bytes, source_info: str = "", use_cache: bool = True) -> dict:
+    def extract_and_parse_recipe(self, image_data: bytes, source_info: str = "", use_cache: bool = True, translate_to_english: bool = False) -> dict:
         """
         Extract text from image using true two-step approach: literal extraction first, then minimal parsing.
         This ensures maximum fidelity to the source text.
-        Includes language detection and automatic translation for non-English recipes.
+        Includes language detection and optional translation for non-English recipes.
 
         Args:
             image_data: Image data as bytes
             source_info: Optional string for logging (path or URL)
             use_cache: Whether to use caching for the extraction
+            translate_to_english: Whether to translate non-English recipes to English
 
         Returns:
             Dictionary containing extracted text, parsed recipe data, and language metadata
         """
         try:
-            # Generate cache key from image content (v3 for translation support)
-            cache_key = f"recipe_extract_parse_v3_{self._generate_cache_key_from_data(image_data)}"
+            # Generate cache key from image content (v4 with translate flag)
+            translate_suffix = "_translated" if translate_to_english else ""
+            cache_key = f"recipe_extract_parse_v4_{self._generate_cache_key_from_data(image_data)}{translate_suffix}"
 
             # Check cache if enabled and Redis is available
             if use_cache and self.redis_client:
@@ -386,9 +388,10 @@ Return ONLY valid JSON, no markdown, no additional text.
             # Parse language from extraction response
             language_code, language_name, extracted_text = self._parse_language_from_extraction(raw_extracted_text)
 
-            # Determine if translation is needed
-            is_translated = language_code.lower() != 'en'
-            current_app.logger.info(f"Language: {language_code} ({language_name}), Translation needed: {is_translated}")
+            # Determine if translation is needed (only if user opted in AND language is not English)
+            is_non_english = language_code.lower() != 'en'
+            is_translated = translate_to_english and is_non_english
+            current_app.logger.info(f"Language: {language_code} ({language_name}), Non-English: {is_non_english}, Translate requested: {translate_to_english}, Will translate: {is_translated}")
 
             # STEP 2: Minimal parsing of extracted text (with translation if needed)
             current_app.logger.info("Step 2: Starting minimal parsing of extracted text")

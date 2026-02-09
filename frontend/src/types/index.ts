@@ -304,6 +304,8 @@ export interface UploadFormData {
   selected_google_book?: any; // GoogleBook type from cookbooksApi
   // Recipe source for copyright protection
   is_original_recipe?: boolean; // true = user's own recipe, false = from a cookbook/source
+  // Translation option
+  translate_to_english?: boolean; // true = translate non-English recipes to English
 }
 
 export interface ImagePreview {

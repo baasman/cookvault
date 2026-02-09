@@ -694,6 +694,9 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     if is_original_recipe_str is not None:
         is_original_recipe = is_original_recipe_str.lower() == "true"
 
+    # Get translation option
+    translate_to_english = request.form.get("translate_to_english", "").lower() == "true"
+
     # Handle new cookbook creation
     cookbook = None
     if create_new_cookbook:
@@ -770,6 +773,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
             user_id=current_user.id,
             skip_cache=skip_cache,
             is_original_recipe=is_original_recipe,
+            translate_to_english=translate_to_english,
         )
 
         db.session.add(processing_job)
@@ -1468,8 +1472,10 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         start_time = time.time()
 
         try:
+            # Get translate option from job
+            translate_to_english = getattr(job, 'translate_to_english', False)
             comprehensive_result = llm_ocr_service.extract_and_parse_recipe(
-                image_data, source_info, use_cache=use_cache
+                image_data, source_info, use_cache=use_cache, translate_to_english=translate_to_english
             )
             processing_time = time.time() - start_time
             current_app.logger.info(
@@ -2829,6 +2835,9 @@ def upload_multi_recipe(current_user):
         if is_original_recipe_str is not None:
             is_original_recipe = is_original_recipe_str.lower() == "true"
 
+        # Get translation option
+        translate_to_english = request.form.get("translate_to_english", "").lower() == "true"
+
         # Validate cookbook if provided
         cookbook = None
         if cookbook_id:
@@ -2866,6 +2875,7 @@ def upload_multi_recipe(current_user):
             status=ProcessingStatus.PENDING,
             skip_cache=skip_cache,
             is_original_recipe=is_original_recipe,
+            translate_to_english=translate_to_english,
         )
         db.session.add(multi_job)
         db.session.flush()  # Get the ID
@@ -2893,6 +2903,7 @@ def upload_multi_recipe(current_user):
                 multi_job_id=multi_job.id,
                 image_order=i,
                 status=ProcessingStatus.PENDING,
+                translate_to_english=translate_to_english,
             )
             db.session.add(processing_job)
             processing_jobs.append(processing_job)
@@ -3016,6 +3027,9 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
         is_original_recipe = data.get("is_original_recipe")
         # is_original_recipe can be True, False, or None (not specified)
 
+        # Get translation option
+        translate_to_english = data.get("translate_to_english", False)
+
         # Handle new cookbook creation (same logic as image upload)
         cookbook = None
         if create_new_cookbook:
@@ -3080,7 +3094,7 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
 
         # Process the text directly using the recipe parser
         recipe_parser = RecipeParser()
-        parsed_recipe = recipe_parser.parse_recipe_text(recipe_text)
+        parsed_recipe = recipe_parser.parse_recipe_text(recipe_text, translate_to_english=translate_to_english)
 
         current_app.logger.info(f"Parsed recipe: {parsed_recipe}")
 
@@ -3102,6 +3116,12 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
             servings=safe_int_conversion(parsed_recipe.get("servings")),
             difficulty=parsed_recipe.get("difficulty"),
+            # Translation fields
+            source_language=parsed_recipe.get("source_language"),
+            source_language_name=parsed_recipe.get("source_language_name"),
+            is_translated=parsed_recipe.get("is_translated", False),
+            original_title=parsed_recipe.get("original_title"),
+            original_description=parsed_recipe.get("original_description"),
         )
 
         db.session.add(recipe)
@@ -3111,9 +3131,10 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
         if parsed_recipe.get("ingredients"):
             _create_ingredients(recipe.id, parsed_recipe)
 
-        # Add instructions
+        # Add instructions (with original text if translated)
         if parsed_recipe.get("instructions"):
-            _create_instructions(recipe.id, parsed_recipe, recipe_text)
+            original_instructions = parsed_recipe.get("original_instructions") if parsed_recipe.get("is_translated") else None
+            _create_instructions(recipe.id, parsed_recipe, recipe_text, original_instructions=original_instructions)
 
         # Add tags
         if parsed_recipe.get("tags"):

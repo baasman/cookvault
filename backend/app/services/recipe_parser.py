@@ -28,9 +28,10 @@ class RecipeParser:
             # Fall back to None if Redis is unavailable
             return None
 
-    def parse_recipe_text(self, ocr_text: str, use_cache: bool = True) -> Dict:
-        # Generate cache key from input text
-        cache_key = self._generate_cache_key(ocr_text)
+    def parse_recipe_text(self, ocr_text: str, use_cache: bool = True, translate_to_english: bool = False) -> Dict:
+        # Generate cache key from input text (include translate flag)
+        translate_suffix = "_translated" if translate_to_english else ""
+        cache_key = self._generate_cache_key(ocr_text) + translate_suffix
 
         # Check cache if enabled and Redis is available
         if use_cache and self.redis_client:
@@ -38,7 +39,7 @@ class RecipeParser:
             if cached_result:
                 return cached_result
 
-        prompt = self._build_parsing_prompt(ocr_text)
+        prompt = self._build_parsing_prompt(ocr_text, translate_to_english=translate_to_english)
 
         try:
             response = self.client.messages.create(
@@ -343,16 +344,58 @@ If any information is not available or unclear, use null for that field.
                 pass
         return 0
 
-    def _build_parsing_prompt(self, ocr_text: str) -> str:
-        return f"""
+    def _build_parsing_prompt(self, ocr_text: str, translate_to_english: bool = False) -> str:
+        if translate_to_english:
+            return f"""
+Please parse this recipe text and extract structured information.
+
+ORIGINAL TEXT:
+{ocr_text}
+
+LANGUAGE AND TRANSLATION:
+1. First, detect the language of the recipe text
+2. If the recipe is NOT in English, translate all content to English
+3. For translated recipes, preserve the original text in "original_*" fields
+
+FIDELITY REQUIREMENTS:
+1. Preserve meaning and measurements accurately
+2. Keep quantities and measurements exactly as shown (1/2, not 0.5)
+3. Use null for missing information - do not infer or add content
+
+Return a JSON object with these fields:
+- title: recipe name (translated to English if needed) or null
+- original_title: original language title if translated, otherwise null
+- description: description text (translated to English if needed) or null
+- original_description: original language description if translated, otherwise null
+- ingredients: array of ingredient strings (translated to English if needed)
+- original_ingredients: array of original ingredient strings if translated, otherwise null
+- instructions: array of instruction steps (translated to English if needed)
+- original_instructions: array of original instruction steps if translated, otherwise null
+- prep_time: time in minutes only if explicitly stated, otherwise null
+- cook_time: time in minutes only if explicitly stated, otherwise null
+- servings: exact servings text/number as written or null
+- difficulty: only if explicitly stated, otherwise null
+- tags: array of relevant tags (do not infer)
+- source_language: ISO 639-1 code (e.g., 'fr', 'es', 'en') or null
+- source_language_name: human-readable language name (e.g., 'French', 'Spanish', 'English') or null
+- is_translated: true if the recipe was translated, false otherwise
+
+Return ONLY valid JSON, no markdown, no additional text.
+"""
+        else:
+            return f"""
 Please parse this recipe text and extract structured information with EXACT text preservation.
 
 ORIGINAL TEXT:
 {ocr_text}
 
+LANGUAGE DETECTION:
+1. Detect the language of the recipe text
+2. DO NOT translate - preserve the original language exactly
+
 FIDELITY REQUIREMENTS:
 1. Preserve ALL text exactly as written - do not rephrase or improve
-2. Maintain original spelling, punctuation, and capitalization  
+2. Maintain original spelling, punctuation, and capitalization
 3. Keep quantities and measurements exactly as shown (1/2, not 0.5)
 4. Use ingredient text verbatim - do not standardize names
 5. Copy instruction steps word-for-word
@@ -368,6 +411,9 @@ Return a JSON object with these fields:
 - servings: exact servings text/number as written or null
 - difficulty: only if explicitly stated, otherwise null
 - tags: array of relevant tags from text (do not infer)
+- source_language: ISO 639-1 code (e.g., 'fr', 'es', 'en') or null
+- source_language_name: human-readable language name (e.g., 'French', 'Spanish', 'English') or null
+- is_translated: false (since translation was not requested)
 
 Return ONLY valid JSON, no markdown, no additional text.
 """

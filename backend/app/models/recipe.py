@@ -271,6 +271,9 @@ class MultiRecipeJob(db.Model):
     # Recipe source tracking - passed through to created recipe
     is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean)
 
+    # Translation option - whether to translate non-English recipes
+    translate_to_english: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Relationships
     user: Mapped["User"] = relationship("User")
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe")
@@ -770,6 +773,9 @@ class ProcessingJob(db.Model):
 
     # Recipe source tracking - passed through to created recipe
     is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean)
+
+    # Translation option - whether to translate non-English recipes
+    translate_to_english: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Language detection fields
     detected_language: Mapped[Optional[str]] = mapped_column(String(10))  # ISO 639-1 code
