@@ -20,10 +20,11 @@
   - Or use Render's native GitHub integration
 
 ### 1.2 Fix Sentry Configuration
-- [ ] Move frontend Sentry DSN to environment variable
-  - Update `frontend/src/main.tsx` to use `import.meta.env.VITE_SENTRY_DSN`
-  - Add `VITE_SENTRY_DSN` to Render environment variables
-  - Remove hardcoded DSN from source code
+- [x] Move frontend Sentry DSN to environment variable
+  - [x] Update `frontend/src/main.tsx` to use `import.meta.env.VITE_SENTRY_DSN`
+  - [x] Add `VITE_SENTRY_DSN` to `.env.production.example`
+  - [x] Remove hardcoded DSN from source code
+  - [ ] Add `VITE_SENTRY_DSN` to Render environment variables (manual step)
 
 ### 1.3 Basic Alerting
 - [ ] Configure Sentry alerts for production errors
