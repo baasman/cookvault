@@ -27,10 +27,11 @@
   - [x] Add `VITE_SENTRY_DSN` to Render environment variables
 
 ### 1.3 Basic Alerting
-- [ ] Configure Sentry alerts for production errors
+- [x] Create alerting setup guide (`docs/operations/ALERTING_SETUP.md`)
+- [ ] Configure Sentry alerts for production errors (manual - see guide)
   - Alert on first occurrence of new errors
   - Alert when error rate spikes
-- [ ] Set up uptime monitoring (UptimeRobot - free tier)
+- [ ] Set up uptime monitoring with UptimeRobot (manual - see guide)
   - Monitor `/api/health` endpoint
   - Email/SMS alerts on downtime
 
