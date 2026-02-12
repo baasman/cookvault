@@ -13,7 +13,7 @@
   - [x] Run backend tests on every PR (PDF tests - 49 passing)
   - [x] Run linting/type checks (informational, not blocking)
   - [x] Run frontend TypeScript build
-  - [ ] Fix API tests to include auth fixtures (20 tests need updating)
+  - [x] Fix API tests to include auth fixtures (67 tests now passing)
   - [ ] Fix lint errors (3227 errors, mostly auto-fixable with `uv run ruff check backend/ --fix`)
 - [ ] Create `.github/workflows/deploy.yml` for deployment
   - Auto-deploy to Render on merge to main

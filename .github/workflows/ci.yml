@@ -77,10 +77,8 @@ jobs:
       - name: Run tests
         run: |
           cd backend
-          # Run PDF tests (fully passing) and recipe tests
-          # Note: Some API tests in test_recipes.py need auth fixtures updated
-          # For now, run tests that don't require authentication
-          uv run pytest tests/test_modern_pdf.py -v --tb=short
+          # Run all passing tests
+          uv run pytest tests/test_modern_pdf.py tests/test_auth.py tests/test_api_recipes.py tests/test_api_cookbooks.py tests/test_health.py -v --tb=short
 
   frontend-build:
     name: Frontend Build & Type Check
