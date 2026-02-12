@@ -28,10 +28,10 @@
 
 ### 1.3 Basic Alerting
 - [x] Create alerting setup guide (`docs/operations/ALERTING_SETUP.md`)
-- [ ] Configure Sentry alerts for production errors (manual - see guide)
+- [x] Configure Sentry alerts for production errors
   - Alert on first occurrence of new errors
   - Alert when error rate spikes
-- [ ] Set up uptime monitoring with UptimeRobot (manual - see guide)
+- [ ] Set up uptime monitoring with UptimeRobot (TODO - see guide)
   - Monitor `/api/health` endpoint
   - Email/SMS alerts on downtime
 
