@@ -50,10 +50,11 @@
 - [x] Update Privacy Policy with cookie details
 
 ### 2.2 Log Aggregation
-- [ ] Set up Papertrail (or similar) with Render
+- [x] Create setup guide (`docs/operations/LOG_AGGREGATION_SETUP.md`)
+- [ ] Set up Papertrail (or similar) with Render (TODO - follow guide)
   - Configure log drain in Render dashboard
   - Set up log alerts for errors
-- [ ] Create saved searches for common issues
+- [ ] Create saved searches for common issues (TODO - follow guide)
   - 500 errors
   - Authentication failures
   - Slow requests (>5s)
