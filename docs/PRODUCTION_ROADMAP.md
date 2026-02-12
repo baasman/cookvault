@@ -41,11 +41,13 @@
 **Timeline: 1-2 weeks**
 
 ### 2.1 GDPR/Privacy Compliance
-- [ ] Add cookie consent banner
-  - Use a library like `react-cookie-consent` or service like Termly
-  - Block analytics/tracking until consent given
-- [ ] Add consent tracking to database
-- [ ] Update Privacy Policy with cookie details
+- [x] Add cookie consent banner
+  - [x] Installed `react-cookie-consent` library
+  - [x] Created CookieConsentContext for managing consent state
+  - [x] Created CookieConsentBanner component
+  - [x] Block Sentry analytics/tracking until consent given
+- [ ] Add consent tracking to database (optional - localStorage used for now)
+- [x] Update Privacy Policy with cookie details
 
 ### 2.2 Log Aggregation
 - [ ] Set up Papertrail (or similar) with Render

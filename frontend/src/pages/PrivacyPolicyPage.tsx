@@ -8,7 +8,7 @@ const PrivacyPolicyPage: React.FC = () => {
 
       <div className="prose prose-lg max-w-none">
         <p className="text-gray-700 mb-6">
-          Last updated: January 31, 2026
+          Last updated: February 12, 2026
         </p>
 
         <p className="text-gray-700 mb-6">
@@ -132,15 +132,41 @@ const PrivacyPolicyPage: React.FC = () => {
 
         <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Cookies and Local Storage</h2>
         <p className="text-gray-700 mb-4">
-          We use cookies and local storage for:
+          We use cookies and similar technologies to enhance your experience. When you first visit our
+          app, you will be asked to consent to our use of non-essential cookies.
+        </p>
+
+        <h3 className="text-xl font-semibold text-gray-900 mt-6 mb-3">Essential Cookies (Required)</h3>
+        <p className="text-gray-700 mb-4">
+          These cookies are necessary for the app to function and cannot be disabled:
         </p>
         <ul className="list-disc pl-6 mb-6 text-gray-700">
-          <li>Maintaining your login session</li>
-          <li>Remembering your preferences</li>
-          <li>Analytics and performance monitoring</li>
+          <li><strong>Authentication tokens:</strong> Keep you logged in securely</li>
+          <li><strong>Session data:</strong> Maintain your session state</li>
+          <li><strong>Cookie consent:</strong> Remember your cookie preferences</li>
+        </ul>
+
+        <h3 className="text-xl font-semibold text-gray-900 mt-6 mb-3">Analytics Cookies (Optional)</h3>
+        <p className="text-gray-700 mb-4">
+          With your consent, we use the following for analytics and error tracking:
+        </p>
+        <ul className="list-disc pl-6 mb-6 text-gray-700">
+          <li><strong>Sentry:</strong> Error tracking and performance monitoring to help us fix bugs
+            and improve the app. Collects anonymous usage data and error reports.</li>
+        </ul>
+
+        <h3 className="text-xl font-semibold text-gray-900 mt-6 mb-3">Managing Your Cookie Preferences</h3>
+        <p className="text-gray-700 mb-4">
+          You can manage your cookie preferences in the following ways:
+        </p>
+        <ul className="list-disc pl-6 mb-6 text-gray-700">
+          <li><strong>Cookie banner:</strong> Choose "Accept" or "Decline" when first visiting the app</li>
+          <li><strong>Browser settings:</strong> Control cookies through your browser's privacy settings</li>
+          <li><strong>Clear storage:</strong> Clear your browser's local storage to reset preferences</li>
         </ul>
         <p className="text-gray-700 mb-4">
-          You can control cookies through your browser settings, but this may affect app functionality.
+          Note: Declining analytics cookies will not affect app functionality, but it helps us improve
+          Cookle when you accept them.
         </p>
 
         <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Children's Privacy</h2>
