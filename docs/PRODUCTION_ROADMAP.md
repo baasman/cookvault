@@ -24,7 +24,7 @@
   - [x] Update `frontend/src/main.tsx` to use `import.meta.env.VITE_SENTRY_DSN`
   - [x] Add `VITE_SENTRY_DSN` to `.env.production.example`
   - [x] Remove hardcoded DSN from source code
-  - [ ] Add `VITE_SENTRY_DSN` to Render environment variables (manual step)
+  - [x] Add `VITE_SENTRY_DSN` to Render environment variables
 
 ### 1.3 Basic Alerting
 - [ ] Configure Sentry alerts for production errors
