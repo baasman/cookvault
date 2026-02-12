@@ -1,8 +1,9 @@
 """
 Rate limiting utilities and decorators for selective endpoint protection.
 """
+
 from functools import wraps
-from flask import current_app, g
+from flask import current_app
 
 
 def apply_rate_limit(limit_string):
@@ -12,16 +13,19 @@ def apply_rate_limit(limit_string):
     Args:
         limit_string: Rate limit string (e.g., "10/hour", "100/minute")
     """
+
     def decorator(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
             # Only apply if limiter is available
-            if hasattr(current_app, 'limiter'):
+            if hasattr(current_app, "limiter"):
                 limiter = current_app.limiter
                 # Apply the limit dynamically
                 limiter.limit(limit_string)(f)
             return f(*args, **kwargs)
+
         return wrapped
+
     return decorator
 
 

@@ -65,7 +65,11 @@ def create_parser():
     reset_parser.add_argument(
         "--no-seed", action="store_true", help="Don't seed sample data"
     )
-    reset_parser.add_argument("--users-only", action="store_true", help="Reset only user-related tables, preserve recipes/cookbooks")
+    reset_parser.add_argument(
+        "--users-only",
+        action="store_true",
+        help="Reset only user-related tables, preserve recipes/cookbooks",
+    )
 
     # db backup
     backup_parser = db_subparsers.add_parser("backup", help="Backup database")
@@ -152,7 +156,9 @@ def create_parser():
 
     # seed specific components
     seed_subparsers.add_parser("users", help="Seed only users")
-    seed_subparsers.add_parser("users-only", help="Seed only users (recommended for PDF workflow)")
+    seed_subparsers.add_parser(
+        "users-only", help="Seed only users (recommended for PDF workflow)"
+    )
     seed_subparsers.add_parser("ingredients", help="Seed only ingredients")
     seed_subparsers.add_parser("cookbooks", help="Seed only cookbooks")
     seed_subparsers.add_parser("recipes", help="Seed only recipes")
@@ -233,7 +239,9 @@ def create_parser():
         "--user-id", type=int, help="User ID to associate recipes with"
     )
     historical_parser.add_argument(
-        "--dry-run", action="store_true", help="Parse recipes but don't commit to database"
+        "--dry-run",
+        action="store_true",
+        help="Parse recipes but don't commit to database",
     )
     historical_parser.add_argument(
         "--clear", action="store_true", help="Clear existing cookbook data first"
@@ -288,36 +296,43 @@ def create_parser():
 
     # utils export-all
     export_all_parser = utils_subparsers.add_parser(
-        "export-all", help="Export all database content including user data (creates ZIP file with images)"
+        "export-all",
+        help="Export all database content including user data (creates ZIP file with images)",
     )
     export_all_parser.add_argument("--output", help="Output file path (will be .zip)")
     export_all_parser.add_argument(
-        "--include-users", action="store_true", 
-        help="Include user-specific data (notes, comments, collections)"
+        "--include-users",
+        action="store_true",
+        help="Include user-specific data (notes, comments, collections)",
     )
 
     # utils export-content
     export_content_parser = utils_subparsers.add_parser(
-        "export-content", help="Export only content data (recipes, cookbooks, etc.) with images - ideal for environment migrations"
+        "export-content",
+        help="Export only content data (recipes, cookbooks, etc.) with images - ideal for environment migrations",
     )
-    export_content_parser.add_argument("--output", help="Output file path (will be .zip)")
+    export_content_parser.add_argument(
+        "--output", help="Output file path (will be .zip)"
+    )
 
     # utils import-to-admin
     import_admin_parser = utils_subparsers.add_parser(
-        "import-to-admin", help="Import content and assign ownership to admin user (supports ZIP and JSON files)"
-    )
-    import_admin_parser.add_argument("input", help="Input file path (.zip or .json) (required)")
-    import_admin_parser.add_argument(
-        "--admin-username", default="admin", 
-        help="Username for admin user (default: admin)"
+        "import-to-admin",
+        help="Import content and assign ownership to admin user (supports ZIP and JSON files)",
     )
     import_admin_parser.add_argument(
-        "--create-admin", action="store_true",
-        help="Create admin user if not exists"
+        "input", help="Input file path (.zip or .json) (required)"
     )
     import_admin_parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Test import without committing changes"
+        "--admin-username",
+        default="admin",
+        help="Username for admin user (default: admin)",
+    )
+    import_admin_parser.add_argument(
+        "--create-admin", action="store_true", help="Create admin user if not exists"
+    )
+    import_admin_parser.add_argument(
+        "--dry-run", action="store_true", help="Test import without committing changes"
     )
 
     # Quick commands (shortcuts)
@@ -356,7 +371,7 @@ def execute_command(args):
             port_str = f":{port}" if port else ""
             print(f"🗄️  Using PostgreSQL database: {dbname} on {host}{port_str}")
         else:
-            print(f"🗄️  Using PostgreSQL database: [connection string parsed]")
+            print("🗄️  Using PostgreSQL database: [connection string parsed]")
     else:
         print(
             f"🗄️  Using database: {db_uri.split('://')[0] if '://' in db_uri else 'Unknown'}"
@@ -373,9 +388,7 @@ def execute_command(args):
             return db_manager.drop_tables(confirm=args.yes)
         elif args.db_command == "reset":
             return db_manager.reset_database(
-                confirm=args.yes, 
-                seed_data=not args.no_seed, 
-                users_only=args.users_only
+                confirm=args.yes, seed_data=not args.no_seed, users_only=args.users_only
             )
         elif args.db_command == "backup":
             return db_manager.backup_database(args.path)
@@ -439,7 +452,7 @@ def execute_command(args):
                 seeder.seed_cookbooks(users)
             return True
         elif args.seed_command == "recipes":
-            from app.models import User, Cookbook, Ingredient, Tag
+            from app.models import User, Cookbook, Ingredient
 
             with seeder.app.app_context():
                 users = User.query.all()
@@ -451,7 +464,9 @@ def execute_command(args):
         elif args.seed_command == "pdf-cookbook":
             return seed_pdf_cookbook(args)
         elif args.seed_command == "historical-cookbook":
-            print("⚠️  WARNING: 'historical-cookbook' command is deprecated. Use 'pdf-cookbook' instead.")
+            print(
+                "⚠️  WARNING: 'historical-cookbook' command is deprecated. Use 'pdf-cookbook' instead."
+            )
             return seed_historical_cookbook(args)
         else:
             print("❌ Unknown seed command")
@@ -481,9 +496,7 @@ def execute_command(args):
         elif args.utils_command == "cleanup":
             return db_utils.cleanup_orphaned_records(confirm=args.yes)
         elif args.utils_command == "export-all":
-            return db_utils.export_all_content(
-                args.output, args.include_users
-            )
+            return db_utils.export_all_content(args.output, args.include_users)
         elif args.utils_command == "export-content":
             return db_utils.export_content_only(args.output)
         elif args.utils_command == "import-to-admin":
@@ -530,7 +543,6 @@ def seed_pdf_cookbook(args):
     """Handle PDF cookbook seeding command"""
     from cookbook_db_utils.pdf_cookbook_seeder import PDFCookbookSeeder
     from pathlib import Path
-    from datetime import datetime
 
     print("📖 PDF Cookbook Seeding")
     print("=" * 50)
@@ -552,7 +564,7 @@ def seed_pdf_cookbook(args):
             "publisher": "",
             "isbn": "",
             "publication_date": None,
-            "source": "user_provided"
+            "source": "user_provided",
         }
 
     print(f"📄 PDF: {pdf_path.name}")
@@ -560,13 +572,19 @@ def seed_pdf_cookbook(args):
         print(f"📚 Title: {cookbook_metadata['title']} (user-specified)")
         print(f"✍️  Author: {cookbook_metadata['author']} (user-specified)")
     else:
-        print(f"📚 Metadata: {'Google Books API' if not args.no_google_books else 'Filename extraction'}")
+        print(
+            f"📚 Metadata: {'Google Books API' if not args.no_google_books else 'Filename extraction'}"
+        )
     print(f"🌍 Environment: {args.env}")
     print(f"👤 User ID: {args.user_id or 'Create admin user'}")
     print(f"🧪 Dry run: {'Yes' if args.dry_run else 'No'}")
-    print(f"🤖 LLM extraction: {'Disabled' if args.no_llm else 'Enabled (Claude Haiku)'}")
+    print(
+        f"🤖 LLM extraction: {'Disabled' if args.no_llm else 'Enabled (Claude Haiku)'}"
+    )
     print(f"🔄 Overwrite existing: {'Yes' if args.overwrite else 'No'}")
-    print(f"📏 Historical conversions: {'Disabled' if args.no_historical_conversions else 'Enabled'}")
+    print(
+        f"📏 Historical conversions: {'Disabled' if args.no_historical_conversions else 'Enabled'}"
+    )
     print(f"📚 Google Books API: {'Disabled' if args.no_google_books else 'Enabled'}")
     if args.skip_pages > 0:
         print(f"⏭️  Skip pages: {args.skip_pages} pages at beginning")
@@ -580,13 +598,15 @@ def seed_pdf_cookbook(args):
         seeder = PDFCookbookSeeder(
             args.env,
             use_llm=not args.no_llm,
-            enable_historical_conversions=not args.no_historical_conversions
+            enable_historical_conversions=not args.no_historical_conversions,
         )
         # For clearing, we need to get the title somehow
-        clear_title = cookbook_metadata["title"] if cookbook_metadata else pdf_path.stem.replace("_", " ").title()
-        success = seeder.clear_cookbook_data(
-            cookbook_title=clear_title, confirm=True
+        clear_title = (
+            cookbook_metadata["title"]
+            if cookbook_metadata
+            else pdf_path.stem.replace("_", " ").title()
         )
+        success = seeder.clear_cookbook_data(cookbook_title=clear_title, confirm=True)
         if not success:
             print("❌ Failed to clear existing data")
             return False
@@ -598,7 +618,7 @@ def seed_pdf_cookbook(args):
         seeder = PDFCookbookSeeder(
             args.env,
             use_llm=not args.no_llm,
-            enable_historical_conversions=not args.no_historical_conversions
+            enable_historical_conversions=not args.no_historical_conversions,
         )
 
         # Run the seeding process
@@ -625,27 +645,29 @@ def seed_pdf_cookbook(args):
             print(f"📋 Total recipes found: {result['total_recipes_found']}")
 
             stats = result.get("statistics", {})
-            print(f"\n📈 Detailed Statistics:")
+            print("\n📈 Detailed Statistics:")
             print(f"   📝 Recipes processed: {stats.get('recipes_processed', 0)}")
             print(f"   ✅ Recipes created: {stats.get('recipes_created', 0)}")
             print(f"   ❌ Recipes failed: {stats.get('recipes_failed', 0)}")
-            print(f"   📄 Non-recipe pages skipped: {stats.get('non_recipe_pages_skipped', 0)}")
+            print(
+                f"   📄 Non-recipe pages skipped: {stats.get('non_recipe_pages_skipped', 0)}"
+            )
             print(f"   🥕 Ingredients created: {stats.get('ingredients_created', 0)}")
             print(f"   📋 Instructions created: {stats.get('instructions_created', 0)}")
             print(f"   📸 Images created: {stats.get('images_created', 0)}")
 
             if stats.get("errors"):
-                print(f"\n⚠️  Errors encountered:")
+                print("\n⚠️  Errors encountered:")
                 for error in stats["errors"][:5]:  # Show first 5 errors
                     print(f"   - {error}")
                 if len(stats["errors"]) > 5:
                     print(f"   ... and {len(stats['errors']) - 5} more errors")
 
             if args.dry_run:
-                print(f"\n🧪 DRY RUN: No changes were committed to the database")
-                print(f"   Run without --dry-run to actually create the recipes")
+                print("\n🧪 DRY RUN: No changes were committed to the database")
+                print("   Run without --dry-run to actually create the recipes")
             else:
-                print(f"\n🎉 PDF cookbook successfully seeded to database!")
+                print("\n🎉 PDF cookbook successfully seeded to database!")
 
             return True
 
@@ -655,7 +677,7 @@ def seed_pdf_cookbook(args):
 
             stats = result.get("statistics", {})
             if stats.get("errors"):
-                print(f"\nErrors encountered:")
+                print("\nErrors encountered:")
                 for error in stats["errors"]:
                     print(f"   - {error}")
 
@@ -689,7 +711,9 @@ def seed_historical_cookbook(args):
     print(f"🌍 Environment: {args.env}")
     print(f"👤 User ID: {args.user_id or 'Create admin user'}")
     print(f"🧪 Dry run: {'Yes' if args.dry_run else 'No'}")
-    print(f"🤖 LLM extraction: {'Disabled' if args.no_llm else 'Enabled (Claude Haiku)'}")
+    print(
+        f"🤖 LLM extraction: {'Disabled' if args.no_llm else 'Enabled (Claude Haiku)'}"
+    )
     print(f"🔄 Overwrite existing: {'Yes' if args.overwrite else 'No'}")
     print("")
 
@@ -743,27 +767,29 @@ def seed_historical_cookbook(args):
             print(f"📋 Total recipes found: {result['total_recipes_found']}")
 
             stats = result.get("statistics", {})
-            print(f"\n📈 Detailed Statistics:")
+            print("\n📈 Detailed Statistics:")
             print(f"   📝 Recipes processed: {stats.get('recipes_processed', 0)}")
             print(f"   ✅ Recipes created: {stats.get('recipes_created', 0)}")
             print(f"   ❌ Recipes failed: {stats.get('recipes_failed', 0)}")
-            print(f"   📄 Non-recipe pages skipped: {stats.get('non_recipe_pages_skipped', 0)}")
+            print(
+                f"   📄 Non-recipe pages skipped: {stats.get('non_recipe_pages_skipped', 0)}"
+            )
             print(f"   🥕 Ingredients created: {stats.get('ingredients_created', 0)}")
             print(f"   📋 Instructions created: {stats.get('instructions_created', 0)}")
             print(f"   📸 Images created: {stats.get('images_created', 0)}")
 
             if stats.get("errors"):
-                print(f"\n⚠️  Errors encountered:")
+                print("\n⚠️  Errors encountered:")
                 for error in stats["errors"][:5]:  # Show first 5 errors
                     print(f"   - {error}")
                 if len(stats["errors"]) > 5:
                     print(f"   ... and {len(stats['errors']) - 5} more errors")
 
             if args.dry_run:
-                print(f"\n🧪 DRY RUN: No changes were committed to the database")
-                print(f"   Run without --dry-run to actually create the recipes")
+                print("\n🧪 DRY RUN: No changes were committed to the database")
+                print("   Run without --dry-run to actually create the recipes")
             else:
-                print(f"\n🎉 Historical cookbook successfully seeded to database!")
+                print("\n🎉 Historical cookbook successfully seeded to database!")
 
             return True
 
@@ -773,7 +799,7 @@ def seed_historical_cookbook(args):
 
             stats = result.get("statistics", {})
             if stats.get("errors"):
-                print(f"\nErrors encountered:")
+                print("\nErrors encountered:")
                 for error in stats["errors"]:
                     print(f"   - {error}")
 
@@ -830,6 +856,7 @@ def main():
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         import traceback
+
         print("\nFull traceback:")
         traceback.print_exc()
         sys.exit(1)

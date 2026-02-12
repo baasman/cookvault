@@ -1,7 +1,7 @@
 """
 Tests for health check endpoints.
 """
-import pytest
+
 from flask.testing import FlaskClient
 
 

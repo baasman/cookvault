@@ -1,8 +1,7 @@
-import os
 import uuid
 from pathlib import Path
 
-from flask import Response, jsonify, request, send_file, current_app
+from flask import Response, jsonify, request, current_app
 from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
@@ -109,7 +108,7 @@ def get_cookbook_detail(current_user, cookbook_id: int) -> Response:
         # Regular users see: public recipes from all users + their own private recipes
         recipe_query = recipe_query.filter(
             db.or_(
-                Recipe.is_public == True,  # Public recipes from anyone
+                Recipe.is_public,  # Public recipes from anyone
                 Recipe.user_id == current_user.id,  # Own private recipes
             )
         )
@@ -156,7 +155,7 @@ def get_cookbook_recipes(current_user, cookbook_id: int) -> Response:
         # Regular users see: public recipes from all users + their own private recipes
         recipe_query = recipe_query.filter(
             db.or_(
-                Recipe.is_public == True,  # Public recipes from anyone
+                Recipe.is_public,  # Public recipes from anyone
                 Recipe.user_id == current_user.id,  # Own private recipes
             )
         )
@@ -171,9 +170,9 @@ def get_cookbook_recipes(current_user, cookbook_id: int) -> Response:
             )
         )
 
-    recipes_pagination = recipe_query.order_by(
-        Recipe.created_at.desc()
-    ).paginate(page=page, per_page=per_page, error_out=False)
+    recipes_pagination = recipe_query.order_by(Recipe.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
 
     return jsonify(
         {
@@ -202,16 +201,22 @@ def create_cookbook(current_user) -> Response:
     title = data.get("title", "").strip()
     if not title:
         return jsonify({"error": "Title is required"}), 400
-    
+
     # Validate paywall settings
     is_purchasable = data.get("is_purchasable", False)
     price = data.get("price")
-    
+
     if is_purchasable and (price is None or price <= 0):
-        return jsonify({"error": "Price is required and must be greater than 0 for purchasable cookbooks"}), 400
-    
+        return jsonify(
+            {
+                "error": "Price is required and must be greater than 0 for purchasable cookbooks"
+            }
+        ), 400
+
     if not is_purchasable and price is not None:
-        return jsonify({"error": "Price should not be set for non-purchasable cookbooks"}), 400
+        return jsonify(
+            {"error": "Price should not be set for non-purchasable cookbooks"}
+        ), 400
 
     try:
         cookbook = Cookbook(
@@ -252,7 +257,7 @@ def create_cookbook(current_user) -> Response:
             201,
         )
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return jsonify({"error": "Failed to create cookbook"}), 500
 
@@ -301,11 +306,12 @@ def update_cookbook(current_user, cookbook_id: int) -> Response:
         # Update paywall settings
         if "is_purchasable" in data:
             cookbook.is_purchasable = bool(data["is_purchasable"])
-            
+
         if "price" in data:
             if cookbook.is_purchasable and data["price"] is not None:
                 try:
                     from decimal import Decimal
+
                     price = Decimal(str(data["price"]))
                     if price < 0:
                         return jsonify({"error": "Price cannot be negative"}), 400
@@ -343,7 +349,7 @@ def update_cookbook(current_user, cookbook_id: int) -> Response:
             {"message": "Cookbook updated successfully", "cookbook": cookbook_dict}
         )
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return jsonify({"error": "Failed to update cookbook"}), 500
 
@@ -370,7 +376,7 @@ def delete_cookbook(current_user, cookbook_id: int) -> Response:
 
         return jsonify({"message": "Cookbook deleted successfully"})
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return jsonify({"error": "Failed to delete cookbook"}), 500
 
@@ -511,35 +517,39 @@ def upload_cookbook_image(current_user, cookbook_id: int) -> Response:
         file.seek(0)
         file_data = file.read()
         file.seek(0)
-        
+
         image_url = None
-        
+
         # Try Cloudinary first if enabled
         if cloudinary_service.is_enabled():
             try:
                 current_app.logger.info("Uploading cookbook image to Cloudinary...")
                 cloudinary_result = cloudinary_service.upload_image(
-                    file_data, 
-                    file.filename, 
+                    file_data,
+                    file.filename,
                     folder="cookbook-covers",
-                    generate_thumbnail=True
+                    generate_thumbnail=True,
                 )
-                image_url = cloudinary_result['url']
-                current_app.logger.info(f"Successfully uploaded cookbook image to Cloudinary: {cloudinary_result['public_id']}")
-                
+                image_url = cloudinary_result["url"]
+                current_app.logger.info(
+                    f"Successfully uploaded cookbook image to Cloudinary: {cloudinary_result['public_id']}"
+                )
+
             except Exception as e:
-                current_app.logger.error(f"Cloudinary upload failed, falling back to local storage: {str(e)}")
-        
+                current_app.logger.error(
+                    f"Cloudinary upload failed, falling back to local storage: {str(e)}"
+                )
+
         # Local storage fallback if Cloudinary failed or not enabled
         if not image_url:
             filename = secure_filename(f"{uuid.uuid4().hex}_{file.filename}")
             upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
             file_path = upload_folder / filename
-            
+
             # Save file locally
-            with open(file_path, 'wb') as f:
+            with open(file_path, "wb") as f:
                 f.write(file_data)
-            
+
             image_url = f"/api/images/{filename}"
             current_app.logger.info(f"Saved cookbook image locally: {file_path}")
 
@@ -554,7 +564,7 @@ def upload_cookbook_image(current_user, cookbook_id: int) -> Response:
             }
         )
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         return jsonify({"error": "Failed to upload image"}), 500
 
@@ -586,7 +596,7 @@ def search_google_books(current_user) -> Response:
 
     except GoogleBooksAPIError as e:
         return jsonify({"error": str(e)}), 500
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "An unexpected error occurred"}), 500
 
 
@@ -614,22 +624,26 @@ def create_cookbook_from_google_books(current_user) -> Response:
         ).first()
 
         if existing_by_google_id:
-            cookbook_dict = existing_by_google_id.to_dict(current_user_id=current_user.id)
+            cookbook_dict = existing_by_google_id.to_dict(
+                current_user_id=current_user.id
+            )
             # Get recipe count visible to this user (own + public)
             recipe_count = Recipe.query.filter(
                 Recipe.cookbook_id == existing_by_google_id.id,
                 db.or_(
-                    Recipe.is_public == True,
+                    Recipe.is_public,
                     Recipe.user_id == current_user.id,
-                )
+                ),
             ).count()
             cookbook_dict["recipe_count"] = recipe_count
             cookbook_dict["source"] = "google_books"
-            return jsonify({
-                "message": "Cookbook already exists",
-                "cookbook": cookbook_dict,
-                "is_existing": True,
-            }), 200
+            return jsonify(
+                {
+                    "message": "Cookbook already exists",
+                    "cookbook": cookbook_dict,
+                    "is_existing": True,
+                }
+            ), 200
 
         # Step 2: Fetch book details from Google Books API
         api_key = current_app.config.get("GOOGLE_BOOKS_API_KEY")
@@ -642,9 +656,7 @@ def create_cookbook_from_google_books(current_user) -> Response:
 
         # Step 3: Fallback deduplication by ISBN
         if book_data.get("isbn"):
-            existing_by_isbn = Cookbook.query.filter_by(
-                isbn=book_data["isbn"]
-            ).first()
+            existing_by_isbn = Cookbook.query.filter_by(isbn=book_data["isbn"]).first()
 
             if existing_by_isbn:
                 # Update the existing cookbook with google_books_id if missing
@@ -652,21 +664,25 @@ def create_cookbook_from_google_books(current_user) -> Response:
                     existing_by_isbn.google_books_id = google_books_id
                     db.session.commit()
 
-                cookbook_dict = existing_by_isbn.to_dict(current_user_id=current_user.id)
+                cookbook_dict = existing_by_isbn.to_dict(
+                    current_user_id=current_user.id
+                )
                 recipe_count = Recipe.query.filter(
                     Recipe.cookbook_id == existing_by_isbn.id,
                     db.or_(
-                        Recipe.is_public == True,
+                        Recipe.is_public,
                         Recipe.user_id == current_user.id,
-                    )
+                    ),
                 ).count()
                 cookbook_dict["recipe_count"] = recipe_count
                 cookbook_dict["source"] = "google_books"
-                return jsonify({
-                    "message": "Cookbook already exists (matched by ISBN)",
-                    "cookbook": cookbook_dict,
-                    "is_existing": True,
-                }), 200
+                return jsonify(
+                    {
+                        "message": "Cookbook already exists (matched by ISBN)",
+                        "cookbook": cookbook_dict,
+                        "is_existing": True,
+                    }
+                ), 200
 
         # Step 4: Create new GLOBAL cookbook (user_id=NULL)
         cookbook = Cookbook(
@@ -704,7 +720,9 @@ def create_cookbook_from_google_books(current_user) -> Response:
         return jsonify({"error": str(e)}), 500
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Failed to create cookbook from Google Books: {str(e)}", exc_info=True)
+        current_app.logger.error(
+            f"Failed to create cookbook from Google Books: {str(e)}", exc_info=True
+        )
         return jsonify({"error": "Failed to create cookbook from Google Books"}), 500
 
 
@@ -732,5 +750,5 @@ def search_google_books_by_isbn(current_user, isbn: str) -> Response:
 
     except GoogleBooksAPIError as e:
         return jsonify({"error": str(e)}), 500
-    except Exception as e:
+    except Exception:
         return jsonify({"error": "An unexpected error occurred"}), 500

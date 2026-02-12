@@ -23,11 +23,14 @@ from app import db
 
 class UserRecipeCollection(db.Model):
     """Track which recipes users have added to their personal collections"""
-    __tablename__ = 'user_recipe_collections'
+
+    __tablename__ = "user_recipe_collections"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), primary_key=True)
     recipe_id: Mapped[int] = mapped_column(ForeignKey("recipe.id"), primary_key=True)
-    added_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, index=True
+    )
     notes: Mapped[Optional[str]] = mapped_column(Text)
 
     # Relationships
@@ -76,7 +79,9 @@ class Cookbook(db.Model):
     cover_image_url: Mapped[Optional[str]] = mapped_column(String(500))
     # Google Books integration - stores the Google Books ID for deduplication
     # Cookbooks with google_books_id are global (user_id=NULL)
-    google_books_id: Mapped[Optional[str]] = mapped_column(String(50), unique=True, index=True)
+    google_books_id: Mapped[Optional[str]] = mapped_column(
+        String(50), unique=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -90,12 +95,8 @@ class Cookbook(db.Model):
     # User relationship
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
 
-    recipes: Mapped[List["Recipe"]] = relationship(
-        "Recipe", back_populates="cookbook"
-    )
-    user: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="cookbooks"
-    )
+    recipes: Mapped[List["Recipe"]] = relationship("Recipe", back_populates="cookbook")
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="cookbooks")
     purchases: Mapped[List["CookbookPurchase"]] = relationship(
         "CookbookPurchase", back_populates="cookbook", cascade="all, delete-orphan"
     )
@@ -117,7 +118,9 @@ class Cookbook(db.Model):
             "title": self.title,
             "description": self.description,
             "author": self.author,
-            "publication_date": self.publication_date.isoformat() if self.publication_date else None,
+            "publication_date": self.publication_date.isoformat()
+            if self.publication_date
+            else None,
             "isbn": self.isbn,
             "publisher": self.publisher,
             "cover_image_url": self.cover_image_url,
@@ -129,7 +132,7 @@ class Cookbook(db.Model):
             "purchase_count": self.purchase_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "recipe_count": len(self.recipes)
+            "recipe_count": len(self.recipes),
         }
 
         # Include user information if available
@@ -148,14 +151,17 @@ class Cookbook(db.Model):
                 for purchase in self.purchases
             )
             result["has_purchased"] = has_purchased
-            result["is_available_for_purchase"] = self.is_available_for_purchase() and not has_purchased
+            result["is_available_for_purchase"] = (
+                self.is_available_for_purchase() and not has_purchased
+            )
 
         return result
 
 
 class RecipeGroup(db.Model):
     """User-created recipe groups for organization"""
-    __tablename__ = 'recipe_group'
+
+    __tablename__ = "recipe_group"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -165,7 +171,9 @@ class RecipeGroup(db.Model):
     is_private: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # System group fields - for special groups like "Have Made" and "Want to Make"
     is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    system_type: Mapped[Optional[str]] = mapped_column(String(50))  # 'have_made' or 'want_to_make'
+    system_type: Mapped[Optional[str]] = mapped_column(
+        String(50)
+    )  # 'have_made' or 'want_to_make'
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -174,9 +182,7 @@ class RecipeGroup(db.Model):
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="recipe_groups")
     recipes: Mapped[List["Recipe"]] = relationship(
-        "Recipe",
-        secondary=recipe_group_memberships,
-        back_populates="groups"
+        "Recipe", secondary=recipe_group_memberships, back_populates="groups"
     )
 
     def to_dict(self) -> dict:
@@ -191,7 +197,7 @@ class RecipeGroup(db.Model):
             "system_type": self.system_type,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "recipe_count": len(self.recipes)
+            "recipe_count": len(self.recipes),
         }
 
 
@@ -249,7 +255,8 @@ class ProcessingStatus(Enum):
 
 class MultiRecipeJob(db.Model):
     """Manages multi-image recipe processing jobs"""
-    __tablename__ = 'multi_recipe_job'
+
+    __tablename__ = "multi_recipe_job"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
@@ -272,7 +279,9 @@ class MultiRecipeJob(db.Model):
     is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     # Translation option - whether to translate non-English recipes
-    translate_to_english: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    translate_to_english: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     # Relationships
     user: Mapped["User"] = relationship("User")
@@ -302,7 +311,9 @@ class MultiRecipeJob(db.Model):
             "recipe_id": self.recipe_id,
             "error_message": self.error_message,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
         }
 
 
@@ -350,7 +361,7 @@ class Recipe(db.Model):
     # Privacy settings
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Featured recipe settings
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     featured_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -358,7 +369,9 @@ class Recipe(db.Model):
     # User relationship (recipe owner - may be cookbook owner for shared cookbooks)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
     # Track who actually uploaded the recipe (may differ from owner for shared cookbooks)
-    uploaded_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), index=True)
+    uploaded_by_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user.id"), index=True
+    )
 
     # Recipe source tracking for copyright protection
     # True = user's own recipe (can be published), False = from a cookbook/other source (cannot be published)
@@ -366,11 +379,19 @@ class Recipe(db.Model):
     is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean, default=True)
 
     # Translation fields
-    source_language: Mapped[Optional[str]] = mapped_column(String(10))  # ISO 639-1 code (e.g., 'fr', 'es', 'zh')
-    source_language_name: Mapped[Optional[str]] = mapped_column(String(50))  # Human-readable (e.g., 'French')
+    source_language: Mapped[Optional[str]] = mapped_column(
+        String(10)
+    )  # ISO 639-1 code (e.g., 'fr', 'es', 'zh')
+    source_language_name: Mapped[Optional[str]] = mapped_column(
+        String(50)
+    )  # Human-readable (e.g., 'French')
     is_translated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    original_title: Mapped[Optional[str]] = mapped_column(String(200))  # Original title before translation
-    original_description: Mapped[Optional[str]] = mapped_column(Text)  # Original description before translation
+    original_title: Mapped[Optional[str]] = mapped_column(
+        String(200)
+    )  # Original title before translation
+    original_description: Mapped[Optional[str]] = mapped_column(
+        Text
+    )  # Original description before translation
 
     cookbook: Mapped[Optional["Cookbook"]] = relationship(
         "Cookbook", back_populates="recipes"
@@ -391,7 +412,7 @@ class Recipe(db.Model):
         "RecipeImage",
         back_populates="recipe",
         cascade="all, delete-orphan",
-        order_by="RecipeImage.image_order"
+        order_by="RecipeImage.image_order",
     )
     processing_jobs: Mapped[List["ProcessingJob"]] = relationship(
         "ProcessingJob", back_populates="recipe"
@@ -412,9 +433,7 @@ class Recipe(db.Model):
         "RecipeComment", back_populates="recipe", cascade="all, delete-orphan"
     )
     groups: Mapped[List["RecipeGroup"]] = relationship(
-        "RecipeGroup",
-        secondary=recipe_group_memberships,
-        back_populates="recipes"
+        "RecipeGroup", secondary=recipe_group_memberships, back_populates="recipes"
     )
 
     def get_status(self) -> str:
@@ -444,16 +463,24 @@ class Recipe(db.Model):
         """
         # Block if from Google Books cookbook (copyright-protected published cookbooks)
         if self.cookbook and self.cookbook.google_books_id:
-            return False, "Recipes from published cookbooks cannot be made public due to copyright restrictions"
+            return (
+                False,
+                "Recipes from published cookbooks cannot be made public due to copyright restrictions",
+            )
 
         # Block if explicitly marked as not original (from a cookbook or other source)
         if self.is_original_recipe is False:
-            return False, "Only original recipes can be made public. This recipe is from a cookbook or other source."
+            return (
+                False,
+                "Only original recipes can be made public. This recipe is from a cookbook or other source.",
+            )
 
         # Allow publishing for original recipes or legacy recipes (is_original_recipe is None or True)
         return True, ""
 
-    def can_be_viewed_by(self, user_id: Optional[int] = None, is_admin: bool = False) -> bool:
+    def can_be_viewed_by(
+        self, user_id: Optional[int] = None, is_admin: bool = False
+    ) -> bool:
         """Check if a recipe can be viewed by a given user."""
         # Public recipes can be viewed by anyone
         if self.is_public:
@@ -470,6 +497,7 @@ class Recipe(db.Model):
         # If recipe belongs to a purchasable cookbook, check purchase status
         if self.cookbook and self.cookbook.is_purchasable and user_id:
             from app.models.user import User
+
             user = User.query.get(user_id)
             if user and user.has_purchased_cookbook(self.cookbook.id):
                 return True
@@ -477,7 +505,9 @@ class Recipe(db.Model):
         # Private recipes can only be viewed by their owner (already checked above)
         return False
 
-    def has_full_access(self, user_id: Optional[int] = None, is_admin: bool = False) -> bool:
+    def has_full_access(
+        self, user_id: Optional[int] = None, is_admin: bool = False
+    ) -> bool:
         """Check if a user has full access to recipe content (vs preview access)."""
         # Admins have full access to everything
         if is_admin:
@@ -494,6 +524,7 @@ class Recipe(db.Model):
         # For purchasable cookbook recipes, check if user has purchased
         if self.cookbook and self.cookbook.is_purchasable and user_id:
             from app.models.user import User
+
             user = User.query.get(user_id)
             if user and user.has_purchased_cookbook(self.cookbook.id):
                 return True
@@ -514,8 +545,7 @@ class Recipe(db.Model):
 
         # Check if explicitly added to collection
         collection_item = UserRecipeCollection.query.filter_by(
-            user_id=user_id,
-            recipe_id=self.id
+            user_id=user_id, recipe_id=self.id
         ).first()
 
         return collection_item is not None
@@ -523,7 +553,7 @@ class Recipe(db.Model):
     @classmethod
     def get_public_recipes(cls, limit: Optional[int] = None, offset: int = 0):
         """Get all public recipes with optional pagination."""
-        query = cls.query.filter(cls.is_public == True).order_by(cls.published_at.desc())
+        query = cls.query.filter(cls.is_public).order_by(cls.published_at.desc())
 
         if limit:
             query = query.limit(limit).offset(offset)
@@ -531,12 +561,13 @@ class Recipe(db.Model):
         return query.all()
 
     @classmethod
-    def get_user_public_recipes(cls, user_id: int, limit: Optional[int] = None, offset: int = 0):
+    def get_user_public_recipes(
+        cls, user_id: int, limit: Optional[int] = None, offset: int = 0
+    ):
         """Get all public recipes by a specific user."""
-        query = cls.query.filter(
-            cls.user_id == user_id,
-            cls.is_public == True
-        ).order_by(cls.published_at.desc())
+        query = cls.query.filter(cls.user_id == user_id, cls.is_public).order_by(
+            cls.published_at.desc()
+        )
 
         if limit:
             query = query.limit(limit).offset(offset)
@@ -571,7 +602,12 @@ class Recipe(db.Model):
             for row in result
         ]
 
-    def to_dict(self, include_user: bool = False, current_user_id: Optional[int] = None, is_admin: bool = False) -> dict:
+    def to_dict(
+        self,
+        include_user: bool = False,
+        current_user_id: Optional[int] = None,
+        is_admin: bool = False,
+    ) -> dict:
         # Check if user has full access to recipe content
         has_full_access = self.has_full_access(current_user_id, is_admin)
 
@@ -583,7 +619,9 @@ class Recipe(db.Model):
             "id": self.id,
             "title": self.title,
             "description": self.description,
-            "cookbook": self.cookbook.to_dict(current_user_id) if self.cookbook else None,
+            "cookbook": self.cookbook.to_dict(current_user_id)
+            if self.cookbook
+            else None,
             "status": self.get_status(),
             "prep_time": self.prep_time,
             "cook_time": self.cook_time,
@@ -591,7 +629,9 @@ class Recipe(db.Model):
             "difficulty": self.difficulty,
             "source": self.source,
             "is_public": self.is_public,
-            "published_at": self.published_at.isoformat() if self.published_at else None,
+            "published_at": self.published_at.isoformat()
+            if self.published_at
+            else None,
             "is_featured": self.is_featured,
             "featured_at": self.featured_at.isoformat() if self.featured_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -601,7 +641,9 @@ class Recipe(db.Model):
             "has_full_access": has_full_access,
             "is_original_recipe": self.is_original_recipe,
             "can_be_published": can_publish,
-            "publish_restriction_reason": publish_restriction_reason if not can_publish else None,
+            "publish_restriction_reason": publish_restriction_reason
+            if not can_publish
+            else None,
             # Translation fields
             "source_language": self.source_language,
             "source_language_name": self.source_language_name,
@@ -612,23 +654,34 @@ class Recipe(db.Model):
 
         # Restricted content (only for users with full access)
         if has_full_access:
-            result.update({
-                "ingredients": self.get_recipe_ingredients(),
-                "instructions": [
-                    instruction.to_dict() for instruction in self.recipe_instructions
-                ],
-                "tags": [tag.to_dict() for tag in self.recipe_tags],
-                "images": [image.to_dict() for image in self.images],
-            })
+            result.update(
+                {
+                    "ingredients": self.get_recipe_ingredients(),
+                    "instructions": [
+                        instruction.to_dict()
+                        for instruction in self.recipe_instructions
+                    ],
+                    "tags": [tag.to_dict() for tag in self.recipe_tags],
+                    "images": [image.to_dict() for image in self.images],
+                }
+            )
         else:
             # Limited preview content for paywall
-            result.update({
-                "ingredients": [],  # Empty for paywall
-                "instructions": [],  # Empty for paywall
-                "tags": [tag.to_dict() for tag in self.recipe_tags],  # Tags still visible
-                "images": [image.to_dict() for image in self.images[:1]] if self.images else [],  # Only first image
-                "paywall_message": f"Purchase the cookbook '{self.cookbook.title}' to view the full recipe including ingredients and instructions." if self.cookbook and self.cookbook.is_purchasable else None
-            })
+            result.update(
+                {
+                    "ingredients": [],  # Empty for paywall
+                    "instructions": [],  # Empty for paywall
+                    "tags": [
+                        tag.to_dict() for tag in self.recipe_tags
+                    ],  # Tags still visible
+                    "images": [image.to_dict() for image in self.images[:1]]
+                    if self.images
+                    else [],  # Only first image
+                    "paywall_message": f"Purchase the cookbook '{self.cookbook.title}' to view the full recipe including ingredients and instructions."
+                    if self.cookbook and self.cookbook.is_purchasable
+                    else None,
+                }
+            )
 
         # Include user information for public recipes or when explicitly requested
         if include_user and self.user:
@@ -640,7 +693,11 @@ class Recipe(db.Model):
             }
 
         # Include uploader information if different from owner
-        if self.uploaded_by_id and self.uploaded_by_id != self.user_id and self.uploaded_by:
+        if (
+            self.uploaded_by_id
+            and self.uploaded_by_id != self.user_id
+            and self.uploaded_by
+        ):
             result["uploaded_by"] = {
                 "id": self.uploaded_by.id,
                 "username": self.uploaded_by.username,
@@ -655,7 +712,9 @@ class Recipe(db.Model):
             # Include recipe owner's note for this recipe if it exists
             user_note = None
             for note in self.user_notes:
-                if note.user_id == self.user_id:  # Recipe owner's note, not current user's note
+                if (
+                    note.user_id == self.user_id
+                ):  # Recipe owner's note, not current user's note
                     user_note = note.to_dict()
                     break
             result["user_note"] = user_note
@@ -666,18 +725,20 @@ class Recipe(db.Model):
             want_to_make = False
             for group in self.groups:
                 if group.user_id == current_user_id:
-                    user_groups.append({
-                        "id": group.id,
-                        "name": group.name,
-                        "description": group.description,
-                        "is_system": group.is_system,
-                        "system_type": group.system_type
-                    })
+                    user_groups.append(
+                        {
+                            "id": group.id,
+                            "name": group.name,
+                            "description": group.description,
+                            "is_system": group.is_system,
+                            "system_type": group.system_type,
+                        }
+                    )
                     # Track system group membership
                     if group.is_system:
-                        if group.system_type == 'have_made':
+                        if group.system_type == "have_made":
                             have_made = True
-                        elif group.system_type == 'want_to_make':
+                        elif group.system_type == "want_to_make":
                             want_to_make = True
             result["groups"] = user_groups
             result["have_made"] = have_made
@@ -713,16 +774,20 @@ class RecipeImage(db.Model):
 
     # Add index for recipe_id + image_order for efficient ordering queries
     __table_args__ = (
-        db.Index('idx_recipe_image_order', 'recipe_id', 'image_order'),
-        db.Index('idx_recipe_image_cloudinary_public_id', 'cloudinary_public_id'),
+        db.Index("idx_recipe_image_order", "recipe_id", "image_order"),
+        db.Index("idx_recipe_image_cloudinary_public_id", "cloudinary_public_id"),
     )
 
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe", back_populates="images")
 
     def to_dict(self) -> dict:
         # Determine the best URL to display the image
-        display_url = self.cloudinary_url if self.cloudinary_url else f"/api/images/{self.filename}"
-        
+        display_url = (
+            self.cloudinary_url
+            if self.cloudinary_url
+            else f"/api/images/{self.filename}"
+        )
+
         return {
             "id": self.id,
             "recipe_id": self.recipe_id,
@@ -754,8 +819,12 @@ class ProcessingJob(db.Model):
 
     # Multi-image support fields
     is_multi_image: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    multi_job_id: Mapped[Optional[int]] = mapped_column(ForeignKey("multi_recipe_job.id"))
-    image_order: Mapped[Optional[int]] = mapped_column(Integer)  # Order within multi-image job
+    multi_job_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("multi_recipe_job.id")
+    )
+    image_order: Mapped[Optional[int]] = mapped_column(
+        Integer
+    )  # Order within multi-image job
 
     status: Mapped[ProcessingStatus] = mapped_column(default=ProcessingStatus.PENDING)
     error_message: Mapped[Optional[str]] = mapped_column(Text)
@@ -764,8 +833,12 @@ class ProcessingJob(db.Model):
     processed_data: Mapped[Optional[str]] = mapped_column(Text)
 
     # OCR Quality Metadata
-    ocr_method: Mapped[Optional[str]] = mapped_column(String(20))  # 'traditional' or 'llm'
-    ocr_quality_score: Mapped[Optional[int]] = mapped_column(Integer)  # 1-10 quality score
+    ocr_method: Mapped[Optional[str]] = mapped_column(
+        String(20)
+    )  # 'traditional' or 'llm'
+    ocr_quality_score: Mapped[Optional[int]] = mapped_column(
+        Integer
+    )  # 1-10 quality score
     ocr_fallback_used: Mapped[Optional[bool]] = mapped_column(db.Boolean, default=False)
 
     # Cache control for load testing
@@ -775,11 +848,17 @@ class ProcessingJob(db.Model):
     is_original_recipe: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     # Translation option - whether to translate non-English recipes
-    translate_to_english: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    translate_to_english: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     # Language detection fields
-    detected_language: Mapped[Optional[str]] = mapped_column(String(10))  # ISO 639-1 code
-    detected_language_name: Mapped[Optional[str]] = mapped_column(String(50))  # Human-readable name
+    detected_language: Mapped[Optional[str]] = mapped_column(
+        String(10)
+    )  # ISO 639-1 code
+    detected_language_name: Mapped[Optional[str]] = mapped_column(
+        String(50)
+    )  # Human-readable name
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -817,7 +896,8 @@ class ProcessingJob(db.Model):
 
 class RecipeNote(db.Model):
     """User's personal notes for recipes"""
-    __tablename__ = 'recipe_notes'
+
+    __tablename__ = "recipe_notes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
@@ -829,7 +909,9 @@ class RecipeNote(db.Model):
     )
 
     # Add unique constraint so each user can have only one note per recipe
-    __table_args__ = (db.UniqueConstraint('user_id', 'recipe_id', name='unique_user_recipe_note'),)
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "recipe_id", name="unique_user_recipe_note"),
+    )
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="recipe_notes")
@@ -848,7 +930,8 @@ class RecipeNote(db.Model):
 
 class RecipeComment(db.Model):
     """Comments on recipes by users"""
-    __tablename__ = 'recipe_comments'
+
+    __tablename__ = "recipe_comments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     recipe_id: Mapped[int] = mapped_column(ForeignKey("recipe.id"), nullable=False)

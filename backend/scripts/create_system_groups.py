@@ -8,6 +8,7 @@ is_system and system_type columns to the recipe_group table.
 Usage:
     cd backend && uv run python scripts/create_system_groups.py
 """
+
 import sys
 import traceback
 from pathlib import Path
@@ -21,14 +22,8 @@ from app.models.user import User
 
 
 SYSTEM_GROUPS = {
-    'have_made': {
-        'name': 'Have Made',
-        'description': 'Recipes you have cooked before'
-    },
-    'want_to_make': {
-        'name': 'Want to Make',
-        'description': 'Recipes you want to try'
-    }
+    "have_made": {"name": "Have Made", "description": "Recipes you have cooked before"},
+    "want_to_make": {"name": "Want to Make", "description": "Recipes you want to try"},
 }
 
 
@@ -39,9 +34,7 @@ def create_system_groups_for_user(user_id: int) -> dict:
     for system_type, config in SYSTEM_GROUPS.items():
         # Check if system group already exists
         existing = RecipeGroup.query.filter_by(
-            user_id=user_id,
-            system_type=system_type,
-            is_system=True
+            user_id=user_id, system_type=system_type, is_system=True
         ).first()
 
         if existing:
@@ -50,12 +43,12 @@ def create_system_groups_for_user(user_id: int) -> dict:
         else:
             # Create the system group
             group = RecipeGroup(
-                name=config['name'],
-                description=config['description'],
+                name=config["name"],
+                description=config["description"],
                 user_id=user_id,
                 is_private=True,
                 is_system=True,
-                system_type=system_type
+                system_type=system_type,
             )
             db.session.add(group)
             created[system_type] = group
@@ -83,10 +76,12 @@ def main():
             print()
 
             for i, user in enumerate(users, 1):
-                print(f"[{i}/{total_users}] Processing user: {user.username} (id={user.id})")
+                print(
+                    f"[{i}/{total_users}] Processing user: {user.username} (id={user.id})"
+                )
 
                 try:
-                    created = create_system_groups_for_user(user.id)
+                    create_system_groups_for_user(user.id)
                     db.session.commit()
                     created_count += 1
                 except Exception as e:

@@ -188,7 +188,7 @@ class PDFCookbookSeeder:
                 cookbook = self._create_cookbook_entry(
                     cookbook_metadata, user.id, dry_run
                 )
-                
+
                 # Step 3.5: Create cookbook cover image from first page
                 if cookbook and not dry_run:
                     self.logger.info("Step 2.5: Creating cookbook cover image...")
@@ -257,7 +257,7 @@ class PDFCookbookSeeder:
             )
 
             # Step 1: Convert PDF pages to images for OCR processing
-            pdf_processor = PDFProcessor(use_llm=self.use_llm)
+            PDFProcessor(use_llm=self.use_llm)
             pdf_images = self._extract_pdf_pages_as_images(
                 pdf_path, max_pages, skip_pages
             )
@@ -293,7 +293,7 @@ class PDFCookbookSeeder:
                         if result.get("fallback_used", False):
                             self.stats["ocr_fallbacks_used"] += 1
                         self.logger.info(
-                            f"Page {i+1}: {len(result['text'])} chars, "
+                            f"Page {i + 1}: {len(result['text'])} chars, "
                             f"method={result['method']}, quality={result.get('quality_score', 'N/A')}"
                         )
 
@@ -328,7 +328,7 @@ class PDFCookbookSeeder:
                             if segment.strip():
                                 recipe_segments.append(
                                     {
-                                        "title": f"Recipe {i+1}",
+                                        "title": f"Recipe {i + 1}",
                                         "full_text": segment,
                                         "confidence": 5,  # Lower confidence for pattern-based
                                     }
@@ -364,7 +364,7 @@ class PDFCookbookSeeder:
                 for i, segment in enumerate(recipe_segments):
                     try:
                         self.logger.info(
-                            f"Parsing recipe {i+1}/{len(recipe_segments)}: '{segment['title'][:50]}...'"
+                            f"Parsing recipe {i + 1}/{len(recipe_segments)}: '{segment['title'][:50]}...'"
                         )
 
                         # Parse this individual recipe segment
@@ -396,7 +396,7 @@ class PDFCookbookSeeder:
 
                     except Exception as e:
                         self.stats["recipes_failed"] += 1
-                        error_msg = f"Failed to parse recipe segment {i+1} ('{segment['title'][:50]}...'): {e}"
+                        error_msg = f"Failed to parse recipe segment {i + 1} ('{segment['title'][:50]}...'): {e}"
                         self.logger.error(error_msg)
                         self.stats["errors"].append(error_msg)
 
@@ -585,7 +585,6 @@ JSON:"""
                                 > 50  # Minimum content length
                                 and segment.get("confidence", 0) >= 6
                             ):  # Minimum confidence
-
                                 valid_segments.append(segment)
 
                         self.logger.info(
@@ -680,7 +679,7 @@ JSON:"""
                     continue
 
                 try:
-                    self.logger.info(f"Parsing text segment {i+1}/{len(segments)}...")
+                    self.logger.info(f"Parsing text segment {i + 1}/{len(segments)}...")
                     parsed_recipe = recipe_parser.parse_recipe_text(segment)
 
                     if self._validate_production_recipe(parsed_recipe):
@@ -690,7 +689,7 @@ JSON:"""
                         self.stats["recipes_failed"] += 1
 
                 except Exception as e:
-                    error_msg = f"Failed to parse text segment {i+1}: {e}"
+                    error_msg = f"Failed to parse text segment {i + 1}: {e}"
                     self.logger.error(error_msg)
                     self.stats["errors"].append(error_msg)
                     self.stats["recipes_failed"] += 1
@@ -726,7 +725,6 @@ JSON:"""
                     ("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.")
                 )
             ):
-
                 # Save previous segment
                 if current_segment:
                     segments.append("\n".join(current_segment))
@@ -862,9 +860,9 @@ JSON:"""
 
             # Set cookbook cover image URL
             cookbook.cover_image_url = f"/api/images/{filename}"
-            
+
             self.logger.info(f"📸 Created cookbook cover image: {filename}")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to create cookbook cover image: {e}")
             return None
@@ -884,7 +882,7 @@ JSON:"""
         for i, recipe_data in enumerate(parsed_recipes):
             try:
                 self.logger.info(
-                    f"Creating recipe {i+1}/{len(parsed_recipes)}: {recipe_data.get('title', 'Unknown')[:50]}..."
+                    f"Creating recipe {i + 1}/{len(parsed_recipes)}: {recipe_data.get('title', 'Unknown')[:50]}..."
                 )
 
                 # Check for existing recipe
@@ -947,7 +945,7 @@ JSON:"""
         """Create a single recipe entry with all related data"""
 
         # Extract cookbook metadata if available
-        cookbook_meta = recipe_data.get("cookbook_metadata", {})
+        recipe_data.get("cookbook_metadata", {})
 
         # Helper function to safely convert timing values
         def safe_int_conversion(value):
@@ -1064,7 +1062,12 @@ JSON:"""
         return recipe
 
     def _extract_and_save_recipe_image(
-        self, pdf_path: str, page_number: int, recipe: Recipe, cookbook: Cookbook, dry_run: bool
+        self,
+        pdf_path: str,
+        page_number: int,
+        recipe: Recipe,
+        cookbook: Cookbook,
+        dry_run: bool,
     ) -> Optional[RecipeImage]:
         """Extract and save recipe image from PDF page"""
         if not convert_from_path or not Image:
@@ -1262,7 +1265,6 @@ JSON:"""
 
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize a string for use as a filename"""
-        import re
 
         # Remove non-alphanumeric characters and replace with underscores
         sanitized = re.sub(r"[^\w\s-]", "", filename)
@@ -1307,7 +1309,6 @@ JSON:"""
 
     def _parse_ingredient_text(self, ingredient_text: str) -> Dict[str, Any]:
         """Parse ingredient text to extract name, quantity, unit, and preparation."""
-        import re
 
         # Common units pattern
         units = r"\b(?:cups?|cup|tbsp|tsp|teaspoons?|tablespoons?|oz|ounces?|lbs?|pounds?|g|grams?|kg|kilograms?|ml|milliliters?|l|liters?|pint|pints|quart|quarts|gallon|gallons|inch|inches|cloves?|pieces?|slices?|whole|medium|large|small)\b"
@@ -1501,7 +1502,7 @@ if __name__ == "__main__":
 
         if result["success"]:
             print("✅ Test successful!")
-            print(f"📊 Results:")
+            print("📊 Results:")
             print(
                 f"   📖 Cookbook: {result.get('cookbook', {}).get('title', 'Unknown')}"
             )

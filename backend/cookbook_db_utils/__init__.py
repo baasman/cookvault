@@ -15,7 +15,7 @@ from .dev_helpers import DevelopmentHelpers
 
 __all__ = [
     "DatabaseManager",
-    "MigrationManager", 
+    "MigrationManager",
     "DataSeeder",
     "DatabaseUtils",
     "DevelopmentHelpers",

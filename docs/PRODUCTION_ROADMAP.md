@@ -14,7 +14,7 @@
   - [x] Run linting/type checks (informational, not blocking)
   - [x] Run frontend TypeScript build
   - [x] Fix API tests to include auth fixtures (67 tests now passing)
-  - [ ] Fix lint errors (3227 errors, mostly auto-fixable with `uv run ruff check backend/ --fix`)
+  - [x] Fix lint errors (all fixed with ruff auto-fix + config updates)
 - [ ] Create `.github/workflows/deploy.yml` for deployment
   - Auto-deploy to Render on merge to main
   - Or use Render's native GitHub integration

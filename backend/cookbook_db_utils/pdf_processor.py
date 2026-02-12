@@ -11,7 +11,7 @@ This module provides utilities for:
 
 import re
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 import logging
 import tempfile
 import hashlib
@@ -101,7 +101,9 @@ class PDFProcessor:
                 self.logger.info(f"Redis not available, caching disabled: {e}")
                 self.redis_client = None
 
-    def extract_text_from_pdf(self, pdf_path: Path, max_pages: Optional[int] = None, skip_pages: int = 0) -> Dict:
+    def extract_text_from_pdf(
+        self, pdf_path: Path, max_pages: Optional[int] = None, skip_pages: int = 0
+    ) -> Dict:
         """
         Extract text from PDF file with page-by-page processing.
 
@@ -132,17 +134,19 @@ class PDFProcessor:
                 # Calculate page range to process
                 start_page = skip_pages
                 if max_pages:
-                    end_page = min(start_page + max_pages, result['total_pages'])
+                    end_page = min(start_page + max_pages, result["total_pages"])
                 else:
-                    end_page = result['total_pages']
-                
+                    end_page = result["total_pages"]
+
                 pages_to_process = end_page - start_page
-                
+
                 self.logger.info(
                     f"Processing PDF: {pdf_path.name} - {result['total_pages']} total pages, processing pages {start_page + 1}-{end_page} ({pages_to_process} pages)"
                 )
 
-                for page_index, page in enumerate(pdf.pages[start_page:end_page], start_page + 1):
+                for page_index, page in enumerate(
+                    pdf.pages[start_page:end_page], start_page + 1
+                ):
                     try:
                         page_data = self._extract_page_text(page, page_index, pdf_path)
                         result["pages"].append(page_data)
@@ -210,7 +214,9 @@ class PDFProcessor:
     def extract_enhanced_metadata(self, pdf_path: Path) -> Dict:
         """Extract enhanced metadata using Google Books API"""
         try:
-            from cookbook_db_utils.google_books_metadata import GoogleBooksMetadataExtractor
+            from cookbook_db_utils.google_books_metadata import (
+                GoogleBooksMetadataExtractor,
+            )
 
             # First extract basic PDF metadata
             basic_metadata = {}
@@ -222,7 +228,9 @@ class PDFProcessor:
 
             # Use Google Books to enhance metadata
             extractor = GoogleBooksMetadataExtractor()
-            enhanced_metadata = extractor.extract_metadata_from_pdf_info(str(pdf_path), basic_metadata)
+            enhanced_metadata = extractor.extract_metadata_from_pdf_info(
+                str(pdf_path), basic_metadata
+            )
 
             return enhanced_metadata
 
@@ -235,18 +243,18 @@ class PDFProcessor:
 
     def _extract_fallback_metadata(self, pdf_path: Path) -> Dict:
         """Extract basic metadata when Google Books is not available"""
-        filename = pdf_path.stem.replace('_', ' ').replace('-', ' ')
+        filename = pdf_path.stem.replace("_", " ").replace("-", " ")
 
         return {
-            'title': filename.title(),
-            'author': 'Unknown',
-            'authors': [],
-            'description': f'Cookbook imported from PDF file: {pdf_path.name}',
-            'publisher': '',
-            'publication_date': None,
-            'isbn_10': None,
-            'isbn_13': None,
-            'source': 'filename_only'
+            "title": filename.title(),
+            "author": "Unknown",
+            "authors": [],
+            "description": f"Cookbook imported from PDF file: {pdf_path.name}",
+            "publisher": "",
+            "publication_date": None,
+            "isbn_10": None,
+            "isbn_13": None,
+            "source": "filename_only",
         }
 
     def _extract_page_text(
@@ -635,7 +643,7 @@ class PDFProcessor:
             # Clean up temporary file
             try:
                 image_path.unlink()
-            except:
+            except Exception:
                 pass
 
             # Encode to base64
@@ -686,8 +694,11 @@ Return the extracted text in a clean, readable format that preserves the page's 
 
 # Convenience function for direct usage
 def extract_pdf_cookbook_text(
-    pdf_path: str, use_llm: bool = True, anthropic_api_key: str = None, 
-    max_pages: Optional[int] = None, skip_pages: int = 0
+    pdf_path: str,
+    use_llm: bool = True,
+    anthropic_api_key: str = None,
+    max_pages: Optional[int] = None,
+    skip_pages: int = 0,
 ) -> Dict:
     """
     Convenience function to extract text from a PDF cookbook.
@@ -706,7 +717,9 @@ def extract_pdf_cookbook_text(
     pdf_path_obj = Path(pdf_path)
 
     # Extract text from PDF with page limits
-    extraction_result = processor.extract_text_from_pdf(pdf_path_obj, max_pages=max_pages, skip_pages=skip_pages)
+    extraction_result = processor.extract_text_from_pdf(
+        pdf_path_obj, max_pages=max_pages, skip_pages=skip_pages
+    )
 
     # Extract recipe candidates
     recipe_candidates = processor.extract_recipe_candidates(
@@ -732,7 +745,9 @@ def extract_historical_cookbook_text(
     """
     Backward compatibility wrapper for historical cookbook text extraction.
     """
-    return extract_pdf_cookbook_text(pdf_path, use_llm, anthropic_api_key, max_pages=None, skip_pages=0)
+    return extract_pdf_cookbook_text(
+        pdf_path, use_llm, anthropic_api_key, max_pages=None, skip_pages=0
+    )
 
 
 if __name__ == "__main__":
@@ -749,16 +764,16 @@ if __name__ == "__main__":
 
     try:
         result = extract_pdf_cookbook_text(pdf_path, use_llm=True)
-        print(f"📖 PDF Processing Results (with Claude Haiku enhancement):")
+        print("📖 PDF Processing Results (with Claude Haiku enhancement):")
         print(f"   📄 Pages: {result['summary']['total_pages']}")
         print(f"   📝 Characters: {result['summary']['total_chars']:,}")
         print(f"   🍽️  Potential recipes: {result['summary']['potential_recipes']}")
         print(f"   ⚠️  Errors: {result['summary']['processing_errors']}")
 
         if result["recipe_candidates"]:
-            print(f"\n🔍 First few recipe candidates:")
+            print("\n🔍 First few recipe candidates:")
             for i, recipe in enumerate(result["recipe_candidates"][:5]):
-                print(f"   {i+1}. {recipe['title'][:50]}...")
+                print(f"   {i + 1}. {recipe['title'][:50]}...")
 
     except Exception as e:
         print(f"❌ Error processing PDF: {e}")

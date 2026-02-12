@@ -46,7 +46,7 @@ class MigrationManager:
         if not confirm:
             print(f"⚠️  This will rollback database to revision: {target}")
             response = input("Continue? (y/N): ").lower().strip()
-            if response != 'y':
+            if response != "y":
                 print("Operation cancelled.")
                 return False
 
@@ -83,14 +83,16 @@ class MigrationManager:
             with self.app.app_context():
                 # Get migration history
                 for migration in history():
-                    migrations.append({
-                        'revision': migration.revision,
-                        'message': migration.doc,
-                        'down_revision': migration.down_revision
-                    })
+                    migrations.append(
+                        {
+                            "revision": migration.revision,
+                            "message": migration.doc,
+                            "down_revision": migration.down_revision,
+                        }
+                    )
         except Exception as e:
             print(f"❌ Error listing migrations: {e}")
-        
+
         return migrations
 
     def show_migration(self, revision: str) -> bool:
@@ -109,7 +111,9 @@ class MigrationManager:
             with self.app.app_context():
                 # Basic validation - check if we can get current revision
                 current_rev = current()
-                print(f"✅ Migration validation passed. Current revision: {current_rev}")
+                print(
+                    f"✅ Migration validation passed. Current revision: {current_rev}"
+                )
                 return True
         except Exception as e:
             print(f"❌ Migration validation failed: {e}")
@@ -134,15 +138,15 @@ class MigrationManager:
             with self.app.app_context():
                 current_rev = current()
                 print(f"📍 Current revision: {current_rev}")
-                
+
                 migrations = self.list_migrations()
                 print(f"📊 Total migrations: {len(migrations)}")
-                
+
                 if migrations:
                     print("\n📋 Recent migrations:")
                     for migration in migrations[-5:]:  # Show last 5
                         print(f"   {migration['revision']} - {migration['message']}")
-                
+
         except Exception as e:
             print(f"❌ Error getting migration status: {e}")
 
@@ -154,9 +158,12 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Cookbook Creator Migration Manager")
-    parser.add_argument("--env", default="development",
-                       choices=["development", "testing", "production"],
-                       help="Environment configuration")
+    parser.add_argument(
+        "--env",
+        default="development",
+        choices=["development", "testing", "production"],
+        help="Environment configuration",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -167,16 +174,22 @@ def main():
     # Rollback
     rollback_parser = subparsers.add_parser("rollback", help="Rollback to revision")
     rollback_parser.add_argument("target", help="Target revision")
-    rollback_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
+    rollback_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation"
+    )
 
     # Generate
     generate_parser = subparsers.add_parser("generate", help="Generate new migration")
     generate_parser.add_argument("message", help="Migration message")
-    generate_parser.add_argument("--empty", action="store_true", help="Create empty migration")
+    generate_parser.add_argument(
+        "--empty", action="store_true", help="Create empty migration"
+    )
 
     # List
     list_parser = subparsers.add_parser("list", help="List all migrations")
-    list_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    list_parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Verbose output"
+    )
 
     # Show
     show_parser = subparsers.add_parser("show", help="Show migration details")

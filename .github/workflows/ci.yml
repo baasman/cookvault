@@ -29,14 +29,9 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: Run Ruff (linting)
-        # TODO: Fix lint errors and remove continue-on-error
-        # Currently 3227 errors, mostly whitespace. Run `uv run ruff check backend/ --fix` to auto-fix.
-        continue-on-error: true
         run: uv run ruff check backend/
 
       - name: Run Ruff (formatting)
-        # TODO: Fix formatting and remove continue-on-error
-        continue-on-error: true
         run: uv run ruff format --check backend/
 
   backend-test:
@@ -106,23 +101,19 @@ jobs:
           # Prevent build from failing on warnings
           CI: false
 
-  # Summary job that requires critical jobs to pass
-  # Lint is informational only until errors are fixed
+  # Summary job that requires all jobs to pass
   ci-success:
     name: CI Success
     needs: [backend-lint, backend-test, frontend-build]
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Check critical jobs passed
+      - name: Check all jobs passed
         run: |
-          # Tests and build must pass; lint is informational for now
-          if [[ "${{ needs.backend-test.result }}" != "success" ]] || \
+          if [[ "${{ needs.backend-lint.result }}" != "success" ]] || \
+             [[ "${{ needs.backend-test.result }}" != "success" ]] || \
              [[ "${{ needs.frontend-build.result }}" != "success" ]]; then
-            echo "Critical CI checks failed"
+            echo "❌ CI checks failed"
             exit 1
           fi
-          if [[ "${{ needs.backend-lint.result }}" != "success" ]]; then
-            echo "⚠️ Lint checks failed (non-blocking) - please fix lint errors"
-          fi
-          echo "✅ All critical CI checks passed!"
+          echo "✅ All CI checks passed!"

@@ -2,11 +2,10 @@ from pathlib import Path
 import tempfile
 import re
 import gc
-from typing import Dict, Tuple
+from typing import Dict
 
 import pytesseract
 from PIL import Image
-import numpy as np
 from skimage import filters, morphology, transform, exposure, io
 from skimage.color import rgb2gray
 from skimage.util import img_as_ubyte
@@ -62,7 +61,7 @@ class OCRService:
             "method": "traditional",
             "quality_score": None,
             "quality_reasoning": "",
-            "fallback_used": False
+            "fallback_used": False,
         }
 
         # Get quality threshold from config
@@ -71,77 +70,103 @@ class OCRService:
 
         try:
             # Step 1: Try traditional OCR first
-            current_app.logger.info(f"Starting traditional OCR extraction for {image_path}")
+            current_app.logger.info(
+                f"Starting traditional OCR extraction for {image_path}"
+            )
             traditional_text = self.extract_text_from_image(image_path)
 
             # Step 2: Assess quality of traditional OCR
             current_app.logger.info("Assessing OCR quality...")
-            quality_score, quality_reasoning = self.quality_service.assess_quality(traditional_text)
+            quality_score, quality_reasoning = self.quality_service.assess_quality(
+                traditional_text
+            )
 
-            result.update({
-                "text": traditional_text,
-                "quality_score": quality_score,
-                "quality_reasoning": quality_reasoning
-            })
+            result.update(
+                {
+                    "text": traditional_text,
+                    "quality_score": quality_score,
+                    "quality_reasoning": quality_reasoning,
+                }
+            )
 
-            current_app.logger.info(f"OCR quality score: {quality_score}/10 - {quality_reasoning}")
+            current_app.logger.info(
+                f"OCR quality score: {quality_score}/10 - {quality_reasoning}"
+            )
 
             # Step 3: Decide whether to use LLM fallback
             if quality_score < quality_threshold and llm_fallback_enabled:
-                current_app.logger.info(f"Quality score {quality_score} below threshold {quality_threshold}, using LLM fallback")
+                current_app.logger.info(
+                    f"Quality score {quality_score} below threshold {quality_threshold}, using LLM fallback"
+                )
 
                 try:
                     llm_text = self.llm_ocr_service.extract_text_from_image(image_path)
-                    result.update({
-                        "text": llm_text,
-                        "method": "llm",
-                        "fallback_used": True
-                    })
+                    result.update(
+                        {"text": llm_text, "method": "llm", "fallback_used": True}
+                    )
                     current_app.logger.info("LLM OCR extraction completed successfully")
 
                 except Exception as llm_error:
-                    current_app.logger.error(f"LLM OCR fallback failed: {str(llm_error)}")
+                    current_app.logger.error(
+                        f"LLM OCR fallback failed: {str(llm_error)}"
+                    )
                     # Keep traditional OCR result despite poor quality
-                    result["quality_reasoning"] += f" (LLM fallback failed: {str(llm_error)})"
+                    result["quality_reasoning"] += (
+                        f" (LLM fallback failed: {str(llm_error)})"
+                    )
             else:
-                current_app.logger.info(f"Using traditional OCR result (quality: {quality_score}/10)")
+                current_app.logger.info(
+                    f"Using traditional OCR result (quality: {quality_score}/10)"
+                )
 
             return result
 
         except Exception as e:
-            current_app.logger.error(f"OCR extraction with quality check failed: {str(e)}")
-            raise OCRExtractionError(f"OCR extraction with quality check failed: {str(e)}", e) from e
+            current_app.logger.error(
+                f"OCR extraction with quality check failed: {str(e)}"
+            )
+            raise OCRExtractionError(
+                f"OCR extraction with quality check failed: {str(e)}", e
+            ) from e
 
     def preprocess_image(self, image_path: Path) -> Path:
         try:
             # Check if preprocessing is disabled in production
-            if current_app.config.get('SKIP_IMAGE_PREPROCESSING', False):
-                current_app.logger.info("Image preprocessing disabled in production mode")
+            if current_app.config.get("SKIP_IMAGE_PREPROCESSING", False):
+                current_app.logger.info(
+                    "Image preprocessing disabled in production mode"
+                )
                 return image_path
-                
+
             # Check file size first - skip processing if too large to prevent memory issues
             file_size_mb = image_path.stat().st_size / (1024 * 1024)
             if file_size_mb > 10:  # Skip preprocessing for files larger than 10MB
-                current_app.logger.warning(f"Skipping preprocessing for large file ({file_size_mb:.1f}MB): {image_path}")
+                current_app.logger.warning(
+                    f"Skipping preprocessing for large file ({file_size_mb:.1f}MB): {image_path}"
+                )
                 return image_path
-            
+
             # Load image with PIL first to check dimensions
             with Image.open(image_path) as pil_img:
                 width, height = pil_img.size
-                
+
                 # Skip processing if image is already very large to prevent memory issues
                 total_pixels = width * height
                 if total_pixels > 4000 * 4000:  # 16 megapixels
-                    current_app.logger.warning(f"Skipping preprocessing for high-resolution image ({width}x{height}): {image_path}")
+                    current_app.logger.warning(
+                        f"Skipping preprocessing for high-resolution image ({width}x{height}): {image_path}"
+                    )
                     return image_path
 
             # Load image with scikit-image
             img = io.imread(str(image_path))
             if img is None:
                 return image_path
-            
+
             original_shape = img.shape
-            current_app.logger.info(f"Processing image {image_path} with shape {original_shape}")
+            current_app.logger.info(
+                f"Processing image {image_path} with shape {original_shape}"
+            )
 
             # Convert to grayscale if needed
             if len(img.shape) == 3:
@@ -175,13 +200,14 @@ class OCRService:
                 # Calculate new dimensions but cap them to prevent memory issues
                 scale_factor = max(600 / height, 600 / width)
                 new_height = min(int(height * scale_factor), 2000)  # Cap at 2000px
-                new_width = min(int(width * scale_factor), 2000)   # Cap at 2000px
-                
+                new_width = min(int(width * scale_factor), 2000)  # Cap at 2000px
+
                 processed = transform.resize(
-                    processed, (new_height, new_width),
+                    processed,
+                    (new_height, new_width),
                     order=1,  # Use bilinear instead of cubic for speed/memory
-                    preserve_range=True, 
-                    anti_aliasing=False  # Disable anti-aliasing for speed/memory
+                    preserve_range=True,
+                    anti_aliasing=False,  # Disable anti-aliasing for speed/memory
                 )
 
             # Convert to uint8 for saving
@@ -202,15 +228,17 @@ class OCRService:
             gc.collect()
             # If preprocessing fails, return original image
             return image_path
-    
-    def extract_text_from_multiple_images(self, image_paths: list[Path], maintain_order: bool = True) -> Dict[str, any]:
+
+    def extract_text_from_multiple_images(
+        self, image_paths: list[Path], maintain_order: bool = True
+    ) -> Dict[str, any]:
         """
         Extract text from multiple images with quality assessment and optimization.
-        
+
         Args:
             image_paths: List of paths to image files in order
             maintain_order: Whether to process images in sequential order
-            
+
         Returns:
             Dictionary containing:
             - results: List of extraction results per image
@@ -220,107 +248,121 @@ class OCRService:
         """
         if not image_paths:
             raise ValueError("At least one image path is required")
-        
+
         results = []
         successful_extractions = 0
         total_quality_score = 0
         processing_errors = []
-        
-        current_app.logger.info(f"Starting multi-image OCR processing for {len(image_paths)} images")
-        
+
+        current_app.logger.info(
+            f"Starting multi-image OCR processing for {len(image_paths)} images"
+        )
+
         for i, image_path in enumerate(image_paths):
-            current_app.logger.info(f"Processing image {i+1}/{len(image_paths)}: {image_path}")
-            
+            current_app.logger.info(
+                f"Processing image {i + 1}/{len(image_paths)}: {image_path}"
+            )
+
             try:
                 # Extract text with quality assessment
                 extraction_result = self.extract_text_with_quality_check(image_path)
-                extraction_result['image_index'] = i
-                extraction_result['image_path'] = str(image_path)
-                
+                extraction_result["image_index"] = i
+                extraction_result["image_path"] = str(image_path)
+
                 results.append(extraction_result)
-                
-                if extraction_result['text'].strip():
+
+                if extraction_result["text"].strip():
                     successful_extractions += 1
-                    if extraction_result['quality_score']:
-                        total_quality_score += extraction_result['quality_score']
-                        
-                current_app.logger.info(f"Image {i+1} processed: {len(extraction_result['text'])} chars, quality: {extraction_result.get('quality_score', 'N/A')}")
-                
+                    if extraction_result["quality_score"]:
+                        total_quality_score += extraction_result["quality_score"]
+
+                current_app.logger.info(
+                    f"Image {i + 1} processed: {len(extraction_result['text'])} chars, quality: {extraction_result.get('quality_score', 'N/A')}"
+                )
+
             except Exception as e:
-                error_msg = f"Failed to process image {i+1} ({image_path}): {str(e)}"
+                error_msg = f"Failed to process image {i + 1} ({image_path}): {str(e)}"
                 current_app.logger.error(error_msg)
                 processing_errors.append(error_msg)
-                
+
                 # Add failed result to maintain order
-                results.append({
-                    'image_index': i,
-                    'image_path': str(image_path),
-                    'text': '',
-                    'method': 'failed',
-                    'quality_score': 0,
-                    'quality_reasoning': f'Processing failed: {str(e)}',
-                    'fallback_used': False,
-                    'error': str(e)
-                })
-        
+                results.append(
+                    {
+                        "image_index": i,
+                        "image_path": str(image_path),
+                        "text": "",
+                        "method": "failed",
+                        "quality_score": 0,
+                        "quality_reasoning": f"Processing failed: {str(e)}",
+                        "fallback_used": False,
+                        "error": str(e),
+                    }
+                )
+
         # Calculate overall quality metrics
-        avg_quality = (total_quality_score / successful_extractions) if successful_extractions > 0 else 0
+        avg_quality = (
+            (total_quality_score / successful_extractions)
+            if successful_extractions > 0
+            else 0
+        )
         success_rate = (successful_extractions / len(image_paths)) * 100
-        
+
         # Assess overall completeness
-        all_texts = [r['text'] for r in results if r['text'].strip()]
+        all_texts = [r["text"] for r in results if r["text"].strip()]
         completeness_score = self._assess_multi_image_completeness(all_texts)
-        
+
         processing_summary = {
-            'total_images': len(image_paths),
-            'successful_extractions': successful_extractions,
-            'failed_extractions': len(image_paths) - successful_extractions,
-            'success_rate': success_rate,
-            'average_quality': avg_quality,
-            'processing_errors': processing_errors
+            "total_images": len(image_paths),
+            "successful_extractions": successful_extractions,
+            "failed_extractions": len(image_paths) - successful_extractions,
+            "success_rate": success_rate,
+            "average_quality": avg_quality,
+            "processing_errors": processing_errors,
         }
-        
-        current_app.logger.info(f"Multi-image OCR completed: {successful_extractions}/{len(image_paths)} successful, avg quality: {avg_quality:.1f}")
-        
+
+        current_app.logger.info(
+            f"Multi-image OCR completed: {successful_extractions}/{len(image_paths)} successful, avg quality: {avg_quality:.1f}"
+        )
+
         return {
-            'results': results,
-            'overall_quality': avg_quality,
-            'completeness_score': completeness_score,
-            'processing_summary': processing_summary
+            "results": results,
+            "overall_quality": avg_quality,
+            "completeness_score": completeness_score,
+            "processing_summary": processing_summary,
         }
-    
+
     def _assess_multi_image_completeness(self, texts: list[str]) -> Dict[str, any]:
         """
         Assess the completeness of a multi-image recipe extraction.
-        
+
         Args:
             texts: List of extracted text from all images
-            
+
         Returns:
             Dictionary with completeness assessment
         """
         if not texts:
             return {
-                'score': 0,
-                'has_title': False,
-                'has_ingredients': False,
-                'has_instructions': False,
-                'estimated_completeness': 0,
-                'missing_elements': ['title', 'ingredients', 'instructions'],
-                'reasoning': 'No text extracted from any image'
+                "score": 0,
+                "has_title": False,
+                "has_ingredients": False,
+                "has_instructions": False,
+                "estimated_completeness": 0,
+                "missing_elements": ["title", "ingredients", "instructions"],
+                "reasoning": "No text extracted from any image",
             }
-        
-        combined_text = '\n'.join(texts).lower()
-        
+
+        combined_text = "\n".join(texts).lower()
+
         # Check for key recipe elements
         has_title = bool(self._detect_title_indicators(combined_text))
         has_ingredients = bool(self._detect_ingredient_indicators(combined_text))
         has_instructions = bool(self._detect_instruction_indicators(combined_text))
-        
+
         # Calculate completeness score
         elements_found = sum([has_title, has_ingredients, has_instructions])
         completeness_percentage = (elements_found / 3) * 100
-        
+
         # Determine overall score (1-10)
         if completeness_percentage >= 90:
             score = 10
@@ -332,67 +374,67 @@ class OCRService:
             score = 4
         else:
             score = 2
-        
+
         missing_elements = []
         if not has_title:
-            missing_elements.append('title')
+            missing_elements.append("title")
         if not has_ingredients:
-            missing_elements.append('ingredients')
+            missing_elements.append("ingredients")
         if not has_instructions:
-            missing_elements.append('instructions')
-        
+            missing_elements.append("instructions")
+
         reasoning = f"Found {elements_found}/3 key elements. "
         if missing_elements:
             reasoning += f"Missing: {', '.join(missing_elements)}."
         else:
             reasoning += "All key elements detected."
-        
+
         return {
-            'score': score,
-            'has_title': has_title,
-            'has_ingredients': has_ingredients,
-            'has_instructions': has_instructions,
-            'estimated_completeness': completeness_percentage,
-            'missing_elements': missing_elements,
-            'reasoning': reasoning
+            "score": score,
+            "has_title": has_title,
+            "has_ingredients": has_ingredients,
+            "has_instructions": has_instructions,
+            "estimated_completeness": completeness_percentage,
+            "missing_elements": missing_elements,
+            "reasoning": reasoning,
         }
-    
+
     def _detect_title_indicators(self, text: str) -> bool:
         """Detect if text contains recipe title indicators."""
         title_patterns = [
-            r'\b\w+\s+(cake|cookies?|bread|soup|stew|salad|pasta)\b',
-            r'\b(recipe|dish|meal)\b.*\b(for|with|and)\b',
-            r'^\s*[A-Z][a-z\s]+\s*$',  # Capitalized standalone lines
+            r"\b\w+\s+(cake|cookies?|bread|soup|stew|salad|pasta)\b",
+            r"\b(recipe|dish|meal)\b.*\b(for|with|and)\b",
+            r"^\s*[A-Z][a-z\s]+\s*$",  # Capitalized standalone lines
         ]
-        
+
         for pattern in title_patterns:
             if re.search(pattern, text, re.IGNORECASE):
                 return True
         return False
-    
+
     def _detect_ingredient_indicators(self, text: str) -> bool:
         """Detect if text contains ingredient list indicators."""
         ingredient_patterns = [
-            r'\bingredients?\b',
-            r'\b\d+\s*(cups?|tbsp|tsp|pounds?|oz|grams?|ml|liters?)\b',
-            r'\b\d+\s*\w+\s+(flour|sugar|butter|oil|salt|pepper)\b',
-            r'[\•\-\*]\s*\d',  # Bullet points with measurements
+            r"\bingredients?\b",
+            r"\b\d+\s*(cups?|tbsp|tsp|pounds?|oz|grams?|ml|liters?)\b",
+            r"\b\d+\s*\w+\s+(flour|sugar|butter|oil|salt|pepper)\b",
+            r"[\•\-\*]\s*\d",  # Bullet points with measurements
         ]
-        
+
         for pattern in ingredient_patterns:
             if re.search(pattern, text, re.IGNORECASE):
                 return True
         return False
-    
+
     def _detect_instruction_indicators(self, text: str) -> bool:
         """Detect if text contains instruction/method indicators."""
         instruction_patterns = [
-            r'\b(instructions?|method|directions?|steps?)\b',
-            r'\b\d+\.\s+\w+',  # Numbered steps
-            r'\b(mix|stir|bake|cook|heat|add|combine|blend)\b',
-            r'\b(preheat|oven|pan|bowl)\b',
+            r"\b(instructions?|method|directions?|steps?)\b",
+            r"\b\d+\.\s+\w+",  # Numbered steps
+            r"\b(mix|stir|bake|cook|heat|add|combine|blend)\b",
+            r"\b(preheat|oven|pan|bowl)\b",
         ]
-        
+
         for pattern in instruction_patterns:
             if re.search(pattern, text, re.IGNORECASE):
                 return True

@@ -5,13 +5,13 @@ Revises: add_print_order_id
 Create Date: 2025-09-11 00:45:00.000000
 
 """
+
 from alembic import op
-import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'update_payment_type_enum'
-down_revision = 'add_print_order_id'
+revision = "update_payment_type_enum"
+down_revision = "add_print_order_id"
 branch_labels = None
 depends_on = None
 

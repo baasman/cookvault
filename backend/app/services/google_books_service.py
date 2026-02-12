@@ -12,7 +12,6 @@ import redis
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 import logging
-from urllib.parse import quote_plus
 from flask import current_app
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,9 @@ class GoogleBooksService:
         if self.api_key:
             logger.info("Google Books service initialized with API key")
         else:
-            logger.info("Google Books service initialized without API key (using free tier)")
+            logger.info(
+                "Google Books service initialized without API key (using free tier)"
+            )
 
         # Initialize Redis for caching
         self.redis_client = None
@@ -55,14 +56,12 @@ class GoogleBooksService:
                 self.redis_client = None
 
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Cookbook-Creator/1.0'
-        })
+        self.session.headers.update({"User-Agent": "Cookbook-Creator/1.0"})
 
     def _get_redis_url(self) -> Optional[str]:
         """Get Redis URL from Flask app config"""
         try:
-            return current_app.config.get('REDIS_URL')
+            return current_app.config.get("REDIS_URL")
         except RuntimeError:
             # Not in Flask app context
             return None
@@ -92,7 +91,7 @@ class GoogleBooksService:
             self.redis_client.setex(key, ttl, json.dumps(data, default=str))
         except Exception as e:
             logger.warning(f"Cache write error: {e}")
-    
+
     def search_books(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """Search for books using Google Books API
 
@@ -113,14 +112,14 @@ class GoogleBooksService:
         try:
             # Prepare search parameters
             params = {
-                'q': query,
-                'maxResults': min(max_results, 40),  # Google Books API limit
-                'printType': 'books',
-                'langRestrict': 'en'
+                "q": query,
+                "maxResults": min(max_results, 40),  # Google Books API limit
+                "printType": "books",
+                "langRestrict": "en",
             }
 
             if self.api_key:
-                params['key'] = self.api_key
+                params["key"] = self.api_key
 
             # Make API request
             response = self.session.get(self.BASE_URL, params=params, timeout=10)
@@ -130,7 +129,7 @@ class GoogleBooksService:
 
             # Process results
             books = []
-            for item in data.get('items', []):
+            for item in data.get("items", []):
                 book_data = self._map_google_book_to_cookbook(item)
                 if book_data:
                     books.append(book_data)
@@ -144,55 +143,63 @@ class GoogleBooksService:
 
         except requests.exceptions.RequestException as e:
             # Log the specific response for debugging
-            if hasattr(e, 'response') and e.response is not None:
+            if hasattr(e, "response") and e.response is not None:
                 status_code = e.response.status_code
-                logger.error(f"Google Books API request failed with status {status_code}: {e.response.text}")
+                logger.error(
+                    f"Google Books API request failed with status {status_code}: {e.response.text}"
+                )
                 if status_code == 429:
-                    raise GoogleBooksAPIError("Too many requests. Please wait a moment and try again.")
+                    raise GoogleBooksAPIError(
+                        "Too many requests. Please wait a moment and try again."
+                    )
                 if status_code == 403:
-                    raise GoogleBooksAPIError("Google Books API access denied. This may be due to quota limits.")
+                    raise GoogleBooksAPIError(
+                        "Google Books API access denied. This may be due to quota limits."
+                    )
             else:
                 logger.error(f"Google Books API request failed: {e}")
             raise GoogleBooksAPIError(f"Failed to search books: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error in book search: {e}")
             raise GoogleBooksAPIError(f"Unexpected error: {str(e)}")
-    
+
     def search_by_isbn(self, isbn: str) -> Optional[Dict[str, Any]]:
         """Search for a specific book by ISBN
-        
+
         Args:
             isbn: ISBN-10 or ISBN-13
-            
+
         Returns:
             Book dictionary or None if not found
         """
         # Clean ISBN (remove hyphens and spaces)
-        cleaned_isbn = isbn.replace('-', '').replace(' ', '')
-        
+        cleaned_isbn = isbn.replace("-", "").replace(" ", "")
+
         query = f"isbn:{cleaned_isbn}"
         results = self.search_books(query, max_results=1)
-        
+
         return results[0] if results else None
-    
-    def search_by_title_author(self, title: str, author: str = None) -> List[Dict[str, Any]]:
+
+    def search_by_title_author(
+        self, title: str, author: str = None
+    ) -> List[Dict[str, Any]]:
         """Search for books by title and optionally author
-        
+
         Args:
             title: Book title
             author: Author name (optional)
-            
+
         Returns:
             List of book dictionaries
         """
         query_parts = [f"intitle:{title}"]
-        
+
         if author:
             query_parts.append(f"inauthor:{author}")
-        
+
         query = " ".join(query_parts)
         return self.search_books(query)
-    
+
     def get_book_details(self, book_id: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a specific book
 
@@ -212,7 +219,7 @@ class GoogleBooksService:
         try:
             params = {}
             if self.api_key:
-                params['key'] = self.api_key
+                params["key"] = self.api_key
 
             url = f"{self.BASE_URL}/{book_id}"
             response = self.session.get(url, params=params, timeout=10)
@@ -229,91 +236,101 @@ class GoogleBooksService:
 
         except requests.exceptions.RequestException as e:
             # Log the specific response for debugging
-            if hasattr(e, 'response') and e.response is not None:
+            if hasattr(e, "response") and e.response is not None:
                 status_code = e.response.status_code
-                logger.error(f"Google Books API request failed with status {status_code}: {e.response.text}")
+                logger.error(
+                    f"Google Books API request failed with status {status_code}: {e.response.text}"
+                )
                 if status_code == 429:
-                    logger.error(f"Rate limited when getting book details for {book_id}")
+                    logger.error(
+                        f"Rate limited when getting book details for {book_id}"
+                    )
                 elif status_code == 403:
-                    logger.error(f"Google Books API access denied for book details {book_id}")
+                    logger.error(
+                        f"Google Books API access denied for book details {book_id}"
+                    )
             else:
                 logger.error(f"Failed to get book details for {book_id}: {e}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error getting book details: {e}")
             return None
-    
-    def _map_google_book_to_cookbook(self, item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+
+    def _map_google_book_to_cookbook(
+        self, item: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Map Google Books API response to cookbook format
-        
+
         Args:
             item: Google Books API item
-            
+
         Returns:
             Mapped cookbook dictionary
         """
         try:
-            volume_info = item.get('volumeInfo', {})
-            
+            volume_info = item.get("volumeInfo", {})
+
             # Extract basic information
-            title = volume_info.get('title', '').strip()
+            title = volume_info.get("title", "").strip()
             if not title:
                 return None
-            
+
             # Extract authors
-            authors = volume_info.get('authors', [])
-            author = authors[0] if authors else ''
-            
+            authors = volume_info.get("authors", [])
+            author = authors[0] if authors else ""
+
             # Extract identifiers (ISBN)
-            isbn = ''
-            identifiers = volume_info.get('industryIdentifiers', [])
+            isbn = ""
+            identifiers = volume_info.get("industryIdentifiers", [])
             for identifier in identifiers:
-                if identifier.get('type') in ['ISBN_13', 'ISBN_10']:
-                    isbn = identifier.get('identifier', '')
+                if identifier.get("type") in ["ISBN_13", "ISBN_10"]:
+                    isbn = identifier.get("identifier", "")
                     break
-            
+
             # Extract publication date
             publication_date = None
-            pub_date_str = volume_info.get('publishedDate', '')
+            pub_date_str = volume_info.get("publishedDate", "")
             if pub_date_str:
                 try:
                     # Handle various date formats
                     if len(pub_date_str) == 4:  # Just year
                         publication_date = datetime(int(pub_date_str), 1, 1)
                     elif len(pub_date_str) == 7:  # Year-month
-                        year, month = pub_date_str.split('-')
+                        year, month = pub_date_str.split("-")
                         publication_date = datetime(int(year), int(month), 1)
                     else:  # Full date
-                        publication_date = datetime.strptime(pub_date_str, '%Y-%m-%d')
+                        publication_date = datetime.strptime(pub_date_str, "%Y-%m-%d")
                 except (ValueError, TypeError):
                     logger.warning(f"Could not parse publication date: {pub_date_str}")
-            
+
             # Extract description
-            description = volume_info.get('description', '')
-            
+            description = volume_info.get("description", "")
+
             # Extract thumbnail
-            image_links = volume_info.get('imageLinks', {})
-            thumbnail = image_links.get('thumbnail') or image_links.get('smallThumbnail')
-            
+            image_links = volume_info.get("imageLinks", {})
+            thumbnail = image_links.get("thumbnail") or image_links.get(
+                "smallThumbnail"
+            )
+
             # Build cookbook dictionary
             cookbook_data = {
-                'google_books_id': item.get('id'),
-                'title': title,
-                'author': author,
-                'publisher': volume_info.get('publisher', ''),
-                'publication_date': publication_date,
-                'isbn': isbn,
-                'description': description,
-                'page_count': volume_info.get('pageCount'),
-                'categories': volume_info.get('categories', []),
-                'language': volume_info.get('language', 'en'),
-                'thumbnail_url': thumbnail,
-                'google_books_url': item.get('selfLink'),
-                'source': 'google_books'
+                "google_books_id": item.get("id"),
+                "title": title,
+                "author": author,
+                "publisher": volume_info.get("publisher", ""),
+                "publication_date": publication_date,
+                "isbn": isbn,
+                "description": description,
+                "page_count": volume_info.get("pageCount"),
+                "categories": volume_info.get("categories", []),
+                "language": volume_info.get("language", "en"),
+                "thumbnail_url": thumbnail,
+                "google_books_url": item.get("selfLink"),
+                "source": "google_books",
             }
-            
+
             return cookbook_data
-            
+
         except Exception as e:
             logger.error(f"Error mapping Google Books item: {e}")
             return None
@@ -321,22 +338,23 @@ class GoogleBooksService:
 
 class GoogleBooksAPIError(Exception):
     """Exception raised for Google Books API errors"""
+
     pass
 
 
 # Helper functions for common search patterns
 def search_cookbook_by_title(title: str, api_key: str = None) -> List[Dict[str, Any]]:
     """Convenience function to search for cookbooks by title
-    
+
     Args:
         title: Book title to search for
         api_key: Google Books API key
-        
+
     Returns:
         List of book dictionaries
     """
     service = GoogleBooksService(api_key)
-    
+
     # Add cookbook-specific search terms
     enhanced_query = f"{title} cookbook OR cooking OR recipe"
     return service.search_books(enhanced_query)
@@ -344,16 +362,16 @@ def search_cookbook_by_title(title: str, api_key: str = None) -> List[Dict[str, 
 
 def search_cookbook_by_author(author: str, api_key: str = None) -> List[Dict[str, Any]]:
     """Convenience function to search for cookbooks by author
-    
+
     Args:
         author: Author name to search for
         api_key: Google Books API key
-        
+
     Returns:
         List of book dictionaries
     """
     service = GoogleBooksService(api_key)
-    
+
     # Add cookbook-specific search terms
     enhanced_query = f"inauthor:{author} cookbook OR cooking OR recipe"
     return service.search_books(enhanced_query)

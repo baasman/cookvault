@@ -80,8 +80,21 @@ target-version = ['py311']
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "C90"]
-ignore = ["D101"]
+ignore = [
+    "D101",    # Missing docstring in public class
+    "E501",    # Line too long (handled by formatter where possible)
+    "F821",    # Undefined name (false positives for SQLAlchemy forward refs)
+    "C901",    # Function too complex (acceptable for now)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/app/api/__init__.py" = ["F401", "E402"]  # Re-exports for Flask blueprint registration
+"backend/cookbook_db_utils/*.py" = ["F401"]  # Optional imports for seeding scripts
+"backend/wsgi.py" = ["E402"]  # Import after env setup is intentional
+"backend/celery_worker.py" = ["E402"]  # Import after env setup is intentional
 
 [tool.mypy]
 python_version = "3.11"

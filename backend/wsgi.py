@@ -1,6 +1,7 @@
 """
 WSGI entry point for production deployment
 """
+
 import os
 import sys
 from pathlib import Path
@@ -10,8 +11,8 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
 # Set environment to production if not already set
-if not os.environ.get('FLASK_ENV'):
-    os.environ['FLASK_ENV'] = 'production'
+if not os.environ.get("FLASK_ENV"):
+    os.environ["FLASK_ENV"] = "production"
 
 from app import create_app
 

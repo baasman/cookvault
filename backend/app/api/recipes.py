@@ -1,4 +1,3 @@
-import os
 import re
 import traceback
 import uuid
@@ -12,8 +11,13 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.api import bp
-from app.api.auth import require_auth, require_admin, optional_auth, should_apply_user_filter
-from app.utils.rate_limiting import rate_limit_upload, rate_limit_api_write, rate_limit_job_status
+from app.api.auth import (
+    require_auth,
+    require_admin,
+    optional_auth,
+    should_apply_user_filter,
+)
+from app.utils.rate_limiting import rate_limit_upload
 from app.models import (
     Cookbook,
     Ingredient,
@@ -31,7 +35,6 @@ from app.models import (
     UserRole,
 )
 from app.models.recipe import recipe_ingredients
-from app.services.ocr_service import OCRService
 from app.services.recipe_parser import RecipeParser
 from app.services.cloudinary_service import cloudinary_service
 import requests
@@ -43,7 +46,9 @@ def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def process_and_save_image(file, original_filename: str, folder: str = "recipes") -> RecipeImage:
+def process_and_save_image(
+    file, original_filename: str, folder: str = "recipes"
+) -> RecipeImage:
     """
     Process and save an image file, using Cloudinary if enabled, otherwise local storage.
 
@@ -74,28 +79,31 @@ def process_and_save_image(file, original_filename: str, folder: str = "recipes"
         try:
             current_app.logger.info("Uploading image to Cloudinary...")
             cloudinary_result = cloudinary_service.upload_image(
-                file_data,
-                original_filename,
-                folder=folder,
-                generate_thumbnail=True
+                file_data, original_filename, folder=folder, generate_thumbnail=True
             )
 
             # Store Cloudinary information
-            recipe_image.cloudinary_public_id = cloudinary_result['public_id']
-            recipe_image.cloudinary_url = cloudinary_result['url']
-            recipe_image.cloudinary_thumbnail_url = cloudinary_result.get('thumbnail_url')
-            recipe_image.cloudinary_width = cloudinary_result['width']
-            recipe_image.cloudinary_height = cloudinary_result['height']
-            recipe_image.cloudinary_format = cloudinary_result['format']
-            recipe_image.cloudinary_bytes = cloudinary_result['bytes']
+            recipe_image.cloudinary_public_id = cloudinary_result["public_id"]
+            recipe_image.cloudinary_url = cloudinary_result["url"]
+            recipe_image.cloudinary_thumbnail_url = cloudinary_result.get(
+                "thumbnail_url"
+            )
+            recipe_image.cloudinary_width = cloudinary_result["width"]
+            recipe_image.cloudinary_height = cloudinary_result["height"]
+            recipe_image.cloudinary_format = cloudinary_result["format"]
+            recipe_image.cloudinary_bytes = cloudinary_result["bytes"]
 
             # For Cloudinary images, we don't need local file path
             recipe_image.file_path = f"cloudinary:{cloudinary_result['public_id']}"
 
-            current_app.logger.info(f"Successfully uploaded to Cloudinary: {cloudinary_result['public_id']}")
+            current_app.logger.info(
+                f"Successfully uploaded to Cloudinary: {cloudinary_result['public_id']}"
+            )
 
         except Exception as e:
-            current_app.logger.error(f"Cloudinary upload failed, falling back to local storage: {str(e)}")
+            current_app.logger.error(
+                f"Cloudinary upload failed, falling back to local storage: {str(e)}"
+            )
             # Fall through to local storage
 
     # Local storage fallback (or primary if Cloudinary not enabled)
@@ -104,7 +112,7 @@ def process_and_save_image(file, original_filename: str, folder: str = "recipes"
         file_path = upload_folder / filename
 
         # Save file locally
-        with open(file_path, 'wb') as f:
+        with open(file_path, "wb") as f:
             f.write(file_data)
 
         recipe_image.file_path = str(file_path)
@@ -127,11 +135,13 @@ def get_image_data_for_ocr(recipe_image: RecipeImage) -> bytes:
         Exception: If image cannot be retrieved
     """
     # Check if it's a Cloudinary image
-    if recipe_image.file_path.startswith('cloudinary:'):
+    if recipe_image.file_path.startswith("cloudinary:"):
         if not recipe_image.cloudinary_url:
             raise Exception("Cloudinary image has no URL")
 
-        current_app.logger.info(f"Downloading Cloudinary image for OCR: {recipe_image.cloudinary_url}")
+        current_app.logger.info(
+            f"Downloading Cloudinary image for OCR: {recipe_image.cloudinary_url}"
+        )
 
         try:
             response = requests.get(recipe_image.cloudinary_url, timeout=30)
@@ -166,26 +176,32 @@ def safe_int_conversion(value: Any) -> int | None:
 
         # Handle range values like "8-10", "4-6 servings", "2-3 hours", "2 to 4 servings"
         # Look for patterns like "8-10", "4-6", "2 to 4", etc.
-        range_match = re.search(r'(\d+)\s*(?:[-–—]|to)\s*(\d+)', value_str)
+        range_match = re.search(r"(\d+)\s*(?:[-–—]|to)\s*(\d+)", value_str)
         if range_match:
             start_val = int(range_match.group(1))
             end_val = int(range_match.group(2))
             # Take the average of the range, rounded down
             result = (start_val + end_val) // 2
-            current_app.logger.info(f"Converted range '{value_str}' to {result} for servings field")
+            current_app.logger.info(
+                f"Converted range '{value_str}' to {result} for servings field"
+            )
             return result
 
         # Look for single numbers (ignoring text like "servings", "minutes", etc.)
-        number_match = re.search(r'(\d+)', value_str)
+        number_match = re.search(r"(\d+)", value_str)
         if number_match:
             result = int(number_match.group(1))
-            current_app.logger.debug(f"Extracted number {result} from '{value_str}' for servings field")
+            current_app.logger.debug(
+                f"Extracted number {result} from '{value_str}' for servings field"
+            )
             return result
 
     try:
         return int(value)
     except (ValueError, TypeError):
-        current_app.logger.warning(f"Could not convert '{value}' to integer for servings field")
+        current_app.logger.warning(
+            f"Could not convert '{value}' to integer for servings field"
+        )
         return None
 
 
@@ -223,8 +239,11 @@ def search_ingredients() -> Response:
     except Exception as e:
         current_app.logger.error(f"Error searching ingredients: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return jsonify({"error": "Failed to search ingredients", "details": str(e)}), 500
+        return jsonify(
+            {"error": "Failed to search ingredients", "details": str(e)}
+        ), 500
 
 
 @bp.route("/recipes", methods=["GET"])
@@ -266,8 +285,9 @@ def get_recipes(current_user) -> Response:
         elif filter_type == "discover":
             # All public recipes from other users (for discovery)
             query = query.filter(
-                Recipe.is_public == True,
-                Recipe.uploaded_by_id != current_user.id,  # Exclude recipes uploaded by user
+                Recipe.is_public,
+                Recipe.uploaded_by_id
+                != current_user.id,  # Exclude recipes uploaded by user
             )
             if search and search.strip():
                 # Debug logging
@@ -289,7 +309,7 @@ def get_recipes(current_user) -> Response:
             pass  # No additional filter needed
         elif filter_type == "discover":
             # All public recipes (for discovery)
-            query = query.filter(Recipe.is_public == True)
+            query = query.filter(Recipe.is_public)
             if search and search.strip():
                 current_app.logger.info(
                     f"Admin discover mode search '{search}': looking for public recipes"
@@ -317,7 +337,9 @@ def get_recipes(current_user) -> Response:
 
     if ingredients_param:
         ingredient_names = [
-            name.strip().lower() for name in ingredients_param.split(",") if name.strip()
+            name.strip().lower()
+            for name in ingredients_param.split(",")
+            if name.strip()
         ]
 
         if ingredient_names:
@@ -326,7 +348,10 @@ def get_recipes(current_user) -> Response:
                 for ingredient_name in ingredient_names:
                     subquery = (
                         db.session.query(recipe_ingredients.c.recipe_id)
-                        .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                        .join(
+                            Ingredient,
+                            Ingredient.id == recipe_ingredients.c.ingredient_id,
+                        )
                         .filter(Ingredient.name.ilike(f"%{ingredient_name}%"))
                         .subquery()
                     )
@@ -335,10 +360,15 @@ def get_recipes(current_user) -> Response:
                 # ANY mode: has at least one ingredient
                 subquery = (
                     db.session.query(recipe_ingredients.c.recipe_id)
-                    .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                    .join(
+                        Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id
+                    )
                     .filter(
                         db.or_(
-                            *[Ingredient.name.ilike(f"%{name}%") for name in ingredient_names]
+                            *[
+                                Ingredient.name.ilike(f"%{name}%")
+                                for name in ingredient_names
+                            ]
                         )
                     )
                     .distinct()
@@ -360,7 +390,7 @@ def get_recipes(current_user) -> Response:
 
         # If in discover mode and no results, let's check what public recipes exist
         if filter_type == "discover" and len(recipes.items) == 0 and search:
-            all_public = Recipe.query.filter(Recipe.is_public == True).all()
+            all_public = Recipe.query.filter(Recipe.is_public).all()
             public_debug = [(r.id, r.title, r.user_id, r.is_public) for r in all_public]
             current_app.logger.info(f"All public recipes in database: {public_debug}")
 
@@ -368,9 +398,9 @@ def get_recipes(current_user) -> Response:
         {
             "recipes": [
                 recipe.to_dict(
-                    include_user=True, 
-                    current_user_id=current_user.id, 
-                    is_admin=not should_apply_user_filter(current_user)
+                    include_user=True,
+                    current_user_id=current_user.id,
+                    is_admin=not should_apply_user_filter(current_user),
                 )
                 for recipe in recipes.items
             ],
@@ -404,14 +434,16 @@ def create_empty_recipe(current_user) -> Tuple[Response, int]:
                 f"User {current_user.id} ({current_user.username}) reached upload limit: "
                 f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
-            return jsonify({
-                "error": "Upload limit reached",
-                "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
-                "remaining_uploads": 0,
-                "monthly_upload_count": subscription.monthly_upload_count,
-                "is_premium": False,
-                "upgrade_required": True
-            }), 403
+            return jsonify(
+                {
+                    "error": "Upload limit reached",
+                    "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                    "remaining_uploads": 0,
+                    "monthly_upload_count": subscription.monthly_upload_count,
+                    "is_premium": False,
+                    "upgrade_required": True,
+                }
+            ), 403
 
         data = request.get_json()
 
@@ -495,7 +527,9 @@ def get_recipe(current_user, recipe_id: int) -> Response:
     if not can_view:
         return jsonify({"error": "Recipe not found or access denied"}), 404
 
-    return jsonify(recipe.to_dict(include_user=True, current_user_id=user_id, is_admin=is_admin))
+    return jsonify(
+        recipe.to_dict(include_user=True, current_user_id=user_id, is_admin=is_admin)
+    )
 
 
 @bp.route("/recipes/<int:recipe_id>", methods=["DELETE"])
@@ -510,10 +544,16 @@ def delete_recipe(current_user, recipe_id: int) -> Response:
 
         # Check if user can delete this recipe (only owner, uploader, or admin)
         is_admin = not should_apply_user_filter(current_user)
-        if not is_admin and recipe.user_id != current_user.id and recipe.uploaded_by_id != current_user.id:
+        if (
+            not is_admin
+            and recipe.user_id != current_user.id
+            and recipe.uploaded_by_id != current_user.id
+        ):
             return jsonify({"error": "Access denied"}), 403
 
-        current_app.logger.info(f"Deleting recipe {recipe_id} by user {current_user.id}")
+        current_app.logger.info(
+            f"Deleting recipe {recipe_id} by user {current_user.id}"
+        )
 
         # Delete associated images from Cloudinary and local storage
         for image in recipe.images:
@@ -521,14 +561,18 @@ def delete_recipe(current_user, recipe_id: int) -> Response:
                 # Delete from Cloudinary if exists
                 if image.cloudinary_public_id and cloudinary_service.is_enabled():
                     cloudinary_service.delete_image(image.cloudinary_public_id)
-                    current_app.logger.info(f"Deleted Cloudinary image: {image.cloudinary_public_id}")
+                    current_app.logger.info(
+                        f"Deleted Cloudinary image: {image.cloudinary_public_id}"
+                    )
 
                 # Delete local file if exists
                 if image.file_path:
                     file_path = Path(image.file_path)
                     if file_path.exists():
                         file_path.unlink()
-                        current_app.logger.info(f"Deleted local image file: {file_path}")
+                        current_app.logger.info(
+                            f"Deleted local image file: {file_path}"
+                        )
 
             except Exception as e:
                 current_app.logger.error(f"Error deleting image {image.id}: {e}")
@@ -565,22 +609,29 @@ def feature_recipe(current_user, recipe_id: int) -> Response:
         featured_count = Recipe.query.filter_by(is_featured=True).count()
         if featured_count >= 3:
             # Find the oldest featured recipe and unfeature it
-            oldest_featured = Recipe.query.filter_by(is_featured=True).order_by(Recipe.featured_at).first()
+            oldest_featured = (
+                Recipe.query.filter_by(is_featured=True)
+                .order_by(Recipe.featured_at)
+                .first()
+            )
             if oldest_featured:
                 oldest_featured.is_featured = False
                 oldest_featured.featured_at = None
-                current_app.logger.info(f"Auto-unfeatured oldest recipe {oldest_featured.id} to make room")
+                current_app.logger.info(
+                    f"Auto-unfeatured oldest recipe {oldest_featured.id} to make room"
+                )
 
         # Feature the recipe
         recipe.is_featured = True
         recipe.featured_at = datetime.utcnow()
         db.session.commit()
 
-        current_app.logger.info(f"Recipe {recipe_id} featured by admin {current_user.id}")
-        return jsonify({
-            "message": "Recipe featured successfully",
-            "recipe": recipe.to_dict()
-        }), 200
+        current_app.logger.info(
+            f"Recipe {recipe_id} featured by admin {current_user.id}"
+        )
+        return jsonify(
+            {"message": "Recipe featured successfully", "recipe": recipe.to_dict()}
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -607,11 +658,12 @@ def unfeature_recipe(current_user, recipe_id: int) -> Response:
         recipe.featured_at = None
         db.session.commit()
 
-        current_app.logger.info(f"Recipe {recipe_id} unfeatured by admin {current_user.id}")
-        return jsonify({
-            "message": "Recipe unfeatured successfully",
-            "recipe": recipe.to_dict()
-        }), 200
+        current_app.logger.info(
+            f"Recipe {recipe_id} unfeatured by admin {current_user.id}"
+        )
+        return jsonify(
+            {"message": "Recipe unfeatured successfully", "recipe": recipe.to_dict()}
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -627,7 +679,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
     current_app.logger.info(f"Recipe upload from user {current_user.id}")
 
     # Check for cache bypass header (used during load testing)
-    skip_cache = request.headers.get('X-Skip-Cache', '').lower() == 'true'
+    skip_cache = request.headers.get("X-Skip-Cache", "").lower() == "true"
     if skip_cache:
         current_app.logger.info("Cache bypass enabled via X-Skip-Cache header")
 
@@ -646,14 +698,16 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
             f"User {current_user.id} ({current_user.username}) reached upload limit: "
             f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
         )
-        return jsonify({
-            "error": "Upload limit reached",
-            "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
-            "remaining_uploads": 0,
-            "monthly_upload_count": subscription.monthly_upload_count,
-            "is_premium": False,
-            "upgrade_required": True
-        }), 403
+        return jsonify(
+            {
+                "error": "Upload limit reached",
+                "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                "remaining_uploads": 0,
+                "monthly_upload_count": subscription.monthly_upload_count,
+                "is_premium": False,
+                "upgrade_required": True,
+            }
+        ), 403
 
     if "image" not in request.files:
         return jsonify({"error": "No image file provided"}), 400
@@ -695,7 +749,9 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         is_original_recipe = is_original_recipe_str.lower() == "true"
 
     # Get translation option
-    translate_to_english = request.form.get("translate_to_english", "").lower() == "true"
+    translate_to_english = (
+        request.form.get("translate_to_english", "").lower() == "true"
+    )
 
     # Handle new cookbook creation
     cookbook = None
@@ -792,9 +848,7 @@ def upload_recipe(current_user) -> Tuple[Response, int]:
         # This ensures sequential processing to prevent memory spikes
         from app.tasks.recipe_tasks import process_single_recipe_task
 
-        current_app.logger.info(
-            f"Queuing Celery task for job {processing_job.id}"
-        )
+        current_app.logger.info(f"Queuing Celery task for job {processing_job.id}")
 
         # Dispatch the task to Celery worker
         process_single_recipe_task.delay(processing_job.id, current_user.id)
@@ -839,7 +893,10 @@ def update_recipe(current_user, recipe_id: int) -> Response:
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter(
             Recipe.id == recipe_id,
-            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+            db.or_(
+                Recipe.user_id == current_user.id,
+                Recipe.uploaded_by_id == current_user.id,
+            ),
         ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
@@ -864,13 +921,19 @@ def update_recipe(current_user, recipe_id: int) -> Response:
             )
 
         if "prep_time" in data:
-            recipe.prep_time = safe_int_conversion(data["prep_time"]) if data["prep_time"] else None
+            recipe.prep_time = (
+                safe_int_conversion(data["prep_time"]) if data["prep_time"] else None
+            )
 
         if "cook_time" in data:
-            recipe.cook_time = safe_int_conversion(data["cook_time"]) if data["cook_time"] else None
+            recipe.cook_time = (
+                safe_int_conversion(data["cook_time"]) if data["cook_time"] else None
+            )
 
         if "servings" in data:
-            recipe.servings = safe_int_conversion(data["servings"]) if data["servings"] else None
+            recipe.servings = (
+                safe_int_conversion(data["servings"]) if data["servings"] else None
+            )
 
         if "difficulty" in data:
             recipe.difficulty = data["difficulty"] if data["difficulty"] else None
@@ -880,7 +943,12 @@ def update_recipe(current_user, recipe_id: int) -> Response:
 
         is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Recipe updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
+            {
+                "message": "Recipe updated successfully",
+                "recipe": recipe.to_dict(
+                    current_user_id=current_user.id, is_admin=is_admin
+                ),
+            }
         )
 
     except Exception as e:
@@ -928,7 +996,9 @@ def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
 
             if should_apply_user_filter(current_user):
                 if not is_global_cookbook and not is_own_cookbook:
-                    return jsonify({"error": "Cookbook not found or access denied"}), 404
+                    return jsonify(
+                        {"error": "Cookbook not found or access denied"}
+                    ), 404
 
         # Update recipe's cookbook association
         recipe.cookbook_id = cookbook_id
@@ -942,7 +1012,9 @@ def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
         return jsonify(
             {
                 "message": "Recipe cookbook updated successfully",
-                "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)
+                "recipe": recipe.to_dict(
+                    current_user_id=current_user.id, is_admin=is_admin
+                ),
             }
         )
 
@@ -952,6 +1024,7 @@ def link_recipe_to_cookbook(current_user, recipe_id: int) -> Response:
             f"Failed to link recipe {recipe_id} to cookbook: {str(e)}"
         )
         import traceback
+
         traceback.print_exc()
         return jsonify({"error": "Failed to update recipe cookbook"}), 500
 
@@ -965,7 +1038,10 @@ def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter(
             Recipe.id == recipe_id,
-            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+            db.or_(
+                Recipe.user_id == current_user.id,
+                Recipe.uploaded_by_id == current_user.id,
+            ),
         ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
@@ -1027,7 +1103,12 @@ def update_recipe_ingredients(current_user, recipe_id: int) -> Response:
 
         is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Ingredients updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
+            {
+                "message": "Ingredients updated successfully",
+                "recipe": recipe.to_dict(
+                    current_user_id=current_user.id, is_admin=is_admin
+                ),
+            }
         )
 
     except Exception as e:
@@ -1047,7 +1128,10 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter(
             Recipe.id == recipe_id,
-            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+            db.or_(
+                Recipe.user_id == current_user.id,
+                Recipe.uploaded_by_id == current_user.id,
+            ),
         ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
@@ -1065,7 +1149,11 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
             return jsonify({"error": "Instructions must be a list"}), 400
 
         # Get existing instructions to preserve their IDs and image data
-        existing_instructions = Instruction.query.filter_by(recipe_id=recipe_id).order_by(Instruction.step_number).all()
+        existing_instructions = (
+            Instruction.query.filter_by(recipe_id=recipe_id)
+            .order_by(Instruction.step_number)
+            .all()
+        )
 
         # Create a mapping of current instructions for efficient lookup
         existing_by_step = {inst.step_number: inst for inst in existing_instructions}
@@ -1107,7 +1195,12 @@ def update_recipe_instructions(current_user, recipe_id: int) -> Response:
 
         is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Instructions updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
+            {
+                "message": "Instructions updated successfully",
+                "recipe": recipe.to_dict(
+                    current_user_id=current_user.id, is_admin=is_admin
+                ),
+            }
         )
 
     except Exception as e:
@@ -1127,7 +1220,10 @@ def update_recipe_tags(current_user, recipe_id: int) -> Response:
     if should_apply_user_filter(current_user):
         recipe = Recipe.query.filter(
             Recipe.id == recipe_id,
-            db.or_(Recipe.user_id == current_user.id, Recipe.uploaded_by_id == current_user.id)
+            db.or_(
+                Recipe.user_id == current_user.id,
+                Recipe.uploaded_by_id == current_user.id,
+            ),
         ).first()
     else:
         recipe = Recipe.query.get(recipe_id)
@@ -1164,7 +1260,12 @@ def update_recipe_tags(current_user, recipe_id: int) -> Response:
 
         is_admin = current_user.role.value == "admin" if current_user.role else False
         return jsonify(
-            {"message": "Tags updated successfully", "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin)}
+            {
+                "message": "Tags updated successfully",
+                "recipe": recipe.to_dict(
+                    current_user_id=current_user.id, is_admin=is_admin
+                ),
+            }
         )
 
     except Exception as e:
@@ -1277,7 +1378,7 @@ def upload_primary_recipe_image(current_user, recipe_id: int) -> Tuple[Response,
         db.session.commit()
 
         # Expire the images relationship to force reload with correct ordering
-        db.session.expire(recipe, ['images'])
+        db.session.expire(recipe, ["images"])
 
         # Log the final image orders
         current_app.logger.info(
@@ -1295,7 +1396,9 @@ def upload_primary_recipe_image(current_user, recipe_id: int) -> Tuple[Response,
                 {
                     "message": "Primary image uploaded successfully",
                     "image": recipe_image.to_dict(),
-                    "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=is_admin),
+                    "recipe": recipe.to_dict(
+                        current_user_id=current_user.id, is_admin=is_admin
+                    ),
                 }
             ),
             201,
@@ -1349,9 +1452,9 @@ def serve_image(current_user, filename: str) -> Response:
                     can_access = True
                 elif current_user:
                     # Private recipes only accessible to owner or admin
-                    can_access = (
-                        recipe.user_id == current_user.id
-                        or (hasattr(current_user, 'role') and current_user.role == UserRole.ADMIN)
+                    can_access = recipe.user_id == current_user.id or (
+                        hasattr(current_user, "role")
+                        and current_user.role == UserRole.ADMIN
                     )
                 else:
                     # Unauthenticated users can't access private recipes
@@ -1361,9 +1464,10 @@ def serve_image(current_user, filename: str) -> Response:
                 # and the user owns the group, allow access
                 if not can_access and current_user:
                     from app.models import RecipeGroup
+
                     group_using_image = RecipeGroup.query.filter(
                         RecipeGroup.cover_image_url.like(f"%{filename}%"),
-                        RecipeGroup.user_id == current_user.id
+                        RecipeGroup.user_id == current_user.id,
                     ).first()
                     if group_using_image:
                         can_access = True
@@ -1380,6 +1484,7 @@ def serve_image(current_user, filename: str) -> Response:
             # If image is stored in Cloudinary, redirect to Cloudinary URL
             if recipe_image.cloudinary_url:
                 from flask import redirect
+
                 return redirect(recipe_image.cloudinary_url)
         else:
             # Check if it's a cookbook cover image
@@ -1388,19 +1493,21 @@ def serve_image(current_user, filename: str) -> Response:
             ).first()
             if cookbook:
                 # Check if cookbook has public recipes (making it viewable publicly)
-                has_public_recipes = Recipe.query.filter_by(
-                    cookbook_id=cookbook.id,
-                    is_public=True
-                ).first() is not None
+                has_public_recipes = (
+                    Recipe.query.filter_by(
+                        cookbook_id=cookbook.id, is_public=True
+                    ).first()
+                    is not None
+                )
 
                 if has_public_recipes:
                     # Cookbook with public recipes is accessible to everyone
                     can_access = True
                 elif current_user:
                     # Private cookbooks only accessible to owner or admin
-                    can_access = (
-                        cookbook.user_id == current_user.id
-                        or (hasattr(current_user, 'role') and current_user.role == UserRole.ADMIN)
+                    can_access = cookbook.user_id == current_user.id or (
+                        hasattr(current_user, "role")
+                        and current_user.role == UserRole.ADMIN
                     )
                 else:
                     # Unauthenticated users can't access private cookbook images
@@ -1462,7 +1569,7 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         )
 
         # Check if caching should be bypassed (for load testing)
-        use_cache = not getattr(job, 'skip_cache', False)
+        use_cache = not getattr(job, "skip_cache", False)
         if not use_cache:
             current_app.logger.info("Cache bypass enabled for this job")
 
@@ -1473,9 +1580,12 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
 
         try:
             # Get translate option from job
-            translate_to_english = getattr(job, 'translate_to_english', False)
+            translate_to_english = getattr(job, "translate_to_english", False)
             comprehensive_result = llm_ocr_service.extract_and_parse_recipe(
-                image_data, source_info, use_cache=use_cache, translate_to_english=translate_to_english
+                image_data,
+                source_info,
+                use_cache=use_cache,
+                translate_to_english=translate_to_english,
             )
             processing_time = time.time() - start_time
             current_app.logger.info(
@@ -1537,7 +1647,9 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
         db.session.commit()
 
     except Exception as e:
-        current_app.logger.error(f"Processing failed for job {job_id}: {str(e)}", exc_info=True)
+        current_app.logger.error(
+            f"Processing failed for job {job_id}: {str(e)}", exc_info=True
+        )
 
         # Handle database session rollback properly
         try:
@@ -1552,18 +1664,28 @@ def _process_recipe_image(job_id: int, user_id: int = None) -> None:
                 db.session.commit()
                 current_app.logger.info(f"Job {job_id} status updated to FAILED")
             else:
-                current_app.logger.error(f"Could not find job {job_id} to update status")
+                current_app.logger.error(
+                    f"Could not find job {job_id} to update status"
+                )
 
         except Exception as rollback_error:
-            current_app.logger.error(f"Failed to rollback and update job status: {str(rollback_error)}", exc_info=True)
+            current_app.logger.error(
+                f"Failed to rollback and update job status: {str(rollback_error)}",
+                exc_info=True,
+            )
             # As a last resort, try to create a new session
             try:
                 from app import db as fresh_db
+
                 fresh_db.session.rollback()
                 fresh_db.session.close()
-                current_app.logger.info("Created fresh database session after rollback failure")
+                current_app.logger.info(
+                    "Created fresh database session after rollback failure"
+                )
             except Exception as fresh_error:
-                current_app.logger.critical(f"Complete database session failure: {str(fresh_error)}")
+                current_app.logger.critical(
+                    f"Complete database session failure: {str(fresh_error)}"
+                )
 
 
 def _extract_text_from_image(image_id: int) -> str:
@@ -1629,7 +1751,9 @@ def _parse_extracted_text(extracted_text: str) -> Dict[str, Any]:
     return recipe_parser.parse_recipe_text(extracted_text)
 
 
-def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, job: ProcessingJob) -> str:
+def _generate_recipe_title(
+    parsed_recipe: Dict[str, Any], extracted_text: str, job: ProcessingJob
+) -> str:
     """Generate a robust title with smart fallbacks to ensure never null."""
     # Try to get title from parsed recipe
     title = parsed_recipe.get("title")
@@ -1639,11 +1763,13 @@ def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, j
 
     # Fallback 1: Extract first line/sentence from extracted text
     if extracted_text and extracted_text.strip():
-        lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
+        lines = [line.strip() for line in extracted_text.split("\n") if line.strip()]
         if lines:
             # Take first non-empty line, limit to reasonable title length
             first_line = lines[0][:100]  # Limit to 100 characters
-            current_app.logger.warning(f"Title was null, using first line as fallback: {first_line}")
+            current_app.logger.warning(
+                f"Title was null, using first line as fallback: {first_line}"
+            )
             return first_line
 
     # Fallback 2: Try to get filename from job's associated image
@@ -1653,7 +1779,7 @@ def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, j
             filename = image.original_filename
             if filename:
                 # Remove extension and create readable title
-                name_without_ext = filename.rsplit('.', 1)[0]
+                name_without_ext = filename.rsplit(".", 1)[0]
                 title = f"Recipe from {name_without_ext}"
                 current_app.logger.warning(f"Using filename-based fallback: {title}")
                 return title
@@ -1662,9 +1788,12 @@ def _generate_recipe_title(parsed_recipe: Dict[str, Any], extracted_text: str, j
 
     # Fallback 3: Use timestamp-based title
     from datetime import datetime
+
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     title = f"Recipe from {timestamp}"
-    current_app.logger.error(f"All title extraction failed, using timestamp fallback: {title}")
+    current_app.logger.error(
+        f"All title extraction failed, using timestamp fallback: {title}"
+    )
     return title
 
 
@@ -1695,7 +1824,9 @@ def _create_recipe_from_parsed_data(
     source_language = parsed_recipe.get("source_language")
     source_language_name = parsed_recipe.get("source_language_name")
     original_title = parsed_recipe.get("original_title") if is_translated else None
-    original_description = parsed_recipe.get("original_description") if is_translated else None
+    original_description = (
+        parsed_recipe.get("original_description") if is_translated else None
+    )
 
     # Update job with detected language
     if source_language:
@@ -1727,8 +1858,12 @@ def _create_recipe_from_parsed_data(
     db.session.flush()
 
     # Create related records (pass original instructions for translation support)
-    original_instructions = parsed_recipe.get("original_instructions") if is_translated else None
-    _create_instructions(recipe.id, parsed_recipe, extracted_text, original_instructions)
+    original_instructions = (
+        parsed_recipe.get("original_instructions") if is_translated else None
+    )
+    _create_instructions(
+        recipe.id, parsed_recipe, extracted_text, original_instructions
+    )
     _create_tags(recipe.id, parsed_recipe)
     _create_ingredients(recipe.id, parsed_recipe)
 
@@ -1736,7 +1871,10 @@ def _create_recipe_from_parsed_data(
 
 
 def _create_instructions(
-    recipe_id: int, parsed_recipe: Dict[str, Any], fallback_text: str, original_instructions: list = None
+    recipe_id: int,
+    parsed_recipe: Dict[str, Any],
+    fallback_text: str,
+    original_instructions: list = None,
 ) -> None:
     """Create instruction records for the recipe, with optional original text for translations."""
     instructions = parsed_recipe.get("instructions", [])
@@ -1761,7 +1899,7 @@ def _create_instructions(
             recipe_id=recipe_id,
             step_number=i,
             text=instruction_text.strip(),
-            original_text=original_text
+            original_text=original_text,
         )
         db.session.add(instruction)
 
@@ -1841,8 +1979,7 @@ def _create_ingredients(recipe_id: int, parsed_recipe: Dict[str, Any]) -> None:
             # Rollback this ingredient's changes but continue with others
             savepoint.rollback()
             current_app.logger.error(
-                f"Failed to create ingredient {order}: {str(e)}",
-                exc_info=True
+                f"Failed to create ingredient {order}: {str(e)}", exc_info=True
             )
             # Continue with other ingredients rather than failing completely
 
@@ -1867,7 +2004,7 @@ def _create_recipe_ingredient_association(
     existing = db.session.execute(
         select(recipe_ingredients).where(
             recipe_ingredients.c.recipe_id == recipe_id,
-            recipe_ingredients.c.ingredient_id == ingredient_id
+            recipe_ingredients.c.ingredient_id == ingredient_id,
         )
     ).first()
 
@@ -2090,7 +2227,15 @@ def toggle_recipe_privacy(current_user, recipe_id: int) -> Response:
             f"Recipe {recipe_id} privacy changed to {'public' if is_public else 'private'} by user {current_user.id}"
         )
 
-        return jsonify({"message": message, "recipe": recipe.to_dict(current_user_id=current_user.id, is_admin=not should_apply_user_filter(current_user))})
+        return jsonify(
+            {
+                "message": message,
+                "recipe": recipe.to_dict(
+                    current_user_id=current_user.id,
+                    is_admin=not should_apply_user_filter(current_user),
+                ),
+            }
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -2278,7 +2423,7 @@ def discover_recipes(current_user) -> Response:
 
     # Base query for public recipes not in collection and not owned by user
     query = Recipe.query.options(db.joinedload(Recipe.images)).filter(
-        Recipe.is_public == True, Recipe.user_id != current_user.id
+        Recipe.is_public, Recipe.user_id != current_user.id
     )
 
     # Exclude recipes already in collection
@@ -2300,7 +2445,9 @@ def discover_recipes(current_user) -> Response:
 
     if ingredients_param:
         ingredient_names = [
-            name.strip().lower() for name in ingredients_param.split(",") if name.strip()
+            name.strip().lower()
+            for name in ingredients_param.split(",")
+            if name.strip()
         ]
 
         if ingredient_names:
@@ -2309,7 +2456,10 @@ def discover_recipes(current_user) -> Response:
                 for ingredient_name in ingredient_names:
                     subquery = (
                         db.session.query(recipe_ingredients.c.recipe_id)
-                        .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                        .join(
+                            Ingredient,
+                            Ingredient.id == recipe_ingredients.c.ingredient_id,
+                        )
                         .filter(Ingredient.name.ilike(f"%{ingredient_name}%"))
                         .subquery()
                     )
@@ -2318,10 +2468,15 @@ def discover_recipes(current_user) -> Response:
                 # ANY mode: has at least one ingredient
                 subquery = (
                     db.session.query(recipe_ingredients.c.recipe_id)
-                    .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                    .join(
+                        Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id
+                    )
                     .filter(
                         db.or_(
-                            *[Ingredient.name.ilike(f"%{name}%") for name in ingredient_names]
+                            *[
+                                Ingredient.name.ilike(f"%{name}%")
+                                for name in ingredient_names
+                            ]
                         )
                     )
                     .distinct()
@@ -2340,7 +2495,7 @@ def discover_recipes(current_user) -> Response:
                 recipe.to_dict(
                     include_user=True,
                     current_user_id=current_user.id,
-                    is_admin=not should_apply_user_filter(current_user)
+                    is_admin=not should_apply_user_filter(current_user),
                 )
                 for recipe in recipes.items
             ],
@@ -2742,7 +2897,7 @@ def upload_multi_recipe(current_user):
     """Upload multiple images for a single recipe"""
     try:
         # Check for cache bypass header (used during load testing)
-        skip_cache = request.headers.get('X-Skip-Cache', '').lower() == 'true'
+        skip_cache = request.headers.get("X-Skip-Cache", "").lower() == "true"
         if skip_cache:
             current_app.logger.info("Cache bypass enabled via X-Skip-Cache header")
 
@@ -2761,14 +2916,16 @@ def upload_multi_recipe(current_user):
                 f"User {current_user.id} ({current_user.username}) reached upload limit: "
                 f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
-            return jsonify({
-                "error": "Upload limit reached",
-                "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
-                "remaining_uploads": 0,
-                "monthly_upload_count": subscription.monthly_upload_count,
-                "is_premium": False,
-                "upgrade_required": True
-            }), 403
+            return jsonify(
+                {
+                    "error": "Upload limit reached",
+                    "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                    "remaining_uploads": 0,
+                    "monthly_upload_count": subscription.monthly_upload_count,
+                    "is_premium": False,
+                    "upgrade_required": True,
+                }
+            ), 403
 
         user_id = current_user.id
 
@@ -2797,13 +2954,13 @@ def upload_multi_recipe(current_user):
         validated_files = []
         for i, file in enumerate(files):
             if file.filename == "":
-                return jsonify({"error": f"Image {i+1} has no filename"}), 400
+                return jsonify({"error": f"Image {i + 1} has no filename"}), 400
 
             if not allowed_file(file.filename):
                 return (
                     jsonify(
                         {
-                            "error": f"Image {i+1} has invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+                            "error": f"Image {i + 1} has invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
                         }
                     ),
                     400,
@@ -2821,7 +2978,7 @@ def upload_multi_recipe(current_user):
             return (
                 jsonify(
                     {
-                        "error": f"Total file size exceeds {max_total_size // (1024*1024)}MB limit"
+                        "error": f"Total file size exceeds {max_total_size // (1024 * 1024)}MB limit"
                     }
                 ),
                 400,
@@ -2837,7 +2994,9 @@ def upload_multi_recipe(current_user):
             is_original_recipe = is_original_recipe_str.lower() == "true"
 
         # Get translation option
-        translate_to_english = request.form.get("translate_to_english", "").lower() == "true"
+        translate_to_english = (
+            request.form.get("translate_to_english", "").lower() == "true"
+        )
 
         # Validate cookbook if provided
         cookbook = None
@@ -2848,7 +3007,9 @@ def upload_multi_recipe(current_user):
                 cookbook = Cookbook.query.get(cookbook_id)
                 if not cookbook:
                     current_app.logger.error(f"Cookbook {cookbook_id} does not exist")
-                    return jsonify({"error": f"Cookbook with ID {cookbook_id} not found"}), 404
+                    return jsonify(
+                        {"error": f"Cookbook with ID {cookbook_id} not found"}
+                    ), 404
 
                 # Allow access if: user owns cookbook OR it's a global cookbook (Google Books)
                 is_global_cookbook = cookbook.user_id is None
@@ -2858,9 +3019,11 @@ def upload_multi_recipe(current_user):
                         f"User {user_id} cannot add to cookbook {cookbook_id}. "
                         f"Owner is {cookbook.user_id}"
                     )
-                    return jsonify({
-                        "error": "You don't have permission to add recipes to this cookbook"
-                    }), 403
+                    return jsonify(
+                        {
+                            "error": "You don't have permission to add recipes to this cookbook"
+                        }
+                    ), 403
 
                 # If cookbook is from Google Books, force is_original_recipe = False
                 # (recipes from published cookbooks cannot be made public)
@@ -2887,7 +3050,9 @@ def upload_multi_recipe(current_user):
         for i, (file, file_size) in enumerate(validated_files):
             # Use the same image processing function as single upload (includes Cloudinary)
             file.seek(0)  # Reset file pointer
-            recipe_image = process_and_save_image(file, file.filename, folder="recipes/multi")
+            recipe_image = process_and_save_image(
+                file, file.filename, folder="recipes/multi"
+            )
 
             # Set multi-image specific fields
             recipe_image.image_order = i  # Set order based on upload sequence
@@ -2984,14 +3149,16 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
                 f"User {current_user.id} ({current_user.username}) reached upload limit: "
                 f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
             )
-            return jsonify({
-                "error": "Upload limit reached",
-                "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
-                "remaining_uploads": 0,
-                "monthly_upload_count": subscription.monthly_upload_count,
-                "is_premium": False,
-                "upgrade_required": True
-            }), 403
+            return jsonify(
+                {
+                    "error": "Upload limit reached",
+                    "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                    "remaining_uploads": 0,
+                    "monthly_upload_count": subscription.monthly_upload_count,
+                    "is_premium": False,
+                    "upgrade_required": True,
+                }
+            ), 403
         # Get JSON data from request
         data = request.get_json()
         if not data:
@@ -3095,7 +3262,9 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
 
         # Process the text directly using the recipe parser
         recipe_parser = RecipeParser()
-        parsed_recipe = recipe_parser.parse_recipe_text(recipe_text, translate_to_english=translate_to_english)
+        parsed_recipe = recipe_parser.parse_recipe_text(
+            recipe_text, translate_to_english=translate_to_english
+        )
 
         current_app.logger.info(f"Parsed recipe: {parsed_recipe}")
 
@@ -3134,8 +3303,17 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
 
         # Add instructions (with original text if translated)
         if parsed_recipe.get("instructions"):
-            original_instructions = parsed_recipe.get("original_instructions") if parsed_recipe.get("is_translated") else None
-            _create_instructions(recipe.id, parsed_recipe, recipe_text, original_instructions=original_instructions)
+            original_instructions = (
+                parsed_recipe.get("original_instructions")
+                if parsed_recipe.get("is_translated")
+                else None
+            )
+            _create_instructions(
+                recipe.id,
+                parsed_recipe,
+                recipe_text,
+                original_instructions=original_instructions,
+            )
 
         # Add tags
         if parsed_recipe.get("tags"):
@@ -3206,7 +3384,10 @@ def get_job_status(current_user, job_id: int):
             # If job has a recipe, check recipe ownership or uploader
             elif job.recipe_id:
                 recipe = Recipe.query.get(job.recipe_id)
-                if recipe and (recipe.user_id == current_user.id or recipe.uploaded_by_id == current_user.id):
+                if recipe and (
+                    recipe.user_id == current_user.id
+                    or recipe.uploaded_by_id == current_user.id
+                ):
                     can_access = True
             # For jobs without recipe, also allow cookbook owner
             elif job.cookbook_id:
@@ -3280,7 +3461,9 @@ def get_multi_job_status(current_user, job_id: int):
         if multi_job.status == ProcessingStatus.COMPLETED and multi_job.recipe_id:
             recipe = Recipe.query.get(multi_job.recipe_id)
             if recipe:
-                response_data["recipe"] = recipe.to_dict(current_user_id=user_id, is_admin=False)
+                response_data["recipe"] = recipe.to_dict(
+                    current_user_id=user_id, is_admin=False
+                )
 
         return jsonify(response_data), 200
 
@@ -3306,7 +3489,7 @@ def process_multi_image_job(multi_job_id: int):
         db.session.commit()
 
         # Check if caching should be bypassed (for load testing)
-        use_cache = not getattr(multi_job, 'skip_cache', False)
+        use_cache = not getattr(multi_job, "skip_cache", False)
         if not use_cache:
             current_app.logger.info("Cache bypass enabled for multi-job")
 
@@ -3361,7 +3544,7 @@ def process_multi_image_job(multi_job_id: int):
             for i, image_path in enumerate(image_paths):
                 try:
                     current_app.logger.info(
-                        f"Processing image {i+1}/{len(image_paths)}: {image_path}"
+                        f"Processing image {i + 1}/{len(image_paths)}: {image_path}"
                     )
 
                     # Get the RecipeImage object from the processing job map
@@ -3377,17 +3560,19 @@ def process_multi_image_job(multi_job_id: int):
                     else:
                         # Fallback: treat as local file path (legacy behavior)
                         try:
-                            with open(image_path, 'rb') as f:
+                            with open(image_path, "rb") as f:
                                 image_data = f.read()
                             source_info = str(image_path)
                         except Exception as read_error:
-                            current_app.logger.error(f"Failed to read local image file {image_path}: {str(read_error)}")
+                            current_app.logger.error(
+                                f"Failed to read local image file {image_path}: {str(read_error)}"
+                            )
                             raise
 
                     extracted_text = llm_ocr_service.extract_text_from_image(
                         image_data, source_info, use_cache=use_cache
                     )
-                    combined_text += f"\n--- Page {i+1} ---\n{extracted_text}\n"
+                    combined_text += f"\n--- Page {i + 1} ---\n{extracted_text}\n"
                     successful_extractions += 1
 
                     # Force garbage collection after each image to free memory
@@ -3400,7 +3585,7 @@ def process_multi_image_job(multi_job_id: int):
                         f"Failed to process image {image_path}: {str(img_error)}"
                     )
                     combined_text += (
-                        f"\n--- Page {i+1} (FAILED) ---\n[Error processing image]\n"
+                        f"\n--- Page {i + 1} (FAILED) ---\n[Error processing image]\n"
                     )
 
             # Create result structure compatible with existing code
@@ -3448,7 +3633,7 @@ def process_multi_image_job(multi_job_id: int):
                 # Fallback: if multi_image_result doesn't have expected structure,
                 # assume it contains combined text directly
                 current_app.logger.warning(
-                    f"Multi-image result missing 'results' key, falling back to combined text processing"
+                    "Multi-image result missing 'results' key, falling back to combined text processing"
                 )
 
                 # Check for combined_text key (from LLM OCR service)
@@ -3536,7 +3721,6 @@ def process_multi_image_job(multi_job_id: int):
                         db.session.commit()
 
                         # Use threading timeout instead of signal (works in background threads)
-                        import threading
                         import time
                         from concurrent.futures import (
                             ThreadPoolExecutor,
@@ -3618,7 +3802,7 @@ def process_multi_image_job(multi_job_id: int):
 
         current_app.logger.info(f"Final ocr_texts validation: {len(ocr_texts)} texts")
         for i, text in enumerate(ocr_texts):
-            current_app.logger.info(f"  Text {i+1}: {len(text)} characters")
+            current_app.logger.info(f"  Text {i + 1}: {len(text)} characters")
 
         # Check if we have any valid OCR texts
         if not ocr_texts:
@@ -3692,15 +3876,15 @@ def process_multi_image_job(multi_job_id: int):
             cookbook_id = None
             if successful_jobs:
                 cookbook_id = successful_jobs[0].cookbook_id
-                current_app.logger.info(
-                    f"Setting recipe cookbook_id to: {cookbook_id}"
-                )
+                current_app.logger.info(f"Setting recipe cookbook_id to: {cookbook_id}")
 
             # Ensure we have a valid title
             recipe_title = parsed_recipe.get("title")
             if not recipe_title or recipe_title.strip() == "":
                 recipe_title = "Untitled Recipe"
-                current_app.logger.warning(f"Recipe title was empty, using default: {recipe_title}")
+                current_app.logger.warning(
+                    f"Recipe title was empty, using default: {recipe_title}"
+                )
 
             # Create the recipe
             recipe = Recipe(
@@ -3840,9 +4024,14 @@ def cleanup_failed_multi_job(multi_job_id: int):
 
 # Instruction Image Endpoints
 
-@bp.route("/recipes/<int:recipe_id>/instructions/<int:instruction_id>/image", methods=["POST"])
+
+@bp.route(
+    "/recipes/<int:recipe_id>/instructions/<int:instruction_id>/image", methods=["POST"]
+)
 @require_auth
-def upload_instruction_image(current_user, recipe_id: int, instruction_id: int) -> Response:
+def upload_instruction_image(
+    current_user, recipe_id: int, instruction_id: int
+) -> Response:
     """Upload an image for a specific instruction step."""
     # Verify recipe exists and user has edit permission
     recipe = Recipe.query.get_or_404(recipe_id)
@@ -3876,7 +4065,9 @@ def upload_instruction_image(current_user, recipe_id: int, instruction_id: int) 
 
     try:
         # Process and upload image (similar to recipe images)
-        image_record = process_and_save_image(file, file.filename, folder="instructions")
+        image_record = process_and_save_image(
+            file, file.filename, folder="instructions"
+        )
 
         # Update instruction with image information
         instruction.image_filename = image_record.filename
@@ -3887,10 +4078,12 @@ def upload_instruction_image(current_user, recipe_id: int, instruction_id: int) 
 
         db.session.commit()
 
-        return jsonify({
-            "message": "Instruction image uploaded successfully",
-            "instruction": instruction.to_dict()
-        }), 200
+        return jsonify(
+            {
+                "message": "Instruction image uploaded successfully",
+                "instruction": instruction.to_dict(),
+            }
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -3898,9 +4091,14 @@ def upload_instruction_image(current_user, recipe_id: int, instruction_id: int) 
         return jsonify({"error": "Failed to upload image"}), 500
 
 
-@bp.route("/recipes/<int:recipe_id>/instructions/<int:instruction_id>/image", methods=["DELETE"])
+@bp.route(
+    "/recipes/<int:recipe_id>/instructions/<int:instruction_id>/image",
+    methods=["DELETE"],
+)
 @require_auth
-def remove_instruction_image(current_user, recipe_id: int, instruction_id: int) -> Response:
+def remove_instruction_image(
+    current_user, recipe_id: int, instruction_id: int
+) -> Response:
     """Remove image from a specific instruction step."""
     # Verify recipe exists and user has edit permission
     recipe = Recipe.query.get_or_404(recipe_id)
@@ -3938,10 +4136,12 @@ def remove_instruction_image(current_user, recipe_id: int, instruction_id: int) 
 
         db.session.commit()
 
-        return jsonify({
-            "message": "Instruction image removed successfully",
-            "instruction": instruction.to_dict()
-        }), 200
+        return jsonify(
+            {
+                "message": "Instruction image removed successfully",
+                "instruction": instruction.to_dict(),
+            }
+        ), 200
 
     except Exception as e:
         db.session.rollback()

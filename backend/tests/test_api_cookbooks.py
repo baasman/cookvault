@@ -1,7 +1,7 @@
 """
 Tests for cookbook API endpoints.
 """
-import pytest
+
 from flask.testing import FlaskClient
 
 
@@ -55,8 +55,8 @@ class TestCreateCookbook:
             json={
                 "title": "My Test Cookbook",
                 "author": "Test Author",
-                "description": "A test cookbook"
-            }
+                "description": "A test cookbook",
+            },
         )
         assert response.status_code == 201
         data = response.get_json()
@@ -66,8 +66,7 @@ class TestCreateCookbook:
     def test_create_cookbook_minimal(self, auth_client):
         """Test creating cookbook with just a title."""
         response = auth_client.post(
-            "/api/cookbooks",
-            json={"title": "Minimal Cookbook"}
+            "/api/cookbooks", json={"title": "Minimal Cookbook"}
         )
         assert response.status_code == 201
         data = response.get_json()
@@ -75,18 +74,13 @@ class TestCreateCookbook:
 
     def test_create_cookbook_no_title(self, auth_client):
         """Test creating cookbook without title fails."""
-        response = auth_client.post(
-            "/api/cookbooks",
-            json={"author": "Test Author"}
-        )
+        response = auth_client.post("/api/cookbooks", json={"author": "Test Author"})
         assert response.status_code == 400
 
     def test_create_cookbook_unauthenticated(self, client: FlaskClient):
         """Test creating cookbook without auth fails."""
         response = client.post(
-            "/api/cookbooks",
-            json={"title": "Test"},
-            content_type="application/json"
+            "/api/cookbooks", json={"title": "Test"}, content_type="application/json"
         )
         assert response.status_code in [302, 401]
 
@@ -98,7 +92,7 @@ class TestUpdateCookbook:
         """Test updating cookbook title."""
         response = auth_client.put(
             f"/api/cookbooks/{sample_cookbook.id}",
-            json={"title": "Updated Cookbook Title"}
+            json={"title": "Updated Cookbook Title"},
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -108,7 +102,7 @@ class TestUpdateCookbook:
         """Test updating cookbook description."""
         response = auth_client.put(
             f"/api/cookbooks/{sample_cookbook.id}",
-            json={"description": "New description"}
+            json={"description": "New description"},
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -116,18 +110,17 @@ class TestUpdateCookbook:
 
     def test_update_cookbook_not_found(self, auth_client):
         """Test updating nonexistent cookbook."""
-        response = auth_client.put(
-            "/api/cookbooks/99999",
-            json={"title": "Test"}
-        )
+        response = auth_client.put("/api/cookbooks/99999", json={"title": "Test"})
         assert response.status_code == 404
 
-    def test_update_cookbook_unauthenticated(self, client: FlaskClient, sample_cookbook):
+    def test_update_cookbook_unauthenticated(
+        self, client: FlaskClient, sample_cookbook
+    ):
         """Test updating cookbook without auth fails."""
         response = client.put(
             f"/api/cookbooks/{sample_cookbook.id}",
             json={"title": "Test"},
-            content_type="application/json"
+            content_type="application/json",
         )
         assert response.status_code in [302, 401]
 
@@ -150,7 +143,9 @@ class TestDeleteCookbook:
         response = auth_client.delete("/api/cookbooks/99999")
         assert response.status_code == 404
 
-    def test_delete_cookbook_unauthenticated(self, client: FlaskClient, sample_cookbook):
+    def test_delete_cookbook_unauthenticated(
+        self, client: FlaskClient, sample_cookbook
+    ):
         """Test deleting cookbook without auth fails."""
         response = client.delete(f"/api/cookbooks/{sample_cookbook.id}")
         assert response.status_code in [302, 401]
@@ -172,6 +167,6 @@ class TestCookbookRecipes:
         # Link recipe to cookbook using the recipes endpoint
         response = auth_client.put(
             f"/api/recipes/{sample_recipe.id}/cookbook",
-            json={"cookbook_id": sample_cookbook.id}
+            json={"cookbook_id": sample_cookbook.id},
         )
         assert response.status_code == 200

@@ -1,7 +1,7 @@
 """
 Tests for recipe API endpoints.
 """
-import pytest
+
 from flask.testing import FlaskClient
 
 
@@ -68,28 +68,20 @@ class TestCreateRecipe:
 
     def test_create_empty_recipe(self, auth_client):
         """Test creating an empty recipe with just a title."""
-        response = auth_client.post(
-            "/api/recipes",
-            json={"title": "My New Recipe"}
-        )
+        response = auth_client.post("/api/recipes", json={"title": "My New Recipe"})
         assert response.status_code == 201
         data = response.get_json()
         assert data["recipe"]["title"] == "My New Recipe"
 
     def test_create_recipe_no_title(self, auth_client):
         """Test creating recipe without title fails."""
-        response = auth_client.post(
-            "/api/recipes",
-            json={}
-        )
+        response = auth_client.post("/api/recipes", json={})
         assert response.status_code == 400
 
     def test_create_recipe_unauthenticated(self, client: FlaskClient):
         """Test creating recipe without auth fails."""
         response = client.post(
-            "/api/recipes",
-            json={"title": "Test"},
-            content_type="application/json"
+            "/api/recipes", json={"title": "Test"}, content_type="application/json"
         )
         assert response.status_code in [302, 401]
 
@@ -100,8 +92,7 @@ class TestUpdateRecipe:
     def test_update_recipe_title(self, auth_client, sample_recipe):
         """Test updating recipe title."""
         response = auth_client.put(
-            f"/api/recipes/{sample_recipe.id}",
-            json={"title": "Updated Recipe Title"}
+            f"/api/recipes/{sample_recipe.id}", json={"title": "Updated Recipe Title"}
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -110,8 +101,7 @@ class TestUpdateRecipe:
     def test_update_recipe_description(self, auth_client, sample_recipe):
         """Test updating recipe description."""
         response = auth_client.put(
-            f"/api/recipes/{sample_recipe.id}",
-            json={"description": "New description"}
+            f"/api/recipes/{sample_recipe.id}", json={"description": "New description"}
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -120,11 +110,7 @@ class TestUpdateRecipe:
     def test_update_recipe_times(self, auth_client, sample_recipe):
         """Test updating prep and cook times."""
         response = auth_client.put(
-            f"/api/recipes/{sample_recipe.id}",
-            json={
-                "prep_time": 20,
-                "cook_time": 45
-            }
+            f"/api/recipes/{sample_recipe.id}", json={"prep_time": 20, "cook_time": 45}
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -133,10 +119,7 @@ class TestUpdateRecipe:
 
     def test_update_recipe_not_found(self, auth_client):
         """Test updating nonexistent recipe."""
-        response = auth_client.put(
-            "/api/recipes/99999",
-            json={"title": "Test"}
-        )
+        response = auth_client.put("/api/recipes/99999", json={"title": "Test"})
         assert response.status_code == 404
 
     def test_update_recipe_unauthenticated(self, client: FlaskClient, sample_recipe):
@@ -144,7 +127,7 @@ class TestUpdateRecipe:
         response = client.put(
             f"/api/recipes/{sample_recipe.id}",
             json={"title": "Test"},
-            content_type="application/json"
+            content_type="application/json",
         )
         assert response.status_code in [302, 401]
 
@@ -184,9 +167,9 @@ class TestRecipeInstructions:
                 "instructions": [
                     "Step 1: Preheat oven",
                     "Step 2: Mix ingredients",
-                    "Step 3: Bake"
+                    "Step 3: Bake",
                 ]
-            }
+            },
         )
         assert response.status_code == 200
 
@@ -208,7 +191,7 @@ class TestRecipeIngredients:
                     {"name": "butter", "quantity": 1, "unit": "cup"},
                     {"name": "sugar", "quantity": 2, "unit": "cups"},
                 ]
-            }
+            },
         )
         assert response.status_code == 200
 
@@ -220,7 +203,7 @@ class TestRecipeTags:
         """Test updating recipe tags."""
         response = auth_client.put(
             f"/api/recipes/{sample_recipe.id}/tags",
-            json={"tags": ["breakfast", "healthy", "quick"]}
+            json={"tags": ["breakfast", "healthy", "quick"]},
         )
         assert response.status_code == 200
 
@@ -239,7 +222,7 @@ class TestRecipePrivacy:
         }
         response = auth_client.put(
             f"/api/recipes/{sample_recipe.id}/privacy",
-            json={"is_public": True, "copyright_consent": copyright_consent}
+            json={"is_public": True, "copyright_consent": copyright_consent},
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -249,7 +232,7 @@ class TestRecipePrivacy:
         """Test that making public without consent fails."""
         response = auth_client.put(
             f"/api/recipes/{sample_recipe.id}/privacy",
-            json={"is_public": True}  # Missing copyright_consent
+            json={"is_public": True},  # Missing copyright_consent
         )
         assert response.status_code == 400
 
@@ -264,14 +247,13 @@ class TestRecipePrivacy:
         }
         response = auth_client.put(
             f"/api/recipes/{sample_recipe.id}/privacy",
-            json={"is_public": True, "copyright_consent": copyright_consent}
+            json={"is_public": True, "copyright_consent": copyright_consent},
         )
         assert response.status_code == 200
 
         # Try to make it private - should fail
         response = auth_client.put(
-            f"/api/recipes/{sample_recipe.id}/privacy",
-            json={"is_public": False}
+            f"/api/recipes/{sample_recipe.id}/privacy", json={"is_public": False}
         )
         assert response.status_code == 400
 

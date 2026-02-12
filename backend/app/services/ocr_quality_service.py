@@ -15,7 +15,9 @@ class OCRQualityService:
             api_key=current_app.config.get("ANTHROPIC_API_KEY")
         )
         self.redis_client = self._init_redis()
-        self.cache_ttl = current_app.config.get("OCR_QUALITY_CACHE_TTL", 3600)  # 1 hour default
+        self.cache_ttl = current_app.config.get(
+            "OCR_QUALITY_CACHE_TTL", 3600
+        )  # 1 hour default
 
     def _init_redis(self) -> redis.Redis:
         """Initialize Redis connection."""
@@ -78,7 +80,7 @@ class OCRQualityService:
     def _generate_cache_key(self, ocr_text: str) -> str:
         """Generate a hash-based cache key from the OCR text."""
         normalized_text = ocr_text.strip().lower()
-        hash_key = hashlib.sha256(normalized_text.encode('utf-8')).hexdigest()
+        hash_key = hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
         return f"ocr_quality:{hash_key}"
 
     def _get_from_cache(self, cache_key: str) -> Dict:
@@ -94,11 +96,7 @@ class OCRQualityService:
     def _set_in_cache(self, cache_key: str, result: Dict) -> None:
         """Store quality assessment in Redis cache."""
         try:
-            self.redis_client.setex(
-                cache_key,
-                self.cache_ttl,
-                json.dumps(result)
-            )
+            self.redis_client.setex(cache_key, self.cache_ttl, json.dumps(result))
         except Exception:
             pass
 
@@ -134,7 +132,7 @@ Examples:
     def _extract_assessment_from_response(self, response: str) -> Tuple[int, str]:
         """Extract quality score and reasoning from the LLM response."""
         try:
-            lines = response.strip().split('\n')
+            lines = response.strip().split("\n")
             score = None
             reasoning = ""
 
@@ -149,7 +147,8 @@ Examples:
             if score is None:
                 # Fallback: try to extract any number between 1-10
                 import re
-                score_match = re.search(r'\b([1-9]|10)\b', response)
+
+                score_match = re.search(r"\b([1-9]|10)\b", response)
                 if score_match:
                     score = int(score_match.group(1))
                 else:
@@ -164,7 +163,9 @@ Examples:
             return score, reasoning
 
         except Exception as e:
-            current_app.logger.error(f"Failed to parse quality assessment response: {str(e)}")
+            current_app.logger.error(
+                f"Failed to parse quality assessment response: {str(e)}"
+            )
             return 5, f"Failed to parse assessment: {str(e)}"
 
     def clear_cache(self) -> None:

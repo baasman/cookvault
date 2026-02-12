@@ -9,14 +9,20 @@ This module provides utilities for:
 - Database snapshots for testing
 """
 
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from cookbook_db_utils.imports import (
-    create_app, db, User, Recipe, Cookbook, Ingredient,
-    UserRole, UserStatus, recipe_ingredients
+    create_app,
+    db,
+    User,
+    Recipe,
+    Cookbook,
+    Ingredient,
+    UserRole,
+    UserStatus,
+    recipe_ingredients,
 )
 from cookbook_db_utils.db_manager import DatabaseManager
 from cookbook_db_utils.seed_data import DataSeeder
@@ -43,8 +49,9 @@ class DevelopmentHelpers:
             print(f"❌ Error during quick reset: {e}")
             return False
 
-    def create_test_user(self, username: str, role: UserRole = UserRole.USER,
-                        password: str = "test123") -> Optional[User]:
+    def create_test_user(
+        self, username: str, role: UserRole = UserRole.USER, password: str = "test123"
+    ) -> Optional[User]:
         """Create a test user with specified role"""
         try:
             with self.app.app_context():
@@ -61,7 +68,7 @@ class DevelopmentHelpers:
                     last_name="Test",
                     role=role,
                     status=UserStatus.ACTIVE,
-                    is_verified=True
+                    is_verified=True,
                 )
                 user.set_password(password)
 
@@ -94,7 +101,7 @@ class DevelopmentHelpers:
                     {"name": "pepper", "category": "seasoning"},
                     {"name": "olive oil", "category": "oil"},
                     {"name": "garlic", "category": "vegetable"},
-                    {"name": "onion", "category": "vegetable"}
+                    {"name": "onion", "category": "vegetable"},
                 ]
 
                 ingredients = []
@@ -102,8 +109,7 @@ class DevelopmentHelpers:
                     existing = Ingredient.query.filter_by(name=ing_data["name"]).first()
                     if not existing:
                         ingredient = Ingredient(
-                            name=ing_data["name"],
-                            category=ing_data["category"]
+                            name=ing_data["name"], category=ing_data["category"]
                         )
                         db.session.add(ingredient)
                         ingredients.append(ingredient)
@@ -115,7 +121,7 @@ class DevelopmentHelpers:
                     title="Test Cookbook",
                     author="Test Author",
                     description="A minimal cookbook for testing",
-                    user_id=user.id
+                    user_id=user.id,
                 )
                 db.session.add(cookbook)
                 db.session.flush()
@@ -129,7 +135,7 @@ class DevelopmentHelpers:
                     servings=2,
                     difficulty="easy",
                     user_id=user.id,
-                    cookbook_id=cookbook.id
+                    cookbook_id=cookbook.id,
                 )
                 db.session.add(recipe)
                 db.session.flush()
@@ -142,7 +148,7 @@ class DevelopmentHelpers:
                         quantity=1,
                         unit="tsp",
                         optional=False,
-                        order=1
+                        order=1,
                     )
                     db.session.execute(stmt)
 
@@ -248,9 +254,12 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Cookbook Creator Development Helpers")
-    parser.add_argument("--env", default="development",
-                       choices=["development", "testing"],
-                       help="Environment configuration")
+    parser.add_argument(
+        "--env",
+        default="development",
+        choices=["development", "testing"],
+        help="Environment configuration",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -260,8 +269,9 @@ def main():
     # Create test user
     user_parser = subparsers.add_parser("create-user", help="Create test user")
     user_parser.add_argument("username", help="Username")
-    user_parser.add_argument("--role", default="user", choices=["user", "admin"],
-                           help="User role")
+    user_parser.add_argument(
+        "--role", default="user", choices=["user", "admin"], help="User role"
+    )
     user_parser.add_argument("--password", default="test123", help="Password")
 
     # Create datasets

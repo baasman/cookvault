@@ -1,5 +1,4 @@
 import os
-import secrets
 from pathlib import Path
 from typing import Type
 
@@ -58,112 +57,174 @@ class Config:
     def init_app(cls, app):
         """Initialize app with dynamic configuration from environment variables"""
         # Static settings (formerly from class attributes)
-        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-        app.config['WTF_CSRF_ENABLED'] = True
-        app.config['WTF_CSRF_TIME_LIMIT'] = None
-        app.config['SESSION_COOKIE_HTTPONLY'] = True
-        app.config['SESSION_COOKIE_PATH'] = "/"
-        app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get("PERMANENT_SESSION_LIFETIME", 3600))
-        app.config['RATELIMIT_DEFAULT'] = "100/hour"
-        app.config['CORS_ORIGINS'] = ["http://localhost:5173", "http://127.0.0.1:5173"]
-        
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        app.config["WTF_CSRF_ENABLED"] = True
+        app.config["WTF_CSRF_TIME_LIMIT"] = None
+        app.config["SESSION_COOKIE_HTTPONLY"] = True
+        app.config["SESSION_COOKIE_PATH"] = "/"
+        app.config["PERMANENT_SESSION_LIFETIME"] = int(
+            os.environ.get("PERMANENT_SESSION_LIFETIME", 3600)
+        )
+        app.config["RATELIMIT_DEFAULT"] = "100/hour"
+        app.config["CORS_ORIGINS"] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
         # Image optimization settings (same in all environments)
-        app.config['MAX_IMAGE_DIMENSION'] = int(os.environ.get("MAX_IMAGE_DIMENSION", 1200))
-        app.config['JPEG_QUALITY'] = int(os.environ.get("JPEG_QUALITY", 85))
-        app.config['MAX_UPLOAD_SIZE'] = int(os.environ.get("MAX_UPLOAD_SIZE", 8))  # MB
+        app.config["MAX_IMAGE_DIMENSION"] = int(
+            os.environ.get("MAX_IMAGE_DIMENSION", 1200)
+        )
+        app.config["JPEG_QUALITY"] = int(os.environ.get("JPEG_QUALITY", 85))
+        app.config["MAX_UPLOAD_SIZE"] = int(os.environ.get("MAX_UPLOAD_SIZE", 8))  # MB
 
         # Default debug/testing flags (can be overridden by subclasses)
-        app.config['DEBUG'] = False
-        app.config['TESTING'] = False
+        app.config["DEBUG"] = False
+        app.config["TESTING"] = False
 
         # Load dynamic config values at runtime
-        app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY") or "dev-secret-key"
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL") or "sqlite:///cookbook.db"
-        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key"
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            os.environ.get("DATABASE_URL") or "sqlite:///cookbook.db"
+        )
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
             "pool_pre_ping": True,
             "pool_recycle": 300,
         }
-        app.config['REDIS_URL'] = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
-        app.config['UPLOAD_FOLDER'] = Path(__file__).parent.parent / os.environ.get("UPLOAD_FOLDER", "uploads")
-        app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
-        app.config['ANTHROPIC_API_KEY'] = os.environ.get("ANTHROPIC_API_KEY")
-        app.config['ANTHROPIC_VISION_MODEL'] = os.environ.get("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-5-20250929")
-        app.config['ANTHROPIC_TEXT_MODEL'] = os.environ.get("ANTHROPIC_TEXT_MODEL", "claude-sonnet-4-20250514")
-        app.config['GOOGLE_BOOKS_API_KEY'] = os.environ.get("GOOGLE_BOOKS_API_KEY")
+        app.config["REDIS_URL"] = (
+            os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
+        )
+        app.config["UPLOAD_FOLDER"] = Path(__file__).parent.parent / os.environ.get(
+            "UPLOAD_FOLDER", "uploads"
+        )
+        app.config["MAX_CONTENT_LENGTH"] = int(
+            os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)
+        )
+        app.config["ANTHROPIC_API_KEY"] = os.environ.get("ANTHROPIC_API_KEY")
+        app.config["ANTHROPIC_VISION_MODEL"] = os.environ.get(
+            "ANTHROPIC_VISION_MODEL", "claude-sonnet-4-5-20250929"
+        )
+        app.config["ANTHROPIC_TEXT_MODEL"] = os.environ.get(
+            "ANTHROPIC_TEXT_MODEL", "claude-sonnet-4-20250514"
+        )
+        app.config["GOOGLE_BOOKS_API_KEY"] = os.environ.get("GOOGLE_BOOKS_API_KEY")
 
         # Stripe payment settings
-        app.config['STRIPE_SECRET_KEY'] = os.environ.get("STRIPE_SECRET_KEY")
-        app.config['STRIPE_PUBLISHABLE_KEY'] = os.environ.get("STRIPE_PUBLISHABLE_KEY")
-        app.config['STRIPE_WEBHOOK_SECRET'] = os.environ.get("STRIPE_WEBHOOK_SECRET")
-        app.config['STRIPE_PREMIUM_PRICE'] = int(os.environ.get("STRIPE_PREMIUM_PRICE", 299))  # $2.99 in cents
-        app.config['STRIPE_PREMIUM_PRICE_ID'] = os.environ.get("STRIPE_PREMIUM_PRICE_ID")  # Stripe Price ID for recurring subscription
-        app.config['FREE_TIER_UPLOAD_LIMIT'] = int(os.environ.get("FREE_TIER_UPLOAD_LIMIT", 10))
-        app.config['PREMIUM_COOKBOOK_DISCOUNT_PERCENT'] = int(os.environ.get("PREMIUM_COOKBOOK_DISCOUNT_PERCENT", 20))  # 20% discount for premium users
+        app.config["STRIPE_SECRET_KEY"] = os.environ.get("STRIPE_SECRET_KEY")
+        app.config["STRIPE_PUBLISHABLE_KEY"] = os.environ.get("STRIPE_PUBLISHABLE_KEY")
+        app.config["STRIPE_WEBHOOK_SECRET"] = os.environ.get("STRIPE_WEBHOOK_SECRET")
+        app.config["STRIPE_PREMIUM_PRICE"] = int(
+            os.environ.get("STRIPE_PREMIUM_PRICE", 299)
+        )  # $2.99 in cents
+        app.config["STRIPE_PREMIUM_PRICE_ID"] = os.environ.get(
+            "STRIPE_PREMIUM_PRICE_ID"
+        )  # Stripe Price ID for recurring subscription
+        app.config["FREE_TIER_UPLOAD_LIMIT"] = int(
+            os.environ.get("FREE_TIER_UPLOAD_LIMIT", 10)
+        )
+        app.config["PREMIUM_COOKBOOK_DISCOUNT_PERCENT"] = int(
+            os.environ.get("PREMIUM_COOKBOOK_DISCOUNT_PERCENT", 20)
+        )  # 20% discount for premium users
 
         # Cloudinary settings for image storage
-        app.config['CLOUDINARY_CLOUD_NAME'] = os.environ.get("CLOUDINARY_CLOUD_NAME")
-        app.config['CLOUDINARY_API_KEY'] = os.environ.get("CLOUDINARY_API_KEY") 
-        app.config['CLOUDINARY_API_SECRET'] = os.environ.get("CLOUDINARY_API_SECRET")
-        app.config['USE_CLOUDINARY'] = os.environ.get("USE_CLOUDINARY", "false").lower() == "true"
+        app.config["CLOUDINARY_CLOUD_NAME"] = os.environ.get("CLOUDINARY_CLOUD_NAME")
+        app.config["CLOUDINARY_API_KEY"] = os.environ.get("CLOUDINARY_API_KEY")
+        app.config["CLOUDINARY_API_SECRET"] = os.environ.get("CLOUDINARY_API_SECRET")
+        app.config["USE_CLOUDINARY"] = (
+            os.environ.get("USE_CLOUDINARY", "false").lower() == "true"
+        )
 
         # OCR Quality and LLM fallback settings
-        app.config['OCR_QUALITY_THRESHOLD'] = int(os.environ.get("OCR_QUALITY_THRESHOLD", 8))
-        app.config['OCR_ENABLE_LLM_FALLBACK'] = os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"
-        app.config['OCR_QUALITY_CACHE_TTL'] = int(os.environ.get("OCR_QUALITY_CACHE_TTL", 3600))
+        app.config["OCR_QUALITY_THRESHOLD"] = int(
+            os.environ.get("OCR_QUALITY_THRESHOLD", 8)
+        )
+        app.config["OCR_ENABLE_LLM_FALLBACK"] = (
+            os.environ.get("OCR_ENABLE_LLM_FALLBACK", "true").lower() == "true"
+        )
+        app.config["OCR_QUALITY_CACHE_TTL"] = int(
+            os.environ.get("OCR_QUALITY_CACHE_TTL", 3600)
+        )
 
         # Email settings (Resend)
-        app.config['RESEND_API_KEY'] = os.environ.get("RESEND_API_KEY")
-        app.config['EMAIL_FROM_ADDRESS'] = os.environ.get("EMAIL_FROM_ADDRESS", "noreply@cookbook-creator.com")
-        app.config['EMAIL_FROM_NAME'] = os.environ.get("EMAIL_FROM_NAME", "Cookbook Creator")
-        app.config['FRONTEND_URL'] = os.environ.get("FRONTEND_URL", "http://localhost:5173")
-        app.config['VERIFICATION_TOKEN_EXPIRY_HOURS'] = int(os.environ.get("VERIFICATION_TOKEN_EXPIRY_HOURS", 24))
-        app.config['REQUIRE_EMAIL_VERIFICATION'] = os.environ.get("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
+        app.config["RESEND_API_KEY"] = os.environ.get("RESEND_API_KEY")
+        app.config["EMAIL_FROM_ADDRESS"] = os.environ.get(
+            "EMAIL_FROM_ADDRESS", "noreply@cookbook-creator.com"
+        )
+        app.config["EMAIL_FROM_NAME"] = os.environ.get(
+            "EMAIL_FROM_NAME", "Cookbook Creator"
+        )
+        app.config["FRONTEND_URL"] = os.environ.get(
+            "FRONTEND_URL", "http://localhost:5173"
+        )
+        app.config["VERIFICATION_TOKEN_EXPIRY_HOURS"] = int(
+            os.environ.get("VERIFICATION_TOKEN_EXPIRY_HOURS", 24)
+        )
+        app.config["REQUIRE_EMAIL_VERIFICATION"] = (
+            os.environ.get("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
+        )
         # Development email override - all emails will be sent to this address instead of the actual recipient
-        app.config['DEV_EMAIL_OVERRIDE'] = os.environ.get("DEV_EMAIL_OVERRIDE")
+        app.config["DEV_EMAIL_OVERRIDE"] = os.environ.get("DEV_EMAIL_OVERRIDE")
 
         # SMS verification settings (Twilio)
-        app.config['TWILIO_ACCOUNT_SID'] = os.environ.get("TWILIO_ACCOUNT_SID")
-        app.config['TWILIO_AUTH_TOKEN'] = os.environ.get("TWILIO_AUTH_TOKEN")
-        app.config['TWILIO_PHONE_NUMBER'] = os.environ.get("TWILIO_PHONE_NUMBER")
-        app.config['SMS_VERIFICATION_CODE_LENGTH'] = int(os.environ.get("SMS_VERIFICATION_CODE_LENGTH", 6))
-        app.config['SMS_VERIFICATION_EXPIRY_MINUTES'] = int(os.environ.get("SMS_VERIFICATION_EXPIRY_MINUTES", 10))
+        app.config["TWILIO_ACCOUNT_SID"] = os.environ.get("TWILIO_ACCOUNT_SID")
+        app.config["TWILIO_AUTH_TOKEN"] = os.environ.get("TWILIO_AUTH_TOKEN")
+        app.config["TWILIO_PHONE_NUMBER"] = os.environ.get("TWILIO_PHONE_NUMBER")
+        app.config["SMS_VERIFICATION_CODE_LENGTH"] = int(
+            os.environ.get("SMS_VERIFICATION_CODE_LENGTH", 6)
+        )
+        app.config["SMS_VERIFICATION_EXPIRY_MINUTES"] = int(
+            os.environ.get("SMS_VERIFICATION_EXPIRY_MINUTES", 10)
+        )
 
         # Session security settings - default to secure for HTTPS production
         _session_secure_env = os.environ.get("SESSION_COOKIE_SECURE", "true")
         _session_secure_parsed = _session_secure_env.lower() == "true"
 
-        app.config['SESSION_COOKIE_SECURE'] = _session_secure_parsed
+        app.config["SESSION_COOKIE_SECURE"] = _session_secure_parsed
         # Set the session cookie domain for production - only if explicitly provided
         # For cross-origin to work, the domain must be explicitly set to allow sharing
         session_cookie_domain_env = os.environ.get("SESSION_COOKIE_DOMAIN")
         app.logger.info(f"SESSION_COOKIE_DOMAIN env var: '{session_cookie_domain_env}'")
         if session_cookie_domain_env:
-            app.config['SESSION_COOKIE_DOMAIN'] = session_cookie_domain_env
-            app.logger.info(f"✓ Session cookie domain set to: {session_cookie_domain_env}")
+            app.config["SESSION_COOKIE_DOMAIN"] = session_cookie_domain_env
+            app.logger.info(
+                f"✓ Session cookie domain set to: {session_cookie_domain_env}"
+            )
         else:
             # Don't set a domain - let browser use the request domain
-            app.logger.warning("⚠️  SESSION_COOKIE_DOMAIN not set - using request domain (may cause cross-origin issues)")
-            app.config['SESSION_COOKIE_DOMAIN'] = None
+            app.logger.warning(
+                "⚠️  SESSION_COOKIE_DOMAIN not set - using request domain (may cause cross-origin issues)"
+            )
+            app.config["SESSION_COOKIE_DOMAIN"] = None
 
         # Configure session cookie settings
-        app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get(
+        app.config["SESSION_COOKIE_SAMESITE"] = os.environ.get(
             "SESSION_COOKIE_SAMESITE", "None" if _session_secure_parsed else "Lax"
         )
 
         # Rate limiting
-        app.config['RATELIMIT_STORAGE_URL'] = os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
-        
+        app.config["RATELIMIT_STORAGE_URL"] = (
+            os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
+        )
+
         # Lulu Print API settings
-        app.config['LULU_CLIENT_KEY'] = os.environ.get("LULU_CLIENT_KEY")
-        app.config['LULU_CLIENT_SECRET'] = os.environ.get("LULU_CLIENT_SECRET")
-        app.config['LULU_API_URL'] = os.environ.get("LULU_API_URL", "https://api.lulu.com")
-        app.config['LULU_SANDBOX_MODE'] = os.environ.get("LULU_SANDBOX_MODE", "true").lower() == "true"
-        app.config['LULU_WEBHOOK_SECRET'] = os.environ.get("LULU_WEBHOOK_SECRET")
-        app.config['LULU_DEV_MODE'] = os.environ.get("LULU_DEV_MODE", "false").lower() == "true"
-        
+        app.config["LULU_CLIENT_KEY"] = os.environ.get("LULU_CLIENT_KEY")
+        app.config["LULU_CLIENT_SECRET"] = os.environ.get("LULU_CLIENT_SECRET")
+        app.config["LULU_API_URL"] = os.environ.get(
+            "LULU_API_URL", "https://api.lulu.com"
+        )
+        app.config["LULU_SANDBOX_MODE"] = (
+            os.environ.get("LULU_SANDBOX_MODE", "true").lower() == "true"
+        )
+        app.config["LULU_WEBHOOK_SECRET"] = os.environ.get("LULU_WEBHOOK_SECRET")
+        app.config["LULU_DEV_MODE"] = (
+            os.environ.get("LULU_DEV_MODE", "false").lower() == "true"
+        )
+
         # Print order settings
-        app.config['PRINT_PLATFORM_MARKUP'] = float(os.environ.get("PRINT_PLATFORM_MARKUP", "0.25"))  # 25% markup
-        app.config['PRINT_MAX_FILE_SIZE_MB'] = int(os.environ.get("PRINT_MAX_FILE_SIZE_MB", "100"))  # 100MB max
+        app.config["PRINT_PLATFORM_MARKUP"] = float(
+            os.environ.get("PRINT_PLATFORM_MARKUP", "0.25")
+        )  # 25% markup
+        app.config["PRINT_MAX_FILE_SIZE_MB"] = int(
+            os.environ.get("PRINT_MAX_FILE_SIZE_MB", "100")
+        )  # 100MB max
 
     # Logging
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
@@ -193,8 +254,10 @@ class DevelopmentConfig(Config):
         super().init_app(app)
 
         # Override with development-specific settings
-        app.config['DEBUG'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}/cookbook_db_dev.db"
+        app.config["DEBUG"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            f"sqlite:///{db_path}/cookbook_db_dev.db"
+        )
 
 
 class TestingConfig(Config):
@@ -205,8 +268,10 @@ class TestingConfig(Config):
         super().init_app(app)
 
         # Override with testing-specific settings
-        app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}/cookbook_db_test.db"
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            f"sqlite:///{db_path}/cookbook_db_test.db"
+        )
 
 
 class ProductionConfig(Config):
@@ -217,11 +282,11 @@ class ProductionConfig(Config):
         super().init_app(app)
 
         # Production-specific settings
-        app.config['DEBUG'] = False
-        app.config['TESTING'] = False
+        app.config["DEBUG"] = False
+        app.config["TESTING"] = False
 
         # Production database with connection pooling
-        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
             "pool_size": 10,
             "pool_recycle": 3600,
             "pool_pre_ping": True,
@@ -232,25 +297,37 @@ class ProductionConfig(Config):
         cors_origins_env = os.environ.get("CORS_ORIGINS", "")
         if cors_origins_env:
             # Clean up origins and remove empty strings
-            cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
-            app.config['CORS_ORIGINS'] = cors_origins
+            cors_origins = [
+                origin.strip()
+                for origin in cors_origins_env.split(",")
+                if origin.strip()
+            ]
+            app.config["CORS_ORIGINS"] = cors_origins
             app.logger.info(f"Production CORS origins loaded from env: {cors_origins}")
         else:
-            app.logger.warning("No CORS_ORIGINS environment variable set for production!")
+            app.logger.warning(
+                "No CORS_ORIGINS environment variable set for production!"
+            )
 
         # Stricter rate limiting for production
-        app.config['RATELIMIT_DEFAULT'] = "60/hour"
-        
+        app.config["RATELIMIT_DEFAULT"] = "60/hour"
+
         # Disable heavy image preprocessing in production to save memory
-        app.config['SKIP_IMAGE_PREPROCESSING'] = True
-        
+        app.config["SKIP_IMAGE_PREPROCESSING"] = True
+
         # Balanced image optimization settings for OCR quality vs memory
-        app.config['MAX_IMAGE_DIMENSION'] = int(os.environ.get("MAX_IMAGE_DIMENSION", 1568))  # Higher for better OCR
-        app.config['JPEG_QUALITY'] = int(os.environ.get("JPEG_QUALITY", 95))  # Higher quality for better text recognition
-        app.config['MAX_UPLOAD_SIZE'] = int(os.environ.get("MAX_UPLOAD_SIZE", 8))  # Max 8MB uploads
+        app.config["MAX_IMAGE_DIMENSION"] = int(
+            os.environ.get("MAX_IMAGE_DIMENSION", 1568)
+        )  # Higher for better OCR
+        app.config["JPEG_QUALITY"] = int(
+            os.environ.get("JPEG_QUALITY", 95)
+        )  # Higher quality for better text recognition
+        app.config["MAX_UPLOAD_SIZE"] = int(
+            os.environ.get("MAX_UPLOAD_SIZE", 8)
+        )  # Max 8MB uploads
 
         # Production logging
-        app.config['LOG_LEVEL'] = os.environ.get("LOG_LEVEL", "WARNING")
+        app.config["LOG_LEVEL"] = os.environ.get("LOG_LEVEL", "WARNING")
 
         # Validate required environment variables
         cls.validate_required_env_vars()

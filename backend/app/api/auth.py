@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 from flask import Response, current_app, jsonify, request, session, g
 from sqlalchemy.exc import IntegrityError
@@ -50,7 +50,7 @@ def require_auth(f):
 
 def optional_auth(f):
     """Decorator that allows both authenticated and unauthenticated access.
-    
+
     Passes the current user (or None) as the first argument to the decorated function.
     Used for endpoints that have different behavior for authenticated vs unauthenticated users,
     such as serving public recipe images.
@@ -59,7 +59,7 @@ def optional_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         user = get_current_user()
-        
+
         # If user is authenticated, check if account is active
         if user:
             if user.is_account_locked():
@@ -273,7 +273,9 @@ def register() -> Tuple[Response, int]:
 
         # Validate verification method
         if verification_method not in ["email", "sms"]:
-            return jsonify({"error": "verification_method must be 'email' or 'sms'"}), 400
+            return jsonify(
+                {"error": "verification_method must be 'email' or 'sms'"}
+            ), 400
 
         # If SMS verification chosen, phone is required
         if verification_method == "sms":
@@ -282,7 +284,9 @@ def register() -> Tuple[Response, int]:
 
             # Validate phone number format using SMS service
             sms_service = get_sms_service()
-            is_valid, formatted_phone_or_error = sms_service.validate_phone_number(phone)
+            is_valid, formatted_phone_or_error = sms_service.validate_phone_number(
+                phone
+            )
 
             if not is_valid:
                 return jsonify({"error": formatted_phone_or_error}), 400
@@ -306,7 +310,9 @@ def register() -> Tuple[Response, int]:
                 return jsonify({"error": "Phone number already exists"}), 409
 
         # Check if email verification is required
-        require_verification = current_app.config.get('REQUIRE_EMAIL_VERIFICATION', False)
+        require_verification = current_app.config.get(
+            "REQUIRE_EMAIL_VERIFICATION", False
+        )
 
         if require_verification:
             # Create new user with pending verification status
@@ -335,15 +341,12 @@ def register() -> Tuple[Response, int]:
             if verification_method == "email":
                 email_service = get_email_service()
                 verification_sent = email_service.send_verification_email(
-                    email=email,
-                    token=verification_token,
-                    username=username
+                    email=email, token=verification_token, username=username
                 )
             else:  # SMS
                 sms_service = get_sms_service()
                 verification_sent = sms_service.send_verification_sms(
-                    phone_number=phone,
-                    code=verification_token
+                    phone_number=phone, code=verification_token
                 )
 
             if not verification_sent:
@@ -362,7 +365,7 @@ def register() -> Tuple[Response, int]:
                     "id": user.id,
                     "username": user.username,
                     "email": user.email,
-                }
+                },
             }
 
             if verification_method == "email":
@@ -389,7 +392,9 @@ def register() -> Tuple[Response, int]:
             db.session.add(user)
             db.session.commit()
 
-            current_app.logger.info(f"New user registered (verification disabled): {username} (ID: {user.id})")
+            current_app.logger.info(
+                f"New user registered (verification disabled): {username} (ID: {user.id})"
+            )
 
             # Generate JWT token for immediate login
             jwt_token = JWTTokenManager.generate_token(user)
@@ -404,11 +409,11 @@ def register() -> Tuple[Response, int]:
                     "id": user.id,
                     "username": user.username,
                     "email": user.email,
-                    "role": user.role.value
+                    "role": user.role.value,
                 },
                 "access_token": jwt_token,
                 "token_type": "Bearer",
-                "session_token": user_session.session_token
+                "session_token": user_session.session_token,
             }
 
             return jsonify(response_data), 201
@@ -441,7 +446,9 @@ def verify_email() -> Tuple[Response, int]:
         user = User.query.filter_by(email_verification_token=token).first()
 
         if not user:
-            current_app.logger.warning(f"Invalid email verification token: {token[:8]}...")
+            current_app.logger.warning(
+                f"Invalid email verification token: {token[:8]}..."
+            )
             return jsonify({"error": "Invalid or expired verification token"}), 400
 
         # Check if token is valid
@@ -469,19 +476,21 @@ def verify_email() -> Tuple[Response, int]:
         # Create session for the user
         user_session = create_user_session(user, request)
 
-        return jsonify({
-            "message": "Email verified successfully",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "is_verified": user.is_verified,
-                "role": user.role.value
-            },
-            "access_token": jwt_token,
-            "token_type": "Bearer",
-            "session_token": user_session.session_token
-        }), 200
+        return jsonify(
+            {
+                "message": "Email verified successfully",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "is_verified": user.is_verified,
+                    "role": user.role.value,
+                },
+                "access_token": jwt_token,
+                "token_type": "Bearer",
+                "session_token": user_session.session_token,
+            }
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -503,7 +512,9 @@ def verify_phone() -> Tuple[Response, int]:
         code = data.get("code", "").strip()
 
         if not phone or not code:
-            return jsonify({"error": "Phone number and verification code are required"}), 400
+            return jsonify(
+                {"error": "Phone number and verification code are required"}
+            ), 400
 
         # Validate phone format
         sms_service = get_sms_service()
@@ -518,7 +529,9 @@ def verify_phone() -> Tuple[Response, int]:
         user = User.query.filter_by(phone_number=phone).first()
 
         if not user:
-            current_app.logger.warning(f"Phone verification attempt for unknown phone: {phone}")
+            current_app.logger.warning(
+                f"Phone verification attempt for unknown phone: {phone}"
+            )
             return jsonify({"error": "Invalid phone number or verification code"}), 400
 
         # Check if code is valid and not expired
@@ -526,7 +539,9 @@ def verify_phone() -> Tuple[Response, int]:
             current_app.logger.warning(
                 f"Phone verification failed for user {user.username}: token expired"
             )
-            return jsonify({"error": "Verification code has expired. Please request a new one."}), 400
+            return jsonify(
+                {"error": "Verification code has expired. Please request a new one."}
+            ), 400
 
         # Check if code matches
         if user.phone_verification_token != code:
@@ -553,21 +568,23 @@ def verify_phone() -> Tuple[Response, int]:
         # Create session for the user
         user_session = create_user_session(user, request)
 
-        return jsonify({
-            "message": "Phone verified successfully",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "phone_number": user.phone_number,
-                "is_verified": user.is_verified,
-                "phone_verified": user.phone_verified,
-                "role": user.role.value
-            },
-            "access_token": jwt_token,
-            "token_type": "Bearer",
-            "session_token": user_session.session_token
-        }), 200
+        return jsonify(
+            {
+                "message": "Phone verified successfully",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "phone_number": user.phone_number,
+                    "is_verified": user.is_verified,
+                    "phone_verified": user.phone_verified,
+                    "role": user.role.value,
+                },
+                "access_token": jwt_token,
+                "token_type": "Bearer",
+                "session_token": user_session.session_token,
+            }
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -581,11 +598,15 @@ def resend_verification() -> Tuple[Response, int]:
     """Resend verification email or SMS to unverified user."""
     try:
         # Check if email verification is required
-        require_verification = current_app.config.get('REQUIRE_EMAIL_VERIFICATION', False)
+        require_verification = current_app.config.get(
+            "REQUIRE_EMAIL_VERIFICATION", False
+        )
         if not require_verification:
-            return jsonify({
-                "error": "Email verification is not required. You can log in directly."
-            }), 400
+            return jsonify(
+                {
+                    "error": "Email verification is not required. You can log in directly."
+                }
+            ), 400
 
         data = request.get_json()
 
@@ -609,7 +630,9 @@ def resend_verification() -> Tuple[Response, int]:
         else:  # SMS
             # Validate and format phone number
             sms_service = get_sms_service()
-            is_valid, formatted_phone_or_error = sms_service.validate_phone_number(email_or_phone)
+            is_valid, formatted_phone_or_error = sms_service.validate_phone_number(
+                email_or_phone
+            )
 
             if not is_valid:
                 return jsonify({"error": formatted_phone_or_error}), 400
@@ -621,7 +644,9 @@ def resend_verification() -> Tuple[Response, int]:
                 f"Resend verification attempt for unknown {method}: {email_or_phone}"
             )
             # Return generic error to avoid user enumeration
-            return jsonify({"error": "If the account exists, verification will be resent"}), 200
+            return jsonify(
+                {"error": "If the account exists, verification will be resent"}
+            ), 200
 
         # Check if user is already verified
         if user.is_verified:
@@ -643,9 +668,11 @@ def resend_verification() -> Tuple[Response, int]:
                     current_app.logger.warning(
                         f"Rate limit: SMS resend to {user.phone_number} too soon"
                     )
-                    return jsonify({
-                        "error": "Please wait 2 minutes before requesting another code"
-                    }), 429
+                    return jsonify(
+                        {
+                            "error": "Please wait 2 minutes before requesting another code"
+                        }
+                    ), 429
 
         # Regenerate verification token
         verification_sent = False
@@ -655,9 +682,7 @@ def resend_verification() -> Tuple[Response, int]:
 
             email_service = get_email_service()
             verification_sent = email_service.send_verification_email(
-                email=user.email,
-                token=verification_token,
-                username=user.username
+                email=user.email, token=verification_token, username=user.username
             )
             current_app.logger.info(
                 f"Resent email verification to {user.email}: {verification_sent}"
@@ -668,8 +693,7 @@ def resend_verification() -> Tuple[Response, int]:
 
             sms_service = get_sms_service()
             verification_sent = sms_service.send_verification_sms(
-                phone_number=user.phone_number,
-                code=verification_token
+                phone_number=user.phone_number, code=verification_token
             )
             current_app.logger.info(
                 f"Resent SMS verification to {user.phone_number}: {verification_sent}"
@@ -679,12 +703,13 @@ def resend_verification() -> Tuple[Response, int]:
             current_app.logger.error(
                 f"Failed to resend verification {method} for user {user.username}"
             )
-            return jsonify({"error": "Failed to send verification. Please try again later."}), 500
+            return jsonify(
+                {"error": "Failed to send verification. Please try again later."}
+            ), 500
 
-        return jsonify({
-            "message": f"Verification {method} sent successfully",
-            "method": method
-        }), 200
+        return jsonify(
+            {"message": f"Verification {method} sent successfully", "method": method}
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -746,21 +771,23 @@ def login() -> Tuple[Response, int]:
         )
 
         # Create new session (for audit trail)
-        user_session = create_user_session(user, request)
+        create_user_session(user, request)
 
         current_app.logger.info(f"User logged in: {user.username}")
 
-        return jsonify({
-            "message": "Login successful",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "role": user.role.value
-            },
-            "access_token": jwt_token,
-            "token_type": "Bearer"
-        }), 200
+        return jsonify(
+            {
+                "message": "Login successful",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role.value,
+                },
+                "access_token": jwt_token,
+                "token_type": "Bearer",
+            }
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -845,7 +872,7 @@ def cookie_test() -> Response:
         session["timestamp"] = datetime.utcnow().isoformat()
         session.permanent = True
 
-        current_app.logger.info(f"Cookie test - Setting session values")
+        current_app.logger.info("Cookie test - Setting session values")
         current_app.logger.info(f"Session after setting: {dict(session)}")
 
         response = jsonify(
@@ -877,7 +904,7 @@ def cookie_test() -> Response:
 
         # Log response headers to see what cookies are being sent
         current_app.logger.info(
-            f"Response headers will include: Set-Cookie with session data"
+            "Response headers will include: Set-Cookie with session data"
         )
 
         return response
@@ -916,21 +943,21 @@ def jwt_debug() -> Response:
 
     debug_info = {
         "request_headers": dict(request.headers),
-        "authorization_header": request.headers.get('Authorization'),
+        "authorization_header": request.headers.get("Authorization"),
         "jwt_extraction_result": None,
         "jwt_validation_result": None,
         "current_user_result": None,
-        "errors": []
+        "errors": [],
     }
-    
+
     try:
         # Test JWT extraction
         jwt_token = extract_jwt_from_request()
         debug_info["jwt_extraction_result"] = {
             "token_found": jwt_token is not None,
-            "token_preview": jwt_token[:20] + "..." if jwt_token else None
+            "token_preview": jwt_token[:20] + "..." if jwt_token else None,
         }
-        
+
         if jwt_token:
             # Test JWT validation
             try:
@@ -938,12 +965,12 @@ def jwt_debug() -> Response:
                 debug_info["jwt_validation_result"] = {
                     "valid": user is not None,
                     "user_id": user.id if user else None,
-                    "username": user.username if user else None
+                    "username": user.username if user else None,
                 }
             except Exception as e:
                 debug_info["jwt_validation_result"] = {"error": str(e)}
                 debug_info["errors"].append(f"JWT validation error: {str(e)}")
-        
+
         # Test overall current user function
         try:
             current_user = get_current_user()
@@ -951,15 +978,15 @@ def jwt_debug() -> Response:
                 "user_found": current_user is not None,
                 "user_id": current_user.id if current_user else None,
                 "username": current_user.username if current_user else None,
-                "auth_method": "JWT" if get_current_user_jwt() else "Session"
+                "auth_method": "JWT" if get_current_user_jwt() else "Session",
             }
         except Exception as e:
             debug_info["current_user_result"] = {"error": str(e)}
             debug_info["errors"].append(f"get_current_user error: {str(e)}")
-            
+
     except Exception as e:
         debug_info["errors"].append(f"Debug function error: {str(e)}")
-    
+
     current_app.logger.info(f"JWT Debug Info: {debug_info}")
     return jsonify(debug_info)
 
@@ -1083,7 +1110,7 @@ def secret_key_test() -> Response:
             secret_key = current_app.config.get("SECRET_KEY")
 
             current_app.logger.info(
-                f"SECRET_KEY test - Attempting manual session decode"
+                "SECRET_KEY test - Attempting manual session decode"
             )
             current_app.logger.info(
                 f"SECRET_KEY test - Using secret key length: {len(secret_key)}"
@@ -1096,7 +1123,7 @@ def secret_key_test() -> Response:
                 ).loads(session_cookie_value)
                 signature_valid = True
                 current_app.logger.info(
-                    f"SECRET_KEY test - Signature validation: SUCCESS"
+                    "SECRET_KEY test - Signature validation: SUCCESS"
                 )
                 current_app.logger.info(
                     f"SECRET_KEY test - Decoded session: {decoded_session}"
@@ -1224,12 +1251,16 @@ def forgot_password() -> Tuple[Response, int]:
 
         if not user:
             # Don't reveal that the email doesn't exist
-            current_app.logger.info(f"Password reset requested for non-existent email: {email}")
+            current_app.logger.info(
+                f"Password reset requested for non-existent email: {email}"
+            )
             return jsonify({"message": success_message}), 200
 
         # Check if user is active
         if user.status != UserStatus.ACTIVE:
-            current_app.logger.info(f"Password reset requested for inactive user: {email}")
+            current_app.logger.info(
+                f"Password reset requested for inactive user: {email}"
+            )
             return jsonify({"message": success_message}), 200
 
         # Generate password reset token
@@ -1239,15 +1270,15 @@ def forgot_password() -> Tuple[Response, int]:
         # Send password reset email
         email_service = get_email_service()
         email_sent = email_service.send_password_reset_email(
-            email=user.email,
-            token=token,
-            username=user.username
+            email=user.email, token=token, username=user.username
         )
 
         if email_sent:
             current_app.logger.info(f"Password reset email sent to {email}")
         else:
-            current_app.logger.warning(f"Failed to send password reset email to {email}")
+            current_app.logger.warning(
+                f"Failed to send password reset email to {email}"
+            )
 
         return jsonify({"message": success_message}), 200
 
@@ -1258,7 +1289,11 @@ def forgot_password() -> Tuple[Response, int]:
             f"Traceback: {traceback.format_exc()}"
         )
         # Return generic message even on error to prevent info leakage
-        return jsonify({"message": "If an account exists with this email, you will receive a password reset link."}), 200
+        return jsonify(
+            {
+                "message": "If an account exists with this email, you will receive a password reset link."
+            }
+        ), 200
 
 
 @bp.route("/auth/validate-reset-token", methods=["POST"])
@@ -1286,11 +1321,15 @@ def validate_reset_token() -> Tuple[Response, int]:
 
         if not user:
             current_app.logger.warning(f"Invalid password reset token: {token[:8]}...")
-            return jsonify({"valid": False, "error": "Invalid or expired reset token"}), 400
+            return jsonify(
+                {"valid": False, "error": "Invalid or expired reset token"}
+            ), 400
 
         # Check if token is valid (not expired)
         if not user.is_password_reset_valid():
-            current_app.logger.warning(f"Expired password reset token for user: {user.username}")
+            current_app.logger.warning(
+                f"Expired password reset token for user: {user.username}"
+            )
             return jsonify({"valid": False, "error": "Reset token has expired"}), 400
 
         # Mask email for display (e.g., "t***@example.com")
@@ -1301,10 +1340,7 @@ def validate_reset_token() -> Tuple[Response, int]:
         else:
             masked_email = "***" + email[at_index:]
 
-        return jsonify({
-            "valid": True,
-            "email": masked_email
-        }), 200
+        return jsonify({"valid": True, "email": masked_email}), 200
 
     except Exception as e:
         current_app.logger.error(f"Token validation failed: {str(e)}")
@@ -1339,19 +1375,29 @@ def reset_password() -> Tuple[Response, int]:
 
         # Validate password strength
         if len(new_password) < 8:
-            return jsonify({"error": "Password must be at least 8 characters long"}), 400
+            return jsonify(
+                {"error": "Password must be at least 8 characters long"}
+            ), 400
 
         # Find user with this reset token
         user = User.query.filter_by(password_reset_token=token).first()
 
         if not user:
-            current_app.logger.warning(f"Password reset attempt with invalid token: {token[:8]}...")
+            current_app.logger.warning(
+                f"Password reset attempt with invalid token: {token[:8]}..."
+            )
             return jsonify({"error": "Invalid or expired reset token"}), 400
 
         # Check if token is valid (not expired)
         if not user.is_password_reset_valid():
-            current_app.logger.warning(f"Password reset attempt with expired token for user: {user.username}")
-            return jsonify({"error": "Reset token has expired. Please request a new password reset."}), 400
+            current_app.logger.warning(
+                f"Password reset attempt with expired token for user: {user.username}"
+            )
+            return jsonify(
+                {
+                    "error": "Reset token has expired. Please request a new password reset."
+                }
+            ), 400
 
         # Set new password
         user.set_password(new_password)
@@ -1360,19 +1406,26 @@ def reset_password() -> Tuple[Response, int]:
         user.clear_password_reset()
 
         # Invalidate all existing sessions for security
-        UserSession.query.filter_by(user_id=user.id, is_active=True).update({"is_active": False})
+        UserSession.query.filter_by(user_id=user.id, is_active=True).update(
+            {"is_active": False}
+        )
 
         db.session.commit()
 
-        current_app.logger.info(f"Password reset successful for user: {user.username} (ID: {user.id})")
+        current_app.logger.info(
+            f"Password reset successful for user: {user.username} (ID: {user.id})"
+        )
 
-        return jsonify({"message": "Password has been reset successfully. You can now log in with your new password."}), 200
+        return jsonify(
+            {
+                "message": "Password has been reset successfully. You can now log in with your new password."
+            }
+        ), 200
 
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(
-            f"Password reset failed: {str(e)}\n"
-            f"Traceback: {traceback.format_exc()}"
+            f"Password reset failed: {str(e)}\nTraceback: {traceback.format_exc()}"
         )
         return jsonify({"error": "Password reset failed. Please try again."}), 500
 
@@ -1416,7 +1469,7 @@ def change_password(current_user: User) -> Tuple[Response, int]:
         UserSession.query.filter(
             UserSession.user_id == current_user.id,
             UserSession.session_token != current_session_token,
-            UserSession.is_active == True,
+            UserSession.is_active,
         ).update({"is_active": False})
 
         db.session.commit()
@@ -1440,12 +1493,16 @@ def get_user_profile(current_user: User) -> Response:
         user_info = current_user.to_dict(include_sensitive=True)
 
         # Calculate recipe statistics (include both owned and uploaded recipes)
-        total_recipes = Recipe.query.filter(
-            db.or_(
-                Recipe.user_id == current_user.id,
-                Recipe.uploaded_by_id == current_user.id
+        total_recipes = (
+            Recipe.query.filter(
+                db.or_(
+                    Recipe.user_id == current_user.id,
+                    Recipe.uploaded_by_id == current_user.id,
+                )
             )
-        ).distinct().count()
+            .distinct()
+            .count()
+        )
 
         # Recipe difficulty breakdown
         difficulty_stats = (
@@ -1453,7 +1510,7 @@ def get_user_profile(current_user: User) -> Response:
             .filter(
                 db.or_(
                     Recipe.user_id == current_user.id,
-                    Recipe.uploaded_by_id == current_user.id
+                    Recipe.uploaded_by_id == current_user.id,
                 )
             )
             .group_by(Recipe.difficulty)
@@ -1474,9 +1531,9 @@ def get_user_profile(current_user: User) -> Response:
             .filter(
                 db.or_(
                     Recipe.user_id == current_user.id,
-                    Recipe.uploaded_by_id == current_user.id
+                    Recipe.uploaded_by_id == current_user.id,
                 ),
-                Recipe.cook_time.isnot(None)
+                Recipe.cook_time.isnot(None),
             )
             .scalar()
         )
@@ -1517,7 +1574,7 @@ def get_user_profile(current_user: User) -> Response:
             Recipe.query.filter(
                 db.or_(
                     Recipe.user_id == current_user.id,
-                    Recipe.uploaded_by_id == current_user.id
+                    Recipe.uploaded_by_id == current_user.id,
                 )
             )
             .order_by(Recipe.created_at.desc())
@@ -1573,20 +1630,22 @@ def update_user_profile(current_user: User) -> Response:
     """Update current user profile."""
     try:
         # Handle multipart/form-data for file uploads
-        if request.content_type and request.content_type.startswith('multipart/form-data'):
-            first_name = request.form.get('first_name', '').strip()
-            last_name = request.form.get('last_name', '').strip()
-            bio = request.form.get('bio', '').strip()
-            avatar_file = request.files.get('avatar')
+        if request.content_type and request.content_type.startswith(
+            "multipart/form-data"
+        ):
+            first_name = request.form.get("first_name", "").strip()
+            last_name = request.form.get("last_name", "").strip()
+            bio = request.form.get("bio", "").strip()
+            avatar_file = request.files.get("avatar")
         else:
             # Handle JSON data
             data = request.get_json()
             if not data:
                 return jsonify({"error": "No data provided"}), 400
-            
-            first_name = data.get('first_name', '').strip()
-            last_name = data.get('last_name', '').strip()
-            bio = data.get('bio', '').strip()
+
+            first_name = data.get("first_name", "").strip()
+            last_name = data.get("last_name", "").strip()
+            bio = data.get("bio", "").strip()
             avatar_file = None
 
         # Validate bio length
@@ -1604,51 +1663,65 @@ def update_user_profile(current_user: User) -> Response:
         # Handle avatar upload
         if avatar_file and avatar_file.filename:
             # Validate file type
-            allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-            file_extension = avatar_file.filename.rsplit('.', 1)[1].lower() if '.' in avatar_file.filename else ''
-            
+            allowed_extensions = {"png", "jpg", "jpeg", "gif", "webp"}
+            file_extension = (
+                avatar_file.filename.rsplit(".", 1)[1].lower()
+                if "." in avatar_file.filename
+                else ""
+            )
+
             if file_extension not in allowed_extensions:
-                return jsonify({"error": "Invalid file type. Only PNG, JPG, JPEG, GIF, and WebP files are allowed."}), 400
-            
+                return jsonify(
+                    {
+                        "error": "Invalid file type. Only PNG, JPG, JPEG, GIF, and WebP files are allowed."
+                    }
+                ), 400
+
             # Validate file size (5MB limit)
             avatar_file.seek(0, 2)  # Seek to end
             file_size = avatar_file.tell()
             avatar_file.seek(0)  # Seek back to beginning
-            
+
             if file_size > 5 * 1024 * 1024:  # 5MB
                 return jsonify({"error": "File too large. Maximum size is 5MB."}), 400
-            
+
             try:
                 from app.services.cloudinary_service import cloudinary_service
-                
+
                 # Read the file data
                 avatar_file.seek(0)
                 image_data = avatar_file.read()
-                
+
                 # Upload to Cloudinary with avatar-specific settings
                 upload_result = cloudinary_service.upload_image(
                     image_data=image_data,
                     filename=f"avatar_{current_user.id}_{avatar_file.filename}",
                     folder="avatars",
-                    generate_thumbnail=True
+                    generate_thumbnail=True,
                 )
-                
+
                 # Store the Cloudinary URL
-                current_user.avatar_url = upload_result['url']
-                current_app.logger.info(f"Successfully uploaded avatar for user {current_user.id}: {upload_result['public_id']}")
-                
+                current_user.avatar_url = upload_result["url"]
+                current_app.logger.info(
+                    f"Successfully uploaded avatar for user {current_user.id}: {upload_result['public_id']}"
+                )
+
             except Exception as e:
-                current_app.logger.error(f"Failed to upload avatar for user {current_user.id}: {str(e)}")
+                current_app.logger.error(
+                    f"Failed to upload avatar for user {current_user.id}: {str(e)}"
+                )
                 return jsonify({"error": "Failed to upload avatar"}), 500
 
         db.session.commit()
         current_app.logger.info(f"Profile updated for user: {current_user.username}")
 
         # Return updated user info
-        return jsonify({
-            "message": "Profile updated successfully",
-            "user": current_user.to_dict(include_sensitive=True)
-        }), 200
+        return jsonify(
+            {
+                "message": "Profile updated successfully",
+                "user": current_user.to_dict(include_sensitive=True),
+            }
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -1726,7 +1799,9 @@ def get_public_user_profile_by_username(username: str) -> Response:
         return get_public_user_profile(user.id)
 
     except Exception as e:
-        current_app.logger.error(f"Failed to get public user profile by username: {str(e)}")
+        current_app.logger.error(
+            f"Failed to get public user profile by username: {str(e)}"
+        )
         return jsonify({"error": "Failed to retrieve user profile"}), 500
 
 
@@ -1765,10 +1840,12 @@ def request_account_deletion(user: User) -> Response:
 
         # Check if already pending deletion
         if user.is_pending_deletion():
-            return jsonify({
-                "error": "Account is already scheduled for deletion",
-                "deletion_scheduled_for": user.deletion_scheduled_for.isoformat()
-            }), 400
+            return jsonify(
+                {
+                    "error": "Account is already scheduled for deletion",
+                    "deletion_scheduled_for": user.deletion_scheduled_for.isoformat(),
+                }
+            ), 400
 
         # Schedule deletion for 7 days from now
         deletion_date = user.schedule_deletion(days=7)
@@ -1782,6 +1859,7 @@ def request_account_deletion(user: User) -> Response:
         # Send confirmation email
         try:
             from app.services.email_service import get_email_service
+
             email_service = get_email_service()
             _send_deletion_scheduled_email(email_service, user, deletion_date)
         except Exception as email_error:
@@ -1789,11 +1867,13 @@ def request_account_deletion(user: User) -> Response:
                 f"Failed to send deletion confirmation email to {user.email}: {email_error}"
             )
 
-        return jsonify({
-            "message": "Account scheduled for deletion",
-            "deletion_scheduled_for": deletion_date.isoformat(),
-            "days_until_deletion": 7
-        })
+        return jsonify(
+            {
+                "message": "Account scheduled for deletion",
+                "deletion_scheduled_for": deletion_date.isoformat(),
+                "days_until_deletion": 7,
+            }
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -1828,10 +1908,9 @@ def cancel_account_deletion(user: User) -> Response:
             f"Account deletion cancelled for user {user.id} ({user.email})"
         )
 
-        return jsonify({
-            "message": "Account deletion cancelled",
-            "status": user.status.value
-        })
+        return jsonify(
+            {"message": "Account deletion cancelled", "status": user.status.value}
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -1853,24 +1932,30 @@ def get_deletion_status(user: User) -> Response:
     """
     try:
         if user.is_pending_deletion():
-            return jsonify({
-                "is_pending_deletion": True,
-                "deletion_scheduled_for": user.deletion_scheduled_for.isoformat(),
-                "can_cancel": True
-            })
+            return jsonify(
+                {
+                    "is_pending_deletion": True,
+                    "deletion_scheduled_for": user.deletion_scheduled_for.isoformat(),
+                    "can_cancel": True,
+                }
+            )
         else:
-            return jsonify({
-                "is_pending_deletion": False,
-                "deletion_scheduled_for": None,
-                "can_cancel": False
-            })
+            return jsonify(
+                {
+                    "is_pending_deletion": False,
+                    "deletion_scheduled_for": None,
+                    "can_cancel": False,
+                }
+            )
 
     except Exception as e:
         current_app.logger.error(f"Failed to get deletion status: {str(e)}")
         return jsonify({"error": "Failed to get deletion status"}), 500
 
 
-def _send_deletion_scheduled_email(email_service, user: User, deletion_date: datetime) -> bool:
+def _send_deletion_scheduled_email(
+    email_service, user: User, deletion_date: datetime
+) -> bool:
     """Send email notifying user that account deletion has been scheduled."""
     if not email_service.client:
         return False
@@ -1887,7 +1972,7 @@ def _send_deletion_scheduled_email(email_service, user: User, deletion_date: dat
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
               <h2 style="color: #e74c3c;">Account Deletion Scheduled</h2>
               <p>Hello {user.username},</p>
-              <p>Your Cookle account has been scheduled for deletion on <strong>{deletion_date.strftime('%B %d, %Y')}</strong>.</p>
+              <p>Your Cookle account has been scheduled for deletion on <strong>{deletion_date.strftime("%B %d, %Y")}</strong>.</p>
               <p>After this date, all your data will be permanently deleted, including:</p>
               <ul>
                 <li>Your recipes and images</li>
@@ -1896,7 +1981,7 @@ def _send_deletion_scheduled_email(email_service, user: User, deletion_date: dat
                 <li>Your subscription (if any)</li>
               </ul>
               <p style="margin: 30px 0;">
-                <strong>Changed your mind?</strong> You can cancel the deletion anytime before {deletion_date.strftime('%B %d, %Y')} by visiting your account settings:
+                <strong>Changed your mind?</strong> You can cancel the deletion anytime before {deletion_date.strftime("%B %d, %Y")} by visiting your account settings:
               </p>
               <p>
                 <a href="{settings_url}"
@@ -1917,7 +2002,7 @@ def _send_deletion_scheduled_email(email_service, user: User, deletion_date: dat
         text_content = f"""
         Hello {user.username},
 
-        Your Cookle account has been scheduled for deletion on {deletion_date.strftime('%B %d, %Y')}.
+        Your Cookle account has been scheduled for deletion on {deletion_date.strftime("%B %d, %Y")}.
 
         After this date, all your data will be permanently deleted.
 
@@ -1930,11 +2015,13 @@ def _send_deletion_scheduled_email(email_service, user: User, deletion_date: dat
         recipient = email_service._get_recipient_email(user.email)
 
         message = Mail(
-            from_email=From(email_service._get_from_email(), email_service._get_from_name()),
+            from_email=From(
+                email_service._get_from_email(), email_service._get_from_name()
+            ),
             to_emails=To(recipient),
             subject="Your Cookle Account is Scheduled for Deletion",
             plain_text_content=Content("text/plain", text_content),
-            html_content=Content("text/html", html_content)
+            html_content=Content("text/html", html_content),
         )
 
         response = email_service.client.send(message)
@@ -1979,7 +2066,7 @@ def export_user_data(user: User) -> Response:
         # Create in-memory ZIP file
         zip_buffer = BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             # Export profile data
             profile_data = {
                 "id": user.id,
@@ -1992,11 +2079,10 @@ def export_user_data(user: User) -> Response:
                 "created_at": user.created_at.isoformat() if user.created_at else None,
                 "is_verified": user.is_verified,
                 "is_premium": user.is_premium(),
-                "exported_at": datetime.utcnow().isoformat()
+                "exported_at": datetime.utcnow().isoformat(),
             }
             zip_file.writestr(
-                "profile.json",
-                json.dumps(profile_data, indent=2, ensure_ascii=False)
+                "profile.json", json.dumps(profile_data, indent=2, ensure_ascii=False)
             )
 
             # Export recipes
@@ -2012,36 +2098,46 @@ def export_user_data(user: User) -> Response:
                     "cook_time": recipe.cook_time,
                     "total_time": recipe.total_time,
                     "servings": recipe.servings,
-                    "difficulty": recipe.difficulty.value if recipe.difficulty else None,
+                    "difficulty": recipe.difficulty.value
+                    if recipe.difficulty
+                    else None,
                     "cuisine": recipe.cuisine,
                     "category": recipe.category,
                     "is_public": recipe.is_public,
-                    "created_at": recipe.created_at.isoformat() if recipe.created_at else None,
-                    "updated_at": recipe.updated_at.isoformat() if recipe.updated_at else None,
+                    "created_at": recipe.created_at.isoformat()
+                    if recipe.created_at
+                    else None,
+                    "updated_at": recipe.updated_at.isoformat()
+                    if recipe.updated_at
+                    else None,
                     "ingredients": [],
                     "instructions": [],
                     "tags": [],
                     "images": [],
-                    "notes": []
+                    "notes": [],
                 }
 
                 # Add ingredients
                 for ingredient in recipe.ingredients:
-                    recipe_dict["ingredients"].append({
-                        "name": ingredient.name,
-                        "amount": ingredient.amount,
-                        "unit": ingredient.unit,
-                        "notes": ingredient.notes,
-                        "order": ingredient.order
-                    })
+                    recipe_dict["ingredients"].append(
+                        {
+                            "name": ingredient.name,
+                            "amount": ingredient.amount,
+                            "unit": ingredient.unit,
+                            "notes": ingredient.notes,
+                            "order": ingredient.order,
+                        }
+                    )
 
                 # Add instructions
                 for instruction in recipe.instructions:
-                    recipe_dict["instructions"].append({
-                        "step_number": instruction.step_number,
-                        "text": instruction.text,
-                        "image_url": instruction.image_url
-                    })
+                    recipe_dict["instructions"].append(
+                        {
+                            "step_number": instruction.step_number,
+                            "text": instruction.text,
+                            "image_url": instruction.image_url,
+                        }
+                    )
 
                 # Add tags
                 for tag in recipe.tags:
@@ -2052,29 +2148,34 @@ def export_user_data(user: User) -> Response:
                     image_info = {
                         "url": image.url,
                         "is_primary": image.is_primary,
-                        "order": image.order
+                        "order": image.order,
                     }
                     recipe_dict["images"].append(image_info)
                     if image.url:
-                        image_urls.append({
-                            "recipe_id": recipe.id,
-                            "recipe_title": recipe.title,
-                            "url": image.url
-                        })
+                        image_urls.append(
+                            {
+                                "recipe_id": recipe.id,
+                                "recipe_title": recipe.title,
+                                "url": image.url,
+                            }
+                        )
 
                 # Add user's notes for this recipe
                 for note in recipe.recipe_notes:
                     if note.user_id == user.id:
-                        recipe_dict["notes"].append({
-                            "content": note.content,
-                            "created_at": note.created_at.isoformat() if note.created_at else None
-                        })
+                        recipe_dict["notes"].append(
+                            {
+                                "content": note.content,
+                                "created_at": note.created_at.isoformat()
+                                if note.created_at
+                                else None,
+                            }
+                        )
 
                 recipes_data.append(recipe_dict)
 
             zip_file.writestr(
-                "recipes.json",
-                json.dumps(recipes_data, indent=2, ensure_ascii=False)
+                "recipes.json", json.dumps(recipes_data, indent=2, ensure_ascii=False)
             )
 
             # Export cookbooks
@@ -2091,14 +2192,16 @@ def export_user_data(user: User) -> Response:
                     "published_year": cookbook.published_year,
                     "is_purchasable": cookbook.is_purchasable,
                     "price": str(cookbook.price) if cookbook.price else None,
-                    "created_at": cookbook.created_at.isoformat() if cookbook.created_at else None,
-                    "recipe_ids": [r.id for r in cookbook.recipes]
+                    "created_at": cookbook.created_at.isoformat()
+                    if cookbook.created_at
+                    else None,
+                    "recipe_ids": [r.id for r in cookbook.recipes],
                 }
                 cookbooks_data.append(cookbook_dict)
 
             zip_file.writestr(
                 "cookbooks.json",
-                json.dumps(cookbooks_data, indent=2, ensure_ascii=False)
+                json.dumps(cookbooks_data, indent=2, ensure_ascii=False),
             )
 
             # Export payment history (anonymized payment methods)
@@ -2108,28 +2211,33 @@ def export_user_data(user: User) -> Response:
                     "id": payment.id,
                     "amount": str(payment.amount),
                     "currency": payment.currency,
-                    "status": payment.status.value if hasattr(payment.status, 'value') else str(payment.status),
-                    "payment_type": payment.payment_type.value if hasattr(payment.payment_type, 'value') else str(payment.payment_type),
-                    "created_at": payment.created_at.isoformat() if payment.created_at else None,
-                    "description": payment.description
+                    "status": payment.status.value
+                    if hasattr(payment.status, "value")
+                    else str(payment.status),
+                    "payment_type": payment.payment_type.value
+                    if hasattr(payment.payment_type, "value")
+                    else str(payment.payment_type),
+                    "created_at": payment.created_at.isoformat()
+                    if payment.created_at
+                    else None,
+                    "description": payment.description,
                 }
                 payments_data.append(payment_dict)
 
             zip_file.writestr(
-                "payments.json",
-                json.dumps(payments_data, indent=2, ensure_ascii=False)
+                "payments.json", json.dumps(payments_data, indent=2, ensure_ascii=False)
             )
 
             # Export image URLs manifest (for reference)
             zip_file.writestr(
                 "images/image_manifest.json",
-                json.dumps(image_urls, indent=2, ensure_ascii=False)
+                json.dumps(image_urls, indent=2, ensure_ascii=False),
             )
 
             # Add README
             readme_content = f"""# Cookle Data Export
 
-Exported on: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
+Exported on: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")}
 User: {user.username}
 
 ## Contents
@@ -2159,7 +2267,7 @@ Contact us at boudeyz@gmail.com
         # Prepare response
         zip_buffer.seek(0)
 
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         filename = f"cookle_data_export_{timestamp}.zip"
 
         current_app.logger.info(
@@ -2169,9 +2277,9 @@ Contact us at boudeyz@gmail.com
 
         return send_file(
             zip_buffer,
-            mimetype='application/zip',
+            mimetype="application/zip",
             as_attachment=True,
-            download_name=filename
+            download_name=filename,
         )
 
     except Exception as e:

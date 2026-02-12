@@ -99,7 +99,10 @@ class User(db.Model):
         "CopyrightConsent", back_populates="user", cascade="all, delete-orphan"
     )
     subscription: Mapped[Optional["Subscription"]] = relationship(
-        "Subscription", back_populates="user", uselist=False, cascade="all, delete-orphan"
+        "Subscription",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
     payments: Mapped[List["Payment"]] = relationship(
         "Payment", back_populates="user", cascade="all, delete-orphan"
@@ -210,14 +213,19 @@ class User(db.Model):
 
     def get_or_create_subscription(self) -> "Subscription":
         """Get user's subscription or create a default free one."""
-        from flask import current_app
 
         if not self.subscription:
-            from app.models.payment import Subscription, SubscriptionTier, SubscriptionStatus
+            from app.models.payment import (
+                Subscription,
+                SubscriptionTier,
+                SubscriptionStatus,
+            )
             from app import db
 
             # First try to load existing subscription from database
-            existing_subscription = Subscription.query.filter_by(user_id=self.id).first()
+            existing_subscription = Subscription.query.filter_by(
+                user_id=self.id
+            ).first()
 
             if existing_subscription:
                 self.subscription = existing_subscription
@@ -226,7 +234,7 @@ class User(db.Model):
                 subscription = Subscription(
                     user_id=self.id,
                     tier=SubscriptionTier.FREE,
-                    status=SubscriptionStatus.ACTIVE
+                    status=SubscriptionStatus.ACTIVE,
                 )
                 db.session.add(subscription)
                 self.subscription = subscription

@@ -3,7 +3,14 @@ import logging
 from pathlib import Path
 
 import sentry_sdk
-from flask import Flask, send_from_directory, request, session, g, make_response, jsonify
+from flask import (
+    Flask,
+    send_from_directory,
+    request,
+    g,
+    make_response,
+    jsonify,
+)
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_migrate import Migrate
@@ -36,15 +43,15 @@ db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
 
+
 def get_rate_limit_key():
     """
     Custom rate limit key function that uses user ID for authenticated users,
     falls back to IP address for anonymous users.
     """
-    from flask import g
 
     # Check if we have a current user in the request context
-    if hasattr(g, 'current_user') and g.current_user:
+    if hasattr(g, "current_user") and g.current_user:
         return f"user_{g.current_user.id}"
 
     # Fall back to IP address for unauthenticated requests
@@ -69,21 +76,31 @@ def create_app(config_name: str | None = None) -> Flask:
         # Handle X-Forwarded-* headers from Cloudflare/Render proxy
         app.wsgi_app = ProxyFix(
             app.wsgi_app,
-            x_for=1,    # Number of proxies setting X-Forwarded-For
+            x_for=1,  # Number of proxies setting X-Forwarded-For
             x_proto=1,  # Number of proxies setting X-Forwarded-Proto
-            x_host=1,   # Number of proxies setting X-Forwarded-Host
-            x_port=1    # Number of proxies setting X-Forwarded-Port
+            x_host=1,  # Number of proxies setting X-Forwarded-Host
+            x_port=1,  # Number of proxies setting X-Forwarded-Port
         )
         app.logger.info("ProxyFix middleware configured for production")
 
     # Ensure session configuration is properly set
-    app.logger.info(f"Session configuration:")
+    app.logger.info("Session configuration:")
     app.logger.info(f"  SECRET_KEY set: {bool(app.config.get('SECRET_KEY'))}")
-    app.logger.info(f"  SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}")
-    app.logger.info(f"  SESSION_COOKIE_HTTPONLY: {app.config.get('SESSION_COOKIE_HTTPONLY')}")
-    app.logger.info(f"  SESSION_COOKIE_DOMAIN: {app.config.get('SESSION_COOKIE_DOMAIN')}")
-    app.logger.info(f"  SESSION_COOKIE_SAMESITE: {app.config.get('SESSION_COOKIE_SAMESITE')}")
-    app.logger.info(f"  PERMANENT_SESSION_LIFETIME: {app.config.get('PERMANENT_SESSION_LIFETIME')}")
+    app.logger.info(
+        f"  SESSION_COOKIE_SECURE: {app.config.get('SESSION_COOKIE_SECURE')}"
+    )
+    app.logger.info(
+        f"  SESSION_COOKIE_HTTPONLY: {app.config.get('SESSION_COOKIE_HTTPONLY')}"
+    )
+    app.logger.info(
+        f"  SESSION_COOKIE_DOMAIN: {app.config.get('SESSION_COOKIE_DOMAIN')}"
+    )
+    app.logger.info(
+        f"  SESSION_COOKIE_SAMESITE: {app.config.get('SESSION_COOKIE_SAMESITE')}"
+    )
+    app.logger.info(
+        f"  PERMANENT_SESSION_LIFETIME: {app.config.get('PERMANENT_SESSION_LIFETIME')}"
+    )
 
     # Initialize extensions
     db.init_app(app)
@@ -91,52 +108,51 @@ def create_app(config_name: str | None = None) -> Flask:
     bcrypt.init_app(app)
 
     # Configure CORS
-    cors_origins = app.config.get('CORS_ORIGINS', ["http://localhost:5173", "http://127.0.0.1:5173"])
+    cors_origins = app.config.get(
+        "CORS_ORIGINS", ["http://localhost:5173", "http://127.0.0.1:5173"]
+    )
     app.logger.info(f"🔧 CORS Origins configured: {cors_origins}")
-    
+
     CORS(
         app,
         origins=cors_origins,
         supports_credentials=True,  # Required for cross-origin cookies
         allow_headers=[
-            'Content-Type', 
-            'Authorization', 
-            'X-Requested-With',
-            'Accept',
-            'Origin',
-            'Access-Control-Request-Method',
-            'Access-Control-Request-Headers'
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers",
         ],
-        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
-        expose_headers=[
-            'Content-Type',
-            'Authorization'
-        ],
-        max_age=86400  # Cache preflight for 24 hours
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+        expose_headers=["Content-Type", "Authorization"],
+        max_age=86400,  # Cache preflight for 24 hours
     )
     app.logger.info("🔧 CORS configured with credentials support for secure cookies")
 
     # Configure security headers with Talisman
     if not app.debug:
         csp = {
-            'default-src': "'self'",
-            'img-src': "'self' data: https:",
-            'script-src': "'self' 'unsafe-inline'",
-            'style-src': "'self' 'unsafe-inline'",
-            'font-src': "'self' data:",
+            "default-src": "'self'",
+            "img-src": "'self' data: https:",
+            "script-src": "'self' 'unsafe-inline'",
+            "style-src": "'self' 'unsafe-inline'",
+            "font-src": "'self' data:",
         }
         Talisman(
             app,
-            force_https=True,   # Enable HTTPS enforcement in production
+            force_https=True,  # Enable HTTPS enforcement in production
             strict_transport_security=True,
             session_cookie_secure=True,  # Use secure cookies (required for SameSite=None)
-            session_cookie_samesite='None',  # Required for cross-origin secure cookies
+            session_cookie_samesite="None",  # Required for cross-origin secure cookies
             content_security_policy=csp,
             feature_policy={
-                'geolocation': "'none'",
-                'camera': "'none'",
-                'microphone': "'none'",
-            }
+                "geolocation": "'none'",
+                "camera": "'none'",
+                "microphone": "'none'",
+            },
         )
 
     # Configure rate limiting (after dynamic config is loaded)
@@ -144,7 +160,7 @@ def create_app(config_name: str | None = None) -> Flask:
     limiter = Limiter(
         key_func=get_rate_limit_key,
         default_limits=["500/hour"],  # Higher default to avoid issues
-        storage_uri=app.config.get('RATELIMIT_STORAGE_URL')
+        storage_uri=app.config.get("RATELIMIT_STORAGE_URL"),
     )
     limiter.init_app(app)
 
@@ -154,26 +170,31 @@ def create_app(config_name: str | None = None) -> Flask:
         """Exempt job status checks from rate limiting"""
         # Return True to exempt from rate limiting
         # Check if this is a job status endpoint
-        if request.endpoint and ('job' in request.endpoint or
-                                 'get_processing_job' in request.endpoint or
-                                 'get_job_status' in request.endpoint):
+        if request.endpoint and (
+            "job" in request.endpoint
+            or "get_processing_job" in request.endpoint
+            or "get_job_status" in request.endpoint
+        ):
             return True  # True means EXEMPT from rate limiting
         return False  # False means DO apply rate limiting
 
     # Make limiter available globally for use in blueprints
     app.limiter = limiter
 
-    app.logger.info(f"Rate limiter configured with user-based keys and job status exemptions")
+    app.logger.info(
+        "Rate limiter configured with user-based keys and job status exemptions"
+    )
 
     # Initialize Celery with Flask app context
     from app.celery_app import make_celery
+
     celery = make_celery(app)
-    app.extensions['celery'] = celery
+    app.extensions["celery"] = celery
     app.celery = celery
     app.logger.info("Celery initialized with Flask app context")
 
     # Ensure upload folder exists (after dynamic config is loaded)
-    upload_folder = Path(app.config['UPLOAD_FOLDER'])
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
     upload_folder.mkdir(parents=True, exist_ok=True)
     app.logger.info(f"Upload folder configured: {upload_folder}")
 
@@ -186,7 +207,7 @@ def create_app(config_name: str | None = None) -> Flask:
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logging.DEBUG)
             formatter = logging.Formatter(
-                '%(asctime)s %(levelname)s [%(name)s] %(message)s'
+                "%(asctime)s %(levelname)s [%(name)s] %(message)s"
             )
             console_handler.setFormatter(formatter)
             app.logger.addHandler(console_handler)
@@ -195,16 +216,18 @@ def create_app(config_name: str | None = None) -> Flask:
     def log_routes():
         app.logger.info("=== REGISTERED ROUTES ===")
         for rule in app.url_map.iter_rules():
-            methods = ','.join(rule.methods - {'HEAD', 'OPTIONS'})
+            methods = ",".join(rule.methods - {"HEAD", "OPTIONS"})
             app.logger.info(f"{rule.rule} [{methods}] -> {rule.endpoint}")
         app.logger.info("===========================")
 
     # Register blueprints
     from app.api import bp as api_bp
+
     app.register_blueprint(api_bp, url_prefix="/api")
 
     # Initialize CLI commands
     from app import commands
+
     commands.init_app(app)
 
     # Log routes after blueprint registration
@@ -215,34 +238,49 @@ def create_app(config_name: str | None = None) -> Flask:
     def handle_preflight():
         if request.method == "OPTIONS":
             # Get the allowed origins
-            cors_origins = app.config.get('CORS_ORIGINS', ["http://localhost:5173", "http://127.0.0.1:5173"])
-            origin = request.headers.get('Origin')
-            
+            cors_origins = app.config.get(
+                "CORS_ORIGINS", ["http://localhost:5173", "http://127.0.0.1:5173"]
+            )
+            origin = request.headers.get("Origin")
+
             # Check if origin is allowed
             if origin in cors_origins:
                 response = make_response()
                 response.headers.add("Access-Control-Allow-Origin", origin)
-                response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-Requested-With,Accept,Origin")
-                response.headers.add('Access-Control-Allow-Methods', "GET,POST,PUT,DELETE,OPTIONS,HEAD")
-                response.headers.add('Access-Control-Allow-Credentials', 'true')
-                response.headers.add('Access-Control-Max-Age', '86400')
+                response.headers.add(
+                    "Access-Control-Allow-Headers",
+                    "Content-Type,Authorization,X-Requested-With,Accept,Origin",
+                )
+                response.headers.add(
+                    "Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD"
+                )
+                response.headers.add("Access-Control-Allow-Credentials", "true")
+                response.headers.add("Access-Control-Max-Age", "86400")
                 return response
             else:
-                app.logger.warning(f"CORS preflight blocked for origin: {origin}, allowed: {cors_origins}")
-                
+                app.logger.warning(
+                    f"CORS preflight blocked for origin: {origin}, allowed: {cors_origins}"
+                )
+
     # Add catch-all route for debugging API calls
     @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def api_catchall(path):
         app.logger.warning(f"Unmatched API route: /{path} [{request.method}]")
-        return jsonify({
-            "error": f"API endpoint not found: /{path}",
-            "method": request.method,
-            "available_routes": [rule.rule for rule in app.url_map.iter_rules() if rule.rule.startswith('/api')]
-        }), 404
+        return jsonify(
+            {
+                "error": f"API endpoint not found: /{path}",
+                "method": request.method,
+                "available_routes": [
+                    rule.rule
+                    for rule in app.url_map.iter_rules()
+                    if rule.rule.startswith("/api")
+                ],
+            }
+        ), 404
 
     # Serve static files (frontend build)
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
     def serve_frontend(path):
         """Serve frontend static files or index.html for SPA routing"""
         frontend_build_dir = Path(__file__).parent.parent.parent / "frontend" / "dist"
@@ -252,10 +290,12 @@ def create_app(config_name: str | None = None) -> Flask:
                 return send_from_directory(frontend_build_dir, path)
             else:
                 # For SPA routing, serve index.html for unknown routes
-                return send_from_directory(frontend_build_dir, 'index.html')
+                return send_from_directory(frontend_build_dir, "index.html")
         else:
             # Fallback if frontend not built
-            return {"message": "Frontend not built. Please run 'npm run build' in the frontend directory."}, 503
+            return {
+                "message": "Frontend not built. Please run 'npm run build' in the frontend directory."
+            }, 503
 
     @app.route("/health")
     @limiter.exempt
@@ -264,7 +304,7 @@ def create_app(config_name: str | None = None) -> Flask:
         return {
             "status": "healthy",
             "service": "cookbook-creator-backend",
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
     @app.route("/api/health")
@@ -274,11 +314,7 @@ def create_app(config_name: str | None = None) -> Flask:
         import redis
         from sqlalchemy import text
 
-        checks = {
-            "database": False,
-            "redis": False,
-            "uploads": False
-        }
+        checks = {"database": False, "redis": False, "uploads": False}
 
         try:
             # Check database connection
@@ -290,7 +326,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
         try:
             # Check Redis connection
-            r = redis.from_url(app.config['REDIS_URL'])
+            r = redis.from_url(app.config["REDIS_URL"])
             r.ping()
             checks["redis"] = True
         except Exception as e:
@@ -310,7 +346,7 @@ def create_app(config_name: str | None = None) -> Flask:
             "status": "healthy" if all_healthy else "unhealthy",
             "checks": checks,
             "service": "cookbook-creator-backend",
-            "version": "1.0.0"
+            "version": "1.0.0",
         }, status_code
 
     # Error handlers

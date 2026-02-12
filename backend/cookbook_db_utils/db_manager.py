@@ -15,8 +15,18 @@ from pathlib import Path
 from typing import Optional
 
 from cookbook_db_utils.imports import (
-    create_app, db, User, UserSession, Password, Recipe, Cookbook, Ingredient,
-    Tag, Instruction, RecipeImage, ProcessingJob
+    create_app,
+    db,
+    User,
+    UserSession,
+    Password,
+    Recipe,
+    Cookbook,
+    Ingredient,
+    Tag,
+    Instruction,
+    RecipeImage,
+    ProcessingJob,
 )
 
 
@@ -30,9 +40,9 @@ class DatabaseManager:
 
     def _get_db_path(self) -> Optional[Path]:
         """Get the SQLite database file path if using SQLite"""
-        db_uri = self.app.config['SQLALCHEMY_DATABASE_URI']
-        if db_uri.startswith('sqlite:///'):
-            return Path(db_uri.replace('sqlite:///', ''))
+        db_uri = self.app.config["SQLALCHEMY_DATABASE_URI"]
+        if db_uri.startswith("sqlite:///"):
+            return Path(db_uri.replace("sqlite:///", ""))
         return None
 
     def create_tables(self, confirm: bool = False) -> bool:
@@ -40,7 +50,7 @@ class DatabaseManager:
         if not confirm:
             print("⚠️  This will create all database tables.")
             response = input("Continue? (y/N): ").lower().strip()
-            if response != 'y':
+            if response != "y":
                 print("Operation cancelled.")
                 return False
 
@@ -58,10 +68,12 @@ class DatabaseManager:
     def drop_tables(self, confirm: bool = False) -> bool:
         """Drop all database tables"""
         if not confirm:
-            print("⚠️  WARNING: This will permanently delete ALL database tables and data!")
+            print(
+                "⚠️  WARNING: This will permanently delete ALL database tables and data!"
+            )
             print("This action cannot be undone.")
             response = input("Type 'DELETE' to confirm: ").strip()
-            if response != 'DELETE':
+            if response != "DELETE":
                 print("Operation cancelled.")
                 return False
 
@@ -75,18 +87,20 @@ class DatabaseManager:
             print(f"❌ Error dropping tables: {e}")
             return False
 
-    def reset_database(self, confirm: bool = False, seed_data: bool = True, users_only: bool = False) -> bool:
+    def reset_database(
+        self, confirm: bool = False, seed_data: bool = True, users_only: bool = False
+    ) -> bool:
         """Reset database (drop + create + optionally seed) or reset only user-related tables"""
         if users_only:
             return self._reset_user_tables_only(confirm, seed_data)
-        
+
         if not confirm:
             print("⚠️  WARNING: This will completely reset the database!")
             print("All existing data will be lost.")
             if seed_data:
                 print("Sample data will be added after reset.")
             response = input("Continue? (y/N): ").lower().strip()
-            if response != 'y':
+            if response != "y":
                 print("Operation cancelled.")
                 return False
 
@@ -103,6 +117,7 @@ class DatabaseManager:
             if seed_data:
                 with self.app.app_context():
                     from cookbook_db_utils.seed_data import DataSeeder
+
                     seeder = DataSeeder(self.config_name)
                     seeder.seed_all()
 
@@ -112,7 +127,9 @@ class DatabaseManager:
             print(f"❌ Error resetting database: {e}")
             return False
 
-    def _reset_user_tables_only(self, confirm: bool = False, seed_data: bool = True) -> bool:
+    def _reset_user_tables_only(
+        self, confirm: bool = False, seed_data: bool = True
+    ) -> bool:
         """Reset only user-related tables while preserving recipes, cookbooks, ingredients, etc."""
         if not confirm:
             print("⚠️  WARNING: This will reset all user-related data!")
@@ -135,17 +152,30 @@ class DatabaseManager:
             if seed_data:
                 print("Sample user data will be added after reset.")
             response = input("Continue? (y/N): ").lower().strip()
-            if response != 'y':
+            if response != "y":
                 print("Operation cancelled.")
                 return False
 
         try:
             with self.app.app_context():
                 print("🗑️  Clearing user-related tables...")
-                
+
                 # Import all user-related models
-                from app.models.user import User, UserSession, Password, CopyrightConsent
-                from app.models.recipe import UserRecipeCollection, RecipeGroup, ProcessingJob, RecipeNote, RecipeComment, Cookbook, Recipe
+                from app.models.user import (
+                    User,
+                    UserSession,
+                    Password,
+                    CopyrightConsent,
+                )
+                from app.models.recipe import (
+                    UserRecipeCollection,
+                    RecipeGroup,
+                    ProcessingJob,
+                    RecipeNote,
+                    RecipeComment,
+                    Cookbook,
+                    Recipe,
+                )
                 from app.models.payment import Subscription, Payment
 
                 # Delete in order to respect foreign key constraints
@@ -187,18 +217,19 @@ class DatabaseManager:
 
                 print("   Deleting cookbooks...")
                 Cookbook.query.delete()
-                
+
                 print("   Deleting users...")
                 User.query.delete()
-                
+
                 # Commit the deletions
                 db.session.commit()
                 print("✅ User-related tables cleared successfully!")
-                
+
                 # Seed user data if requested
                 if seed_data:
                     print("🌱 Seeding user data...")
                     from cookbook_db_utils.seed_data import DataSeeder
+
                     seeder = DataSeeder(self.config_name)
                     seeder.seed_users()  # Only seed users, not recipes
                     print("✅ User data seeded!")
@@ -206,7 +237,7 @@ class DatabaseManager:
                 print("✅ User-only database reset completed successfully!")
                 self._display_tables()
                 return True
-                
+
         except Exception as e:
             print(f"❌ Error resetting user tables: {e}")
             try:
@@ -254,7 +285,7 @@ class DatabaseManager:
             print(f"⚠️  This will replace the current database with: {backup_path}")
             print("Current database will be lost!")
             response = input("Continue? (y/N): ").lower().strip()
-            if response != 'y':
+            if response != "y":
                 print("Operation cancelled.")
                 return False
 
@@ -276,45 +307,47 @@ class DatabaseManager:
     def get_database_info(self) -> dict:
         """Get database information and statistics"""
         info = {
-            'config': self.config_name,
-            'database_uri': self.app.config['SQLALCHEMY_DATABASE_URI'],
-            'tables': {},
-            'total_records': 0
+            "config": self.config_name,
+            "database_uri": self.app.config["SQLALCHEMY_DATABASE_URI"],
+            "tables": {},
+            "total_records": 0,
         }
 
         try:
             with self.app.app_context():
                 # Get table information
                 models = [
-                    ('users', User),
-                    ('user_sessions', UserSession),
-                    ('passwords', Password),
-                    ('recipes', Recipe),
-                    ('cookbooks', Cookbook),
-                    ('ingredients', Ingredient),
-                    ('tags', Tag),
-                    ('instructions', Instruction),
-                    ('recipe_images', RecipeImage),
-                    ('processing_jobs', ProcessingJob)
+                    ("users", User),
+                    ("user_sessions", UserSession),
+                    ("passwords", Password),
+                    ("recipes", Recipe),
+                    ("cookbooks", Cookbook),
+                    ("ingredients", Ingredient),
+                    ("tags", Tag),
+                    ("instructions", Instruction),
+                    ("recipe_images", RecipeImage),
+                    ("processing_jobs", ProcessingJob),
                 ]
 
                 for table_name, model in models:
                     try:
                         count = model.query.count()
-                        info['tables'][table_name] = count
-                        info['total_records'] += count
+                        info["tables"][table_name] = count
+                        info["total_records"] += count
                     except Exception:
-                        info['tables'][table_name] = 'Error'
+                        info["tables"][table_name] = "Error"
 
                 # Add database file info for SQLite
                 db_path = self._get_db_path()
                 if db_path and db_path.exists():
                     stat = db_path.stat()
-                    info['file_size'] = f"{stat.st_size / (1024*1024):.2f} MB"
-                    info['last_modified'] = datetime.fromtimestamp(stat.st_mtime).isoformat()
+                    info["file_size"] = f"{stat.st_size / (1024 * 1024):.2f} MB"
+                    info["last_modified"] = datetime.fromtimestamp(
+                        stat.st_mtime
+                    ).isoformat()
 
         except Exception as e:
-            info['error'] = str(e)
+            info["error"] = str(e)
 
         return info
 
@@ -326,11 +359,11 @@ class DatabaseManager:
         print(f"   Config: {info['config']}")
         print(f"   URI: {info['database_uri']}")
 
-        if 'file_size' in info:
+        if "file_size" in info:
             print(f"   Size: {info['file_size']}")
 
         print(f"\n📋 Tables ({info['total_records']} total records):")
-        for table, count in info['tables'].items():
+        for table, count in info["tables"].items():
             print(f"   {table:20} {count:>8}")
 
     def display_status(self):
@@ -346,6 +379,7 @@ class DatabaseManager:
             with self.app.app_context():
                 # Use text() for raw SQL with SQLAlchemy 2.0+
                 from sqlalchemy import text
+
                 db.session.execute(text("SELECT 1"))
                 print("\n✅ Database connection: OK")
         except Exception as e:
@@ -359,34 +393,55 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Cookbook Creator Database Manager")
-    parser.add_argument("--env", default="development",
-                       choices=["development", "testing", "production"],
-                       help="Environment configuration")
+    parser.add_argument(
+        "--env",
+        default="development",
+        choices=["development", "testing", "production"],
+        help="Environment configuration",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Create tables
     create_parser = subparsers.add_parser("create", help="Create database tables")
-    create_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
+    create_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation"
+    )
 
     # Drop tables
     drop_parser = subparsers.add_parser("drop", help="Drop all database tables")
-    drop_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
+    drop_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation"
+    )
 
     # Reset database
-    reset_parser = subparsers.add_parser("reset", help="Reset database (drop + create + seed)")
-    reset_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
-    reset_parser.add_argument("--no-seed", action="store_true", help="Don't seed sample data")
-    reset_parser.add_argument("--users-only", action="store_true", help="Reset only user-related tables, preserve recipes/cookbooks")
+    reset_parser = subparsers.add_parser(
+        "reset", help="Reset database (drop + create + seed)"
+    )
+    reset_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation"
+    )
+    reset_parser.add_argument(
+        "--no-seed", action="store_true", help="Don't seed sample data"
+    )
+    reset_parser.add_argument(
+        "--users-only",
+        action="store_true",
+        help="Reset only user-related tables, preserve recipes/cookbooks",
+    )
 
     # Backup
     backup_parser = subparsers.add_parser("backup", help="Backup database")
     backup_parser.add_argument("path", nargs="?", help="Backup file path")
 
     # Restore
-    restore_parser = subparsers.add_parser("restore", help="Restore database from backup")
+    restore_parser = subparsers.add_parser(
+        "restore", help="Restore database from backup"
+    )
     restore_parser.add_argument("path", help="Backup file path")
-    restore_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
+    restore_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation"
+    )
 
     # Status
     subparsers.add_parser("status", help="Show database status")

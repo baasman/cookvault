@@ -1,6 +1,7 @@
 """
 Test fixtures for the cookbook creator application.
 """
+
 import os
 import tempfile
 import typing as t
@@ -8,7 +9,7 @@ from flask.testing import FlaskClient
 
 import pytest
 from app import create_app, db
-from app.models import Recipe, RecipeImage, ProcessingJob, Tag, Instruction, Ingredient, Cookbook
+from app.models import Recipe, RecipeImage, Tag, Instruction, Ingredient, Cookbook
 from app.models.user import User, UserStatus, UserRole
 
 
@@ -56,8 +57,10 @@ def runner(app):
 # Authentication Fixtures
 # =============================================================================
 
+
 class TestUser:
     """Simple data holder for test user to avoid SQLAlchemy session issues."""
+
     def __init__(self, id: int, username: str, email: str):
         self.id = id
         self.username = username
@@ -89,7 +92,7 @@ def test_user_data() -> dict:
     return {
         "username": "testuser",
         "email": "test@example.com",
-        "password": "testpassword123"
+        "password": "testpassword123",
     }
 
 
@@ -100,8 +103,8 @@ def auth_token(client, test_user, test_user_data) -> str:
         "/api/auth/login",
         json={
             "login": test_user_data["username"],
-            "password": test_user_data["password"]
-        }
+            "password": test_user_data["password"],
+        },
     )
     assert response.status_code == 200, f"Login failed: {response.get_json()}"
     data = response.get_json()
@@ -111,10 +114,7 @@ def auth_token(client, test_user, test_user_data) -> str:
 @pytest.fixture
 def auth_headers(auth_token) -> dict:
     """Return headers with JWT authentication."""
-    return {
-        "Authorization": f"Bearer {auth_token}",
-        "Content-Type": "application/json"
-    }
+    return {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
 
 
 class AuthenticatedClient:
@@ -155,8 +155,10 @@ def auth_client(client, auth_headers) -> AuthenticatedClient:
 # Sample Data Fixtures
 # =============================================================================
 
+
 class SampleRecipe:
     """Simple data holder for sample recipe to avoid SQLAlchemy session issues."""
+
     def __init__(self, id: int, title: str, description: str, user_id: int):
         self.id = id
         self.title = title
@@ -187,14 +189,10 @@ def sample_recipe(app, test_user) -> SampleRecipe:
 
         # Add instructions
         instruction1 = Instruction(
-            recipe_id=recipe.id,
-            step_number=1,
-            text="Mix ingredients"
+            recipe_id=recipe.id, step_number=1, text="Mix ingredients"
         )
         instruction2 = Instruction(
-            recipe_id=recipe.id,
-            step_number=2,
-            text="Bake for 30 minutes"
+            recipe_id=recipe.id, step_number=2, text="Bake for 30 minutes"
         )
         db.session.add_all([instruction1, instruction2])
 
@@ -211,19 +209,20 @@ def sample_recipe(app, test_user) -> SampleRecipe:
 
         # Create ingredient associations
         from app.models.recipe import recipe_ingredients
+
         stmt1 = recipe_ingredients.insert().values(
             recipe_id=recipe.id,
             ingredient_id=ingredient1.id,
             quantity=1.0,
             unit="cup",
-            order=1
+            order=1,
         )
         stmt2 = recipe_ingredients.insert().values(
             recipe_id=recipe.id,
             ingredient_id=ingredient2.id,
             quantity=2.0,
             unit="pieces",
-            order=2
+            order=2,
         )
         db.session.execute(stmt1)
         db.session.execute(stmt2)
@@ -234,13 +233,16 @@ def sample_recipe(app, test_user) -> SampleRecipe:
             id=recipe.id,
             title=recipe.title,
             description=recipe.description,
-            user_id=recipe.user_id
+            user_id=recipe.user_id,
         )
 
 
 class SampleCookbook:
     """Simple data holder for sample cookbook to avoid SQLAlchemy session issues."""
-    def __init__(self, id: int, title: str, author: str, description: str, user_id: int):
+
+    def __init__(
+        self, id: int, title: str, author: str, description: str, user_id: int
+    ):
         self.id = id
         self.title = title
         self.author = author
@@ -270,7 +272,7 @@ def sample_cookbook(app, test_user) -> SampleCookbook:
             title=cookbook.title,
             author=cookbook.author,
             description=cookbook.description,
-            user_id=cookbook.user_id
+            user_id=cookbook.user_id,
         )
 
 

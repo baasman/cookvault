@@ -9,20 +9,16 @@ This module provides utilities for:
 - Creating test processing jobs
 """
 
-import random
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict
 
 from cookbook_db_utils.imports import (
     create_app,
     db,
     User,
-    UserSession,
-    Password,
     Recipe,
     Cookbook,
     Ingredient,
-    Tag,
     Instruction,
     RecipeImage,
     ProcessingJob,
@@ -45,7 +41,9 @@ class DataSeeder:
     def seed_users_only(self) -> Dict[str, int]:
         """Seed only users for development - no cookbooks, recipes, or ingredients"""
         print("👥 Starting user-only data seeding...")
-        print("📝 This will create sample users but no cookbooks, recipes, or ingredients")
+        print(
+            "📝 This will create sample users but no cookbooks, recipes, or ingredients"
+        )
         print("📚 You can add cookbooks and recipes later via PDF upload")
         print("=" * 50)
 
@@ -56,7 +54,7 @@ class DataSeeder:
                 # Create only users
                 users = self._create_sample_users()
                 results["users"] = len(users)
-                
+
                 # Commit changes
                 db.session.commit()
 
@@ -64,7 +62,9 @@ class DataSeeder:
                 print("📊 Summary:")
                 print(f"   users: {results['users']}")
                 print("\n💡 Next steps:")
-                print("   - Use 'cookbook-db seed pdf-cookbook <path>' to add cookbooks from PDFs")
+                print(
+                    "   - Use 'cookbook-db seed pdf-cookbook <path>' to add cookbooks from PDFs"
+                )
                 print("   - Or use the web interface to upload recipe images")
 
                 return results
@@ -122,6 +122,7 @@ class DataSeeder:
 
         except Exception as e:
             import traceback
+
             print(f"❌ Error during data seeding: {e}")
             print("Full traceback:")
             traceback.print_exc()
@@ -483,6 +484,7 @@ class DataSeeder:
                 return True
         except Exception as e:
             import traceback
+
             print(f"❌ Error clearing data: {e}")
             print("Full traceback:")
             traceback.print_exc()

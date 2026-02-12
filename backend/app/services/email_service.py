@@ -1,4 +1,5 @@
 """Email service for sending verification and transactional emails using Resend."""
+
 import logging
 import traceback
 from datetime import datetime, timedelta
@@ -30,12 +31,16 @@ class EmailService:
             self.initialized = True
             logger.info("Resend client initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize Resend client: {e}\n{traceback.format_exc()}")
+            logger.error(
+                f"Failed to initialize Resend client: {e}\n{traceback.format_exc()}"
+            )
             self.initialized = False
 
     def _get_from_email(self) -> str:
         """Get the from email address from configuration."""
-        return current_app.config.get("EMAIL_FROM_ADDRESS", "noreply@cookbook-creator.com")
+        return current_app.config.get(
+            "EMAIL_FROM_ADDRESS", "noreply@cookbook-creator.com"
+        )
 
     def _get_from_name(self) -> str:
         """Get the from name from configuration."""
@@ -57,7 +62,9 @@ class EmailService:
         """
         dev_override = current_app.config.get("DEV_EMAIL_OVERRIDE")
         if dev_override:
-            logger.info(f"DEV_EMAIL_OVERRIDE active: redirecting email from {email} to {dev_override}")
+            logger.info(
+                f"DEV_EMAIL_OVERRIDE active: redirecting email from {email} to {dev_override}"
+            )
             return dev_override
         return email
 
@@ -66,7 +73,7 @@ class EmailService:
         email: str,
         token: str,
         username: str,
-        rate_limit_cache: Optional[dict] = None
+        rate_limit_cache: Optional[dict] = None,
     ) -> bool:
         """
         Send email verification email to user.
@@ -90,7 +97,9 @@ class EmailService:
             if last_sent:
                 time_since_last = datetime.utcnow() - last_sent
                 if time_since_last < timedelta(minutes=5):
-                    logger.warning(f"Rate limit: Email to {email} sent less than 5 minutes ago")
+                    logger.warning(
+                        f"Rate limit: Email to {email} sent less than 5 minutes ago"
+                    )
                     return False
 
         try:
@@ -104,10 +113,12 @@ class EmailService:
                     "verification_email.html",
                     username=username,
                     verification_url=verification_url,
-                    expiry_hours=24
+                    expiry_hours=24,
                 )
             except Exception as template_error:
-                logger.warning(f"Failed to render template, using fallback: {template_error}")
+                logger.warning(
+                    f"Failed to render template, using fallback: {template_error}"
+                )
                 # Fallback to simple HTML if template fails
                 html_content = f"""
                 <html>
@@ -149,7 +160,9 @@ class EmailService:
             response = resend.Emails.send(params)
 
             if response and response.get("id"):
-                logger.info(f"Verification email sent successfully to {recipient} (original: {email}), id: {response['id']}")
+                logger.info(
+                    f"Verification email sent successfully to {recipient} (original: {email}), id: {response['id']}"
+                )
 
                 # Update rate limit cache
                 if rate_limit_cache is not None:
@@ -161,15 +174,12 @@ class EmailService:
                 return False
 
         except Exception as e:
-            logger.error(f"Error sending verification email to {email}: {e}\n{traceback.format_exc()}")
+            logger.error(
+                f"Error sending verification email to {email}: {e}\n{traceback.format_exc()}"
+            )
             return False
 
-    def send_password_reset_email(
-        self,
-        email: str,
-        token: str,
-        username: str
-    ) -> bool:
+    def send_password_reset_email(self, email: str, token: str, username: str) -> bool:
         """
         Send password reset email to user.
 
@@ -233,14 +243,20 @@ class EmailService:
             response = resend.Emails.send(params)
 
             if response and response.get("id"):
-                logger.info(f"Password reset email sent successfully to {recipient} (original: {email}), id: {response['id']}")
+                logger.info(
+                    f"Password reset email sent successfully to {recipient} (original: {email}), id: {response['id']}"
+                )
                 return True
             else:
-                logger.error(f"Failed to send password reset email to {email}. Response: {response}")
+                logger.error(
+                    f"Failed to send password reset email to {email}. Response: {response}"
+                )
                 return False
 
         except Exception as e:
-            logger.error(f"Error sending password reset email to {email}: {e}\n{traceback.format_exc()}")
+            logger.error(
+                f"Error sending password reset email to {email}: {e}\n{traceback.format_exc()}"
+            )
             return False
 
 

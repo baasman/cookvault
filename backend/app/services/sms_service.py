@@ -1,4 +1,5 @@
 """SMS service for sending verification codes via Twilio."""
+
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
@@ -25,7 +26,9 @@ class SMSService:
             auth_token = current_app.config.get("TWILIO_AUTH_TOKEN")
 
             if not account_sid or not auth_token:
-                logger.warning("Twilio credentials not configured - SMS sending disabled")
+                logger.warning(
+                    "Twilio credentials not configured - SMS sending disabled"
+                )
                 return
 
             self.client = Client(account_sid, auth_token)
@@ -39,10 +42,7 @@ class SMSService:
         return current_app.config.get("TWILIO_PHONE_NUMBER")
 
     def send_verification_sms(
-        self,
-        phone_number: str,
-        code: str,
-        rate_limit_cache: Optional[dict] = None
+        self, phone_number: str, code: str, rate_limit_cache: Optional[dict] = None
     ) -> bool:
         """
         Send SMS verification code to user.
@@ -85,9 +85,7 @@ class SMSService:
 
             # Send SMS
             message = self.client.messages.create(
-                body=message_body,
-                from_=from_phone,
-                to=phone_number
+                body=message_body, from_=from_phone, to=phone_number
             )
 
             if message.sid:
@@ -102,20 +100,21 @@ class SMSService:
 
                 return True
             else:
-                logger.error(f"Failed to send SMS to {phone_number} - no message SID returned")
+                logger.error(
+                    f"Failed to send SMS to {phone_number} - no message SID returned"
+                )
                 return False
 
         except TwilioRestException as e:
             logger.error(
                 f"Twilio REST error sending SMS to {phone_number}: "
                 f"Code {e.code}, Message: {e.msg}",
-                exc_info=True
+                exc_info=True,
             )
             return False
         except Exception as e:
             logger.error(
-                f"Unexpected error sending SMS to {phone_number}: {e}",
-                exc_info=True
+                f"Unexpected error sending SMS to {phone_number}: {e}", exc_info=True
             )
             return False
 
@@ -145,8 +144,7 @@ class SMSService:
 
             # Format to E.164 (international format)
             formatted = phonenumbers.format_number(
-                parsed,
-                phonenumbers.PhoneNumberFormat.E164
+                parsed, phonenumbers.PhoneNumberFormat.E164
             )
 
             return True, formatted
@@ -162,11 +160,7 @@ class SMSService:
             logger.error(f"Error validating phone number: {e}")
             return False, f"Validation error: {str(e)}"
 
-    def send_password_reset_sms(
-        self,
-        phone_number: str,
-        code: str
-    ) -> bool:
+    def send_password_reset_sms(self, phone_number: str, code: str) -> bool:
         """
         Send SMS with password reset code.
 
@@ -196,9 +190,7 @@ class SMSService:
 
             # Send SMS
             message = self.client.messages.create(
-                body=message_body,
-                from_=from_phone,
-                to=phone_number
+                body=message_body, from_=from_phone, to=phone_number
             )
 
             if message.sid:
@@ -220,7 +212,7 @@ class SMSService:
         except Exception as e:
             logger.error(
                 f"Error sending password reset SMS to {phone_number}: {e}",
-                exc_info=True
+                exc_info=True,
             )
             return False
 

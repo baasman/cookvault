@@ -1,7 +1,7 @@
 """
 Tests for authentication endpoints.
 """
-import pytest
+
 from flask.testing import FlaskClient
 
 
@@ -15,8 +15,8 @@ class TestRegistration:
             json={
                 "username": "newuser",
                 "email": "newuser@example.com",
-                "password": "securepassword123"
-            }
+                "password": "securepassword123",
+            },
         )
         assert response.status_code == 201
         data = response.get_json()
@@ -28,10 +28,7 @@ class TestRegistration:
         """Test registration fails without username."""
         response = client.post(
             "/api/auth/register",
-            json={
-                "email": "test@example.com",
-                "password": "securepassword123"
-            }
+            json={"email": "test@example.com", "password": "securepassword123"},
         )
         assert response.status_code == 400
         data = response.get_json()
@@ -41,10 +38,7 @@ class TestRegistration:
         """Test registration fails without email."""
         response = client.post(
             "/api/auth/register",
-            json={
-                "username": "testuser",
-                "password": "securepassword123"
-            }
+            json={"username": "testuser", "password": "securepassword123"},
         )
         assert response.status_code == 400
 
@@ -52,10 +46,7 @@ class TestRegistration:
         """Test registration fails without password."""
         response = client.post(
             "/api/auth/register",
-            json={
-                "username": "testuser",
-                "email": "test@example.com"
-            }
+            json={"username": "testuser", "email": "test@example.com"},
         )
         assert response.status_code == 400
 
@@ -66,8 +57,8 @@ class TestRegistration:
             json={
                 "username": "testuser",
                 "email": "test@example.com",
-                "password": "short"
-            }
+                "password": "short",
+            },
         )
         assert response.status_code == 400
         data = response.get_json()
@@ -80,8 +71,8 @@ class TestRegistration:
             json={
                 "username": "testuser",
                 "email": "notanemail",
-                "password": "securepassword123"
-            }
+                "password": "securepassword123",
+            },
         )
         assert response.status_code == 400
 
@@ -92,8 +83,8 @@ class TestRegistration:
             json={
                 "username": "testuser",  # Same as test_user
                 "email": "different@example.com",
-                "password": "securepassword123"
-            }
+                "password": "securepassword123",
+            },
         )
         assert response.status_code == 409
         data = response.get_json()
@@ -106,8 +97,8 @@ class TestRegistration:
             json={
                 "username": "differentuser",
                 "email": "test@example.com",  # Same as test_user
-                "password": "securepassword123"
-            }
+                "password": "securepassword123",
+            },
         )
         assert response.status_code == 409
         data = response.get_json()
@@ -123,8 +114,8 @@ class TestLogin:
             "/api/auth/login",
             json={
                 "login": test_user_data["username"],
-                "password": test_user_data["password"]
-            }
+                "password": test_user_data["password"],
+            },
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -137,8 +128,8 @@ class TestLogin:
             "/api/auth/login",
             json={
                 "login": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+                "password": test_user_data["password"],
+            },
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -148,10 +139,7 @@ class TestLogin:
         """Test login fails with wrong password."""
         response = client.post(
             "/api/auth/login",
-            json={
-                "login": test_user_data["username"],
-                "password": "wrongpassword"
-            }
+            json={"login": test_user_data["username"], "password": "wrongpassword"},
         )
         assert response.status_code == 401
         data = response.get_json()
@@ -160,20 +148,13 @@ class TestLogin:
     def test_login_nonexistent_user(self, client: FlaskClient):
         """Test login fails for nonexistent user."""
         response = client.post(
-            "/api/auth/login",
-            json={
-                "login": "nonexistent",
-                "password": "anypassword"
-            }
+            "/api/auth/login", json={"login": "nonexistent", "password": "anypassword"}
         )
         assert response.status_code == 401
 
     def test_login_missing_credentials(self, client: FlaskClient):
         """Test login fails without credentials."""
-        response = client.post(
-            "/api/auth/login",
-            json={}
-        )
+        response = client.post("/api/auth/login", json={})
         assert response.status_code == 400
 
 

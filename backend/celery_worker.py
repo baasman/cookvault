@@ -10,17 +10,17 @@ Usage:
 Or using uv:
     uv run celery -A celery_worker:celery worker --loglevel=info --concurrency=1
 """
+
 import os
 import logging
 
 # Set Flask environment before importing app
 # Default to 'development' for local testing; production sets this explicitly
-os.environ.setdefault('FLASK_ENV', 'development')
+os.environ.setdefault("FLASK_ENV", "development")
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -42,5 +42,5 @@ flask_app.app_context().push()
 
 logger.info("Celery worker initialized successfully")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     celery.start()

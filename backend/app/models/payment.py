@@ -40,29 +40,36 @@ class PaymentStatus(Enum):
 
 class Subscription(db.Model):
     """Model for user subscriptions and premium account management."""
-    __tablename__ = 'subscriptions'
+
+    __tablename__ = "subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, unique=True)
-    
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id"), nullable=False, unique=True
+    )
+
     # Stripe integration fields
-    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
+        String(255), unique=True
+    )
     stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255))
-    
+
     # Subscription details
     tier: Mapped[SubscriptionTier] = mapped_column(default=SubscriptionTier.FREE)
-    status: Mapped[SubscriptionStatus] = mapped_column(default=SubscriptionStatus.ACTIVE)
-    
+    status: Mapped[SubscriptionStatus] = mapped_column(
+        default=SubscriptionStatus.ACTIVE
+    )
+
     # Billing cycle info
     current_period_start: Mapped[Optional[datetime]] = mapped_column(DateTime)
     current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime)
     cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
     canceled_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Upload tracking for free tier
     monthly_upload_count: Mapped[int] = mapped_column(Integer, default=0)
     upload_count_reset_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -71,20 +78,22 @@ class Subscription(db.Model):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="subscription")
-    payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="subscription")
+    payments: Mapped[list["Payment"]] = relationship(
+        "Payment", back_populates="subscription"
+    )
 
     def is_premium(self) -> bool:
         """Check if user has active premium subscription."""
-        return (
-            self.tier == SubscriptionTier.PREMIUM 
-            and self.status in [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING]
-        )
+        return self.tier == SubscriptionTier.PREMIUM and self.status in [
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.TRIALING,
+        ]
 
     def can_upload_recipe(self) -> bool:
         """Check if user can upload another recipe based on their plan."""
         if self.is_premium():
             return True
-        
+
         # Free tier upload limit check
         return self.get_remaining_uploads() > 0
 
@@ -92,13 +101,16 @@ class Subscription(db.Model):
         """Get remaining uploads for current period (free tier only)."""
         if self.is_premium():
             return -1  # Unlimited for premium
-        
+
         from app.config import Config
-        free_limit = getattr(Config, 'FREE_TIER_UPLOAD_LIMIT', 10)
-        
+
+        free_limit = getattr(Config, "FREE_TIER_UPLOAD_LIMIT", 10)
+
         # Handle None case for monthly_upload_count
-        upload_count = self.monthly_upload_count if self.monthly_upload_count is not None else 0
-        
+        upload_count = (
+            self.monthly_upload_count if self.monthly_upload_count is not None else 0
+        )
+
         return max(0, free_limit - upload_count)
 
     def increment_upload_count(self) -> None:
@@ -123,8 +135,12 @@ class Subscription(db.Model):
             "tier": self.tier.value,
             "status": self.status.value,
             "is_premium": self.is_premium(),
-            "current_period_start": self.current_period_start.isoformat() if self.current_period_start else None,
-            "current_period_end": self.current_period_end.isoformat() if self.current_period_end else None,
+            "current_period_start": self.current_period_start.isoformat()
+            if self.current_period_start
+            else None,
+            "current_period_end": self.current_period_end.isoformat()
+            if self.current_period_end
+            else None,
             "cancel_at_period_end": self.cancel_at_period_end,
             "canceled_at": self.canceled_at.isoformat() if self.canceled_at else None,
             "monthly_upload_count": self.monthly_upload_count,
@@ -137,28 +153,33 @@ class Subscription(db.Model):
 
 class Payment(db.Model):
     """Model for tracking all payments and transactions."""
-    __tablename__ = 'payments'
+
+    __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    subscription_id: Mapped[Optional[int]] = mapped_column(ForeignKey("subscriptions.id"))
+    subscription_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("subscriptions.id")
+    )
     cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
     print_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("print_orders.id"))
-    
+
     # Stripe integration fields
-    stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True)
+    stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(
+        String(255), unique=True
+    )
     stripe_invoice_id: Mapped[Optional[str]] = mapped_column(String(255))
-    
+
     # Payment details
     payment_type: Mapped[PaymentType] = mapped_column(nullable=False)
     status: Mapped[PaymentStatus] = mapped_column(default=PaymentStatus.PENDING)
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="usd")
-    
+
     # Metadata
     description: Mapped[Optional[str]] = mapped_column(String(500))
     failure_reason: Mapped[Optional[str]] = mapped_column(String(500))
-    
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -167,9 +188,13 @@ class Payment(db.Model):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="payments")
-    subscription: Mapped[Optional["Subscription"]] = relationship("Subscription", back_populates="payments")
+    subscription: Mapped[Optional["Subscription"]] = relationship(
+        "Subscription", back_populates="payments"
+    )
     cookbook: Mapped[Optional["Cookbook"]] = relationship("Cookbook")
-    print_order: Mapped[Optional["PrintOrder"]] = relationship("PrintOrder", back_populates="payment", foreign_keys=[print_order_id])
+    print_order: Mapped[Optional["PrintOrder"]] = relationship(
+        "PrintOrder", back_populates="payment", foreign_keys=[print_order_id]
+    )
 
     def to_dict(self) -> dict:
         """Convert payment to dictionary representation."""
@@ -191,17 +216,18 @@ class Payment(db.Model):
 
 class CookbookPurchase(db.Model):
     """Model for tracking cookbook purchases by users."""
-    __tablename__ = 'cookbook_purchases'
+
+    __tablename__ = "cookbook_purchases"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     cookbook_id: Mapped[int] = mapped_column(ForeignKey("cookbook.id"), nullable=False)
     payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), nullable=False)
-    
+
     # Purchase details
     purchase_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     access_granted: Mapped[bool] = mapped_column(Boolean, default=True)
-    
+
     # Timestamps
     purchase_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     access_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -212,7 +238,11 @@ class CookbookPurchase(db.Model):
     payment: Mapped["Payment"] = relationship("Payment")
 
     # Unique constraint to prevent duplicate purchases
-    __table_args__ = (db.UniqueConstraint('user_id', 'cookbook_id', name='unique_user_cookbook_purchase'),)
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id", "cookbook_id", name="unique_user_cookbook_purchase"
+        ),
+    )
 
     def has_access(self) -> bool:
         """Check if user still has access to this cookbook."""
@@ -238,6 +268,10 @@ class CookbookPurchase(db.Model):
             "purchase_price": float(self.purchase_price),
             "access_granted": self.access_granted,
             "has_access": self.has_access(),
-            "purchase_date": self.purchase_date.isoformat() if self.purchase_date else None,
-            "access_revoked_at": self.access_revoked_at.isoformat() if self.access_revoked_at else None,
+            "purchase_date": self.purchase_date.isoformat()
+            if self.purchase_date
+            else None,
+            "access_revoked_at": self.access_revoked_at.isoformat()
+            if self.access_revoked_at
+            else None,
         }
