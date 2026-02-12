@@ -74,9 +74,9 @@
   - [x] Add post-incident report template
 
 ### 2.4 Dependency Security
-- [ ] Add `npm audit` to CI pipeline
-- [ ] Add `pip-audit` or `safety` check to CI pipeline
-- [ ] Set up Dependabot or Renovate for automated updates
+- [x] Add `npm audit` to CI pipeline
+- [x] Add `pip-audit` check to CI pipeline
+- [x] Set up Dependabot for automated updates
 
 ---
 
