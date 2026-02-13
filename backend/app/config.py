@@ -264,13 +264,17 @@ class TestingConfig(Config):
     @classmethod
     def init_app(cls, app):
         """Testing-specific initialization"""
+        import tempfile
+
         # Call parent init_app first
         super().init_app(app)
 
         # Override with testing-specific settings
         app.config["TESTING"] = True
+        # Use temp directory for test database (ensures it exists in CI)
+        temp_dir = tempfile.gettempdir()
         app.config["SQLALCHEMY_DATABASE_URI"] = (
-            f"sqlite:///{db_path}/cookbook_db_test.db"
+            f"sqlite:///{temp_dir}/cookbook_db_test.db"
         )
 
 
