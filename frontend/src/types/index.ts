@@ -354,6 +354,7 @@ export interface InputProps {
   step?: string;
   min?: string;
   max?: string;
+  id?: string;
 }
 
 export interface TextareaProps {
