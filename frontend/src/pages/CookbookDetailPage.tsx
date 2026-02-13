@@ -271,7 +271,7 @@ const CookbookDetailPage: React.FC = () => {
                       <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-border-light z-20">
                         <button
                           onClick={() => {
-                            navigate(`/recipes/new?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`);
+                            navigate(`/recipes/create?cookbookId=${cookbookId}&cookbookTitle=${encodeURIComponent(cookbook.title)}`);
                             setShowAddRecipeDropdown(false);
                           }}
                           className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center space-x-2 rounded-t-lg"
