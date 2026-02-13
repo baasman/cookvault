@@ -85,13 +85,13 @@
 **Timeline: 2-4 weeks**
 
 ### 3.1 Frontend Testing
-- [ ] Set up Vitest + React Testing Library
-- [ ] Add tests for critical user flows:
-  - [ ] Login/logout
+- [x] Set up Vitest + React Testing Library
+- [x] Add tests for critical user flows:
+  - [x] Login page (8 tests)
   - [ ] Recipe upload
   - [ ] Recipe viewing
   - [ ] Cookbook creation
-- [ ] Add to CI pipeline
+- [x] Add to CI pipeline
 - [ ] Target: 50% coverage of critical paths
 
 ### 3.2 Test Coverage Reporting

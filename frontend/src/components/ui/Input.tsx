@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { cn } from '../../utils/cn';
 import type { InputProps } from '../../types';
 import { hideKeyboard } from '../../hooks/useKeyboard';
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, placeholder, value, onChange, disabled, required, error, type = 'text', icon, className, onKeyDown, ...props }, ref) => {
+  ({ label, placeholder, value, onChange, disabled, required, error, type = 'text', icon, className, onKeyDown, id: providedId, ...props }, ref) => {
+    const generatedId = useId();
+    const inputId = providedId || generatedId;
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       // Dismiss keyboard on Enter for single-line inputs
       if (e.key === 'Enter') {
@@ -17,7 +20,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="space-y-2">
         {label && (
-          <label className="block text-sm font-medium text-text-primary">
+          <label htmlFor={inputId} className="block text-sm font-medium text-text-primary">
             {label}
             {required && <span className="text-accent ml-1">*</span>}
           </label>
@@ -30,6 +33,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           )}
           <input
             ref={ref}
+            id={inputId}
             type={type}
             placeholder={placeholder}
             value={value}

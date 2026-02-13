@@ -101,6 +101,29 @@ jobs:
           # Prevent build from failing on warnings
           CI: false
 
+  frontend-test:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run tests
+        run: |
+          cd frontend
+          npm run test:run
+
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -152,7 +175,7 @@ jobs:
   # Summary job that requires all jobs to pass
   ci-success:
     name: CI Success
-    needs: [backend-lint, backend-test, frontend-build, security-audit]
+    needs: [backend-lint, backend-test, frontend-build, frontend-test, security-audit]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -161,6 +184,7 @@ jobs:
           if [[ "${{ needs.backend-lint.result }}" != "success" ]] || \
              [[ "${{ needs.backend-test.result }}" != "success" ]] || \
              [[ "${{ needs.frontend-build.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-test.result }}" != "success" ]] || \
              [[ "${{ needs.security-audit.result }}" != "success" ]]; then
             echo "❌ CI checks failed"
             exit 1

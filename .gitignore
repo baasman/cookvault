@@ -129,3 +129,5 @@ backend/test_output/*
 deprecated/
 render.env
 scripts/reports
+.ruff_cache
+.playwright-mcp
