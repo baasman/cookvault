@@ -34,7 +34,12 @@ class TestRootEndpoint:
     """Tests for root/info endpoints."""
 
     def test_api_root(self, client: FlaskClient):
-        """Test API root endpoint exists."""
+        """Test API root endpoint behavior.
+
+        /api/ is not a defined API endpoint - it falls through to the frontend
+        serve route. Returns 503 if frontend not built (e.g., in CI), or 200
+        if frontend is built (serves index.html).
+        """
         response = client.get("/api/")
-        # Should return some info or redirect
-        assert response.status_code in [200, 301, 302, 404]
+        # Accept frontend responses (200 if built, 503 if not built)
+        assert response.status_code in [200, 503]
