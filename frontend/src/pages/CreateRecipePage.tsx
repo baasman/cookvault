@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { recipesApi } from '../services/recipesApi';
 import { RecipeForm } from '../components/recipe/RecipeForm';
 import { Button, Input } from '../components/ui';
@@ -10,30 +10,49 @@ import type { Recipe } from '../types';
 
 const CreateRecipePage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<'initial' | 'form'>('initial');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
-  
+
   const { canUpload, isLoading: isLoadingLimits } = useCanUpload();
-  
+
+  // Get pre-selected cookbook from URL params
+  const preselectedCookbookId = searchParams.get('cookbookId');
+  const preselectedCookbookTitle = searchParams.get('cookbookTitle');
+
   // Initial creation form state
   const [initialData, setInitialData] = useState({
     title: '',
-    no_cookbook: true,
+    no_cookbook: !preselectedCookbookId,
     create_new_cookbook: false,
     search_existing_cookbook: false,
     search_google_books: false,
-    selected_existing_cookbook_id: undefined as number | undefined,
+    selected_existing_cookbook_id: preselectedCookbookId ? parseInt(preselectedCookbookId, 10) : undefined as number | undefined,
     selected_google_book: null as GoogleBook | null,
-    cookbook_id: undefined as number | undefined,
+    cookbook_id: preselectedCookbookId ? parseInt(preselectedCookbookId, 10) : undefined as number | undefined,
     new_cookbook_title: '',
     new_cookbook_author: '',
     new_cookbook_description: '',
     new_cookbook_publisher: '',
     new_cookbook_isbn: '',
     new_cookbook_publication_date: '',
+    preselected_cookbook_title: preselectedCookbookTitle || '',
   });
+
+  // Update state when URL params change
+  useEffect(() => {
+    if (preselectedCookbookId) {
+      setInitialData(prev => ({
+        ...prev,
+        no_cookbook: false,
+        cookbook_id: parseInt(preselectedCookbookId, 10),
+        selected_existing_cookbook_id: parseInt(preselectedCookbookId, 10),
+        preselected_cookbook_title: preselectedCookbookTitle || '',
+      }));
+    }
+  }, [preselectedCookbookId, preselectedCookbookTitle]);
 
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +91,8 @@ const CreateRecipePage: React.FC = () => {
           publication_date: initialData.new_cookbook_publication_date || undefined,
         });
         cookbook_id = cookbook.id;
-      } else if (initialData.search_google_books && initialData.cookbook_id) {
+      } else if (initialData.cookbook_id) {
+        // Use preselected or Google Books cookbook
         cookbook_id = initialData.cookbook_id;
       }
 
@@ -171,24 +191,54 @@ const CreateRecipePage: React.FC = () => {
           {/* Cookbook Options */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium" style={{color: '#1c120d'}}>
-              Cookbook Association (Optional)
+              Cookbook Association {!initialData.preselected_cookbook_title && '(Optional)'}
             </h3>
-            
+
+            {/* Show preselected cookbook info */}
+            {initialData.preselected_cookbook_title && initialData.cookbook_id && !initialData.no_cookbook && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <span className="font-medium text-green-800">
+                      Adding to: {initialData.preselected_cookbook_title}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInitialData(prev => ({
+                      ...prev,
+                      no_cookbook: true,
+                      cookbook_id: undefined,
+                      selected_existing_cookbook_id: undefined,
+                      preselected_cookbook_title: '',
+                    }))}
+                    className="text-sm text-green-700 hover:text-green-900 underline"
+                  >
+                    Change
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-3">
               <label className="flex items-center">
                 <input
                   type="radio"
                   name="cookbook_mode"
                   checked={initialData.no_cookbook}
-                  onChange={() => setInitialData(prev => ({ 
-                    ...prev, 
+                  onChange={() => setInitialData(prev => ({
+                    ...prev,
                     no_cookbook: true,
                     create_new_cookbook: false,
                     search_existing_cookbook: false,
                     search_google_books: false,
                     selected_existing_cookbook_id: undefined,
                     selected_google_book: null,
-                    cookbook_id: undefined
+                    cookbook_id: undefined,
+                    preselected_cookbook_title: '',
                   }))}
                   className="mr-2 text-accent"
                 />
