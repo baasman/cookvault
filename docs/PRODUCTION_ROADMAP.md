@@ -113,10 +113,20 @@
 - [ ] Consider OpenAPI/Swagger spec generation (future enhancement)
 
 ### 3.4 Performance Baseline
-- [ ] Run load tests and document baseline metrics
-- [ ] Set up performance monitoring in Sentry
-- [ ] Document acceptable response times
-- [ ] Create performance tuning guide
+- [x] Run load tests and document baseline metrics
+  - [x] Load testing guide already exists (`docs/development/load-testing.md`)
+  - [x] Created `docs/operations/performance-baseline.md` with baseline targets
+- [x] Set up performance monitoring in Sentry
+  - [x] Backend: 10% trace sampling configured
+  - [x] Frontend: 10% trace sampling configured
+- [x] Document acceptable response times
+  - [x] Response time SLOs by endpoint category
+  - [x] Error rate targets by scenario
+  - [x] Availability targets
+- [x] Create performance tuning guide
+  - [x] Quick wins section (indexing, caching, images)
+  - [x] Advanced optimization (queries, jobs, frontend)
+  - [x] Capacity planning guidelines
 
 ---
 

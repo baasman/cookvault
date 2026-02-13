@@ -50,6 +50,22 @@ System health and observability:
 - Alerting strategies
 - Troubleshooting checklists
 
+#### [Performance Baseline](performance-baseline.md)
+Performance targets and optimization:
+- Response time SLOs
+- Throughput baselines
+- Sentry performance monitoring setup
+- Load testing procedures
+- Performance tuning guide
+- Capacity planning
+
+#### [Incident Response](incident-response.md)
+When things go wrong:
+- Severity levels (P1-P4)
+- Escalation procedures
+- Runbooks for common issues
+- Post-incident process
+
 ---
 
 ## 🚀 Quick Start
