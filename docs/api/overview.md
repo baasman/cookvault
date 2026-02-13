@@ -181,14 +181,23 @@ X-RateLimit-Reset: 1640995200
 
 ### Rate Limits by Endpoint Category
 
-| Category | Limit | Window |
-|----------|-------|--------|
-| **Authentication** | 10 requests | 1 minute |
-| **Recipe Upload** | 10 uploads | 1 hour |
-| **Job Status** | 60 requests | 1 minute |
-| **Print Quotes** | 10 requests | 1 minute |
-| **Print Orders** | 5 requests | 1 minute |
-| **Webhooks** | 100 requests | 1 hour |
+| Category | Limit | Endpoints |
+|----------|-------|-----------|
+| **Authentication** | 20/hour | `/auth/register`, `/auth/login`, `/auth/forgot-password`, `/auth/reset-password`, verification endpoints |
+| **Upload** | 50/hour | `/recipes/upload`, `/recipes/<id>/images`, `/cookbooks/<id>/images` |
+| **API Write** | 100/hour | POST/PUT/DELETE on recipes, cookbooks, groups |
+| **API Read** | 1000/hour | GET requests for recipes, cookbooks, users |
+| **Job Status** | 5000/hour | `/recipes/job-status/<id>`, polling endpoints |
+
+### Rate Limit Decorators (Internal Reference)
+
+| Decorator | Limit | Use Case |
+|-----------|-------|----------|
+| `@rate_limit_auth` | 20/hour | Prevents brute force attacks |
+| `@rate_limit_upload` | 50/hour | Prevents spam uploads |
+| `@rate_limit_api_write` | 100/hour | Protects data modification |
+| `@rate_limit_api_read` | 1000/hour | Standard read operations |
+| `@rate_limit_job_status` | 5000/hour | High-frequency polling |
 
 ### Rate Limit Exceeded Response
 

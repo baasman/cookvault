@@ -101,10 +101,16 @@
 - [ ] Add coverage report to PR comments
 
 ### 3.3 API Documentation Improvements
-- [ ] Document authentication flow with examples
-- [ ] Document rate limits per endpoint
-- [ ] Create error code reference
-- [ ] Consider OpenAPI/Swagger spec generation
+- [x] Document authentication flow with examples
+  - [x] `docs/api/authentication-endpoints.md` with full examples
+  - [x] `docs/api/overview.md` updated with auth patterns
+- [x] Document rate limits per endpoint
+  - [x] Updated `docs/api/overview.md` with actual rate limit values
+  - [x] `docs/api/endpoints-reference.md` with per-endpoint rate limits
+- [x] Create error code reference
+  - [x] Created `docs/api/error-codes.md` with all HTTP status codes
+  - [x] Documented all error messages and solutions
+- [ ] Consider OpenAPI/Swagger spec generation (future enhancement)
 
 ### 3.4 Performance Baseline
 - [ ] Run load tests and document baseline metrics

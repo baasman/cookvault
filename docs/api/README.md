@@ -13,7 +13,9 @@ Welcome to the Cookbook Creator API reference documentation. This section provid
 
 1. **[API Overview](overview.md)** - Authentication, rate limits, response formats
 2. **[Authentication Guide](authentication-endpoints.md)** - Register, login, session management
-3. **[Quick Start Examples](#quick-start-examples)** - Common API operations
+3. **[Endpoints Quick Reference](endpoints-reference.md)** - All endpoints at a glance
+4. **[Error Codes Reference](error-codes.md)** - Error handling and troubleshooting
+5. **[Quick Start Examples](#quick-start-examples)** - Common API operations
 
 **Base URL:**
 ```
@@ -190,6 +192,8 @@ All errors return consistent format:
 - `404` - Not Found
 - `429` - Rate Limit Exceeded
 
+📚 **Full Reference:** [Error Codes Reference](error-codes.md)
+
 ---
 
 ## 🔑 Authentication Methods
@@ -220,12 +224,13 @@ Cookie: session=abc123...
 
 ## 📊 Rate Limits
 
-| Category | Limit | Window |
-|----------|-------|--------|
-| Authentication | 10 requests | 1 minute |
-| Recipe Upload | 10 uploads | 1 hour |
-| Job Status | 60 requests | 1 minute |
-| Print Quotes | 10 requests | 1 minute |
+| Category | Limit | Endpoints |
+|----------|-------|-----------|
+| Authentication | 20/hour | Login, register, password reset |
+| Upload | 50/hour | Recipe/cookbook image uploads |
+| API Write | 100/hour | Create, update, delete operations |
+| API Read | 1000/hour | List and get operations |
+| Job Status | 5000/hour | Processing status polling |
 
 **Rate limit headers:**
 ```http
