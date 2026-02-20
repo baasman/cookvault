@@ -93,6 +93,34 @@ export interface RecipeNote {
   updated_at: string;
 }
 
+export interface RecipeRating {
+  id: number;
+  user_id: number;
+  recipe_id: number;
+  rating: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AggregateRating {
+  average_rating: number | null;
+  rating_count: number;
+  normalized_title: string | null;
+  cookbook_id: number | null;
+  canonical_source_url: string | null; // For URL-imported recipes
+  matching_recipe_count: number;
+}
+
+export interface RatingResponse {
+  aggregate: AggregateRating;
+  user_rating: RecipeRating | null;
+}
+
+export interface DeleteRatingResponse {
+  message: string;
+  aggregate: AggregateRating;
+}
+
 export interface RecipeComment {
   id: number;
   recipe_id: number;
@@ -106,6 +134,21 @@ export interface RecipeComment {
     first_name?: string;
     last_name?: string;
   };
+}
+
+export interface SourceInfo {
+  id: number;
+  domain: string;
+  name: string | null;
+  display_name: string;
+  favicon_url: string | null;
+}
+
+export interface Source extends SourceInfo {
+  recipe_count: number;
+  user_id: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Recipe {
@@ -165,6 +208,9 @@ export interface Recipe {
   is_translated?: boolean; // true if recipe was translated from another language
   original_title?: string | null; // Original title before translation
   original_description?: string | null; // Original description before translation
+  // Source tracking (domain where recipe was imported from)
+  source_id?: number;
+  source_info?: SourceInfo | null;
 }
 
 export interface ProcessingJob {
@@ -284,6 +330,8 @@ export interface UploadFormData {
   isMultiImage: boolean; // Toggle between single and multi-image mode
   isTextMode?: boolean; // Toggle for text upload mode
   recipeText?: string; // Recipe text for direct text upload
+  isUrlMode?: boolean; // Toggle for URL import mode
+  recipeUrl?: string; // URL for recipe import
   cookbook_id?: number;
   // Upload mode selection
   no_cookbook?: boolean;

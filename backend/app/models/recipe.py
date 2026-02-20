@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -15,10 +16,41 @@ from sqlalchemy import (
     Column,
     text,
     Numeric,
+    event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app import db
+
+
+def _normalize_recipe_title(title: str) -> str:
+    """
+    Normalize a recipe title for matching.
+
+    Normalization rules:
+    - Convert to lowercase
+    - Strip all punctuation
+    - Collapse multiple spaces to single space
+    - Strip leading/trailing whitespace
+
+    Example: "Grandma's Chocolate Chip Cookies!" -> "grandmas chocolate chip cookies"
+    """
+    if not title:
+        return ""
+
+    # Convert to lowercase
+    normalized = title.lower()
+
+    # Remove all punctuation (keeping only alphanumeric and spaces)
+    normalized = re.sub(r"[^\w\s]", "", normalized)
+
+    # Collapse multiple spaces to single space
+    normalized = re.sub(r"\s+", " ", normalized)
+
+    # Strip leading/trailing whitespace
+    normalized = normalized.strip()
+
+    return normalized
 
 
 class UserRecipeCollection(db.Model):
@@ -393,6 +425,18 @@ class Recipe(db.Model):
         Text
     )  # Original description before translation
 
+    # Rating aggregation field - normalized title for grouping ratings across users
+    normalized_title: Mapped[Optional[str]] = mapped_column(String(200), index=True)
+
+    # Source tracking - links to the domain where this recipe was imported from
+    source_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("source.id"), nullable=True, index=True
+    )
+
+    # Canonical URL for rating aggregation - normalized version of source URL
+    # Used to aggregate ratings across URL-imported recipes from the same page
+    canonical_source_url: Mapped[Optional[str]] = mapped_column(String(500), index=True)
+
     cookbook: Mapped[Optional["Cookbook"]] = relationship(
         "Cookbook", back_populates="recipes"
     )
@@ -434,6 +478,12 @@ class Recipe(db.Model):
     )
     groups: Mapped[List["RecipeGroup"]] = relationship(
         "RecipeGroup", secondary=recipe_group_memberships, back_populates="recipes"
+    )
+    ratings: Mapped[List["RecipeRating"]] = relationship(
+        "RecipeRating", back_populates="recipe", cascade="all, delete-orphan"
+    )
+    source_ref: Mapped[Optional["Source"]] = relationship(
+        "Source", back_populates="recipes"
     )
 
     def get_status(self) -> str:
@@ -650,6 +700,15 @@ class Recipe(db.Model):
             "is_translated": self.is_translated,
             "original_title": self.original_title,
             "original_description": self.original_description,
+            # Source tracking
+            "source_id": self.source_id,
+            "source_info": {
+                "id": self.source_ref.id,
+                "domain": self.source_ref.domain,
+                "name": self.source_ref.name,
+                "display_name": self.source_ref.get_display_name(),
+                "favicon_url": self.source_ref.favicon_url,
+            } if self.source_ref else None,
         }
 
         # Restricted content (only for users with full access)
@@ -745,6 +804,25 @@ class Recipe(db.Model):
             result["want_to_make"] = want_to_make
 
         return result
+
+
+# Event listener to auto-update normalized_title when Recipe is created or title changes
+@event.listens_for(Recipe.title, "set")
+def _recipe_title_set(target, value, oldvalue, initiator):
+    """Auto-update normalized_title when title is set."""
+    if value != oldvalue:
+        target.normalized_title = _normalize_recipe_title(value) if value else None
+
+
+# Event listener to auto-update canonical_source_url when source URL is set
+@event.listens_for(Recipe.source, "set")
+def _recipe_source_set(target, value, oldvalue, initiator):
+    """Auto-update canonical_source_url when source URL is set."""
+    if value != oldvalue:
+        # Import here to avoid circular imports
+        from app.services.rating_service import normalize_url
+
+        target.canonical_source_url = normalize_url(value) if value else None
 
 
 class RecipeImage(db.Model):
@@ -966,3 +1044,37 @@ class RecipeComment(db.Model):
             }
 
         return result
+
+
+class RecipeRating(db.Model):
+    """User ratings for recipes (1-5 stars)"""
+
+    __tablename__ = "recipe_ratings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipe.id"), nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "recipe_id", name="unique_user_recipe_rating"),
+        db.CheckConstraint("rating >= 1 AND rating <= 5", name="valid_rating_range"),
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="recipe_ratings")
+    recipe: Mapped["Recipe"] = relationship("Recipe", back_populates="ratings")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "recipe_id": self.recipe_id,
+            "rating": self.rating,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
