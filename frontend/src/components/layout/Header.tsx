@@ -15,7 +15,8 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({
   navItems = [
     { label: 'Recipes', href: '/recipes' },
-    { label: 'Cookbooks', href: '/cookbooks' }
+    { label: 'Cookbooks', href: '/cookbooks' },
+    { label: 'Sources', href: '/sources' }
   ]
 }) => {
   const { isAuthenticated, user, logout } = useAuth();
@@ -129,6 +130,14 @@ const Header: React.FC<HeaderProps> = ({
                           onClick={() => setIsAddMenuOpen(false)}
                         >
                           📷 Upload from Image
+                        </Link>
+                        <Link
+                          to="/upload?mode=url"
+                          className="block px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
+                          style={{ color: '#1c120d' }}
+                          onClick={() => setIsAddMenuOpen(false)}
+                        >
+                          🔗 Import from URL
                         </Link>
                         <Link
                           to="/recipes/create"
@@ -352,6 +361,15 @@ const Header: React.FC<HeaderProps> = ({
                         >
                           <Button variant="primary" size="md" className="w-full">
                             📷 Upload from Image
+                          </Button>
+                        </Link>
+                        <Link
+                          to="/upload?mode=url"
+                          className="block w-full"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <Button variant="secondary" size="md" className="w-full">
+                            🔗 Import from URL
                           </Button>
                         </Link>
                         <Link

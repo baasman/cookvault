@@ -19,7 +19,8 @@ const UploadPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMultiProcessing, setIsMultiProcessing] = useState(false);
   const [initialCookbookData, setInitialCookbookData] = useState<{cookbookId?: number, cookbookTitle?: string} | null>(null);
-  
+  const [initialMode, setInitialMode] = useState<'image' | 'text' | 'url'>('image');
+
   const { canUpload, isLoading: isLoadingLimits } = useCanUpload();
 
   const handleUpload = async (formData: UploadFormData) => {
@@ -31,7 +32,14 @@ const UploadPage: React.FC = () => {
     setIsMultiProcessing(false);
 
     try {
-      if (formData.isTextMode && formData.recipeText) {
+      if (formData.isUrlMode && formData.recipeUrl) {
+        // Handle URL import
+        const result = await recipesApi.uploadRecipeUrl(formData.recipeUrl, formData);
+
+        // URL import is synchronous - no job polling needed
+        setSuccess(result);
+
+      } else if (formData.isTextMode && formData.recipeText) {
         // Handle text upload
         const result = await recipesApi.uploadRecipeText(formData.recipeText, formData);
 
@@ -184,16 +192,26 @@ const UploadPage: React.FC = () => {
     setError(errorMessage);
   };
 
-  // Check for cookbook URL parameters on component mount
+  // Check for URL parameters on component mount
   useEffect(() => {
     const cookbookId = searchParams.get('cookbookId');
     const cookbookTitle = searchParams.get('cookbookTitle');
-    
+    const mode = searchParams.get('mode');
+
     if (cookbookId) {
       setInitialCookbookData({
         cookbookId: parseInt(cookbookId, 10),
         cookbookTitle: cookbookTitle || undefined
       });
+    }
+
+    // Set initial mode based on query parameter
+    if (mode === 'url') {
+      setInitialMode('url');
+    } else if (mode === 'text') {
+      setInitialMode('text');
+    } else {
+      setInitialMode('image');
     }
   }, [searchParams]);
 
@@ -350,6 +368,7 @@ const UploadPage: React.FC = () => {
             isLoading={isLoading}
             error={undefined}
             initialCookbookData={initialCookbookData}
+            initialMode={initialMode}
           />
         </div>
       )}

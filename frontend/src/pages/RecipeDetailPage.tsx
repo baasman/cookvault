@@ -19,6 +19,7 @@ import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import { PaywallMessage } from '../components/recipe/PaywallMessage';
 import { RecipeScaler } from '../components/recipe/RecipeScaler';
+import { StarRating } from '../components/recipe/StarRating';
 import { ExportButton } from '../components/export';
 import { scaleQuantity, isScalableQuantity } from '../utils/recipeScaling';
 import type { Recipe } from '../types';
@@ -398,9 +399,14 @@ const RecipeDetailPage: React.FC = () => {
                   </div>
                 )}
 
-                <h1 className="text-3xl font-bold mb-4" style={{color: '#1c120d'}}>
+                <h1 className="text-3xl font-bold mb-2" style={{color: '#1c120d'}}>
                   {showOriginalText && recipe.original_title ? recipe.original_title : recipe.title}
                 </h1>
+
+                {/* Recipe Rating */}
+                <div className="mb-4">
+                  <StarRating recipeId={recipe.id} size="md" showCount />
+                </div>
 
                 {(recipe.description || (showOriginalText && recipe.original_description)) && (
                   <p className="text-lg text-text-secondary mb-6">
@@ -579,6 +585,58 @@ const RecipeDetailPage: React.FC = () => {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Source Info (for URL-imported recipes) */}
+                {recipe.source_info && (
+                  <div className="mb-6 p-4 bg-gradient-to-r from-background-secondary to-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-4">
+                      {/* Source Favicon */}
+                      {recipe.source_info.favicon_url && (
+                        <Link
+                          to={`/sources/${recipe.source_info.id}`}
+                          className="flex-shrink-0"
+                        >
+                          <img
+                            src={recipe.source_info.favicon_url}
+                            alt={recipe.source_info.display_name}
+                            className="w-10 h-10 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        </Link>
+                      )}
+
+                      {/* Source Details */}
+                      <div className="flex-grow">
+                        <h3 className="text-xs font-medium text-text-secondary mb-1 uppercase tracking-wider">Imported From</h3>
+                        <Link
+                          to={`/sources/${recipe.source_info.id}`}
+                          className="font-semibold text-text-primary hover:text-accent transition-colors"
+                        >
+                          {recipe.source_info.display_name}
+                        </Link>
+                        {recipe.source_info.name && recipe.source_info.name !== recipe.source_info.domain && (
+                          <p className="text-sm text-text-secondary">{recipe.source_info.domain}</p>
+                        )}
+                      </div>
+
+                      {/* External link to original */}
+                      <a
+                        href={`https://${recipe.source_info.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0 p-2 text-text-secondary hover:text-accent transition-colors"
+                        title={`Visit ${recipe.source_info.domain}`}
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
                     </div>
                   </div>
                 )}

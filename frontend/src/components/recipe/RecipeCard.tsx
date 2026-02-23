@@ -5,6 +5,7 @@ import { recipesApi } from '../../services/recipesApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { AddToCollectionButton } from './AddToCollectionButton';
 import { AddToGroupButton } from './AddToGroupButton';
+import { StarRating } from './StarRating';
 import { CopyrightConsentModal } from '../ui';
 import { CloudinaryImage } from '../ui/CloudinaryImage';
 import type { Recipe } from '../../types';
@@ -106,6 +107,12 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
     e.preventDefault();
     e.stopPropagation();
     navigate(`/cookbooks/${recipe.cookbook?.id}`);
+  };
+
+  const handleSourceClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/sources/${recipe.source_info?.id}`);
   };
 
   const formatTime = (minutes: number | undefined) => {
@@ -290,6 +297,17 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
               )}
             </div>
 
+            {/* Recipe Rating */}
+            <div
+              className="mb-3"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <StarRating recipeId={recipe.id} readOnly size="sm" showCount />
+            </div>
+
             {/* Spacer to push footer content to bottom */}
             <div className="flex-grow"></div>
 
@@ -385,13 +403,37 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
               {recipe.cookbook && (
                 <div className={`pt-3 border-t border-primary-200 ${recipe.is_public && recipe.user ? 'pt-2' : ''}`}>
                   <p className="text-xs text-text-secondary">
-                    From: <button 
+                    From: <button
                       onClick={handleCookbookClick}
                       className="font-medium text-text-primary hover:text-accent transition-colors underline cursor-pointer bg-transparent border-none p-0"
                     >
                       {recipe.cookbook.title}
                     </button>
                   </p>
+                </div>
+              )}
+
+              {/* Source info (for URL-imported recipes) */}
+              {recipe.source_info && (
+                <div className={`pt-3 border-t border-primary-200 ${recipe.cookbook ? 'pt-2' : ''}`}>
+                  <button
+                    onClick={handleSourceClick}
+                    className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent transition-colors group"
+                  >
+                    {recipe.source_info.favicon_url && (
+                      <img
+                        src={recipe.source_info.favicon_url}
+                        alt=""
+                        className="w-4 h-4 rounded-sm"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <span className="group-hover:underline">
+                      {recipe.source_info.display_name}
+                    </span>
+                  </button>
                 </div>
               )}
             </div>

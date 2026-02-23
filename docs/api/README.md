@@ -1,7 +1,7 @@
 # API Reference
 
 **Tags:** `api`, `rest`, `reference`, `endpoints`, `backend`
-**Last updated:** 2025-11-14
+**Last updated:** 2025-02-14
 
 Welcome to the Cookbook Creator API reference documentation. This section provides complete documentation for all REST API endpoints, authentication, and integration patterns.
 

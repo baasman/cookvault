@@ -64,7 +64,7 @@ const HomePage: React.FC = () => {
                 <ScanIcon className="icon icon-white" style={{ width: '2rem', height: '2rem' }} />
               </div>
               <h3>Smart Recipe Management</h3>
-              <p>Upload recipes from any source — photos, handwritten notes, or links. Our AI accurately extracts and organizes content, making everything searchable and perfectly formatted for your collection.</p>
+              <p>Import recipes from any URL, upload photos, or paste text. Our AI extracts ingredients and instructions automatically, making everything searchable and perfectly formatted for your collection.</p>
             </div>
           </div>
         </div>
@@ -88,20 +88,20 @@ const HomePage: React.FC = () => {
               </div>
               <h3 className="text-xl font-bold text-text-primary mb-3">Import & Create</h3>
               <p className="text-text-secondary mb-4">
-                Upload your own recipes from photos, handwritten notes, or online sources. Organize them into collections and transform them into beautiful physical cookbooks for your kitchen or as personal gifts.
+                Upload recipes from photos, paste a URL from any recipe blog, or type them in directly. Organize into collections and transform them into beautiful physical cookbooks.
               </p>
               <ul className="space-y-2 text-sm text-text-secondary">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-accent mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Upload from any source
+                  Import from URLs, photos, or text
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-accent mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  AI-powered text extraction
+                  AI-powered recipe extraction
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-accent mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,7 +156,7 @@ const HomePage: React.FC = () => {
             <div className="step">
               <div className="step-number">1</div>
               <h3>Upload</h3>
-              <p>Link a video, blog post, or take a photo and upload an image of your recipe from any cookbook, handwritten note, or printed page.</p>
+              <p>Paste a recipe URL from any blog, upload a photo of a recipe page, or type it in directly. We support all popular recipe sites.</p>
             </div>
             <div className="step">
               <div className="step-number">2</div>

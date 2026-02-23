@@ -4,7 +4,7 @@
 >
 > This is your central resource for understanding, developing, and deploying the Cookbook Creator application.
 
-**Last updated:** 2025-11-14
+**Last updated:** 2025-02-14
 
 ---
 
@@ -64,9 +64,6 @@ System design, technical decisions, and architectural patterns.
 Guidelines, standards, and tools for active development.
 
 - [Contributing Guide](development/contributing.md) - How to contribute code
-- [Code Standards](development/code-standards.md) - Style guide and best practices
-- [Testing Guide](development/testing.md) - Writing and running tests
-- [Debugging Guide](development/debugging.md) - Debugging tools and techniques
 - [Load Testing](development/load-testing.md) - Performance testing suite
 - [Local HTTPS Setup](development/local-https-setup.md) - HTTPS for local development
 
@@ -144,7 +141,6 @@ grep -r -C 3 "search term" docs/
 ### Authentication & Security
 - [API Authentication](api/authentication.md)
 - [Environment Variables](deployment/environment-variables.md)
-- [Code Standards - Security](development/code-standards.md)
 
 ### Database
 - [Database Schema](architecture/database-schema.md)

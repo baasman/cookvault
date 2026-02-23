@@ -1,4 +1,4 @@
-import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse, Instruction } from '../types';
+import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse, Instruction, RatingResponse, DeleteRatingResponse } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
 import { getApiUrl } from '../utils/getApiUrl';
 import { getAuthToken } from './storageService';
@@ -842,6 +842,52 @@ class RecipesApi {
     }
   }
 
+  async uploadRecipeUrl(url: string, formData: any): Promise<any> {
+    try {
+      const payload: any = {
+        url: url,
+      };
+
+      // Add cookbook information if provided
+      if (formData.create_new_cookbook) {
+        payload.create_new_cookbook = true;
+        payload.new_cookbook_title = formData.new_cookbook_title || '';
+        if (formData.new_cookbook_author) payload.new_cookbook_author = formData.new_cookbook_author;
+        if (formData.new_cookbook_description) payload.new_cookbook_description = formData.new_cookbook_description;
+        if (formData.new_cookbook_publisher) payload.new_cookbook_publisher = formData.new_cookbook_publisher;
+        if (formData.new_cookbook_isbn) payload.new_cookbook_isbn = formData.new_cookbook_isbn;
+        if (formData.new_cookbook_publication_date) payload.new_cookbook_publication_date = formData.new_cookbook_publication_date;
+      } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
+        payload.cookbook_id = formData.selected_existing_cookbook_id;
+      } else if (formData.cookbook_id) {
+        payload.cookbook_id = formData.cookbook_id;
+      }
+
+      // Add translation option
+      if (formData.translate_to_english) {
+        payload.translate_to_english = true;
+      }
+
+      const response = await apiFetch(`${this.baseUrl}/recipes/upload-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading recipe from URL:', error);
+      throw error;
+    }
+  }
+
   async getMultiJobStatus(jobId: number): Promise<MultiJobStatusResponse> {
     try {
       const response = await apiFetch(`${this.baseUrl}/recipes/multi-job-status/${jobId}`, {
@@ -993,6 +1039,73 @@ class RecipesApi {
       return data.instruction;
     } catch (error) {
       console.error('Error removing instruction image:', error);
+      throw error;
+    }
+  }
+
+  // Recipe Rating Methods
+  async getRating(recipeId: number): Promise<RatingResponse> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/rating`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Recipe not found');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching recipe rating:', error);
+      throw error;
+    }
+  }
+
+  async submitRating(recipeId: number, rating: number): Promise<RatingResponse> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/rating`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rating }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error submitting recipe rating:', error);
+      throw error;
+    }
+  }
+
+  async deleteRating(recipeId: number): Promise<DeleteRatingResponse> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/rating`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting recipe rating:', error);
       throw error;
     }
   }

@@ -15,9 +15,8 @@
   - [x] Run frontend TypeScript build
   - [x] Fix API tests to include auth fixtures (67 tests now passing)
   - [x] Fix lint errors (all fixed with ruff auto-fix + config updates)
-- [ ] Create `.github/workflows/deploy.yml` for deployment
-  - Auto-deploy to Render on merge to main
-  - Or use Render's native GitHub integration
+- [x] Auto-deploy to Render on merge to main
+  - Using Render's native GitHub integration via `render.yaml`
 
 ### 1.2 Fix Sentry Configuration
 - [x] Move frontend Sentry DSN to environment variable
@@ -31,8 +30,8 @@
 - [x] Configure Sentry alerts for production errors
   - Alert on first occurrence of new errors
   - Alert when error rate spikes
-- [ ] Set up uptime monitoring with UptimeRobot (TODO - see guide)
-  - Monitor `/api/health` endpoint
+- [x] Set up uptime monitoring with UptimeRobot
+  - Monitoring `/api/health` endpoint
   - Email/SMS alerts on downtime
 
 ---
@@ -172,9 +171,9 @@
 ## Success Metrics
 
 ### Phase 1 Complete When:
-- [ ] Every PR runs automated tests
-- [ ] No secrets in source code
-- [ ] Get alerted within 5 minutes of downtime
+- [x] Every PR runs automated tests
+- [x] No secrets in source code
+- [x] Get alerted within 5 minutes of downtime
 
 ### Phase 2 Complete When:
 - [ ] GDPR-compliant cookie consent in place

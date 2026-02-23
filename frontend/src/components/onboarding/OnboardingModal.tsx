@@ -19,7 +19,7 @@ const steps: OnboardingStep[] = [
   },
   {
     title: 'Upload Your Recipes',
-    description: 'Take a photo of any recipe or type it in manually. Our AI will extract and organize all the details for you.',
+    description: 'Paste a URL from any recipe blog, take a photo, or type it in manually. Our AI extracts and organizes everything for you.',
     icon: (
       <svg className="w-16 h-16 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />

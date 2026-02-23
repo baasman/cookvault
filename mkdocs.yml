@@ -1,0 +1,64 @@
+site_name: CookVault Documentation
+site_description: Documentation for the CookVault recipe management platform
+repo_url: https://github.com/baasman/cookvault
+
+theme:
+  name: material
+  palette:
+    primary: orange
+    accent: deep-orange
+  features:
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started/README.md
+  - API Reference:
+    - Overview: api/README.md
+    - API Details: api/overview.md
+    - Authentication: api/authentication-endpoints.md
+    - Recipe Endpoints: api/recipes-endpoints.md
+    - Endpoints Reference: api/endpoints-reference.md
+    - Error Codes: api/error-codes.md
+  - Architecture: architecture/README.md
+  - Development:
+    - Overview: development/README.md
+    - Contributing: development/contributing.md
+    - Load Testing: development/load-testing.md
+    - Local HTTPS: development/local-https-setup.md
+  - Deployment:
+    - Overview: deployment/README.md
+    - Production: deployment/production.md
+  - Operations:
+    - Overview: operations/README.md
+    - Database CLI: operations/database-cli.md
+    - Migrations: operations/database-migrations.md
+    - Backup & Restore: operations/backup-restore.md
+    - Monitoring: operations/monitoring.md
+    - Performance: operations/performance-baseline.md
+    - Incident Response: operations/incident-response.md
+    - Alerting: operations/ALERTING_SETUP.md
+    - Logging: operations/LOG_AGGREGATION_SETUP.md
+  - Integrations:
+    - Overview: integrations/README.md
+    - Lulu Print: integrations/lulu-print.md
+  - Planning:
+    - Overview: planning/README.md
+    - Project Brief: planning/PROJECT_BRIEF.md
+    - Frontend Brief: planning/FRONTEND_BRIEF.md
+    - Design Analysis: planning/PHASE_0_DESIGN_ANALYSIS.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true

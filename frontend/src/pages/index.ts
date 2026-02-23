@@ -6,6 +6,8 @@ export { RecipeDetailPage } from './RecipeDetailPage';
 export { RecipeGroupDetailPage } from './RecipeGroupDetailPage';
 export { CookbooksPage } from './CookbooksPage';
 export { CookbookDetailPage } from './CookbookDetailPage';
+export { SourcesPage } from './SourcesPage';
+export { SourceDetailPage } from './SourceDetailPage';
 export { UserPage } from './UserPage';
 export { OrdersPage } from './OrdersPage';
 export { VerifyEmailPage } from './VerifyEmailPage';

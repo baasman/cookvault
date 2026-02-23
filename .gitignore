@@ -114,6 +114,7 @@ Desktop.ini
 # Documentation build
 docs/_build/
 docs/.doctrees/
+site/
 
 # Package manager locks (keep these for reproducible builds)
 # Uncomment if you want to ignore lock files

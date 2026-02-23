@@ -2606,6 +2606,123 @@ def delete_recipe_note(current_user, recipe_id: int) -> Response:
         return jsonify({"error": "Failed to delete note"}), 500
 
 
+# Recipe Rating Endpoints
+
+
+@bp.route("/recipes/<int:recipe_id>/rating", methods=["GET"])
+@optional_auth
+def get_recipe_rating(current_user, recipe_id: int) -> Response:
+    """Get the aggregate rating for a recipe and the current user's rating if any.
+
+    Returns:
+        - aggregate: {average_rating, rating_count, normalized_title, cookbook_id, matching_recipe_count}
+        - user_rating: RecipeRating or null if user hasn't rated
+    """
+    from app.services.rating_service import get_aggregate_rating_for_recipe, get_user_rating
+
+    recipe = Recipe.query.get(recipe_id)
+    if not recipe:
+        return jsonify({"error": "Recipe not found"}), 404
+
+    # Check if user can view this recipe
+    if current_user:
+        is_admin = current_user.role.value == "admin" if current_user.role else False
+        if not recipe.can_be_viewed_by(current_user.id, is_admin):
+            return jsonify({"error": "Recipe not found"}), 404
+    else:
+        # Unauthenticated users can only view public recipes
+        if not recipe.is_public:
+            return jsonify({"error": "Recipe not found"}), 404
+
+    # Get aggregate rating
+    aggregate = get_aggregate_rating_for_recipe(recipe_id)
+
+    # Get user's rating if authenticated
+    user_rating = None
+    if current_user:
+        rating_obj = get_user_rating(current_user.id, recipe_id)
+        if rating_obj:
+            user_rating = rating_obj.to_dict()
+
+    return jsonify({"aggregate": aggregate, "user_rating": user_rating}), 200
+
+
+@bp.route("/recipes/<int:recipe_id>/rating", methods=["POST"])
+@require_auth
+def submit_recipe_rating(current_user, recipe_id: int) -> Response:
+    """Submit or update a rating for a recipe.
+
+    Body: {"rating": 1-5}
+
+    Returns:
+        - aggregate: updated aggregate rating
+        - user_rating: the user's rating
+    """
+    from app.services.rating_service import submit_rating, get_aggregate_rating_for_recipe
+
+    recipe = Recipe.query.get(recipe_id)
+    if not recipe:
+        return jsonify({"error": "Recipe not found"}), 404
+
+    # Check if user can view this recipe
+    is_admin = current_user.role.value == "admin" if current_user.role else False
+    if not recipe.can_be_viewed_by(current_user.id, is_admin):
+        return jsonify({"error": "Recipe not found"}), 404
+
+    data = request.get_json()
+    if not data or "rating" not in data:
+        return jsonify({"error": "Rating value is required"}), 400
+
+    rating_value = data["rating"]
+    if not isinstance(rating_value, int) or not 1 <= rating_value <= 5:
+        return jsonify({"error": "Rating must be an integer between 1 and 5"}), 400
+
+    try:
+        rating_obj = submit_rating(current_user.id, recipe_id, rating_value)
+        aggregate = get_aggregate_rating_for_recipe(recipe_id)
+
+        return jsonify({"aggregate": aggregate, "user_rating": rating_obj.to_dict()}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"Error submitting rating for recipe {recipe_id}: {e}")
+        return jsonify({"error": "Failed to submit rating"}), 500
+
+
+@bp.route("/recipes/<int:recipe_id>/rating", methods=["DELETE"])
+@require_auth
+def delete_recipe_rating(current_user, recipe_id: int) -> Response:
+    """Delete the current user's rating for a recipe.
+
+    Returns:
+        - message: success message
+        - aggregate: updated aggregate rating
+    """
+    from app.services.rating_service import delete_rating, get_aggregate_rating_for_recipe
+
+    recipe = Recipe.query.get(recipe_id)
+    if not recipe:
+        return jsonify({"error": "Recipe not found"}), 404
+
+    # Check if user can view this recipe
+    is_admin = current_user.role.value == "admin" if current_user.role else False
+    if not recipe.can_be_viewed_by(current_user.id, is_admin):
+        return jsonify({"error": "Recipe not found"}), 404
+
+    try:
+        deleted = delete_rating(current_user.id, recipe_id)
+
+        if not deleted:
+            return jsonify({"error": "No rating found to delete"}), 404
+
+        aggregate = get_aggregate_rating_for_recipe(recipe_id)
+
+        return jsonify({"message": "Rating deleted successfully", "aggregate": aggregate}), 200
+    except Exception as e:
+        current_app.logger.error(f"Error deleting rating for recipe {recipe_id}: {e}")
+        return jsonify({"error": "Failed to delete rating"}), 500
+
+
 # Recipe Comments Endpoints
 
 
@@ -3365,6 +3482,256 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
         db.session.rollback()
         current_app.logger.error(f"Text upload failed: {str(e)}", exc_info=True)
         return jsonify({"error": "Failed to process recipe text"}), 500
+
+
+@bp.route("/recipes/upload-url", methods=["POST"])
+@require_auth
+def upload_recipe_url(current_user) -> Tuple[Response, int]:
+    """Import a recipe from a URL."""
+    from app.services.url_recipe_service import (
+        UrlRecipeService,
+        UrlValidationError,
+        UrlFetchError,
+        BotProtectionError,
+        RecipeNotFoundError,
+    )
+
+    current_app.logger.info(
+        f"URL recipe import request from user {current_user.id} ({current_user.username})"
+    )
+
+    try:
+        # Check upload limit for free users
+        subscription = current_user.get_or_create_subscription()
+        current_app.logger.info(
+            f"Upload check for user {current_user.id} ({current_user.username}): "
+            f"tier={subscription.tier.value}, status={subscription.status.value}, "
+            f"monthly_uploads={subscription.monthly_upload_count}, "
+            f"is_premium={subscription.is_premium()}, "
+            f"can_upload={current_user.can_upload_recipe()}"
+        )
+
+        if not current_user.can_upload_recipe():
+            current_app.logger.warning(
+                f"User {current_user.id} ({current_user.username}) reached upload limit: "
+                f"{subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
+            return jsonify(
+                {
+                    "error": "Upload limit reached",
+                    "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                    "remaining_uploads": 0,
+                    "monthly_upload_count": subscription.monthly_upload_count,
+                    "is_premium": False,
+                    "upgrade_required": True,
+                }
+            ), 403
+
+        # Get JSON data from request
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+
+        # Extract URL
+        url = data.get("url", "").strip()
+        if not url:
+            return jsonify({"error": "No URL provided"}), 400
+
+        current_app.logger.info(f"Importing recipe from URL: {url}")
+
+        # Get optional parameters
+        cookbook_id = data.get("cookbook_id")
+        create_new_cookbook = data.get("create_new_cookbook", False)
+        translate_to_english = data.get("translate_to_english", False)
+
+        # URL imports are always marked as not original (from external source)
+        is_original_recipe = False
+
+        # Handle new cookbook creation (same logic as other upload endpoints)
+        cookbook = None
+        if create_new_cookbook:
+            new_cookbook_title = data.get("new_cookbook_title", "").strip()
+            if not new_cookbook_title:
+                return (
+                    jsonify(
+                        {
+                            "error": "Cookbook title is required when creating a new cookbook"
+                        }
+                    ),
+                    400,
+                )
+
+            try:
+                cookbook = Cookbook(
+                    title=new_cookbook_title,
+                    author=data.get("new_cookbook_author", "").strip() or None,
+                    description=data.get("new_cookbook_description", "").strip()
+                    or None,
+                    publisher=data.get("new_cookbook_publisher", "").strip() or None,
+                    isbn=data.get("new_cookbook_isbn", "").strip() or None,
+                    user_id=current_user.id,
+                )
+
+                publication_date = data.get("new_cookbook_publication_date", "").strip()
+                if publication_date:
+                    try:
+                        cookbook.publication_date = datetime.fromisoformat(
+                            publication_date
+                        )
+                    except ValueError:
+                        return (
+                            jsonify({"error": "Invalid publication date format"}),
+                            400,
+                        )
+
+                db.session.add(cookbook)
+                db.session.flush()
+                cookbook_id = cookbook.id
+
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Cookbook creation failed: {str(e)}")
+                return jsonify({"error": "Failed to create cookbook"}), 500
+
+        elif cookbook_id:
+            try:
+                cookbook_id = int(cookbook_id)
+                cookbook = Cookbook.query.get(cookbook_id)
+                if not cookbook:
+                    return jsonify({"error": "Cookbook not found"}), 400
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid cookbook_id"}), 400
+
+        # Import recipe from URL
+        url_service = UrlRecipeService()
+
+        try:
+            result = url_service.import_from_url(
+                url, translate_to_english=translate_to_english
+            )
+        except UrlValidationError as e:
+            return jsonify({"error": str(e)}), 400
+        except UrlFetchError as e:
+            return jsonify({"error": str(e)}), 400
+        except BotProtectionError as e:
+            return jsonify({"error": str(e)}), 403
+        except RecipeNotFoundError as e:
+            return jsonify({"error": str(e)}), 404
+
+        parsed_recipe = result["recipe_data"]
+        extraction_method = result["extraction_method"]
+        source_url = result["source_url"]
+
+        current_app.logger.info(
+            f"Extracted recipe via {extraction_method}: {parsed_recipe.get('title')}"
+        )
+
+        # Create the recipe
+        recipe_title = parsed_recipe.get("title")
+        if not recipe_title or not recipe_title.strip():
+            recipe_title = "Untitled Recipe"
+
+        recipe = Recipe(
+            title=recipe_title,
+            description=parsed_recipe.get("description"),
+            cookbook_id=cookbook_id,
+            user_id=current_user.id,
+            uploaded_by_id=current_user.id,
+            is_public=False,  # URL imports are always private
+            is_original_recipe=is_original_recipe,
+            source=source_url,  # Store the source URL
+            prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
+            cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
+            servings=safe_int_conversion(parsed_recipe.get("servings")),
+            difficulty=parsed_recipe.get("difficulty"),
+            # Translation fields (from Claude fallback)
+            source_language=parsed_recipe.get("source_language"),
+            source_language_name=parsed_recipe.get("source_language_name"),
+            is_translated=parsed_recipe.get("is_translated", False),
+            original_title=parsed_recipe.get("original_title"),
+            original_description=parsed_recipe.get("original_description"),
+        )
+
+        db.session.add(recipe)
+        db.session.flush()  # Get recipe ID
+
+        # Link source (auto-created based on URL domain)
+        from app.services.source_service import SourceService
+
+        source = SourceService.get_or_create_source(current_user.id, source_url)
+        if source:
+            recipe.source_id = source.id
+            current_app.logger.info(
+                f"Linked recipe {recipe.id} to source {source.id} (domain: {source.domain})"
+            )
+
+        # Add ingredients
+        if parsed_recipe.get("ingredients"):
+            _create_ingredients(recipe.id, parsed_recipe)
+
+        # Add instructions (with original text if translated)
+        if parsed_recipe.get("instructions"):
+            original_instructions = (
+                parsed_recipe.get("original_instructions")
+                if parsed_recipe.get("is_translated")
+                else None
+            )
+            _create_instructions(
+                recipe.id,
+                parsed_recipe,
+                "",  # No fallback text needed
+                original_instructions=original_instructions,
+            )
+
+        # Add tags
+        if parsed_recipe.get("tags"):
+            _create_tags(recipe.id, parsed_recipe)
+
+        db.session.commit()
+
+        # Increment upload count for free users after successful upload
+        if not current_user.is_premium():
+            subscription = current_user.get_or_create_subscription()
+            subscription.increment_upload_count()
+            db.session.commit()
+            current_app.logger.info(
+                f"Upload count incremented for user {current_user.id}: {subscription.monthly_upload_count}/{current_app.config.get('FREE_TIER_UPLOAD_LIMIT', 10)}"
+            )
+
+        current_app.logger.info(
+            f"Successfully created recipe {recipe.id} from URL: '{recipe.title}'"
+        )
+
+        return (
+            jsonify(
+                {
+                    "message": "Recipe imported successfully",
+                    "recipe_id": recipe.id,
+                    "recipe": {
+                        "id": recipe.id,
+                        "title": recipe.title,
+                        "description": recipe.description,
+                        "cookbook_id": recipe.cookbook_id,
+                        "prep_time": recipe.prep_time,
+                        "cook_time": recipe.cook_time,
+                        "servings": recipe.servings,
+                        "difficulty": recipe.difficulty,
+                        "source": recipe.source,
+                        "source_id": recipe.source_id,
+                    },
+                    "cookbook": cookbook.to_dict() if cookbook else None,
+                    "source": source.to_dict() if source else None,
+                    "extraction_method": extraction_method,
+                    "source_url": source_url,
+                }
+            ),
+            201,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"URL import failed: {str(e)}", exc_info=True)
+        return jsonify({"error": "Failed to import recipe from URL"}), 500
 
 
 @bp.route("/recipes/job-status/<int:job_id>", methods=["GET"])

@@ -92,6 +92,9 @@ class User(db.Model):
     recipe_comments: Mapped[List["RecipeComment"]] = relationship(
         "RecipeComment", back_populates="user", cascade="all, delete-orphan"
     )
+    recipe_ratings: Mapped[List["RecipeRating"]] = relationship(
+        "RecipeRating", back_populates="user", cascade="all, delete-orphan"
+    )
     recipe_groups: Mapped[List["RecipeGroup"]] = relationship(
         "RecipeGroup", back_populates="user", cascade="all, delete-orphan"
     )
@@ -112,6 +115,9 @@ class User(db.Model):
     )
     print_orders: Mapped[List["PrintOrder"]] = relationship(
         "PrintOrder", back_populates="user"
+    )
+    sources: Mapped[List["Source"]] = relationship(
+        "Source", back_populates="user", cascade="all, delete-orphan"
     )
 
     def set_password(self, password: str) -> None:

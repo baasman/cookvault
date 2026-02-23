@@ -1,7 +1,7 @@
 # Development Guide
 
 **Tags:** `development`, `contributing`, `testing`, `standards`
-**Last updated:** 2025-11-14
+**Last updated:** 2025-02-14
 
 Guidelines, standards, and tools for developing Cookbook Creator.
 
@@ -17,29 +17,18 @@ Guidelines, standards, and tools for developing Cookbook Creator.
 - Pull request process
 - Review guidelines
 
-### Code Standards
-➡️ **[Code Standards](code-standards.md)**
+### Load Testing
+➡️ **[Load Testing Guide](load-testing.md)**
 
-- Style guide
-- Naming conventions
-- Best practices
-- Code review checklist
+- Performance testing suite
+- Load test scenarios
+- Benchmark results
 
-### Testing
-➡️ **[Testing Guide](testing.md)**
+### Local HTTPS
+➡️ **[Local HTTPS Setup](local-https-setup.md)**
 
-- Writing tests
-- Running tests
-- Test coverage
-- Testing best practices
-
-### Debugging
-➡️ **[Debugging Guide](debugging.md)**
-
-- Debugging tools
-- Common issues
-- Logging best practices
-- Performance profiling
+- Certificate generation
+- HTTPS configuration for local development
 
 ---
 

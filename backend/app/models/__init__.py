@@ -12,6 +12,7 @@ from app.models.recipe import (
     UserRecipeCollection,
     RecipeNote,
     RecipeComment,
+    RecipeRating,
     recipe_ingredients,
     recipe_group_memberships,
 )
@@ -23,6 +24,7 @@ from app.models.user import (
     UserStatus,
     CopyrightConsent,
 )
+from app.models.source import Source
 
 __all__ = [
     "Recipe",
@@ -38,6 +40,7 @@ __all__ = [
     "UserRecipeCollection",
     "RecipeNote",
     "RecipeComment",
+    "RecipeRating",
     "recipe_ingredients",
     "recipe_group_memberships",
     "User",
@@ -46,4 +49,5 @@ __all__ = [
     "UserRole",
     "UserStatus",
     "CopyrightConsent",
+    "Source",
 ]

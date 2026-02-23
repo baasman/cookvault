@@ -11,15 +11,18 @@ interface UploadFormProps {
   isLoading?: boolean;
   error?: string;
   initialCookbookData?: { cookbookId?: number, cookbookTitle?: string } | null;
+  initialMode?: 'image' | 'text' | 'url';
 }
 
-const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, error, initialCookbookData }) => {
+const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, error, initialCookbookData, initialMode = 'image' }) => {
   const [formData, setFormData] = useState<UploadFormData>({
     image: null,
     images: [],
     isMultiImage: false,
     isTextMode: false, // Start in image mode by default
     recipeText: '',
+    isUrlMode: false, // URL import mode
+    recipeUrl: '', // URL for recipe import
     cookbook_id: undefined,
     create_new_cookbook: false,
     new_cookbook_title: '',
@@ -206,7 +209,26 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     e.preventDefault();
 
     // Validate based on mode
-    if (formData.isTextMode) {
+    if (formData.isUrlMode) {
+      // Validate URL input
+      if (!formData.recipeUrl || formData.recipeUrl.trim() === '') {
+        alert('Please enter a URL');
+        return;
+      }
+      // Basic URL validation
+      try {
+        const url = formData.recipeUrl.trim();
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          // Try adding https
+          new URL('https://' + url);
+        } else {
+          new URL(url);
+        }
+      } catch {
+        alert('Please enter a valid URL');
+        return;
+      }
+    } else if (formData.isTextMode) {
       // Validate text input
       if (!formData.recipeText || formData.recipeText.trim() === '') {
         alert('Please enter recipe text');
@@ -243,20 +265,22 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       return;
     }
 
-    // Validate recipe source selection
-    if (formData.is_original_recipe === undefined) {
-      alert('Please indicate whether this is your own recipe or from another source.');
-      return;
-    }
-
-    // If recipe is from a cookbook/source, require linking to a cookbook
-    if (formData.is_original_recipe === false) {
-      const hasCookbook = formData.create_new_cookbook ||
-                          formData.search_google_books ||
-                          formData.cookbook_id;
-      if (!hasCookbook || formData.no_cookbook) {
-        alert('Please link this recipe to a cookbook. Since this recipe is from a cookbook or other source, you must specify which cookbook it belongs to.');
+    // Validate recipe source selection (skip for URL mode - always external)
+    if (!formData.isUrlMode) {
+      if (formData.is_original_recipe === undefined) {
+        alert('Please indicate whether this is your own recipe or from another source.');
         return;
+      }
+
+      // If recipe is from a cookbook/source, require linking to a cookbook
+      if (formData.is_original_recipe === false) {
+        const hasCookbook = formData.create_new_cookbook ||
+                            formData.search_google_books ||
+                            formData.cookbook_id;
+        if (!hasCookbook || formData.no_cookbook) {
+          alert('Please link this recipe to a cookbook. Since this recipe is from a cookbook or other source, you must specify which cookbook it belongs to.');
+          return;
+        }
       }
     }
 
@@ -489,6 +513,27 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     }
   }, [formData.search_google_books, formData.selected_google_book]);
 
+  // Set initial mode based on prop (e.g., from URL query parameter)
+  useEffect(() => {
+    if (initialMode === 'url') {
+      setFormData(prev => ({
+        ...prev,
+        isTextMode: false,
+        isUrlMode: true,
+        isMultiImage: false,
+        is_original_recipe: false // URL imports are always from external source
+      }));
+    } else if (initialMode === 'text') {
+      setFormData(prev => ({
+        ...prev,
+        isTextMode: true,
+        isUrlMode: false,
+        isMultiImage: false
+      }));
+    }
+    // 'image' is the default, no need to set it explicitly
+  }, [initialMode]);
+
 
   return (
     <div className="flex flex-col w-full max-w-[512px] mx-auto">
@@ -501,39 +546,92 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setFormData(prev => ({ ...prev, isTextMode: false }))}
+              onClick={() => setFormData(prev => ({ ...prev, isTextMode: false, isUrlMode: false }))}
               className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
-                !formData.isTextMode
+                !formData.isTextMode && !formData.isUrlMode
                   ? 'border-orange-400 bg-orange-50 text-orange-900'
                   : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
               }`}
               style={{
-                borderColor: !formData.isTextMode ? '#f15f1c' : '#e8d7cf',
-                backgroundColor: !formData.isTextMode ? '#fcf9f8' : '#ffffff'
+                borderColor: !formData.isTextMode && !formData.isUrlMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: !formData.isTextMode && !formData.isUrlMode ? '#fcf9f8' : '#ffffff'
               }}
             >
-              📷 Image Upload
+              📷 Image
             </button>
             <button
               type="button"
-              onClick={() => setFormData(prev => ({ ...prev, isTextMode: true, isMultiImage: false }))}
+              onClick={() => setFormData(prev => ({ ...prev, isTextMode: true, isUrlMode: false, isMultiImage: false }))}
               className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
-                formData.isTextMode
+                formData.isTextMode && !formData.isUrlMode
                   ? 'border-orange-400 bg-orange-50 text-orange-900'
                   : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
               }`}
               style={{
-                borderColor: formData.isTextMode ? '#f15f1c' : '#e8d7cf',
-                backgroundColor: formData.isTextMode ? '#fcf9f8' : '#ffffff'
+                borderColor: formData.isTextMode && !formData.isUrlMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: formData.isTextMode && !formData.isUrlMode ? '#fcf9f8' : '#ffffff'
               }}
             >
-              📝 Text Input
+              📝 Text
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({
+                ...prev,
+                isTextMode: false,
+                isUrlMode: true,
+                isMultiImage: false,
+                is_original_recipe: false // URL imports are always from external source
+              }))}
+              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
+                formData.isUrlMode
+                  ? 'border-orange-400 bg-orange-50 text-orange-900'
+                  : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+              }`}
+              style={{
+                borderColor: formData.isUrlMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: formData.isUrlMode ? '#fcf9f8' : '#ffffff'
+              }}
+            >
+              🔗 URL
             </button>
           </div>
         </div>
 
-        {/* Text Upload Area (shown when in text mode) */}
-        {formData.isTextMode ? (
+        {/* URL Input Area (shown when in URL mode) */}
+        {formData.isUrlMode ? (
+          <div className="flex flex-col">
+            <div className="pb-2">
+              <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
+                Recipe URL *
+              </label>
+              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
+                Paste the URL of a recipe page. Works best with popular recipe sites.
+              </p>
+            </div>
+            <input
+              type="url"
+              value={formData.recipeUrl || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, recipeUrl: e.target.value }))}
+              placeholder="https://example.com/delicious-recipe"
+              className="w-full px-4 py-3 border rounded-lg text-base"
+              style={{
+                borderColor: '#e8d7cf',
+                backgroundColor: '#fcf9f8',
+              }}
+              required
+            />
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700 flex items-start gap-2">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Recipes imported from URLs are for personal use only and cannot be shared publicly.</span>
+              </p>
+            </div>
+          </div>
+        ) : formData.isTextMode ? (
+          /* Text Upload Area (shown when in text mode) */
           <div className="flex flex-col">
             <div className="pb-2">
               <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
@@ -1066,7 +1164,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           </div>
         </div>
 
-        {/* Recipe Source Section */}
+        {/* Recipe Source Section - Hidden for URL mode since it's always external */}
+        {!formData.isUrlMode && (
         <div className="flex flex-col gap-4">
           <h3 className="text-lg font-medium" style={{color: '#1c120d'}}>
             Recipe Source
@@ -1135,6 +1234,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             </div>
           )}
         </div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -1150,12 +1250,14 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             variant="primary"
             size="lg"
             disabled={isLoading ||
-              (formData.isTextMode
-                ? !formData.recipeText || formData.recipeText.trim() === ''
-                : (formData.isMultiImage ? formData.images.length === 0 : !formData.image)
+              (formData.isUrlMode
+                ? !formData.recipeUrl || formData.recipeUrl.trim() === ''
+                : formData.isTextMode
+                  ? !formData.recipeText || formData.recipeText.trim() === ''
+                  : (formData.isMultiImage ? formData.images.length === 0 : !formData.image)
               ) ||
-              formData.is_original_recipe === undefined ||
-              (formData.is_original_recipe === false && formData.no_cookbook)}
+              (!formData.isUrlMode && formData.is_original_recipe === undefined) ||
+              (!formData.isUrlMode && formData.is_original_recipe === false && formData.no_cookbook)}
             className="min-w-[200px]"
           >
             {isLoading ? (

@@ -7,7 +7,7 @@ import { CookieConsentBanner } from './components/ui/CookieConsentBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { hideKeyboard, useKeyboardScrollFix } from './hooks/useKeyboard';
 import { isNativePlatform } from './utils/platform';
-import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage, ForgotPasswordPage, ResetPasswordPage } from './pages';
+import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, SourcesPage, SourceDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage, ForgotPasswordPage, ResetPasswordPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { EditProfilePage } from './pages/EditProfilePage';
@@ -62,6 +62,8 @@ function App() {
                     <Route path="/cookbooks/create" element={<CreateCookbookPage />} />
                     <Route path="/cookbooks/:id" element={<CookbookDetailPage />} />
                     <Route path="/cookbooks/:cookbookId/purchase-success" element={<CookbookPurchaseSuccessPage />} />
+                    <Route path="/sources" element={<SourcesPage />} />
+                    <Route path="/sources/:id" element={<SourceDetailPage />} />
                     <Route path="/upload" element={<UploadPage />} />
                     <Route path="/recipes/create" element={<CreateRecipePage />} />
                     <Route path="/orders" element={<OrdersPage />} />
