@@ -6,6 +6,7 @@ import { recipeGroupsApi } from '../../services/recipeGroupsApi';
 import { shareRecipe } from '../../services/shareService';
 import { CopyrightConsentModal } from '../ui/CopyrightConsentModal';
 import { ExportButton } from '../export/ExportButton';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Recipe } from '../../types';
 
 interface RecipeActionsDropdownProps {
@@ -31,6 +32,7 @@ const RecipeActionsDropdown: React.FC<RecipeActionsDropdownProps> = ({
   const [isSharing, setIsSharing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -189,7 +191,7 @@ const RecipeActionsDropdown: React.FC<RecipeActionsDropdownProps> = ({
   const showAddToCollection = !isOwnRecipe && recipe.is_public;
   const showCopyRecipe = !isOwnRecipe && recipe.is_public;
   const showPrivacyToggle = isOwnRecipe;
-  const showFeature = recipe.is_public; // Admin-only in practice, controlled by API
+  const showFeature = isAdmin && recipe.is_public; // Admin-only
   const showShare = recipe.is_public;
   const showExport = recipe.has_full_access;
   const showDelete = canEdit;
