@@ -131,7 +131,8 @@ def export_cookbook_pdf(cookbook_id):
         if not cookbook:
             return jsonify({"error": "Cookbook not found"}), 404
 
-        # Check permissions - user must own the cookbook or have purchased it
+        # Check permissions - user must own the cookbook, have purchased it,
+        # or have recipes in it
         has_access = False
         is_admin = user.role == UserRole.ADMIN
         if cookbook.user_id == user.id:
@@ -140,6 +141,13 @@ def export_cookbook_pdf(cookbook_id):
             has_access = True
         elif is_admin:
             has_access = True
+        else:
+            # Check if user has any recipes in this cookbook
+            user_recipe_count = Recipe.query.filter_by(
+                cookbook_id=cookbook_id, user_id=user.id
+            ).count()
+            if user_recipe_count > 0:
+                has_access = True
 
         if not has_access:
             return jsonify({"error": "Permission denied"}), 403
@@ -179,17 +187,28 @@ def export_cookbook_pdf(cookbook_id):
             include_index=include_index,
         )
 
-        # Get all recipes in the cookbook
-        recipes = cookbook.recipes
+        # Get recipes in the cookbook that the user can access
+        is_cookbook_owner = cookbook.user_id == user.id
+
+        if is_cookbook_owner or is_admin:
+            # Cookbook owner or admin can export all recipes
+            recipes = cookbook.recipes
+        elif cookbook.is_purchasable and user.has_purchased_cookbook(cookbook_id):
+            # Purchaser can export all recipes
+            recipes = cookbook.recipes
+        else:
+            # User can only export their own recipes from this cookbook
+            recipes = Recipe.query.filter_by(
+                cookbook_id=cookbook_id, user_id=user.id
+            ).all()
+
         if not recipes:
-            return jsonify({"error": "Cookbook has no recipes"}), 400
+            return jsonify({"error": "No recipes available to export"}), 400
 
         # Convert to dict format
-        # For cookbook owners exporting their own cookbook, ensure they have full access to all recipes
-        is_cookbook_owner = cookbook.user_id == user.id
         cookbook_dict = cookbook.to_dict(current_user_id=user.id)
         recipes_dict = [
-            recipe.to_dict(current_user_id=user.id, is_admin=is_cookbook_owner)
+            recipe.to_dict(current_user_id=user.id, is_admin=is_cookbook_owner or is_admin)
             for recipe in recipes
         ]
 
