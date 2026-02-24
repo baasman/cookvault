@@ -219,13 +219,13 @@ const RecipesPage: React.FC = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex justify-center mb-6 overflow-x-auto px-4 -mx-4">
-        <div className="flex bg-background-secondary rounded-lg p-1 min-w-min">
+      <div className="mb-6 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+        <div className="flex bg-background-secondary rounded-lg p-1 w-max mx-auto">
           {(isAuthenticated ? [
             { key: 'discover', label: 'Discover' },
-            { key: 'collection', label: 'My Collection' },
-            { key: 'mine', label: 'My Uploads' },
-            { key: 'groups', label: 'Recipe Groups' }
+            { key: 'collection', label: 'Collection' },
+            { key: 'mine', label: 'Uploads' },
+            { key: 'groups', label: 'Groups' }
           ] : [
             { key: 'discover', label: 'Browse Recipes' }
           ] as const).map(({ key, label }) => (

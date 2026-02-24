@@ -16,6 +16,11 @@
     max-width: 100vw;
   }
 
+  html {
+    /* Fill the iOS safe area (status bar) with the header color */
+    background-color: #fcf9f8;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', sans-serif;
     background-color: #fcf9f8;
@@ -105,6 +110,16 @@
     line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
   }
 
   /* Description formatting utilities */

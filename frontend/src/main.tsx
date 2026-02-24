@@ -13,8 +13,11 @@ const initApp = async () => {
   // Initialize native platform features
   if (isNativePlatform()) {
     try {
-      // Configure status bar
+      // Configure status bar - overlay mode makes it transparent
+      // so content extends behind it (we use safe-area-inset-top for padding)
+      await StatusBar.setOverlaysWebView({ overlay: true });
       await StatusBar.setStyle({ style: Style.Dark });
+      await StatusBar.setBackgroundColor({ color: '#fcf9f8' });
     } catch (error) {
       console.error('Failed to configure status bar:', error);
     }
