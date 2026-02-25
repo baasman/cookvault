@@ -219,8 +219,8 @@ const RecipesPage: React.FC = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="mb-6 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
-        <div className="flex bg-background-secondary rounded-lg p-1 w-max mx-auto">
+      <div className="mb-6 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex bg-background-secondary rounded-lg p-1 w-fit mx-auto">
           {(isAuthenticated ? [
             { key: 'discover', label: 'Discover' },
             { key: 'collection', label: 'Collection' },
