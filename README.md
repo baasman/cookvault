@@ -31,65 +31,119 @@ A modern web application for digitizing, managing, and sharing recipes from cook
 
 - Python 3.11+
 - Node.js 18+
-- PostgreSQL (optional, SQLite for development)
-- Redis (recommended for caching and sessions)
-- uv (Python package manager) - `pip install uv`
+- PostgreSQL (or SQLite for development)
+- Redis (for caching, sessions, and Celery)
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
+- [honcho](https://honcho.readthedocs.io/) (process manager, installed with dev dependencies)
 
-#### Installing Redis (Optional but Recommended)
+#### Installing Prerequisites
 
 **macOS (Homebrew)**:
 ```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install Redis
 brew install redis
 brew services start redis
+
+# Install PostgreSQL (optional, can use SQLite)
+brew install postgresql@15
+brew services start postgresql@15
 ```
 
 **Ubuntu/Debian**:
 ```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install Redis
 sudo apt update
 sudo apt install redis-server
 sudo systemctl start redis-server
 ```
 
-**Windows**: Download from [Redis for Windows](https://github.com/MicrosoftArchive/redis/releases)
+---
 
-### Backend Setup
+### Quick Setup (Recommended)
+
+The fastest way to get started:
+
+```bash
+# 1. Clone and enter the project
+git clone <repo-url>
+cd cookbook-creator
+
+# 2. Set up environment variables
+cp backend/.env.example .env
+# Edit .env with your API keys (ANTHROPIC_API_KEY required for recipe parsing)
+
+# 3. Install all dependencies (backend + frontend)
+make install-dev
+
+# 4. Initialize the database
+cd backend
+uv run python -m cookbook_db_utils.cli --env development db create
+uv run python -m cookbook_db_utils.cli --env development seed users-only
+cd ..
+
+# 5. Start all services with a single command
+make dev
+```
+
+This starts:
+- **Frontend** at http://localhost:5173
+- **Backend API** at http://localhost:5001
+- **Celery worker** for background jobs (recipe parsing, etc.)
+
+---
+
+### Make Commands
+
+| Command | Description |
+|---------|-------------|
+| `make dev` | Start all development services (frontend, backend, celery) |
+| `make install-dev` | Install all dependencies (Python + Node.js) |
+| `make docs-serve` | Serve documentation locally at http://localhost:8007 |
+| `make docs-build` | Build documentation for production |
+
+---
+
+### Manual Setup (Alternative)
+
+If you prefer to run services individually:
+
+#### Backend Setup
 
 ```bash
 cd backend
 
-# Create and activate virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
 # Install dependencies
-pip install uv
-uv pip install -r requirements.txt
+uv sync --extra dev
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your configuration
+# Set up environment variables (if not done already)
+cp .env.example ../.env
 
 # Initialize database
 uv run python -m cookbook_db_utils.cli --env development db create
 uv run python -m cookbook_db_utils.cli --env development seed users-only
 
 # Run development server
-uv run python run.py
+uv run flask run --port 5001 --debug
+
+# In another terminal, start Celery worker
+uv run celery -A celery_worker:celery worker --loglevel=info
 ```
 
 The backend will be available at http://localhost:5001
 
-### Frontend Setup
+#### Frontend Setup
 
 ```bash
 cd frontend
 
 # Install dependencies
 npm install
-
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your API URL
 
 # Run development server
 npm run dev
@@ -260,23 +314,56 @@ DELETE /api/recipe-groups/:id/recipes/:recipeId - Remove recipe from group
 
 ## 🔧 Configuration
 
-### Backend Environment Variables (.env)
+### Environment Variables
+
+The project uses a **single `.env` file in the root directory** that configures both backend and frontend. Copy from the example:
+
+```bash
+cp backend/.env.example .env
+```
+
+### Required for Development
 
 ```env
-# Flask Configuration
+# Flask
+FLASK_APP=backend/run.py
 FLASK_ENV=development
 FLASK_DEBUG=True
-SECRET_KEY=your-secret-key-change-in-production
+SECRET_KEY=any-random-string-for-dev
 
-# Database
+# Database (choose one)
 DATABASE_URL=postgresql://cookbook_user:cookbook_pass@localhost:5432/cookbook_db
-# Or for SQLite (development): sqlite:///cookbook.db
+# DATABASE_URL=sqlite:///cookbook.db  # Simpler for local dev
 
-# Redis (for caching and sessions)
+# Redis (required for Celery background jobs)
 REDIS_URL=redis://localhost:6379/0
 
-# AI Services
-ANTHROPIC_API_KEY=your-anthropic-api-key
+# AI - Required for recipe parsing
+ANTHROPIC_API_KEY=sk-ant-...  # Get from https://console.anthropic.com
+
+# Frontend
+VITE_API_URL=http://localhost:5001/api
+```
+
+### Optional Services
+
+```env
+# Cloudinary - Cloud image storage (uses local storage if not set)
+USE_CLOUDINARY=false
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-secret
+
+# Stripe - Payment processing
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+# Google Books - Cookbook metadata lookup
+GOOGLE_BOOKS_API_KEY=your-api-key
+```
+
+### Full Configuration Reference
 
 # Cloudinary (Cloud Image Storage)
 CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
@@ -325,15 +412,13 @@ LOG_MAX_BYTES=10485760  # 10MB
 LOG_BACKUP_COUNT=10
 ```
 
-### Frontend Environment Variables (.env.local)
+### Frontend Variables
+
+Frontend environment variables are prefixed with `VITE_` and included in the root `.env` file:
 
 ```env
-# API Configuration
 VITE_API_URL=http://localhost:5001/api
-
-# Optional: For production
-VITE_APP_NAME="Cookbook Creator"
-VITE_APP_DESCRIPTION="Digital recipe management"
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...  # If using Stripe
 ```
 
 ## 🧪 Testing
@@ -361,6 +446,43 @@ npm run test:coverage
 # Run in watch mode
 npm run test:watch
 ```
+
+## 📱 Mobile Development (iOS)
+
+The app includes an iOS app built with Capacitor.
+
+### Prerequisites
+- macOS with Xcode installed
+- Apple Developer account (for device testing/TestFlight)
+
+### Build Commands
+
+```bash
+cd frontend
+
+# Build and sync to iOS project
+npm run build:ios
+
+# Build and open in Xcode
+npm run ios
+
+# Live reload during development (requires device/simulator)
+npm run ios:live
+
+# Sync web assets to native project
+npm run cap:sync
+
+# Generate app icons and splash screens
+npm run icons
+```
+
+### Deploying to TestFlight
+
+1. Build the iOS project: `npm run build:ios`
+2. Open Xcode: `open ios/App/App.xcworkspace`
+3. Select "Any iOS Device" as the build target
+4. Product → Archive
+5. Distribute App → App Store Connect → Upload
 
 ## ☁️ Cloudinary Setup (Recommended)
 
