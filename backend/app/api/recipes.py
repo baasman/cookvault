@@ -323,6 +323,11 @@ def get_recipes(current_user) -> Response:
     if cookbook_id:
         query = query.filter_by(cookbook_id=cookbook_id)
 
+    # Course type filtering
+    course_type = request.args.get("course_type", "").strip()
+    if course_type:
+        query = query.filter(Recipe.course_type == course_type)
+
     if search:
         query = query.filter(
             db.or_(
@@ -1842,6 +1847,7 @@ def _create_recipe_from_parsed_data(
         cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
         servings=safe_int_conversion(parsed_recipe.get("servings")),
         difficulty=parsed_recipe.get("difficulty"),
+        course_type=parsed_recipe.get("course_type"),
         user_id=user_id,
         uploaded_by_id=uploaded_by_id,  # Track the actual uploader
         is_public=False,  # New recipes are private by default
@@ -2438,6 +2444,11 @@ def discover_recipes(current_user) -> Response:
                 Recipe.description.ilike(f"%{search}%"),
             )
         )
+
+    # Course type filtering
+    course_type = request.args.get("course_type", "").strip()
+    if course_type:
+        query = query.filter(Recipe.course_type == course_type)
 
     # Ingredient filtering
     ingredients_param = request.args.get("ingredients", "").strip()
@@ -3403,6 +3414,7 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
             cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
             servings=safe_int_conversion(parsed_recipe.get("servings")),
             difficulty=parsed_recipe.get("difficulty"),
+            course_type=parsed_recipe.get("course_type"),
             # Translation fields
             source_language=parsed_recipe.get("source_language"),
             source_language_name=parsed_recipe.get("source_language_name"),
@@ -3644,6 +3656,7 @@ def upload_recipe_url(current_user) -> Tuple[Response, int]:
             cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
             servings=safe_int_conversion(parsed_recipe.get("servings")),
             difficulty=parsed_recipe.get("difficulty"),
+            course_type=parsed_recipe.get("course_type"),
             # Translation fields (from Claude fallback)
             source_language=parsed_recipe.get("source_language"),
             source_language_name=parsed_recipe.get("source_language_name"),

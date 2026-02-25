@@ -10,6 +10,7 @@ interface FetchRecipesParams {
   filter?: 'collection' | 'discover' | 'mine';
   ingredients?: string[];
   ingredientMatch?: 'any' | 'all';
+  courseType?: string;
 }
 
 interface IngredientSuggestion {
@@ -97,6 +98,11 @@ class RecipesApi {
       if (params.ingredientMatch) {
         searchParams.append('ingredient_match', params.ingredientMatch);
       }
+    }
+
+    // Add course type filter
+    if (params.courseType) {
+      searchParams.append('course_type', params.courseType);
     }
 
     try {
@@ -509,7 +515,7 @@ class RecipesApi {
     }
   }
 
-  async fetchDiscoverRecipes(params: { page?: number; per_page?: number; search?: string; ingredients?: string[]; ingredientMatch?: 'any' | 'all' } = {}): Promise<RecipesResponse> {
+  async fetchDiscoverRecipes(params: { page?: number; per_page?: number; search?: string; ingredients?: string[]; ingredientMatch?: 'any' | 'all'; courseType?: string } = {}): Promise<RecipesResponse> {
     const { page = 1, per_page = 12, search } = params;
 
     const searchParams = new URLSearchParams({
@@ -527,6 +533,11 @@ class RecipesApi {
       if (params.ingredientMatch) {
         searchParams.append('ingredient_match', params.ingredientMatch);
       }
+    }
+
+    // Add course type filter
+    if (params.courseType) {
+      searchParams.append('course_type', params.courseType);
     }
 
     try {

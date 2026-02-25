@@ -341,6 +341,7 @@ Return a JSON object with these fields:
 - cook_time: cooking time in minutes (if mentioned on any page)
 - servings: number of servings (if mentioned on any page)
 - difficulty: easy/medium/hard (if mentioned or can be inferred)
+- course_type: MUST be one of: "Appetizer", "Soup", "Salad", "Main Course", "Side Dish", "Bread", "Dessert", "Beverage", "Sauce/Condiment", "Snack". Infer from recipe name, ingredients, and context. Use null if uncertain.
 - tags: array of relevant tags/categories (from all pages)
 - parsing_confidence: your confidence level in the parsing (high/medium/low)
 - parsing_notes: any concerns or observations about the text quality or parsing
@@ -431,6 +432,7 @@ Return a JSON object with these fields:
 - cook_time: time in minutes only if explicitly stated, otherwise null
 - servings: exact servings text/number as written or null
 - difficulty: only if explicitly stated, otherwise null
+- course_type: MUST be one of: "Appetizer", "Soup", "Salad", "Main Course", "Side Dish", "Bread", "Dessert", "Beverage", "Sauce/Condiment", "Snack". Infer from recipe name, ingredients, and context. Use null if uncertain.
 - tags: array of relevant tags (do not infer)
 - source_language: ISO 639-1 code (e.g., 'fr', 'es', 'en') or null
 - source_language_name: human-readable language name (e.g., 'French', 'Spanish', 'English') or null
@@ -466,6 +468,7 @@ Return a JSON object with these fields:
 - cook_time: time in minutes only if explicitly stated, otherwise null
 - servings: exact servings text/number as written or null
 - difficulty: only if explicitly stated, otherwise null
+- course_type: MUST be one of: "Appetizer", "Soup", "Salad", "Main Course", "Side Dish", "Bread", "Dessert", "Beverage", "Sauce/Condiment", "Snack". Infer from recipe name, ingredients, and context. Use null if uncertain.
 - tags: array of relevant tags from text (do not infer)
 - source_language: ISO 639-1 code (e.g., 'fr', 'es', 'en') or null
 - source_language_name: human-readable language name (e.g., 'French', 'Spanish', 'English') or null
@@ -505,6 +508,7 @@ Return a JSON object with these fields:
 - cook_time: cooking time in minutes (if mentioned on any page)
 - servings: number of servings (if mentioned on any page)
 - difficulty: easy/medium/hard (if mentioned or can be inferred)
+- course_type: MUST be one of: "Appetizer", "Soup", "Salad", "Main Course", "Side Dish", "Bread", "Dessert", "Beverage", "Sauce/Condiment", "Snack". Infer from recipe name, ingredients, and context. Use null if uncertain.
 - tags: array of relevant tags/categories (from all pages)
 
 If any information is not available or unclear, use null for that field.

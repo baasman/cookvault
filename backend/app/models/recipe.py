@@ -384,6 +384,7 @@ class Recipe(db.Model):
     cook_time: Mapped[Optional[int]] = mapped_column(Integer)
     servings: Mapped[Optional[int]] = mapped_column(Integer)
     difficulty: Mapped[Optional[str]] = mapped_column(String(50))
+    course_type: Mapped[Optional[str]] = mapped_column(String(50))
     source: Mapped[Optional[str]] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -677,6 +678,7 @@ class Recipe(db.Model):
             "cook_time": self.cook_time,
             "servings": self.servings,
             "difficulty": self.difficulty,
+            "course_type": self.course_type,
             "source": self.source,
             "is_public": self.is_public,
             "published_at": self.published_at.isoformat()

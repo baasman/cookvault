@@ -8,6 +8,7 @@ import { recipesApi } from '../services/recipesApi';
 import { recipeGroupsApi } from '../services/recipeGroupsApi';
 import { useAuth } from '../contexts/AuthContext';
 import type { Recipe } from '../types';
+import { COURSE_TYPES } from '../types';
 import toast from 'react-hot-toast';
 
 type RecipeFilter = 'collection' | 'discover' | 'mine' | 'groups';
@@ -25,6 +26,7 @@ const RecipesPage: React.FC = () => {
   const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
   const [ingredientMatchMode, setIngredientMatchMode] = useState<'any' | 'all'>('any');
   const [showIngredientFilter, setShowIngredientFilter] = useState(false);
+  const [selectedCourseType, setSelectedCourseType] = useState('');
   const recipesPerPage = 12;
 
   // Fetch recipes using React Query - different behavior for authenticated vs unauthenticated users
@@ -34,7 +36,7 @@ const RecipesPage: React.FC = () => {
     error,
     refetch
   } = useQuery({
-    queryKey: ['recipes', currentPage, searchTerm, activeFilter, isAuthenticated, selectedIngredients, ingredientMatchMode],
+    queryKey: ['recipes', currentPage, searchTerm, activeFilter, isAuthenticated, selectedIngredients, ingredientMatchMode, selectedCourseType],
     queryFn: () => {
       if (!isAuthenticated) {
         // For unauthenticated users, always show discover recipes
@@ -44,6 +46,7 @@ const RecipesPage: React.FC = () => {
           search: searchTerm,
           ingredients: selectedIngredients.length > 0 ? selectedIngredients : undefined,
           ingredientMatch: selectedIngredients.length > 0 ? ingredientMatchMode : undefined,
+          courseType: selectedCourseType || undefined,
         });
       } else {
         // For authenticated users, use normal filtering
@@ -54,6 +57,7 @@ const RecipesPage: React.FC = () => {
           filter: activeFilter === 'groups' ? 'mine' : activeFilter,
           ingredients: selectedIngredients.length > 0 ? selectedIngredients : undefined,
           ingredientMatch: selectedIngredients.length > 0 ? ingredientMatchMode : undefined,
+          courseType: selectedCourseType || undefined,
         });
       }
     },
@@ -74,10 +78,10 @@ const RecipesPage: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Reset to page 1 when search term, filter, or ingredient filters change
+  // Reset to page 1 when search term, filter, or ingredient/course filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, activeFilter, selectedIngredients, ingredientMatchMode]);
+  }, [searchTerm, activeFilter, selectedIngredients, ingredientMatchMode, selectedCourseType]);
 
   // Set appropriate filter for unauthenticated users
   useEffect(() => {
@@ -244,14 +248,28 @@ const RecipesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex justify-center mb-4">
+      {/* Search Bar and Course Type Filter */}
+      <div className="flex flex-col sm:flex-row justify-center items-center gap-3 mb-4 max-w-2xl mx-auto">
         <SearchBar
           value={searchTerm}
           onChange={handleSearch}
           placeholder={pageContent.searchPlaceholder}
-          className="w-full max-w-2xl"
+          className="w-full"
         />
+        {activeFilter !== 'groups' && (
+          <select
+            value={selectedCourseType}
+            onChange={(e) => setSelectedCourseType(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent min-w-[150px]"
+          >
+            <option value="">All Courses</option>
+            {COURSE_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Ingredient Filter Toggle - Only show for recipe views (not groups) */}

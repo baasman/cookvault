@@ -151,6 +151,22 @@ export interface Source extends SourceInfo {
   updated_at: string;
 }
 
+// Course type constants
+export const COURSE_TYPES = [
+  'Appetizer',
+  'Soup',
+  'Salad',
+  'Main Course',
+  'Side Dish',
+  'Bread',
+  'Dessert',
+  'Beverage',
+  'Sauce/Condiment',
+  'Snack',
+] as const;
+
+export type CourseType = typeof COURSE_TYPES[number];
+
 export interface Recipe {
   id: number;
   title: string;
@@ -160,6 +176,7 @@ export interface Recipe {
   cook_time?: number;
   servings?: number;
   difficulty?: string;
+  course_type?: string;
   source?: string;
   user_id?: number;
   uploaded_by_id?: number; // Tracks who actually uploaded the recipe

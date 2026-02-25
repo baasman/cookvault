@@ -417,8 +417,14 @@ class UrlRecipeService:
             "cook_time": None,
             "servings": None,
             "difficulty": None,
+            "course_type": None,
             "tags": [],
         }
+
+        # Map recipeCategory to course_type
+        recipe["course_type"] = self._map_category_to_course_type(
+            json_ld.get("recipeCategory")
+        )
 
         # Extract ingredients
         ingredients = json_ld.get("recipeIngredient", [])
@@ -471,6 +477,107 @@ class UrlRecipeService:
         recipe["tags"] = list(set(tags))[:10]  # Dedupe and limit
 
         return recipe
+
+    def _map_category_to_course_type(self, category: Any) -> Optional[str]:
+        """
+        Map JSON-LD recipeCategory to our course_type values.
+
+        Args:
+            category: recipeCategory from JSON-LD (string or list)
+
+        Returns:
+            Mapped course_type or None
+        """
+        if not category:
+            return None
+
+        # Handle list of categories - use first one
+        if isinstance(category, list):
+            category = category[0] if category else None
+
+        if not isinstance(category, str):
+            return None
+
+        # Normalize for matching
+        category_lower = category.lower().strip()
+
+        # Mapping from common category values to our course types
+        category_mapping = {
+            # Appetizer mappings
+            "appetizer": "Appetizer",
+            "appetizers": "Appetizer",
+            "starter": "Appetizer",
+            "starters": "Appetizer",
+            "hors d'oeuvre": "Appetizer",
+            "hors d'oeuvres": "Appetizer",
+            "finger food": "Appetizer",
+            # Soup mappings
+            "soup": "Soup",
+            "soups": "Soup",
+            "stew": "Soup",
+            "stews": "Soup",
+            "chowder": "Soup",
+            # Salad mappings
+            "salad": "Salad",
+            "salads": "Salad",
+            # Main course mappings
+            "main course": "Main Course",
+            "main courses": "Main Course",
+            "main dish": "Main Course",
+            "main dishes": "Main Course",
+            "entree": "Main Course",
+            "entrees": "Main Course",
+            "entrée": "Main Course",
+            "entrées": "Main Course",
+            "dinner": "Main Course",
+            "lunch": "Main Course",
+            # Side dish mappings
+            "side dish": "Side Dish",
+            "side dishes": "Side Dish",
+            "side": "Side Dish",
+            "sides": "Side Dish",
+            "vegetable": "Side Dish",
+            "vegetables": "Side Dish",
+            # Bread mappings
+            "bread": "Bread",
+            "breads": "Bread",
+            "baking": "Bread",
+            "baked goods": "Bread",
+            # Dessert mappings
+            "dessert": "Dessert",
+            "desserts": "Dessert",
+            "sweets": "Dessert",
+            "sweet": "Dessert",
+            "cake": "Dessert",
+            "cakes": "Dessert",
+            "cookie": "Dessert",
+            "cookies": "Dessert",
+            "pastry": "Dessert",
+            "pastries": "Dessert",
+            # Beverage mappings
+            "beverage": "Beverage",
+            "beverages": "Beverage",
+            "drink": "Beverage",
+            "drinks": "Beverage",
+            "cocktail": "Beverage",
+            "cocktails": "Beverage",
+            "smoothie": "Beverage",
+            "smoothies": "Beverage",
+            # Sauce/Condiment mappings
+            "sauce": "Sauce/Condiment",
+            "sauces": "Sauce/Condiment",
+            "condiment": "Sauce/Condiment",
+            "condiments": "Sauce/Condiment",
+            "dressing": "Sauce/Condiment",
+            "dressings": "Sauce/Condiment",
+            "dip": "Sauce/Condiment",
+            "dips": "Sauce/Condiment",
+            # Snack mappings
+            "snack": "Snack",
+            "snacks": "Snack",
+        }
+
+        return category_mapping.get(category_lower)
 
     def _parse_instructions(self, instructions: Any) -> list:
         """Parse instructions from various JSON-LD formats."""
