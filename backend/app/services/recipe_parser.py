@@ -69,7 +69,8 @@ class RecipeParser:
             raise Exception(f"Recipe parsing failed: {str(e)}") from e
 
     def parse_multi_image_recipe(
-        self, ocr_texts: list[str], use_cache: bool = True, quality_info: Dict = None
+        self, ocr_texts: list[str], use_cache: bool = True, quality_info: Dict = None,
+        translate_to_english: bool = False
     ) -> Dict:
         """Parse recipe from multiple OCR text blocks with enhanced text processing."""
         # Enhanced validation with better error messages
@@ -95,14 +96,15 @@ class RecipeParser:
             )
 
         if len(valid_texts) == 1:
-            return self.parse_recipe_text(valid_texts[0], use_cache)
+            return self.parse_recipe_text(valid_texts[0], use_cache, translate_to_english)
 
         # Pre-process texts for better combination
         processed_texts = self._preprocess_multi_image_texts(valid_texts)
 
-        # Combine texts for cache key generation
+        # Combine texts for cache key generation (include translate flag)
         combined_text = "\n--- PAGE BREAK ---\n".join(processed_texts)
-        cache_key = self._generate_cache_key(combined_text)
+        translate_suffix = "_translated" if translate_to_english else ""
+        cache_key = self._generate_cache_key(combined_text) + translate_suffix
 
         # Check cache if enabled and Redis is available
         if use_cache and self.redis_client:
@@ -112,7 +114,7 @@ class RecipeParser:
 
         # Build enhanced prompt with quality information
         prompt = self._build_enhanced_multi_image_parsing_prompt(
-            processed_texts, quality_info
+            processed_texts, quality_info, translate_to_english
         )
 
         try:
@@ -228,10 +230,30 @@ class RecipeParser:
         return enhanced_result
 
     def _build_enhanced_multi_image_parsing_prompt(
-        self, processed_texts: list[str], quality_info: Dict = None
+        self, processed_texts: list[str], quality_info: Dict = None,
+        translate_to_english: bool = False
     ) -> str:
         """Build enhanced prompt for multi-image parsing with quality context."""
         formatted_texts = "\n\n".join(processed_texts)
+
+        # Add translation instructions if requested
+        translation_instruction = ""
+        if translate_to_english:
+            translation_instruction = """
+IMPORTANT - TRANSLATION REQUIRED:
+The recipe text may be in a non-English language. You MUST:
+1. Detect the source language
+2. Translate ALL content (title, description, ingredients, instructions) to English
+3. Keep the original title in the 'original_title' field
+4. Keep the original description in the 'original_description' field
+5. Store original instruction text in 'original_instructions' array
+6. Add 'source_language' field with ISO 639-1 code (e.g., 'nl' for Dutch, 'fr' for French)
+7. Add 'source_language_name' field with human-readable name (e.g., 'Dutch', 'French')
+8. Set 'is_translated' to true
+
+For ingredients: Translate ingredient names but preserve quantities and units.
+For instructions: Translate the full instruction text to natural English.
+"""
 
         quality_context = ""
         if quality_info:
@@ -277,7 +299,7 @@ Pay special attention to pages with lower quality scores and be more careful wit
 
         return f"""
 Please parse this multi-page recipe and extract structured information in JSON format.
-
+{translation_instruction}
 {quality_context}
 
 This recipe spans {len(processed_texts)} pages. Please combine all the information intelligently:
@@ -311,10 +333,10 @@ ADVANCED PARSING INSTRUCTIONS:
    - Includes reasonable cooking times and temperatures
 
 Return a JSON object with these fields:
-- title: recipe name (combined from all pages)
-- description: brief description (if any, from any page)
-- ingredients: array of ingredient strings (intelligently combined from all pages)
-- instructions: array of instruction steps (merged in logical order)
+- title: recipe name (combined from all pages) - IN ENGLISH if translation requested
+- description: brief description (if any, from any page) - IN ENGLISH if translation requested
+- ingredients: array of ingredient strings (intelligently combined from all pages) - IN ENGLISH if translation requested
+- instructions: array of instruction steps (merged in logical order) - IN ENGLISH if translation requested
 - prep_time: preparation time in minutes (if mentioned on any page)
 - cook_time: cooking time in minutes (if mentioned on any page)
 - servings: number of servings (if mentioned on any page)
@@ -322,6 +344,12 @@ Return a JSON object with these fields:
 - tags: array of relevant tags/categories (from all pages)
 - parsing_confidence: your confidence level in the parsing (high/medium/low)
 - parsing_notes: any concerns or observations about the text quality or parsing
+- source_language: ISO 639-1 language code if translated (e.g., 'nl', 'fr', 'de')
+- source_language_name: human-readable language name if translated (e.g., 'Dutch', 'French')
+- is_translated: true if content was translated, false otherwise
+- original_title: original title before translation (if translated)
+- original_description: original description before translation (if translated)
+- original_instructions: array of original instruction texts before translation (if translated)
 
 If any information is not available or unclear, use null for that field.
 """

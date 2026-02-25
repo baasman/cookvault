@@ -4220,8 +4220,12 @@ def process_multi_image_job(multi_job_id: int):
                 current_app.logger.error(f"Error setting up quality_info: {e}")
                 quality_info = None
 
+            # Get translation option from multi_job
+            translate_to_english = getattr(multi_job, "translate_to_english", False)
+
             parsed_recipe = recipe_parser.parse_multi_image_recipe(
-                ocr_texts, use_cache=use_cache, quality_info=quality_info
+                ocr_texts, use_cache=use_cache, quality_info=quality_info,
+                translate_to_english=translate_to_english
             )
             current_app.logger.info(f"Parsed recipe result: {parsed_recipe}")
 
@@ -4262,6 +4266,12 @@ def process_multi_image_job(multi_job_id: int):
                 uploaded_by_id=multi_job.user_id,
                 is_public=False,  # Default to private
                 is_original_recipe=multi_job.is_original_recipe,  # Track recipe source for copyright protection
+                # Translation fields
+                source_language=parsed_recipe.get("source_language"),
+                source_language_name=parsed_recipe.get("source_language_name"),
+                is_translated=parsed_recipe.get("is_translated", False),
+                original_title=parsed_recipe.get("original_title"),
+                original_description=parsed_recipe.get("original_description"),
             )
             db.session.add(recipe)
             db.session.flush()  # Get recipe ID
@@ -4272,9 +4282,18 @@ def process_multi_image_job(multi_job_id: int):
 
             # Add instructions if any
             if parsed_recipe.get("instructions"):
+                original_instructions = parsed_recipe.get("original_instructions", [])
                 for i, instruction_text in enumerate(parsed_recipe["instructions"]):
+                    # Get original text if available (for translations)
+                    original_text = None
+                    if original_instructions and i < len(original_instructions):
+                        original_text = original_instructions[i]
+
                     instruction = Instruction(
-                        recipe_id=recipe.id, step_number=i + 1, text=instruction_text
+                        recipe_id=recipe.id,
+                        step_number=i + 1,
+                        text=instruction_text,
+                        original_text=original_text,
                     )
                     db.session.add(instruction)
 
