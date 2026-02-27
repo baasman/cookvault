@@ -76,7 +76,8 @@ const CookbooksPage: React.FC = () => {
         </p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity"
+          className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: '#f15f1c' }}
         >
           Try Again
         </button>
@@ -234,9 +235,10 @@ const CookbooksPage: React.FC = () => {
                             onClick={() => handlePageChange(pageNum)}
                             className={`px-3 py-2 text-sm rounded-lg transition-colors ${
                               currentPage === pageNum
-                                ? 'bg-accent text-white'
+                                ? 'text-white'
                                 : 'text-text-secondary hover:bg-background-secondary'
                             }`}
+                            style={currentPage === pageNum ? { backgroundColor: '#f15f1c' } : undefined}
                           >
                             {pageNum}
                           </button>
@@ -285,7 +287,8 @@ const CookbooksPage: React.FC = () => {
                   </p>
                   <button
                     onClick={() => setSearchTerm('')}
-                    className="px-4 py-2 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity"
+                    className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: '#f15f1c' }}
                   >
                     Clear search
                   </button>
@@ -300,7 +303,8 @@ const CookbooksPage: React.FC = () => {
                   </p>
                   <button
                     onClick={() => navigate('/upload')}
-                    className="inline-block px-6 py-3 bg-accent text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                    className="inline-block px-6 py-3 text-white rounded-lg hover:opacity-90 transition-opacity font-medium"
+                    style={{ backgroundColor: '#f15f1c' }}
                   >
                     Create Your First Cookbook
                   </button>

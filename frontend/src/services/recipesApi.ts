@@ -541,8 +541,8 @@ class RecipesApi {
     }
 
     try {
-      // Use regular fetch instead of apiFetch for public access
-      const response = await fetch(`${this.baseUrl}/recipes/discover?${searchParams}`, {
+      // Use public endpoint for unauthenticated access
+      const response = await fetch(`${this.baseUrl}/public/recipes?${searchParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -553,7 +553,14 @@ class RecipesApi {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      // Transform the response to match expected RecipesResponse format
+      return {
+        recipes: data.recipes,
+        total: data.pagination.total,
+        pages: data.pagination.pages,
+        current_page: data.pagination.page,
+      };
     } catch (error) {
       console.error('Error fetching discover recipes:', error);
       throw new Error('Failed to fetch discover recipes');

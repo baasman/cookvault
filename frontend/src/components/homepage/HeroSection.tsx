@@ -17,9 +17,9 @@ const HeroSection: React.FC = () => {
               Your Complete Cookbook Ecosystem
             </h1>
             <p className="text-lg sm:text-xl text-text-secondary mb-10 max-w-3xl mx-auto">
-              Build your ultimate recipe library two ways: Purchase professionally digitized cookbooks from publishers or upload your own recipes to create beautiful physical cookbooks for personal use. Transform scattered recipes into organized collections you can search, share, and even print.
+              Import recipes from anywhere—photos of cookbook pages, blog URLs, cooking videos, or handwritten notes. Create your own recipes from scratch. Our AI digitizes and organizes everything into a searchable personal library you can print as a beautiful physical cookbook.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex justify-center">
               <Link to={isAuthenticated ? "/upload" : "/register"}>
                 <Button variant="primary" size="lg" className="w-full sm:w-auto">
                   <svg className="text-white w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" style={{maxWidth: '20px', maxHeight: '20px'}}>
@@ -28,17 +28,6 @@ const HeroSection: React.FC = () => {
                   {isAuthenticated ? "Upload Recipe" : "Get Started"}
                 </Button>
               </Link>
-              <Button
-                variant="secondary"
-                size="lg"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  const featuresSection = document.getElementById('features');
-                  featuresSection?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              >
-                Learn More
-              </Button>
             </div>
           </div>
 

@@ -84,6 +84,11 @@ def get_public_recipes():
                     )
                     query = query.filter(Recipe.id.in_(subquery))
 
+        # Course type filtering
+        course_type = request.args.get("course_type", "").strip()
+        if course_type:
+            query = query.filter(Recipe.course_type.ilike(f"%{course_type}%"))
+
         # Order by published date (newest first)
         query = query.order_by(desc(Recipe.published_at))
 
@@ -251,7 +256,7 @@ def get_public_stats():
 
 @bp.route("/public/cookbooks", methods=["GET"])
 def get_public_cookbooks():
-    """Get all cookbooks with public recipes, with pagination and optional filtering."""
+    """Get all purchasable cookbooks and cookbooks with public recipes, with pagination and optional filtering."""
     try:
         # Get pagination parameters
         page = request.args.get("page", 1, type=int)
@@ -263,12 +268,19 @@ def get_public_cookbooks():
         search = request.args.get("search", "").strip()
         sort_by = request.args.get("sort_by", "title").strip()
 
-        # Build query for cookbooks that have at least one public recipe
-        query = (
-            db.session.query(Cookbook)
-            .join(Recipe, Cookbook.id == Recipe.cookbook_id)
-            .filter(Recipe.is_public)
+        # Build query for cookbooks that are purchasable OR have at least one public recipe
+        cookbooks_with_public_recipes = (
+            db.session.query(Recipe.cookbook_id)
+            .filter(Recipe.is_public, Recipe.cookbook_id.isnot(None))
             .distinct()
+            .subquery()
+        )
+
+        query = db.session.query(Cookbook).filter(
+            db.or_(
+                Cookbook.is_purchasable == True,
+                Cookbook.id.in_(db.session.query(cookbooks_with_public_recipes))
+            )
         )
 
         # Apply search filter if provided
@@ -342,14 +354,14 @@ def get_public_cookbooks():
 
 @bp.route("/public/cookbooks/<int:cookbook_id>", methods=["GET"])
 def get_public_cookbook(cookbook_id):
-    """Get a specific cookbook with its public recipes."""
+    """Get a specific cookbook if it's purchasable or has public recipes."""
     try:
-        # Check if cookbook exists and has public recipes
+        # Check if cookbook exists
         cookbook = Cookbook.query.get(cookbook_id)
         if not cookbook:
             return jsonify({"error": "Cookbook not found"}), 404
 
-        # Check if cookbook has any public recipes
+        # Check if cookbook is purchasable or has any public recipes
         has_public_recipes = (
             Recipe.query.filter(
                 Recipe.cookbook_id == cookbook_id, Recipe.is_public
@@ -357,8 +369,8 @@ def get_public_cookbook(cookbook_id):
             is not None
         )
 
-        if not has_public_recipes:
-            return jsonify({"error": "This cookbook has no public recipes"}), 404
+        if not cookbook.is_purchasable and not has_public_recipes:
+            return jsonify({"error": "This cookbook is not publicly available"}), 404
 
         cookbook_dict = cookbook.to_dict()
 
@@ -376,7 +388,7 @@ def get_public_cookbook(cookbook_id):
 
 @bp.route("/public/cookbooks/<int:cookbook_id>/recipes", methods=["GET"])
 def get_public_cookbook_recipes(cookbook_id):
-    """Get all public recipes from a specific cookbook."""
+    """Get recipes from a specific cookbook (previews for purchasable, full for public)."""
     try:
         # Check if cookbook exists
         cookbook = Cookbook.query.get(cookbook_id)
@@ -388,8 +400,14 @@ def get_public_cookbook_recipes(cookbook_id):
         per_page = min(request.args.get("per_page", 20, type=int), 100)
         search = request.args.get("search", "").strip()
 
-        # Build query for public recipes in this cookbook
-        query = Recipe.query.filter(Recipe.cookbook_id == cookbook_id, Recipe.is_public)
+        # For purchasable cookbooks, show recipe previews (all recipes, limited info)
+        # For non-purchasable cookbooks, show only public recipes with full info
+        if cookbook.is_purchasable:
+            # Show all recipes in the cookbook as previews
+            query = Recipe.query.filter(Recipe.cookbook_id == cookbook_id)
+        else:
+            # Show only public recipes
+            query = Recipe.query.filter(Recipe.cookbook_id == cookbook_id, Recipe.is_public)
 
         # Apply search filter if provided
         if search:
@@ -406,13 +424,30 @@ def get_public_cookbook_recipes(cookbook_id):
             page=page, per_page=per_page, error_out=False
         )
 
-        # Check if any public recipes found
+        # Check if any recipes found
         if recipes_pagination.total == 0:
+            # Check if cookbook is purchasable but has no recipes yet
+            if cookbook.is_purchasable:
+                return jsonify({"error": "This cookbook has no recipes yet"}), 404
             return jsonify({"error": "This cookbook has no public recipes"}), 404
 
         recipes_data = []
         for recipe in recipes_pagination.items:
-            recipe_dict = recipe.to_dict(include_user=True)
+            if cookbook.is_purchasable:
+                # Return preview only (limited info to entice purchase)
+                recipe_dict = {
+                    "id": recipe.id,
+                    "title": recipe.title,
+                    "description": recipe.description[:200] + "..." if recipe.description and len(recipe.description) > 200 else recipe.description,
+                    "image_url": recipe.image_url,
+                    "course_type": recipe.course_type,
+                    "prep_time": recipe.prep_time,
+                    "cook_time": recipe.cook_time,
+                    "servings": recipe.servings,
+                    "is_preview": True,  # Flag to indicate this is a preview
+                }
+            else:
+                recipe_dict = recipe.to_dict(include_user=True)
             recipes_data.append(recipe_dict)
 
         # Include cookbook information
@@ -421,6 +456,8 @@ def get_public_cookbook_recipes(cookbook_id):
             "title": cookbook.title,
             "author": cookbook.author,
             "description": cookbook.description,
+            "is_purchasable": cookbook.is_purchasable,
+            "price": cookbook.price,
         }
 
         return jsonify(
