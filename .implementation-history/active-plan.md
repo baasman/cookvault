@@ -1,77 +1,124 @@
-# Recipe Course Type Categorization
+# iOS Native UI Refactoring
 
-**Task ID:** 2026-02-25-1200
+**Task ID:** 2026-02-27-1030
 **Status:** In Progress
 
 ## Original Plan
 
-### Overview
-Add a `course_type` field to recipes (Appetizer, Main Course, Dessert, etc.) that is:
-- Automatically inferred by Claude during recipe parsing
-- Filterable in the recipes page UI
-- Optional/nullable (existing recipes remain unaffected)
+### Goal
+Make the Cookle iPhone app feel native by implementing iOS-specific UI patterns. Changes apply **only on iOS** - web and Android keep current behavior.
 
-### Course Types
-```
-Appetizer, Soup, Salad, Main Course, Side Dish, Bread, Dessert, Beverage, Sauce/Condiment, Snack
-```
+### Key Changes
+
+#### 1. Bottom Tab Bar Navigation (iOS only)
+Replace hamburger menu with iOS-style bottom tab bar:
+- **Tabs**: Home | Recipes | Add (+) | Cookbooks | Profile
+- Centered "Add" button with accent color (common iOS pattern)
+- Fixed to bottom with `env(safe-area-inset-bottom)` for home indicator
+- Active tab indicator using accent color
+
+#### 2. Action Sheets (iOS only)
+Replace dropdown menus with iOS-style bottom action sheets:
+- Slides up from bottom with drag-to-dismiss
+- Used for: Add Recipe menu, Recipe actions, User menu
+- Handle indicator at top, Cancel button at bottom
+
+#### 3. Touch Interactions
+- Replace `hover:` states with `active:` press states
+- Add haptic feedback via `@capacitor/haptics`
+- Subtle scale animation on press (`active:scale-[0.97]`)
+
+#### 4. Layout Adjustments (iOS only)
+- Hide header hamburger menu and footer on iOS
+- Simplify header to logo + context actions only
+- Add bottom padding for tab bar height + safe area
 
 ---
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/components/navigation/TabBar.tsx` | iOS bottom tab bar component |
+| `src/components/ui/ActionSheet.tsx` | iOS-style action sheet |
+| `src/utils/haptics.ts` | Haptic feedback utilities |
+| `src/hooks/useHapticFeedback.ts` | Hook for haptic feedback |
 
 ### Files to Modify
 
-| File | Change |
-|------|--------|
-| `backend/migrations/versions/` | New migration for `course_type` column |
-| `backend/app/models/recipe.py` | Add `course_type` field + update `to_dict()` |
-| `backend/app/services/recipe_parser.py` | Update 3 LLM prompts to extract course_type |
-| `backend/app/services/url_recipe_service.py` | Map JSON-LD `recipeCategory` to course_type |
-| `backend/app/api/recipes.py` | Add to recipe creation (3 places) + filtering |
-| `frontend/src/types/index.ts` | Add `course_type` to Recipe interface |
-| `frontend/src/services/recipesApi.ts` | Add `courseType` param to fetch functions |
-| `frontend/src/pages/RecipesPage.tsx` | Add course type filter dropdown |
+| File | Changes |
+|------|---------|
+| `src/components/layout/Layout.tsx` | Conditionally render TabBar, hide Footer on iOS, add bottom padding |
+| `src/components/layout/Header.tsx` | Hide hamburger + nav on iOS, keep logo + user avatar |
+| `src/components/ui/Button.tsx` | Add `active:` states, haptic feedback |
+| `src/index.css` | Add safe area CSS variables, iOS utility classes |
+| `package.json` | Add `@capacitor/haptics` dependency |
 
 ---
 
-### Implementation Steps
+### Implementation Phases
 
-1. Database Migration - Create `course_type` column with index
-2. Recipe Model - Add field and update `to_dict()`
-3. LLM Prompts - Update all 3 prompt builders to extract course_type
-4. URL Recipe Service - Map JSON-LD `recipeCategory` to course_type
-5. Recipe Creation - Add `course_type` to all recipe creation endpoints
-6. Backend Filtering - Add course_type filtering to get_recipes
-7. Frontend Types - Add `course_type` to Recipe interface and COURSE_TYPES constant
-8. Frontend API - Add `courseType` param to fetch functions
-9. Frontend Filter UI - Add course type filter dropdown
+#### Phase 1: Foundation
+1. Install `@capacitor/haptics` and sync iOS
+2. Create `src/utils/haptics.ts` with feedback utilities
+3. Create `src/hooks/useHapticFeedback.ts`
+4. Update `Button.tsx` with touch states
+
+#### Phase 2: Action Sheet Component
+1. Create `src/components/ui/ActionSheet.tsx`
+   - Props: `isOpen`, `onClose`, `title?`, `options[]`, `cancelText?`
+   - Slide-up animation, drag-to-dismiss, backdrop
+   - Bottom safe area padding
+
+#### Phase 3: Tab Bar Navigation
+1. Create `src/components/navigation/TabBar.tsx`
+   - 5 tabs with icons: Home, Recipes, Add, Cookbooks, Profile
+   - Platform-gated (iOS only via `isIOS()`)
+   - Handle auth state for Profile tab (show Login if not authenticated)
+2. Update `Layout.tsx`:
+   - Import and render TabBar on iOS
+   - Hide Footer on iOS
+   - Add padding-bottom for tab bar
+3. Update `Header.tsx`:
+   - Hide hamburger menu button on iOS
+   - Hide desktop navigation items on iOS
+   - Keep logo and user avatar
+   - User avatar opens ActionSheet instead of dropdown on iOS
+
+#### Phase 4: Replace Dropdowns with Action Sheets
+1. Header "Add Recipe" menu → ActionSheet on iOS
+2. Header user menu → ActionSheet on iOS
+3. RecipeDetailPage mobile menu → ActionSheet on iOS
 
 ---
 
 ## Timeline
-- Started: 2026-02-25T12:00:00Z
-- Completed: 2026-02-25T15:38:00Z
+- Started: 2026-02-27T10:30:00Z
+- Completed: 2026-02-27T10:50:00Z
 
 ## Deviations
 None.
 
 ## Results Summary
-Successfully implemented recipe course type categorization:
+Successfully implemented iOS Native UI Refactoring:
 
-**Database:**
-- Created migration `i7j8k9l0m1n2_add_course_type.py` adding `course_type` column with index
+**New Files Created:**
+- `frontend/src/utils/haptics.ts` - Haptic feedback utilities (light/medium/heavy impact, selection changed, notifications)
+- `frontend/src/hooks/useHapticFeedback.ts` - React hook for haptic feedback
+- `frontend/src/components/ui/ActionSheet.tsx` - iOS-style action sheet with slide-up animation and drag-to-dismiss
+- `frontend/src/components/navigation/TabBar.tsx` - iOS bottom tab bar with 5 tabs and centered Add button
 
-**Backend:**
-- Added `course_type` field to Recipe model in `backend/app/models/recipe.py`
-- Updated `to_dict()` to include `course_type`
-- Updated 3 LLM prompts in `recipe_parser.py` to extract course_type
-- Added JSON-LD `recipeCategory` mapping in `url_recipe_service.py`
-- Added `course_type` to recipe creation in `_create_recipe_from_parsed_data`, `upload_recipe_text`, and `upload_recipe_url`
-- Added `course_type` filtering in `get_recipes` and `discover_recipes` endpoints
+**Files Modified:**
+- `frontend/package.json` - Added `@capacitor/haptics@8.0.1` dependency
+- `frontend/src/components/ui/Button.tsx` - Added iOS touch states (active:scale-[0.97]) and haptic feedback on tap
+- `frontend/src/index.css` - Added CSS variables for safe areas, tab bar styling, action sheet styling, touch feedback utilities
+- `frontend/src/components/layout/Layout.tsx` - Conditionally renders TabBar on iOS, hides Footer, adds bottom padding
+- `frontend/src/components/layout/Header.tsx` - Hides hamburger menu on iOS, shows user avatar that opens ActionSheet
+- `frontend/src/pages/RecipeDetailPage.tsx` - Mobile menu uses ActionSheet on iOS instead of dropdown
 
-**Frontend:**
-- Added `COURSE_TYPES` constant and `CourseType` type in `frontend/src/types/index.ts`
-- Added `course_type` to `Recipe` interface
-- Added `courseType` param to `FetchRecipesParams` and both fetch functions in `recipesApi.ts`
-- Added course type dropdown filter to `RecipesPage.tsx`
-
-**Migration verified:** Successfully ran `flask db upgrade`
+**Key Implementation Details:**
+- Platform detection via `isIOS() && isNativePlatform()` from existing platform utils
+- TabBar shows 5 tabs: Home, Recipes, Add (centered with accent color), Books, Profile
+- Add button opens ActionSheet with recipe creation options
+- All changes are iOS-only - web and Android remain unchanged
+- Build verified successful, iOS sync completed

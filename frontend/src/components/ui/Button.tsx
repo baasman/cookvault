@@ -1,16 +1,18 @@
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../utils/cn';
+import { isIOS, isNativePlatform } from '../../utils/platform';
+import { lightImpact } from '../../utils/haptics';
 
 const buttonVariants = cva(
   // Base styles - extracted from template analysis
-  "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+  "inline-flex items-center justify-center font-medium transition-all focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
   {
     variants: {
       variant: {
         // Primary button - orange CTA from templates
         primary: "text-white hover:opacity-90 rounded-full tracking-[0.015em]",
-        // Secondary button - light background from templates  
+        // Secondary button - light background from templates
         secondary: "rounded-full tracking-[0.015em]",
         // Outline button - border variant
         outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-full tracking-[0.015em]",
@@ -30,6 +32,9 @@ const buttonVariants = cva(
   }
 );
 
+// Check if we're on native iOS for touch states
+const isNativeIOS = (): boolean => isIOS() && isNativePlatform();
+
 interface ExtendedButtonProps 
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
@@ -37,7 +42,7 @@ interface ExtendedButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ExtendedButtonProps>(
-  ({ className, variant, size, children, style, ...props }, ref) => {
+  ({ className, variant, size, children, style, onClick, ...props }, ref) => {
     // Default variant to 'primary' if not specified (matches defaultVariants in cva)
     const effectiveVariant = variant ?? 'primary';
 
@@ -51,11 +56,23 @@ const Button = React.forwardRef<HTMLButtonElement, ExtendedButtonProps>(
       return style;
     };
 
+    // iOS-specific touch class for press feedback
+    const iosTouchClass = isNativeIOS() ? 'active:scale-[0.97] active:opacity-90' : '';
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+      // Trigger haptic feedback on native iOS
+      if (isNativeIOS()) {
+        lightImpact();
+      }
+      onClick?.(e);
+    };
+
     return (
       <button
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size }), iosTouchClass, className)}
         style={getButtonStyle()}
         ref={ref}
+        onClick={handleClick}
         {...props}
       >
         {children}

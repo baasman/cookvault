@@ -4,14 +4,20 @@ import { Footer } from './Footer';
 import BetaBanner from '../ui/BetaBanner';
 import OfflineBanner from '../OfflineBanner';
 import { useSwipeBack } from '../../hooks/useSwipeBack';
+import { TabBar } from '../navigation/TabBar';
+import { isIOS, isNativePlatform } from '../../utils/platform';
 
 interface LayoutProps {
   children: React.ReactNode;
   className?: string;
 }
 
+// Check if we're on native iOS for layout adjustments
+const isNativeIOS = (): boolean => isIOS() && isNativePlatform();
+
 const Layout: React.FC<LayoutProps> = ({ children, className = '' }) => {
   const { isActive, progress } = useSwipeBack();
+  const showTabBar = isNativeIOS();
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden w-full max-w-full" style={{ backgroundColor: '#fcf9f8' }}>
@@ -61,10 +67,12 @@ const Layout: React.FC<LayoutProps> = ({ children, className = '' }) => {
       <BetaBanner />
       <OfflineBanner />
       <Header />
-      <main className={`max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 overflow-x-hidden box-border ${className}`}>
+      <main className={`max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 overflow-x-hidden box-border ${showTabBar ? 'pb-tab-bar' : ''} ${className}`}>
         {children}
       </main>
-      <Footer />
+      {/* Hide Footer on iOS, show TabBar instead */}
+      {!showTabBar && <Footer />}
+      {showTabBar && <TabBar />}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { PremiumUpgradeModal } from '../payments/PremiumUpgradeModal';
@@ -7,6 +7,11 @@ import { BetaModeRestrictionModal } from '../ui/BetaModeRestrictionModal';
 import { useBetaModeRestriction } from '../../hooks/useBetaModeRestriction';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import type { NavItem } from '../../types';
+import { isIOS, isNativePlatform } from '../../utils/platform';
+import { ActionSheet } from '../ui/ActionSheet';
+
+// Check if we're on native iOS for header adjustments
+const isNativeIOS = (): boolean => isIOS() && isNativePlatform();
 
 interface HeaderProps {
   navItems?: NavItem[];
@@ -19,6 +24,7 @@ const Header: React.FC<HeaderProps> = ({
     { label: 'Sources', href: '/sources' }
   ]
 }) => {
+  const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -30,6 +36,13 @@ const Header: React.FC<HeaderProps> = ({
 
   // Beta mode restriction hook
   const { checkBetaRestriction, betaModalState, closeBetaModal } = useBetaModeRestriction();
+
+  // iOS action sheet states
+  const [isUserActionSheetOpen, setIsUserActionSheetOpen] = useState(false);
+  const [isAddActionSheetOpen, setIsAddActionSheetOpen] = useState(false);
+
+  // Check if we're on native iOS
+  const showIOSLayout = isNativeIOS();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -247,24 +260,41 @@ const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Mobile menu button */}
-            <div className="md:hidden">
+            {/* Mobile menu button - hidden on iOS native */}
+            {!showIOSLayout && (
+              <div className="md:hidden">
+                <button
+                  type="button"
+                  className="p-2 rounded-md focus:outline-none focus:ring-2"
+                  style={{color: '#9b644b'}}
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  aria-label="Open menu"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {/* iOS user avatar - opens action sheet */}
+            {showIOSLayout && isAuthenticated && (
               <button
-                type="button"
-                className="p-2 rounded-md focus:outline-none focus:ring-2"
-                style={{color: '#9b644b'}}
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                aria-label="Open menu"
+                onClick={() => setIsUserActionSheetOpen(true)}
+                className="flex items-center rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 active:opacity-70"
               >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium text-white"
+                  style={{ backgroundColor: '#e27b36' }}
+                >
+                  {getUserInitials()}
+                </div>
               </button>
-            </div>
+            )}
           </div>
 
-          {/* Mobile Navigation Menu */}
-          {isMobileMenuOpen && (
+          {/* Mobile Navigation Menu - hidden on iOS native */}
+          {!showIOSLayout && isMobileMenuOpen && (
             <>
               {/* Overlay to close menu when clicking outside */}
               <div
@@ -428,6 +458,62 @@ const Header: React.FC<HeaderProps> = ({
           feature={betaModalState.feature}
           cookbookTitle={betaModalState.cookbookTitle}
           price={betaModalState.price}
+        />
+
+        {/* iOS User Action Sheet */}
+        <ActionSheet
+          isOpen={isUserActionSheetOpen}
+          onClose={() => setIsUserActionSheetOpen(false)}
+          title={user?.name || user?.email || 'Account'}
+          options={[
+            {
+              label: 'Profile',
+              onClick: () => navigate('/profile'),
+            },
+            {
+              label: 'Settings',
+              onClick: () => navigate('/settings'),
+            },
+            ...(subscription && !subscription.is_premium
+              ? [{
+                  label: 'Upgrade to Premium',
+                  onClick: () => {
+                    if (!checkBetaRestriction('premium')) {
+                      setShowUpgradeModal(true);
+                    }
+                  },
+                }]
+              : []),
+            {
+              label: 'Logout',
+              onClick: handleLogout,
+              destructive: true,
+            },
+          ]}
+        />
+
+        {/* iOS Add Recipe Action Sheet */}
+        <ActionSheet
+          isOpen={isAddActionSheetOpen}
+          onClose={() => setIsAddActionSheetOpen(false)}
+          title="Add Recipe"
+          options={[
+            {
+              label: 'Upload from Image',
+              icon: <span className="text-lg">📷</span>,
+              onClick: () => navigate('/upload'),
+            },
+            {
+              label: 'Import from URL',
+              icon: <span className="text-lg">🔗</span>,
+              onClick: () => navigate('/upload?mode=url'),
+            },
+            {
+              label: 'Create Manually',
+              icon: <span className="text-lg">✏️</span>,
+              onClick: () => navigate('/recipes/create'),
+            },
+          ]}
         />
       </header>
   );
