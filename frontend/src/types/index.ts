@@ -278,6 +278,46 @@ export interface MultiJobStatusResponse extends MultiRecipeJob {
   recipe?: Recipe;
 }
 
+// Video Processing Types
+export type VideoProcessingStatus =
+  | 'pending'
+  | 'uploading'
+  | 'extracting_audio'
+  | 'transcribing'
+  | 'extracting_frames'
+  | 'analyzing_frames'
+  | 'parsing_recipe'
+  | 'completed'
+  | 'failed';
+
+export interface VideoProcessingJob {
+  id: number;
+  user_id: number;
+  video_filename: string;
+  video_original_filename: string;
+  video_size_bytes: number;
+  video_duration_seconds?: number;
+  status: VideoProcessingStatus;
+  progress_message?: string;
+  progress_percentage: number;
+  recipe_id?: number;
+  error_message?: string;
+  cookbook_id?: number;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+export interface VideoUploadResponse {
+  message: string;
+  video_job_id: number;
+  status: VideoProcessingStatus;
+}
+
+export interface VideoJobStatusResponse extends VideoProcessingJob {
+  recipe?: Recipe;
+}
+
 // API Response wrapper types
 export interface RecipesResponse {
   recipes: Recipe[];
@@ -349,6 +389,8 @@ export interface UploadFormData {
   recipeText?: string; // Recipe text for direct text upload
   isUrlMode?: boolean; // Toggle for URL import mode
   recipeUrl?: string; // URL for recipe import
+  isVideoMode?: boolean; // Toggle for video import mode
+  videoFile?: File | null; // Video file for video import
   cookbook_id?: number;
   // Upload mode selection
   no_cookbook?: boolean;

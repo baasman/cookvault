@@ -25,6 +25,7 @@ from app.models.user import (
     CopyrightConsent,
 )
 from app.models.source import Source
+from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
 
 __all__ = [
     "Recipe",
@@ -50,4 +51,6 @@ __all__ = [
     "UserStatus",
     "CopyrightConsent",
     "Source",
+    "VideoProcessingJob",
+    "VideoProcessingStatus",
 ]

@@ -4546,3 +4546,203 @@ def remove_instruction_image(
         db.session.rollback()
         current_app.logger.error(f"Error removing instruction image: {e}")
         return jsonify({"error": "Failed to remove image"}), 500
+
+
+# =============================================================================
+# Video Recipe Import Endpoints
+# =============================================================================
+
+ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "avi"}
+ALLOWED_VIDEO_CONTENT_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-msvideo"}
+
+
+def allowed_video_file(filename: str) -> bool:
+    """Check if a video file has an allowed extension."""
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+
+
+@bp.route("/recipes/upload-video", methods=["POST"])
+@require_auth
+@rate_limit_upload
+def upload_recipe_video(current_user) -> Tuple[Response, int]:
+    """
+    Upload a video file for recipe extraction.
+
+    Accepts video uploads (MP4, MOV, WebM), creates a VideoProcessingJob,
+    and queues async processing via Celery.
+    """
+    from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
+
+    current_app.logger.info(
+        f"Video recipe upload request from user {current_user.id} ({current_user.username})"
+    )
+
+    try:
+        # Check upload limit for free users
+        subscription = current_user.get_or_create_subscription()
+        if not current_user.can_upload_recipe():
+            current_app.logger.warning(
+                f"User {current_user.id} ({current_user.username}) reached upload limit"
+            )
+            return jsonify(
+                {
+                    "error": "Upload limit reached",
+                    "message": f"You've used all {subscription.monthly_upload_count} of your free uploads this month. Upgrade to Premium for unlimited uploads.",
+                    "remaining_uploads": 0,
+                    "upgrade_required": True,
+                }
+            ), 403
+
+        # Check for video file in request
+        if "video" not in request.files:
+            return jsonify({"error": "No video file provided"}), 400
+
+        video_file = request.files["video"]
+        if not video_file or video_file.filename == "":
+            return jsonify({"error": "No video file selected"}), 400
+
+        # Validate file extension
+        if not allowed_video_file(video_file.filename):
+            return jsonify(
+                {
+                    "error": f"Invalid video format. Supported formats: {', '.join(ALLOWED_VIDEO_EXTENSIONS)}"
+                }
+            ), 400
+
+        # Validate content type
+        content_type = video_file.content_type or ""
+        if content_type and content_type not in ALLOWED_VIDEO_CONTENT_TYPES:
+            current_app.logger.warning(f"Invalid video content type: {content_type}")
+            return jsonify({"error": f"Invalid video content type: {content_type}"}), 400
+
+        # Check file size
+        video_file.seek(0, 2)  # Seek to end
+        file_size = video_file.tell()
+        video_file.seek(0)  # Reset to beginning
+
+        max_size_mb = current_app.config.get("VIDEO_MAX_SIZE_MB", 100)
+        max_size_bytes = max_size_mb * 1024 * 1024
+
+        if file_size > max_size_bytes:
+            return jsonify(
+                {
+                    "error": f"Video too large. Maximum size: {max_size_mb}MB, your file: {file_size / (1024*1024):.1f}MB"
+                }
+            ), 400
+
+        # Get optional parameters
+        cookbook_id = request.form.get("cookbook_id", type=int)
+        is_original_recipe = request.form.get("is_original_recipe", "false").lower() == "true"
+        translate_to_english = request.form.get("translate_to_english", "false").lower() == "true"
+
+        # Handle cookbook creation if requested
+        create_new_cookbook = request.form.get("create_new_cookbook", "false").lower() == "true"
+        if create_new_cookbook:
+            new_cookbook_title = request.form.get("new_cookbook_title", "").strip()
+            if not new_cookbook_title:
+                return jsonify({"error": "Cookbook title required when creating new cookbook"}), 400
+
+            cookbook = Cookbook(
+                title=new_cookbook_title,
+                author=request.form.get("new_cookbook_author", "").strip() or None,
+                description=request.form.get("new_cookbook_description", "").strip() or None,
+                publisher=request.form.get("new_cookbook_publisher", "").strip() or None,
+                isbn=request.form.get("new_cookbook_isbn", "").strip() or None,
+                user_id=current_user.id,
+            )
+            db.session.add(cookbook)
+            db.session.flush()
+            cookbook_id = cookbook.id
+
+        # Save video to temp storage
+        video_temp_dir = Path(current_app.config.get("VIDEO_TEMP_DIR", "/tmp/cookle-videos"))
+        video_temp_dir.mkdir(parents=True, exist_ok=True)
+
+        original_filename = secure_filename(video_file.filename)
+        video_filename = f"{uuid.uuid4().hex}_{original_filename}"
+        video_path = video_temp_dir / video_filename
+
+        video_file.save(str(video_path))
+        current_app.logger.info(f"Saved video to: {video_path} ({file_size / (1024*1024):.1f}MB)")
+
+        # Create VideoProcessingJob
+        video_job = VideoProcessingJob(
+            user_id=current_user.id,
+            video_filename=video_filename,
+            video_original_filename=original_filename,
+            video_path=str(video_path),
+            video_size_bytes=file_size,
+            video_content_type=content_type or "video/mp4",
+            status=VideoProcessingStatus.PENDING,
+            progress_message="Queued for processing",
+            progress_percentage=0,
+            is_original_recipe=is_original_recipe,
+            translate_to_english=translate_to_english,
+            cookbook_id=cookbook_id,
+        )
+
+        db.session.add(video_job)
+        db.session.commit()
+
+        current_app.logger.info(f"Created VideoProcessingJob {video_job.id} for user {current_user.id}")
+
+        # Queue Celery task
+        from app.tasks.recipe_tasks import process_video_recipe_task
+
+        process_video_recipe_task.delay(video_job.id)
+
+        return jsonify(
+            {
+                "message": "Video uploaded successfully. Processing will begin shortly.",
+                "video_job_id": video_job.id,
+                "status": video_job.status.value,
+            }
+        ), 202
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Video upload error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Video upload failed: {str(e)}"}), 500
+
+
+@bp.route("/recipes/video-job-status/<int:job_id>", methods=["GET"])
+@require_auth
+def get_video_job_status(current_user, job_id: int) -> Tuple[Response, int]:
+    """
+    Get the status of a video processing job.
+
+    Returns detailed progress information including current step,
+    progress percentage, and the resulting recipe when complete.
+    """
+    from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
+
+    try:
+        # Find the video job belonging to this user
+        video_job = VideoProcessingJob.query.filter_by(
+            id=job_id,
+            user_id=current_user.id
+        ).first()
+
+        if not video_job:
+            return jsonify({"error": "Video processing job not found"}), 404
+
+        response_data = video_job.to_dict()
+
+        # If completed and recipe created, include recipe info
+        if video_job.status == VideoProcessingStatus.COMPLETED and video_job.recipe_id:
+            recipe = Recipe.query.get(video_job.recipe_id)
+            if recipe:
+                response_data["recipe"] = recipe.to_dict(
+                    current_user_id=current_user.id,
+                    is_admin=False
+                )
+
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error getting video job status: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to get job status"}), 500

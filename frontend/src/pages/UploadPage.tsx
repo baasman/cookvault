@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { UploadForm } from '../components/forms';
 import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { MultiProcessingProgress } from '../components/upload/MultiProcessingProgress';
+import { VideoProcessingProgress } from '../components/upload/VideoProcessingProgress';
 import { UploadLimitWarning, useCanUpload } from '../components/payments';
 import { recipesApi } from '../services/recipesApi';
 import { apiFetch } from '../utils/apiInterceptor';
@@ -18,8 +19,10 @@ const UploadPage: React.FC = () => {
   const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMultiProcessing, setIsMultiProcessing] = useState(false);
+  const [videoJobId, setVideoJobId] = useState<number | null>(null);
+  const [isVideoProcessing, setIsVideoProcessing] = useState(false);
   const [initialCookbookData, setInitialCookbookData] = useState<{cookbookId?: number, cookbookTitle?: string} | null>(null);
-  const [initialMode, setInitialMode] = useState<'image' | 'text' | 'url'>('image');
+  const [initialMode, setInitialMode] = useState<'image' | 'text' | 'url' | 'video'>('image');
 
   const { canUpload, isLoading: isLoadingLimits } = useCanUpload();
 
@@ -28,8 +31,10 @@ const UploadPage: React.FC = () => {
     setError(null);
     setSuccess(null);
     setMultiJobId(null);
+    setVideoJobId(null);
     setIsProcessing(false);
     setIsMultiProcessing(false);
+    setIsVideoProcessing(false);
 
     try {
       if (formData.isUrlMode && formData.recipeUrl) {
@@ -38,6 +43,32 @@ const UploadPage: React.FC = () => {
 
         // URL import is synchronous - no job polling needed
         setSuccess(result);
+
+      } else if (formData.isVideoMode && formData.videoFile) {
+        // Handle video upload
+        const uploadOptions: {
+          cookbook_id?: number;
+          is_original_recipe?: boolean;
+          translate_to_english?: boolean;
+        } = {
+          is_original_recipe: formData.is_original_recipe,
+          translate_to_english: formData.translate_to_english,
+        };
+
+        // Determine cookbook ID based on form selection
+        if (formData.create_new_cookbook) {
+          // TODO: Handle cookbook creation for video uploads
+          uploadOptions.cookbook_id = undefined;
+        } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
+          uploadOptions.cookbook_id = formData.selected_existing_cookbook_id;
+        } else if (formData.cookbook_id) {
+          uploadOptions.cookbook_id = formData.cookbook_id;
+        }
+
+        const result = await recipesApi.uploadRecipeVideo(formData.videoFile, uploadOptions);
+
+        setVideoJobId(result.video_job_id);
+        setIsVideoProcessing(true);
 
       } else if (formData.isTextMode && formData.recipeText) {
         // Handle text upload
@@ -149,7 +180,9 @@ const UploadPage: React.FC = () => {
     setError(null);
     setMultiJobId(null);
     setProcessingJobId(null);
+    setVideoJobId(null);
     setIsProcessing(false);
+    setIsVideoProcessing(false);
   };
 
   const isMultiUpload = (result: UploadResponse | MultiUploadResponse): result is MultiUploadResponse => {
@@ -192,6 +225,24 @@ const UploadPage: React.FC = () => {
     setError(errorMessage);
   };
 
+  const handleVideoProcessingComplete = (recipeId: number) => {
+    setIsVideoProcessing(false);
+    setVideoJobId(null);
+    // Set success state with recipe ID for showing success banner
+    const completionResponse: UploadResponse = {
+      message: 'Recipe extracted from video successfully!',
+      job_id: 0, // Not applicable for video
+      recipe_id: recipeId
+    };
+    setSuccess(completionResponse);
+  };
+
+  const handleVideoProcessingError = (errorMessage: string) => {
+    setIsVideoProcessing(false);
+    setVideoJobId(null);
+    setError(errorMessage);
+  };
+
   // Check for URL parameters on component mount
   useEffect(() => {
     const cookbookId = searchParams.get('cookbookId');
@@ -210,6 +261,8 @@ const UploadPage: React.FC = () => {
       setInitialMode('url');
     } else if (mode === 'text') {
       setInitialMode('text');
+    } else if (mode === 'video') {
+      setInitialMode('video');
     } else {
       setInitialMode('image');
     }
@@ -256,8 +309,19 @@ const UploadPage: React.FC = () => {
         </div>
       )}
 
+      {/* Video Processing Progress */}
+      {isVideoProcessing && videoJobId && (
+        <div className="mb-8">
+          <VideoProcessingProgress
+            videoJobId={videoJobId}
+            onComplete={handleVideoProcessingComplete}
+            onError={handleVideoProcessingError}
+          />
+        </div>
+      )}
+
       {/* Success Message */}
-      {success && !isProcessing && !isMultiProcessing && (
+      {success && !isProcessing && !isMultiProcessing && !isVideoProcessing && (
         <div className="mb-8 p-6 rounded-xl" style={{backgroundColor: '#d1fae5', borderColor: '#10b981'}}>
           <div className="text-center">
             <div className="mb-4">
@@ -333,7 +397,7 @@ const UploadPage: React.FC = () => {
       )}
 
       {/* Error Message */}
-      {error && !isProcessing && (
+      {error && !isProcessing && !isVideoProcessing && (
         <div className="mb-8 p-6 rounded-xl" style={{backgroundColor: '#fee2e2', borderColor: '#dc2626', border: '1px solid'}}>
           <div className="text-center">
             <div className="mb-4">
@@ -361,7 +425,7 @@ const UploadPage: React.FC = () => {
       )}
 
       {/* Upload Form */}
-      {!success && !isProcessing && !error && !isLoadingLimits && canUpload && (
+      {!success && !isProcessing && !isVideoProcessing && !error && !isLoadingLimits && canUpload && (
         <div className="flex justify-center">
           <UploadForm
             onSubmit={handleUpload}

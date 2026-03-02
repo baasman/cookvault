@@ -153,6 +153,14 @@ const Header: React.FC<HeaderProps> = ({
                           🔗 Import from URL
                         </Link>
                         <Link
+                          to="/upload?mode=video"
+                          className="block px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
+                          style={{ color: '#1c120d' }}
+                          onClick={() => setIsAddMenuOpen(false)}
+                        >
+                          🎬 Import from Video
+                        </Link>
+                        <Link
                           to="/recipes/create"
                           className="block px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
                           style={{ color: '#1c120d' }}
