@@ -18,10 +18,14 @@ class Source(db.Model):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     domain: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
-    name: Mapped[Optional[str]] = mapped_column(String(200))  # User-editable display name
+    name: Mapped[Optional[str]] = mapped_column(
+        String(200)
+    )  # User-editable display name
     favicon_url: Mapped[Optional[str]] = mapped_column(String(500))
     recipe_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id"), nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

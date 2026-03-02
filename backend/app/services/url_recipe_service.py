@@ -162,9 +162,7 @@ class UrlRecipeService:
         try:
             parsed = urlparse(url)
         except Exception as e:
-            current_app.logger.error(
-                f"URL parse error: {e}\n{traceback.format_exc()}"
-            )
+            current_app.logger.error(f"URL parse error: {e}\n{traceback.format_exc()}")
             raise UrlValidationError("Please enter a valid URL")
 
         # Validate scheme
@@ -306,9 +304,7 @@ class UrlRecipeService:
         except requests.exceptions.SSLError:
             raise UrlFetchError("SSL error. The site may have security issues.")
         except requests.exceptions.ConnectionError:
-            raise UrlFetchError(
-                "Could not connect to the site. Please check the URL."
-            )
+            raise UrlFetchError("Could not connect to the site. Please check the URL.")
         except (BotProtectionError, UrlFetchError):
             raise
         except requests.exceptions.RequestException as e:
@@ -331,9 +327,7 @@ class UrlRecipeService:
             soup = BeautifulSoup(html, "html.parser")
 
             # Find all JSON-LD script tags
-            json_ld_scripts = soup.find_all(
-                "script", {"type": "application/ld+json"}
-            )
+            json_ld_scripts = soup.find_all("script", {"type": "application/ld+json"})
 
             for script in json_ld_scripts:
                 try:

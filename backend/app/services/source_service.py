@@ -104,10 +104,7 @@ class SourceService:
 
         try:
             # Try to find existing source for this user and domain
-            source = Source.query.filter_by(
-                user_id=user_id,
-                domain=domain
-            ).first()
+            source = Source.query.filter_by(user_id=user_id, domain=domain).first()
 
             if source:
                 # Increment recipe count for existing source
@@ -168,7 +165,9 @@ class SourceService:
             )
 
     @staticmethod
-    def update_source_name(source_id: int, user_id: int, name: Optional[str]) -> Optional[Source]:
+    def update_source_name(
+        source_id: int, user_id: int, name: Optional[str]
+    ) -> Optional[Source]:
         """
         Update the display name for a source.
 

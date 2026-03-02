@@ -11,7 +11,7 @@ interface UploadFormProps {
   isLoading?: boolean;
   error?: string;
   initialCookbookData?: { cookbookId?: number, cookbookTitle?: string } | null;
-  initialMode?: 'image' | 'text' | 'url';
+  initialMode?: 'image' | 'text' | 'url' | 'video';
 }
 
 const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, error, initialCookbookData, initialMode = 'image' }) => {
@@ -23,6 +23,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     recipeText: '',
     isUrlMode: false, // URL import mode
     recipeUrl: '', // URL for recipe import
+    isVideoMode: false, // Video import mode
+    videoFile: null, // Video file for import
     cookbook_id: undefined,
     create_new_cookbook: false,
     new_cookbook_title: '',
@@ -40,12 +42,14 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     is_original_recipe: true, // Default to "my own recipe" (publishable)
     translate_to_english: false, // Default to no translation
   });
-  
+
   const [dragActive, setDragActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
+  const [videoPreview, setVideoPreview] = useState<{ name: string; size: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Check if a Google Books cookbook is selected (restricts recipe source choice)
   const isGoogleBooksCookbook = formData.search_google_books && formData.selected_google_book;
@@ -204,6 +208,73 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     }
   };
 
+  const validateVideoFile = (file: File): boolean => {
+    // Validate file type
+    const allowedTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please select a valid video file (MP4, MOV, WebM, AVI)');
+      return false;
+    }
+
+    // Validate file size (100MB limit)
+    if (file.size > 100 * 1024 * 1024) {
+      alert('Video file size must be less than 100MB');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleVideoFileSelect = (file: File) => {
+    if (!validateVideoFile(file)) return;
+
+    setFormData(prev => ({
+      ...prev,
+      videoFile: file,
+      // Clear image data when selecting video
+      image: null,
+      images: [],
+      isMultiImage: false
+    }));
+
+    // Clear image previews
+    setImagePreview(null);
+    setImagePreviews([]);
+
+    // Set video preview info
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+    setVideoPreview({
+      name: file.name,
+      size: `${sizeInMB} MB`
+    });
+  };
+
+  const handleVideoFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleVideoFileSelect(e.target.files[0]);
+    }
+  };
+
+  const handleVideoDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleVideoFileSelect(e.dataTransfer.files[0]);
+    }
+  };
+
+  const clearVideo = () => {
+    setFormData(prev => ({
+      ...prev,
+      videoFile: null
+    }));
+    setVideoPreview(null);
+    if (videoFileInputRef.current) {
+      videoFileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,6 +307,12 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       }
       if (formData.recipeText.length > 50000) {
         alert('Recipe text exceeds maximum length of 50,000 characters');
+        return;
+      }
+    } else if (formData.isVideoMode) {
+      // Validate video input
+      if (!formData.videoFile) {
+        alert('Please select a video file to upload');
         return;
       }
     } else {
@@ -520,6 +597,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
         ...prev,
         isTextMode: false,
         isUrlMode: true,
+        isVideoMode: false,
         isMultiImage: false,
         is_original_recipe: false // URL imports are always from external source
       }));
@@ -528,7 +606,17 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
         ...prev,
         isTextMode: true,
         isUrlMode: false,
+        isVideoMode: false,
         isMultiImage: false
+      }));
+    } else if (initialMode === 'video') {
+      setFormData(prev => ({
+        ...prev,
+        isTextMode: false,
+        isUrlMode: false,
+        isVideoMode: true,
+        isMultiImage: false,
+        is_original_recipe: false // Video imports are typically from external source
       }));
     }
     // 'image' is the default, no need to set it explicitly
@@ -543,33 +631,33 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           <label className="block text-base font-medium leading-normal mb-2" style={{color: '#1c120d'}}>
             Upload Mode
           </label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => setFormData(prev => ({ ...prev, isTextMode: false, isUrlMode: false }))}
-              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
-                !formData.isTextMode && !formData.isUrlMode
+              onClick={() => setFormData(prev => ({ ...prev, isTextMode: false, isUrlMode: false, isVideoMode: false }))}
+              className={`flex-1 min-w-[70px] px-3 py-2 rounded-lg border-2 transition-all text-sm ${
+                !formData.isTextMode && !formData.isUrlMode && !formData.isVideoMode
                   ? 'border-orange-400 bg-orange-50 text-orange-900'
                   : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
               }`}
               style={{
-                borderColor: !formData.isTextMode && !formData.isUrlMode ? '#f15f1c' : '#e8d7cf',
-                backgroundColor: !formData.isTextMode && !formData.isUrlMode ? '#fcf9f8' : '#ffffff'
+                borderColor: !formData.isTextMode && !formData.isUrlMode && !formData.isVideoMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: !formData.isTextMode && !formData.isUrlMode && !formData.isVideoMode ? '#fcf9f8' : '#ffffff'
               }}
             >
               📷 Image
             </button>
             <button
               type="button"
-              onClick={() => setFormData(prev => ({ ...prev, isTextMode: true, isUrlMode: false, isMultiImage: false }))}
-              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
-                formData.isTextMode && !formData.isUrlMode
+              onClick={() => setFormData(prev => ({ ...prev, isTextMode: true, isUrlMode: false, isVideoMode: false, isMultiImage: false }))}
+              className={`flex-1 min-w-[70px] px-3 py-2 rounded-lg border-2 transition-all text-sm ${
+                formData.isTextMode
                   ? 'border-orange-400 bg-orange-50 text-orange-900'
                   : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
               }`}
               style={{
-                borderColor: formData.isTextMode && !formData.isUrlMode ? '#f15f1c' : '#e8d7cf',
-                backgroundColor: formData.isTextMode && !formData.isUrlMode ? '#fcf9f8' : '#ffffff'
+                borderColor: formData.isTextMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: formData.isTextMode ? '#fcf9f8' : '#ffffff'
               }}
             >
               📝 Text
@@ -580,10 +668,11 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                 ...prev,
                 isTextMode: false,
                 isUrlMode: true,
+                isVideoMode: false,
                 isMultiImage: false,
                 is_original_recipe: false // URL imports are always from external source
               }))}
-              className={`flex-1 px-4 py-2 rounded-lg border-2 transition-all ${
+              className={`flex-1 min-w-[70px] px-3 py-2 rounded-lg border-2 transition-all text-sm ${
                 formData.isUrlMode
                   ? 'border-orange-400 bg-orange-50 text-orange-900'
                   : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
@@ -594,6 +683,28 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
               }}
             >
               🔗 URL
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({
+                ...prev,
+                isTextMode: false,
+                isUrlMode: false,
+                isVideoMode: true,
+                isMultiImage: false,
+                is_original_recipe: false // Video imports are typically from external source (TikTok, etc.)
+              }))}
+              className={`flex-1 min-w-[70px] px-3 py-2 rounded-lg border-2 transition-all text-sm ${
+                formData.isVideoMode
+                  ? 'border-orange-400 bg-orange-50 text-orange-900'
+                  : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+              }`}
+              style={{
+                borderColor: formData.isVideoMode ? '#f15f1c' : '#e8d7cf',
+                backgroundColor: formData.isVideoMode ? '#fcf9f8' : '#ffffff'
+              }}
+            >
+              🎬 Video
             </button>
           </div>
         </div>
@@ -627,6 +738,127 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span>Recipes imported from URLs are for personal use only and cannot be shared publicly.</span>
+              </p>
+            </div>
+          </div>
+        ) : formData.isVideoMode ? (
+          /* Video Upload Area (shown when in video mode) */
+          <div className="flex flex-col">
+            <div className="pb-2">
+              <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
+                Recipe Video *
+              </label>
+              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
+                Upload a cooking video (TikTok, Instagram Reel, etc.) to extract the recipe.
+              </p>
+            </div>
+
+            {videoPreview ? (
+              /* Video Selected Preview */
+              <div className="border-2 rounded-xl p-4" style={{ borderColor: '#e8d7cf', backgroundColor: '#fcf9f8' }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#f15f1c' }}>
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm" style={{ color: '#1c120d' }}>{videoPreview.name}</p>
+                      <p className="text-xs" style={{ color: '#9b644b' }}>{videoPreview.size}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearVideo}
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Video Drop Zone */
+              <div
+                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                  dragActive
+                    ? 'border-orange-400 bg-orange-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                } cursor-pointer`}
+                style={{
+                  borderColor: dragActive ? '#f15f1c' : '#e8d7cf',
+                  backgroundColor: dragActive ? '#fcf9f8' : '#fcf9f8'
+                }}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleVideoDrop}
+                onClick={() => videoFileInputRef.current?.click()}
+              >
+                <input
+                  ref={videoFileInputRef}
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm,video/x-msvideo"
+                  onChange={handleVideoFileInput}
+                  className="hidden"
+                />
+
+                <div className="flex flex-col items-center">
+                  <svg className="w-10 h-10 mb-3" style={{ color: '#9b644b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-sm font-medium mb-1" style={{ color: '#1c120d' }}>
+                    Drop a video file here or click to browse
+                  </p>
+                  <p className="text-xs" style={{ color: '#9b644b' }}>
+                    MP4, MOV, WebM, AVI (max 100MB, max 3 minutes)
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* How it works info box */}
+            <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+              <div className="flex items-start gap-2 mb-3">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm font-medium text-purple-800">How video import works</span>
+              </div>
+              <p className="text-sm text-purple-700 mb-3">
+                We'll extract the recipe by analyzing the audio (speech) and video frames. Processing takes 30-90 seconds.
+              </p>
+
+              <div className="text-sm text-purple-700 space-y-2">
+                <p className="font-medium">To save a TikTok video:</p>
+                <ol className="list-decimal list-inside space-y-1 ml-2 text-purple-600">
+                  <li>Open the TikTok video</li>
+                  <li>Tap the Share button (arrow icon)</li>
+                  <li>Select "Save video" to download to your device</li>
+                  <li>Upload the saved video here</li>
+                </ol>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-purple-200">
+                <p className="text-xs font-medium text-purple-800 mb-1">Requirements:</p>
+                <ul className="text-xs text-purple-600 space-y-0.5">
+                  <li>• Maximum file size: 100MB</li>
+                  <li>• Maximum duration: 3 minutes</li>
+                  <li>• Supported formats: MP4, MOV, WebM, AVI</li>
+                  <li>• Works best with videos that have clear audio</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Privacy notice */}
+            <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700 flex items-start gap-2">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span>Recipes imported from videos are for personal use only and cannot be shared publicly.</span>
               </p>
             </div>
           </div>
@@ -1252,12 +1484,14 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
             disabled={isLoading ||
               (formData.isUrlMode
                 ? !formData.recipeUrl || formData.recipeUrl.trim() === ''
-                : formData.isTextMode
-                  ? !formData.recipeText || formData.recipeText.trim() === ''
-                  : (formData.isMultiImage ? formData.images.length === 0 : !formData.image)
+                : formData.isVideoMode
+                  ? !formData.videoFile
+                  : formData.isTextMode
+                    ? !formData.recipeText || formData.recipeText.trim() === ''
+                    : (formData.isMultiImage ? formData.images.length === 0 : !formData.image)
               ) ||
-              (!formData.isUrlMode && formData.is_original_recipe === undefined) ||
-              (!formData.isUrlMode && formData.is_original_recipe === false && formData.no_cookbook)}
+              (!formData.isUrlMode && !formData.isVideoMode && formData.is_original_recipe === undefined) ||
+              (!formData.isUrlMode && !formData.isVideoMode && formData.is_original_recipe === false && formData.no_cookbook)}
             className="min-w-[200px]"
           >
             {isLoading ? (

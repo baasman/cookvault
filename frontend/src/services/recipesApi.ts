@@ -1,4 +1,4 @@
-import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse, Instruction, RatingResponse, DeleteRatingResponse } from '../types';
+import type { Recipe, RecipesResponse, RecipeNote, RecipeComment, CommentsResponse, MultiUploadResponse, MultiJobStatusResponse, Instruction, RatingResponse, DeleteRatingResponse, VideoUploadResponse, VideoJobStatusResponse } from '../types';
 import { apiFetch } from '../utils/apiInterceptor';
 import { getApiUrl } from '../utils/getApiUrl';
 import { getAuthToken } from './storageService';
@@ -1124,6 +1124,95 @@ class RecipesApi {
       return await response.json();
     } catch (error) {
       console.error('Error deleting recipe rating:', error);
+      throw error;
+    }
+  }
+
+  // Video Recipe Import Methods
+
+  async uploadRecipeVideo(
+    videoFile: File,
+    options?: {
+      cookbook_id?: number;
+      is_original_recipe?: boolean;
+      translate_to_english?: boolean;
+      create_new_cookbook?: boolean;
+      new_cookbook_title?: string;
+      new_cookbook_author?: string;
+      new_cookbook_description?: string;
+      new_cookbook_publisher?: string;
+      new_cookbook_isbn?: string;
+    }
+  ): Promise<VideoUploadResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('video', videoFile);
+
+      if (options?.cookbook_id) {
+        formData.append('cookbook_id', options.cookbook_id.toString());
+      }
+
+      if (options?.is_original_recipe !== undefined) {
+        formData.append('is_original_recipe', options.is_original_recipe.toString());
+      }
+
+      if (options?.translate_to_english) {
+        formData.append('translate_to_english', 'true');
+      }
+
+      if (options?.create_new_cookbook) {
+        formData.append('create_new_cookbook', 'true');
+        if (options.new_cookbook_title) {
+          formData.append('new_cookbook_title', options.new_cookbook_title);
+        }
+        if (options.new_cookbook_author) {
+          formData.append('new_cookbook_author', options.new_cookbook_author);
+        }
+        if (options.new_cookbook_description) {
+          formData.append('new_cookbook_description', options.new_cookbook_description);
+        }
+        if (options.new_cookbook_publisher) {
+          formData.append('new_cookbook_publisher', options.new_cookbook_publisher);
+        }
+        if (options.new_cookbook_isbn) {
+          formData.append('new_cookbook_isbn', options.new_cookbook_isbn);
+        }
+      }
+
+      const response = await apiFetch(`${this.baseUrl}/recipes/upload-video`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading recipe video:', error);
+      throw error;
+    }
+  }
+
+  async getVideoJobStatus(jobId: number): Promise<VideoJobStatusResponse> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/video-job-status/${jobId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error getting video job status:', error);
       throw error;
     }
   }

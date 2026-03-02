@@ -208,7 +208,9 @@ def export_cookbook_pdf(cookbook_id):
         # Convert to dict format
         cookbook_dict = cookbook.to_dict(current_user_id=user.id)
         recipes_dict = [
-            recipe.to_dict(current_user_id=user.id, is_admin=is_cookbook_owner or is_admin)
+            recipe.to_dict(
+                current_user_id=user.id, is_admin=is_cookbook_owner or is_admin
+            )
             for recipe in recipes
         ]
 

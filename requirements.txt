@@ -26,3 +26,4 @@ pyjwt>=2.8.0
 stripe>=7.0.0
 flask-jwt-extended>=4.7.1
 cloudinary>=1.36.0
+openai>=1.0.0

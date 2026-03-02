@@ -69,8 +69,11 @@ class RecipeParser:
             raise Exception(f"Recipe parsing failed: {str(e)}") from e
 
     def parse_multi_image_recipe(
-        self, ocr_texts: list[str], use_cache: bool = True, quality_info: Dict = None,
-        translate_to_english: bool = False
+        self,
+        ocr_texts: list[str],
+        use_cache: bool = True,
+        quality_info: Dict = None,
+        translate_to_english: bool = False,
     ) -> Dict:
         """Parse recipe from multiple OCR text blocks with enhanced text processing."""
         # Enhanced validation with better error messages
@@ -96,7 +99,9 @@ class RecipeParser:
             )
 
         if len(valid_texts) == 1:
-            return self.parse_recipe_text(valid_texts[0], use_cache, translate_to_english)
+            return self.parse_recipe_text(
+                valid_texts[0], use_cache, translate_to_english
+            )
 
         # Pre-process texts for better combination
         processed_texts = self._preprocess_multi_image_texts(valid_texts)
@@ -230,8 +235,10 @@ class RecipeParser:
         return enhanced_result
 
     def _build_enhanced_multi_image_parsing_prompt(
-        self, processed_texts: list[str], quality_info: Dict = None,
-        translate_to_english: bool = False
+        self,
+        processed_texts: list[str],
+        quality_info: Dict = None,
+        translate_to_english: bool = False,
     ) -> str:
         """Build enhanced prompt for multi-image parsing with quality context."""
         formatted_texts = "\n\n".join(processed_texts)
