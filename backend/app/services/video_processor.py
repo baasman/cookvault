@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VideoProcessingResult:
     """Result of video processing."""
+
     success: bool
     transcript: Optional[str] = None
     frame_analyses: Optional[List[Dict]] = None
@@ -43,8 +44,13 @@ class VideoRecipeProcessor:
     """Process cooking videos to extract structured recipes."""
 
     # Supported video formats
-    SUPPORTED_FORMATS = {'video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo'}
-    SUPPORTED_EXTENSIONS = {'.mp4', '.mov', '.webm', '.avi'}
+    SUPPORTED_FORMATS = {
+        "video/mp4",
+        "video/quicktime",
+        "video/webm",
+        "video/x-msvideo",
+    }
+    SUPPORTED_EXTENSIONS = {".mp4", ".mov", ".webm", ".avi"}
 
     # Processing limits
     MAX_VIDEO_SIZE_MB = 100
@@ -63,7 +69,9 @@ class VideoRecipeProcessor:
             self.openai_client = OpenAI(api_key=openai_api_key)
         else:
             self.openai_client = None
-            logger.warning("OPENAI_API_KEY not configured - video transcription will not work")
+            logger.warning(
+                "OPENAI_API_KEY not configured - video transcription will not work"
+            )
 
     def validate_video(self, video_path: str, content_type: str) -> tuple[bool, str]:
         """
@@ -80,7 +88,10 @@ class VideoRecipeProcessor:
 
         # Check file extension
         if path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
-            return False, f"Unsupported video format. Supported: {', '.join(self.SUPPORTED_EXTENSIONS)}"
+            return (
+                False,
+                f"Unsupported video format. Supported: {', '.join(self.SUPPORTED_EXTENSIONS)}",
+            )
 
         # Check content type
         if content_type and content_type not in self.SUPPORTED_FORMATS:
@@ -89,13 +100,19 @@ class VideoRecipeProcessor:
         # Check file size
         file_size_mb = path.stat().st_size / (1024 * 1024)
         if file_size_mb > self.MAX_VIDEO_SIZE_MB:
-            return False, f"Video too large ({file_size_mb:.1f}MB). Maximum: {self.MAX_VIDEO_SIZE_MB}MB"
+            return (
+                False,
+                f"Video too large ({file_size_mb:.1f}MB). Maximum: {self.MAX_VIDEO_SIZE_MB}MB",
+            )
 
         # Check duration using FFprobe
         try:
             duration = self._get_video_duration(video_path)
             if duration and duration > self.MAX_DURATION_SECONDS:
-                return False, f"Video too long ({duration:.0f}s). Maximum: {self.MAX_DURATION_SECONDS}s"
+                return (
+                    False,
+                    f"Video too long ({duration:.0f}s). Maximum: {self.MAX_DURATION_SECONDS}s",
+                )
         except Exception as e:
             logger.warning(f"Could not determine video duration: {e}")
             # Continue anyway - will fail later if truly invalid
@@ -107,15 +124,18 @@ class VideoRecipeProcessor:
         try:
             result = subprocess.run(
                 [
-                    'ffprobe',
-                    '-v', 'quiet',
-                    '-show_entries', 'format=duration',
-                    '-of', 'default=noprint_wrappers=1:nokey=1',
-                    video_path
+                    "ffprobe",
+                    "-v",
+                    "quiet",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    video_path,
                 ],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
             if result.returncode == 0 and result.stdout.strip():
                 return float(result.stdout.strip())
@@ -124,9 +144,7 @@ class VideoRecipeProcessor:
         return None
 
     def process_video(
-        self,
-        video_path: str,
-        translate_to_english: bool = False
+        self, video_path: str, translate_to_english: bool = False
     ) -> VideoProcessingResult:
         """
         Process a video file to extract a recipe.
@@ -142,7 +160,7 @@ class VideoRecipeProcessor:
 
         try:
             # Create temp directory for processing artifacts
-            temp_dir = tempfile.mkdtemp(prefix='video_recipe_')
+            temp_dir = tempfile.mkdtemp(prefix="video_recipe_")
             logger.info(f"Processing video: {video_path} in temp dir: {temp_dir}")
 
             # Get video duration
@@ -150,11 +168,13 @@ class VideoRecipeProcessor:
 
             # Step 1: Extract audio
             logger.info("Step 1: Extracting audio from video...")
-            audio_path = os.path.join(temp_dir, 'audio.mp3')
+            audio_path = os.path.join(temp_dir, "audio.mp3")
             audio_success = self._extract_audio(video_path, audio_path)
 
             if not audio_success:
-                logger.warning("Audio extraction failed - video may have no audio track")
+                logger.warning(
+                    "Audio extraction failed - video may have no audio track"
+                )
 
             # Step 2: Transcribe audio (if available)
             transcript = None
@@ -170,7 +190,7 @@ class VideoRecipeProcessor:
 
             # Step 3: Extract frames
             logger.info("Step 3: Extracting frames from video...")
-            frames_dir = os.path.join(temp_dir, 'frames')
+            frames_dir = os.path.join(temp_dir, "frames")
             os.makedirs(frames_dir, exist_ok=True)
             frame_paths = self._extract_frames(video_path, frames_dir, self.FRAME_COUNT)
             logger.info(f"Extracted {len(frame_paths)} frames")
@@ -187,33 +207,32 @@ class VideoRecipeProcessor:
             parsed_recipe = self._parse_recipe(
                 transcript=transcript,
                 frame_analyses=frame_analyses,
-                translate_to_english=translate_to_english
+                translate_to_english=translate_to_english,
             )
 
             if not parsed_recipe:
                 return VideoProcessingResult(
                     success=False,
                     error_message="Could not extract recipe from video content",
-                    video_duration_seconds=video_duration
+                    video_duration_seconds=video_duration,
                 )
 
-            logger.info(f"Recipe parsing complete: {parsed_recipe.get('title', 'Untitled')}")
+            logger.info(
+                f"Recipe parsing complete: {parsed_recipe.get('title', 'Untitled')}"
+            )
 
             return VideoProcessingResult(
                 success=True,
                 transcript=transcript,
                 frame_analyses=frame_analyses,
                 parsed_recipe=parsed_recipe,
-                video_duration_seconds=video_duration
+                video_duration_seconds=video_duration,
             )
 
         except Exception as e:
             error_msg = f"Video processing failed: {str(e)}"
             logger.error(f"{error_msg}\nTraceback: {traceback.format_exc()}")
-            return VideoProcessingResult(
-                success=False,
-                error_message=error_msg
-            )
+            return VideoProcessingResult(success=False, error_message=error_msg)
         finally:
             # Clean up temp directory
             if temp_dir and os.path.exists(temp_dir):
@@ -237,19 +256,24 @@ class VideoRecipeProcessor:
         try:
             result = subprocess.run(
                 [
-                    'ffmpeg',
-                    '-i', video_path,
-                    '-vn',  # No video
-                    '-acodec', 'libmp3lame',
-                    '-ar', '16000',  # 16kHz sample rate (good for speech)
-                    '-ac', '1',  # Mono
-                    '-b:a', '64k',  # 64kbps bitrate
-                    '-y',  # Overwrite output
-                    output_path
+                    "ffmpeg",
+                    "-i",
+                    video_path,
+                    "-vn",  # No video
+                    "-acodec",
+                    "libmp3lame",
+                    "-ar",
+                    "16000",  # 16kHz sample rate (good for speech)
+                    "-ac",
+                    "1",  # Mono
+                    "-b:a",
+                    "64k",  # 64kbps bitrate
+                    "-y",  # Overwrite output
+                    output_path,
                 ],
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=120,
             )
 
             if result.returncode != 0:
@@ -270,14 +294,13 @@ class VideoRecipeProcessor:
             logger.error("FFmpeg not found - please install FFmpeg")
             return False
         except Exception as e:
-            logger.error(f"Audio extraction error: {e}\nTraceback: {traceback.format_exc()}")
+            logger.error(
+                f"Audio extraction error: {e}\nTraceback: {traceback.format_exc()}"
+            )
             return False
 
     def _extract_frames(
-        self,
-        video_path: str,
-        output_dir: str,
-        count: int = 6
+        self, video_path: str, output_dir: str, count: int = 6
     ) -> List[str]:
         """
         Extract evenly-spaced frames from video using FFmpeg.
@@ -294,7 +317,9 @@ class VideoRecipeProcessor:
             # Get video duration first
             duration = self._get_video_duration(video_path)
             if not duration or duration <= 0:
-                logger.warning("Could not determine video duration, using fallback method")
+                logger.warning(
+                    "Could not determine video duration, using fallback method"
+                )
                 # Fallback: extract frames at fixed intervals
                 duration = 60  # Assume 60 seconds if unknown
 
@@ -304,21 +329,25 @@ class VideoRecipeProcessor:
 
             for i in range(1, count + 1):
                 timestamp = interval * i
-                output_path = os.path.join(output_dir, f'frame_{i:02d}.jpg')
+                output_path = os.path.join(output_dir, f"frame_{i:02d}.jpg")
 
                 result = subprocess.run(
                     [
-                        'ffmpeg',
-                        '-ss', str(timestamp),
-                        '-i', video_path,
-                        '-vframes', '1',
-                        '-q:v', '2',  # High quality JPEG
-                        '-y',
-                        output_path
+                        "ffmpeg",
+                        "-ss",
+                        str(timestamp),
+                        "-i",
+                        video_path,
+                        "-vframes",
+                        "1",
+                        "-q:v",
+                        "2",  # High quality JPEG
+                        "-y",
+                        output_path,
                     ],
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=30,
                 )
 
                 if result.returncode == 0 and os.path.exists(output_path):
@@ -329,7 +358,9 @@ class VideoRecipeProcessor:
             return frame_paths
 
         except Exception as e:
-            logger.error(f"Frame extraction error: {e}\nTraceback: {traceback.format_exc()}")
+            logger.error(
+                f"Frame extraction error: {e}\nTraceback: {traceback.format_exc()}"
+            )
             return []
 
     def _transcribe_audio(self, audio_path: str) -> Optional[str]:
@@ -347,15 +378,15 @@ class VideoRecipeProcessor:
             return None
 
         try:
-            with open(audio_path, 'rb') as audio_file:
+            with open(audio_path, "rb") as audio_file:
                 response = self.openai_client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    response_format="text"
+                    model="whisper-1", file=audio_file, response_format="text"
                 )
 
             # Response is the transcribed text directly
-            transcript = response.strip() if isinstance(response, str) else str(response).strip()
+            transcript = (
+                response.strip() if isinstance(response, str) else str(response).strip()
+            )
 
             if not transcript:
                 logger.warning("Whisper returned empty transcription")
@@ -364,7 +395,9 @@ class VideoRecipeProcessor:
             return transcript
 
         except Exception as e:
-            logger.error(f"Whisper transcription error: {e}\nTraceback: {traceback.format_exc()}")
+            logger.error(
+                f"Whisper transcription error: {e}\nTraceback: {traceback.format_exc()}"
+            )
             return None
 
     def _analyze_frames(self, frame_paths: List[str]) -> List[Dict]:
@@ -382,12 +415,14 @@ class VideoRecipeProcessor:
         for i, frame_path in enumerate(frame_paths):
             try:
                 # Read and encode image
-                with open(frame_path, 'rb') as f:
-                    image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+                with open(frame_path, "rb") as f:
+                    image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
                 # Analyze with Claude Vision
                 response = self.anthropic_client.messages.create(
-                    model=current_app.config.get("ANTHROPIC_VISION_MODEL", "claude-sonnet-4-5-20250929"),
+                    model=current_app.config.get(
+                        "ANTHROPIC_VISION_MODEL", "claude-sonnet-4-5-20250929"
+                    ),
                     max_tokens=500,
                     messages=[
                         {
@@ -398,8 +433,8 @@ class VideoRecipeProcessor:
                                     "source": {
                                         "type": "base64",
                                         "media_type": "image/jpeg",
-                                        "data": image_data
-                                    }
+                                        "data": image_data,
+                                    },
                                 },
                                 {
                                     "type": "text",
@@ -410,25 +445,21 @@ class VideoRecipeProcessor:
 4. Any visible text (recipe cards, measurements, titles)
 5. Stage of cooking process (prep, cooking, plating, etc.)
 
-Be concise but thorough. Focus on recipe-relevant details."""
-                                }
-                            ]
+Be concise but thorough. Focus on recipe-relevant details.""",
+                                },
+                            ],
                         }
-                    ]
+                    ],
                 )
 
-                analysis = {
-                    "frame_number": i + 1,
-                    "analysis": response.content[0].text
-                }
+                analysis = {"frame_number": i + 1, "analysis": response.content[0].text}
                 analyses.append(analysis)
 
             except Exception as e:
-                logger.error(f"Frame {i+1} analysis error: {e}")
-                analyses.append({
-                    "frame_number": i + 1,
-                    "analysis": f"Analysis failed: {str(e)}"
-                })
+                logger.error(f"Frame {i + 1} analysis error: {e}")
+                analyses.append(
+                    {"frame_number": i + 1, "analysis": f"Analysis failed: {str(e)}"}
+                )
 
         return analyses
 
@@ -436,7 +467,7 @@ Be concise but thorough. Focus on recipe-relevant details."""
         self,
         transcript: Optional[str],
         frame_analyses: List[Dict],
-        translate_to_english: bool = False
+        translate_to_english: bool = False,
     ) -> Optional[Dict]:
         """
         Parse a structured recipe from transcript and visual analysis.
@@ -456,10 +487,9 @@ Be concise but thorough. Focus on recipe-relevant details."""
             context_parts.append(f"AUDIO TRANSCRIPTION:\n{transcript}")
 
         if frame_analyses:
-            frame_text = "\n".join([
-                f"Frame {a['frame_number']}: {a['analysis']}"
-                for a in frame_analyses
-            ])
+            frame_text = "\n".join(
+                [f"Frame {a['frame_number']}: {a['analysis']}" for a in frame_analyses]
+            )
             context_parts.append(f"VISUAL ANALYSIS:\n{frame_text}")
 
         if not context_parts:
@@ -517,17 +547,19 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
 
         try:
             response = self.anthropic_client.messages.create(
-                model=current_app.config.get("ANTHROPIC_TEXT_MODEL", "claude-sonnet-4-20250514"),
+                model=current_app.config.get(
+                    "ANTHROPIC_TEXT_MODEL", "claude-sonnet-4-20250514"
+                ),
                 max_tokens=3000,
                 temperature=0.1,
                 system="You are an expert at extracting recipes from cooking video content. Be thorough and accurate.",
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             content = response.content[0].text
 
             # Extract JSON from response
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            json_match = re.search(r"\{.*\}", content, re.DOTALL)
             if not json_match:
                 logger.error(f"No JSON found in response: {content[:500]}")
                 return None
@@ -535,17 +567,17 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
             parsed = json.loads(json_match.group())
 
             # Validate required fields
-            if not parsed.get('title'):
+            if not parsed.get("title"):
                 logger.warning("Parsed recipe missing title")
-                parsed['title'] = "Untitled Recipe from Video"
+                parsed["title"] = "Untitled Recipe from Video"
 
-            if not parsed.get('ingredients'):
+            if not parsed.get("ingredients"):
                 logger.warning("Parsed recipe missing ingredients")
-                parsed['ingredients'] = []
+                parsed["ingredients"] = []
 
-            if not parsed.get('instructions'):
+            if not parsed.get("instructions"):
                 logger.warning("Parsed recipe missing instructions")
-                parsed['instructions'] = []
+                parsed["instructions"] = []
 
             return parsed
 
@@ -553,18 +585,16 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
             logger.error(f"JSON parsing error: {e}")
             return None
         except Exception as e:
-            logger.error(f"Recipe parsing error: {e}\nTraceback: {traceback.format_exc()}")
+            logger.error(
+                f"Recipe parsing error: {e}\nTraceback: {traceback.format_exc()}"
+            )
             return None
 
 
 def check_ffmpeg_installed() -> bool:
     """Check if FFmpeg is installed and accessible."""
     try:
-        result = subprocess.run(
-            ['ffmpeg', '-version'],
-            capture_output=True,
-            timeout=5
-        )
+        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
         return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return False

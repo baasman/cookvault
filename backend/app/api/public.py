@@ -279,7 +279,7 @@ def get_public_cookbooks():
         query = db.session.query(Cookbook).filter(
             db.or_(
                 Cookbook.is_purchasable.is_(True),
-                Cookbook.id.in_(db.session.query(cookbooks_with_public_recipes))
+                Cookbook.id.in_(db.session.query(cookbooks_with_public_recipes)),
             )
         )
 
@@ -407,7 +407,9 @@ def get_public_cookbook_recipes(cookbook_id):
             query = Recipe.query.filter(Recipe.cookbook_id == cookbook_id)
         else:
             # Show only public recipes
-            query = Recipe.query.filter(Recipe.cookbook_id == cookbook_id, Recipe.is_public)
+            query = Recipe.query.filter(
+                Recipe.cookbook_id == cookbook_id, Recipe.is_public
+            )
 
         # Apply search filter if provided
         if search:
@@ -438,7 +440,9 @@ def get_public_cookbook_recipes(cookbook_id):
                 recipe_dict = {
                     "id": recipe.id,
                     "title": recipe.title,
-                    "description": recipe.description[:200] + "..." if recipe.description and len(recipe.description) > 200 else recipe.description,
+                    "description": recipe.description[:200] + "..."
+                    if recipe.description and len(recipe.description) > 200
+                    else recipe.description,
                     "image_url": recipe.image_url,
                     "course_type": recipe.course_type,
                     "prep_time": recipe.prep_time,

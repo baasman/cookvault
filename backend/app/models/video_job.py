@@ -14,6 +14,7 @@ from app import db
 
 class VideoProcessingStatus(Enum):
     """Status states for video processing jobs."""
+
     PENDING = "pending"
     UPLOADING = "uploading"
     EXTRACTING_AUDIO = "extracting_audio"
@@ -41,7 +42,9 @@ class VideoProcessingJob(db.Model):
     __tablename__ = "video_processing_job"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id"), nullable=False, index=True
+    )
 
     # Video file information
     video_filename: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -52,21 +55,29 @@ class VideoProcessingJob(db.Model):
     video_content_type: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Processing status
-    status: Mapped[VideoProcessingStatus] = mapped_column(default=VideoProcessingStatus.PENDING)
+    status: Mapped[VideoProcessingStatus] = mapped_column(
+        default=VideoProcessingStatus.PENDING
+    )
     progress_message: Mapped[Optional[str]] = mapped_column(String(255))
     progress_percentage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Processing results
     transcript: Mapped[Optional[str]] = mapped_column(Text)
-    frame_analysis: Mapped[Optional[str]] = mapped_column(Text)  # JSON string of frame analyses
+    frame_analysis: Mapped[Optional[str]] = mapped_column(
+        Text
+    )  # JSON string of frame analyses
 
     # Result
     recipe_id: Mapped[Optional[int]] = mapped_column(ForeignKey("recipe.id"))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
 
     # Recipe source tracking
-    is_original_recipe: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    translate_to_english: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_original_recipe: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    translate_to_english: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     # Cookbook association (optional)
     cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
@@ -81,7 +92,9 @@ class VideoProcessingJob(db.Model):
     recipe: Mapped[Optional["Recipe"]] = relationship("Recipe")
     cookbook: Mapped[Optional["Cookbook"]] = relationship("Cookbook")
 
-    def update_progress(self, status: VideoProcessingStatus, message: str, percentage: int) -> None:
+    def update_progress(
+        self, status: VideoProcessingStatus, message: str, percentage: int
+    ) -> None:
         """Update the job's progress status."""
         self.status = status
         self.progress_message = message
@@ -114,5 +127,7 @@ class VideoProcessingJob(db.Model):
             "cookbook_id": self.cookbook_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
         }

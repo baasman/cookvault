@@ -2629,7 +2629,10 @@ def get_recipe_rating(current_user, recipe_id: int) -> Response:
         - aggregate: {average_rating, rating_count, normalized_title, cookbook_id, matching_recipe_count}
         - user_rating: RecipeRating or null if user hasn't rated
     """
-    from app.services.rating_service import get_aggregate_rating_for_recipe, get_user_rating
+    from app.services.rating_service import (
+        get_aggregate_rating_for_recipe,
+        get_user_rating,
+    )
 
     recipe = Recipe.query.get(recipe_id)
     if not recipe:
@@ -2669,7 +2672,10 @@ def submit_recipe_rating(current_user, recipe_id: int) -> Response:
         - aggregate: updated aggregate rating
         - user_rating: the user's rating
     """
-    from app.services.rating_service import submit_rating, get_aggregate_rating_for_recipe
+    from app.services.rating_service import (
+        submit_rating,
+        get_aggregate_rating_for_recipe,
+    )
 
     recipe = Recipe.query.get(recipe_id)
     if not recipe:
@@ -2692,7 +2698,9 @@ def submit_recipe_rating(current_user, recipe_id: int) -> Response:
         rating_obj = submit_rating(current_user.id, recipe_id, rating_value)
         aggregate = get_aggregate_rating_for_recipe(recipe_id)
 
-        return jsonify({"aggregate": aggregate, "user_rating": rating_obj.to_dict()}), 200
+        return jsonify(
+            {"aggregate": aggregate, "user_rating": rating_obj.to_dict()}
+        ), 200
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
@@ -2709,7 +2717,10 @@ def delete_recipe_rating(current_user, recipe_id: int) -> Response:
         - message: success message
         - aggregate: updated aggregate rating
     """
-    from app.services.rating_service import delete_rating, get_aggregate_rating_for_recipe
+    from app.services.rating_service import (
+        delete_rating,
+        get_aggregate_rating_for_recipe,
+    )
 
     recipe = Recipe.query.get(recipe_id)
     if not recipe:
@@ -2728,7 +2739,9 @@ def delete_recipe_rating(current_user, recipe_id: int) -> Response:
 
         aggregate = get_aggregate_rating_for_recipe(recipe_id)
 
-        return jsonify({"message": "Rating deleted successfully", "aggregate": aggregate}), 200
+        return jsonify(
+            {"message": "Rating deleted successfully", "aggregate": aggregate}
+        ), 200
     except Exception as e:
         current_app.logger.error(f"Error deleting rating for recipe {recipe_id}: {e}")
         return jsonify({"error": "Failed to delete rating"}), 500
@@ -4237,8 +4250,10 @@ def process_multi_image_job(multi_job_id: int):
             translate_to_english = getattr(multi_job, "translate_to_english", False)
 
             parsed_recipe = recipe_parser.parse_multi_image_recipe(
-                ocr_texts, use_cache=use_cache, quality_info=quality_info,
-                translate_to_english=translate_to_english
+                ocr_texts,
+                use_cache=use_cache,
+                quality_info=quality_info,
+                translate_to_english=translate_to_english,
             )
             current_app.logger.info(f"Parsed recipe result: {parsed_recipe}")
 
@@ -4553,12 +4568,20 @@ def remove_instruction_image(
 # =============================================================================
 
 ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "avi"}
-ALLOWED_VIDEO_CONTENT_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-msvideo"}
+ALLOWED_VIDEO_CONTENT_TYPES = {
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/x-msvideo",
+}
 
 
 def allowed_video_file(filename: str) -> bool:
     """Check if a video file has an allowed extension."""
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+    )
 
 
 @bp.route("/recipes/upload-video", methods=["POST"])
@@ -4613,7 +4636,9 @@ def upload_recipe_video(current_user) -> Tuple[Response, int]:
         content_type = video_file.content_type or ""
         if content_type and content_type not in ALLOWED_VIDEO_CONTENT_TYPES:
             current_app.logger.warning(f"Invalid video content type: {content_type}")
-            return jsonify({"error": f"Invalid video content type: {content_type}"}), 400
+            return jsonify(
+                {"error": f"Invalid video content type: {content_type}"}
+            ), 400
 
         # Check file size
         video_file.seek(0, 2)  # Seek to end
@@ -4626,27 +4651,37 @@ def upload_recipe_video(current_user) -> Tuple[Response, int]:
         if file_size > max_size_bytes:
             return jsonify(
                 {
-                    "error": f"Video too large. Maximum size: {max_size_mb}MB, your file: {file_size / (1024*1024):.1f}MB"
+                    "error": f"Video too large. Maximum size: {max_size_mb}MB, your file: {file_size / (1024 * 1024):.1f}MB"
                 }
             ), 400
 
         # Get optional parameters
         cookbook_id = request.form.get("cookbook_id", type=int)
-        is_original_recipe = request.form.get("is_original_recipe", "false").lower() == "true"
-        translate_to_english = request.form.get("translate_to_english", "false").lower() == "true"
+        is_original_recipe = (
+            request.form.get("is_original_recipe", "false").lower() == "true"
+        )
+        translate_to_english = (
+            request.form.get("translate_to_english", "false").lower() == "true"
+        )
 
         # Handle cookbook creation if requested
-        create_new_cookbook = request.form.get("create_new_cookbook", "false").lower() == "true"
+        create_new_cookbook = (
+            request.form.get("create_new_cookbook", "false").lower() == "true"
+        )
         if create_new_cookbook:
             new_cookbook_title = request.form.get("new_cookbook_title", "").strip()
             if not new_cookbook_title:
-                return jsonify({"error": "Cookbook title required when creating new cookbook"}), 400
+                return jsonify(
+                    {"error": "Cookbook title required when creating new cookbook"}
+                ), 400
 
             cookbook = Cookbook(
                 title=new_cookbook_title,
                 author=request.form.get("new_cookbook_author", "").strip() or None,
-                description=request.form.get("new_cookbook_description", "").strip() or None,
-                publisher=request.form.get("new_cookbook_publisher", "").strip() or None,
+                description=request.form.get("new_cookbook_description", "").strip()
+                or None,
+                publisher=request.form.get("new_cookbook_publisher", "").strip()
+                or None,
                 isbn=request.form.get("new_cookbook_isbn", "").strip() or None,
                 user_id=current_user.id,
             )
@@ -4655,7 +4690,9 @@ def upload_recipe_video(current_user) -> Tuple[Response, int]:
             cookbook_id = cookbook.id
 
         # Save video to temp storage
-        video_temp_dir = Path(current_app.config.get("VIDEO_TEMP_DIR", "/tmp/cookle-videos"))
+        video_temp_dir = Path(
+            current_app.config.get("VIDEO_TEMP_DIR", "/tmp/cookle-videos")
+        )
         video_temp_dir.mkdir(parents=True, exist_ok=True)
 
         original_filename = secure_filename(video_file.filename)
@@ -4663,7 +4700,9 @@ def upload_recipe_video(current_user) -> Tuple[Response, int]:
         video_path = video_temp_dir / video_filename
 
         video_file.save(str(video_path))
-        current_app.logger.info(f"Saved video to: {video_path} ({file_size / (1024*1024):.1f}MB)")
+        current_app.logger.info(
+            f"Saved video to: {video_path} ({file_size / (1024 * 1024):.1f}MB)"
+        )
 
         # Create VideoProcessingJob
         video_job = VideoProcessingJob(
@@ -4684,7 +4723,9 @@ def upload_recipe_video(current_user) -> Tuple[Response, int]:
         db.session.add(video_job)
         db.session.commit()
 
-        current_app.logger.info(f"Created VideoProcessingJob {video_job.id} for user {current_user.id}")
+        current_app.logger.info(
+            f"Created VideoProcessingJob {video_job.id} for user {current_user.id}"
+        )
 
         # Queue Celery task
         from app.tasks.recipe_tasks import process_video_recipe_task
@@ -4703,6 +4744,7 @@ def upload_recipe_video(current_user) -> Tuple[Response, int]:
         db.session.rollback()
         current_app.logger.error(f"Video upload error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return jsonify({"error": f"Video upload failed: {str(e)}"}), 500
 
@@ -4721,8 +4763,7 @@ def get_video_job_status(current_user, job_id: int) -> Tuple[Response, int]:
     try:
         # Find the video job belonging to this user
         video_job = VideoProcessingJob.query.filter_by(
-            id=job_id,
-            user_id=current_user.id
+            id=job_id, user_id=current_user.id
         ).first()
 
         if not video_job:
@@ -4735,8 +4776,7 @@ def get_video_job_status(current_user, job_id: int) -> Tuple[Response, int]:
             recipe = Recipe.query.get(video_job.recipe_id)
             if recipe:
                 response_data["recipe"] = recipe.to_dict(
-                    current_user_id=current_user.id,
-                    is_admin=False
+                    current_user_id=current_user.id, is_admin=False
                 )
 
         return jsonify(response_data), 200
@@ -4744,5 +4784,6 @@ def get_video_job_status(current_user, job_id: int) -> Tuple[Response, int]:
     except Exception as e:
         current_app.logger.error(f"Error getting video job status: {e}")
         import traceback
+
         traceback.print_exc()
         return jsonify({"error": "Failed to get job status"}), 500

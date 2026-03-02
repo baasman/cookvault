@@ -710,7 +710,9 @@ class Recipe(db.Model):
                 "name": self.source_ref.name,
                 "display_name": self.source_ref.get_display_name(),
                 "favicon_url": self.source_ref.favicon_url,
-            } if self.source_ref else None,
+            }
+            if self.source_ref
+            else None,
         }
 
         # Restricted content (only for users with full access)

@@ -75,17 +75,19 @@ def list_sources(current_user) -> Tuple[Response, int]:
         # Paginate
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-        return jsonify({
-            "sources": [source.to_dict() for source in pagination.items],
-            "pagination": {
-                "page": pagination.page,
-                "pages": pagination.pages,
-                "per_page": pagination.per_page,
-                "total": pagination.total,
-                "has_next": pagination.has_next,
-                "has_prev": pagination.has_prev,
-            },
-        }), 200
+        return jsonify(
+            {
+                "sources": [source.to_dict() for source in pagination.items],
+                "pagination": {
+                    "page": pagination.page,
+                    "pages": pagination.pages,
+                    "per_page": pagination.per_page,
+                    "total": pagination.total,
+                    "has_next": pagination.has_next,
+                    "has_prev": pagination.has_prev,
+                },
+            }
+        ), 200
 
     except Exception as e:
         logger.error(
@@ -108,10 +110,7 @@ def get_source(current_user, source_id: int) -> Tuple[Response, int]:
     """
     try:
         # Find the source
-        source = Source.query.filter_by(
-            id=source_id,
-            user_id=current_user.id
-        ).first()
+        source = Source.query.filter_by(id=source_id, user_id=current_user.id).first()
 
         if not source:
             return jsonify({"error": "Source not found"}), 404
@@ -123,8 +122,7 @@ def get_source(current_user, source_id: int) -> Tuple[Response, int]:
 
         # Build query for recipes from this source
         recipe_query = Recipe.query.filter_by(
-            source_id=source_id,
-            user_id=current_user.id
+            source_id=source_id, user_id=current_user.id
         )
 
         # Apply search filter
@@ -136,23 +134,27 @@ def get_source(current_user, source_id: int) -> Tuple[Response, int]:
         recipe_query = recipe_query.order_by(desc(Recipe.created_at))
 
         # Paginate
-        pagination = recipe_query.paginate(page=page, per_page=per_page, error_out=False)
+        pagination = recipe_query.paginate(
+            page=page, per_page=per_page, error_out=False
+        )
 
-        return jsonify({
-            "source": source.to_dict(),
-            "recipes": [
-                recipe.to_dict(current_user_id=current_user.id)
-                for recipe in pagination.items
-            ],
-            "pagination": {
-                "page": pagination.page,
-                "pages": pagination.pages,
-                "per_page": pagination.per_page,
-                "total": pagination.total,
-                "has_next": pagination.has_next,
-                "has_prev": pagination.has_prev,
-            },
-        }), 200
+        return jsonify(
+            {
+                "source": source.to_dict(),
+                "recipes": [
+                    recipe.to_dict(current_user_id=current_user.id)
+                    for recipe in pagination.items
+                ],
+                "pagination": {
+                    "page": pagination.page,
+                    "pages": pagination.pages,
+                    "per_page": pagination.per_page,
+                    "total": pagination.total,
+                    "has_next": pagination.has_next,
+                    "has_prev": pagination.has_prev,
+                },
+            }
+        ), 200
 
     except Exception as e:
         logger.error(
@@ -181,9 +183,7 @@ def update_source(current_user, source_id: int) -> Tuple[Response, int]:
 
         # Update the source
         source = SourceService.update_source_name(
-            source_id=source_id,
-            user_id=current_user.id,
-            name=name
+            source_id=source_id, user_id=current_user.id, name=name
         )
 
         if not source:
