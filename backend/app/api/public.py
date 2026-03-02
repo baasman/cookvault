@@ -278,7 +278,7 @@ def get_public_cookbooks():
 
         query = db.session.query(Cookbook).filter(
             db.or_(
-                Cookbook.is_purchasable == True,
+                Cookbook.is_purchasable.is_(True),
                 Cookbook.id.in_(db.session.query(cookbooks_with_public_recipes))
             )
         )
