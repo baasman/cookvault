@@ -342,8 +342,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       return;
     }
 
-    // Validate recipe source selection (skip for URL mode - always external)
-    if (!formData.isUrlMode) {
+    // Validate recipe source selection (skip for URL and Video modes - always external)
+    if (!formData.isUrlMode && !formData.isVideoMode) {
       if (formData.is_original_recipe === undefined) {
         alert('Please indicate whether this is your own recipe or from another source.');
         return;
