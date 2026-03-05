@@ -1396,8 +1396,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           </div>
         </div>
 
-        {/* Recipe Source Section - Hidden for URL mode since it's always external */}
-        {!formData.isUrlMode && (
+        {/* Recipe Source Section - Hidden for URL and Video modes since they're always external */}
+        {!formData.isUrlMode && !formData.isVideoMode && (
         <div className="flex flex-col gap-4">
           <h3 className="text-lg font-medium" style={{color: '#1c120d'}}>
             Recipe Source
