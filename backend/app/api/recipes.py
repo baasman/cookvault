@@ -4689,29 +4689,44 @@ def upload_recipe_video(current_user) -> Tuple[Response, int]:
             db.session.flush()
             cookbook_id = cookbook.id
 
-        # Save video to temp storage
-        video_temp_dir = Path(
-            current_app.config.get("VIDEO_TEMP_DIR", "/tmp/cookle-videos")
-        )
-        video_temp_dir.mkdir(parents=True, exist_ok=True)
+        # Upload video to Cloudinary for cross-service access
+        import cloudinary
+        import cloudinary.uploader
 
         original_filename = secure_filename(video_file.filename)
         video_filename = f"{uuid.uuid4().hex}_{original_filename}"
-        video_path = video_temp_dir / video_filename
 
-        video_file.save(str(video_path))
         current_app.logger.info(
-            f"Saved video to: {video_path} ({file_size / (1024 * 1024):.1f}MB)"
+            f"Uploading video to Cloudinary: {video_filename} ({file_size / (1024 * 1024):.1f}MB)"
         )
+
+        # Upload to Cloudinary
+        try:
+            upload_result = cloudinary.uploader.upload(
+                video_file,
+                resource_type="video",
+                public_id=f"cookle-videos/{video_filename}",
+                folder="cookle-videos",
+            )
+            cloudinary_url = upload_result.get("secure_url")
+            cloudinary_public_id = upload_result.get("public_id")
+            current_app.logger.info(
+                f"Video uploaded to Cloudinary: {cloudinary_public_id}"
+            )
+        except Exception as cloud_err:
+            current_app.logger.error(f"Cloudinary upload failed: {str(cloud_err)}")
+            return jsonify({"error": f"Failed to upload video: {str(cloud_err)}"}), 500
 
         # Create VideoProcessingJob
         video_job = VideoProcessingJob(
             user_id=current_user.id,
             video_filename=video_filename,
             video_original_filename=original_filename,
-            video_path=str(video_path),
+            video_path=None,  # No local path - using Cloudinary
             video_size_bytes=file_size,
             video_content_type=content_type or "video/mp4",
+            cloudinary_public_id=cloudinary_public_id,
+            cloudinary_url=cloudinary_url,
             status=VideoProcessingStatus.PENDING,
             progress_message="Queued for processing",
             progress_percentage=0,

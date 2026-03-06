@@ -4,9 +4,11 @@ Celery tasks for recipe image and video processing.
 These tasks wrap the existing processing functions to enable
 asynchronous, queued execution for better memory management.
 """
+
 import json
 import logging
 import os
+import tempfile
 import traceback
 from app import db
 from app.celery_app import celery
@@ -40,7 +42,9 @@ def process_single_recipe_task(self, job_id: int, user_id: int = None):
     Returns:
         Dict with status and job_id
     """
-    logger.info(f"[Task {self.request.id}] Starting single recipe task for job {job_id}, user {user_id}")
+    logger.info(
+        f"[Task {self.request.id}] Starting single recipe task for job {job_id}, user {user_id}"
+    )
 
     try:
         job = db.session.get(ProcessingJob, job_id)
@@ -54,7 +58,9 @@ def process_single_recipe_task(self, job_id: int, user_id: int = None):
         # Process the image (this function already handles all the logic)
         _process_recipe_image(job_id, user_id)
 
-        logger.info(f"[Task {self.request.id}] Completed single recipe task for job {job_id}")
+        logger.info(
+            f"[Task {self.request.id}] Completed single recipe task for job {job_id}"
+        )
         return {"status": "success", "job_id": job_id}
 
     except Exception as e:
@@ -71,7 +77,9 @@ def process_single_recipe_task(self, job_id: int, user_id: int = None):
                 job.error_message = f"Celery task failed: {str(e)[:450]}"
                 db.session.commit()
         except Exception as db_error:
-            logger.error(f"[Task {self.request.id}] Failed to update job status: {db_error}")
+            logger.error(
+                f"[Task {self.request.id}] Failed to update job status: {db_error}"
+            )
 
         # Retry the task if retries remain
         raise self.retry(exc=e)
@@ -91,12 +99,16 @@ def process_multi_recipe_task(self, multi_job_id: int):
     Returns:
         Dict with status and multi_job_id
     """
-    logger.info(f"[Task {self.request.id}] Starting multi-image task for job {multi_job_id}")
+    logger.info(
+        f"[Task {self.request.id}] Starting multi-image task for job {multi_job_id}"
+    )
 
     try:
         multi_job = db.session.get(MultiRecipeJob, multi_job_id)
         if not multi_job:
-            logger.error(f"[Task {self.request.id}] MultiRecipeJob {multi_job_id} not found")
+            logger.error(
+                f"[Task {self.request.id}] MultiRecipeJob {multi_job_id} not found"
+            )
             return {"status": "error", "message": "Multi-job not found"}
 
         # Import the existing processing function (inside task to avoid circular imports)
@@ -105,7 +117,9 @@ def process_multi_recipe_task(self, multi_job_id: int):
         # Process all images (this function already handles all the logic)
         process_multi_image_job(multi_job_id)
 
-        logger.info(f"[Task {self.request.id}] Completed multi-image task for job {multi_job_id}")
+        logger.info(
+            f"[Task {self.request.id}] Completed multi-image task for job {multi_job_id}"
+        )
         return {"status": "success", "multi_job_id": multi_job_id}
 
     except Exception as e:
@@ -122,7 +136,9 @@ def process_multi_recipe_task(self, multi_job_id: int):
                 multi_job.error_message = f"Celery task failed: {str(e)[:450]}"
                 db.session.commit()
         except Exception as db_error:
-            logger.error(f"[Task {self.request.id}] Failed to update multi-job status: {db_error}")
+            logger.error(
+                f"[Task {self.request.id}] Failed to update multi-job status: {db_error}"
+            )
 
         # Retry the task if retries remain
         raise self.retry(exc=e)
@@ -148,25 +164,30 @@ def process_video_recipe_task(self, video_job_id: int):
     Returns:
         Dict with status and video_job_id
     """
-    logger.info(f"[Task {self.request.id}] Starting video recipe task for job {video_job_id}")
+    logger.info(
+        f"[Task {self.request.id}] Starting video recipe task for job {video_job_id}"
+    )
 
     try:
         # Get the video job
         video_job = db.session.get(VideoProcessingJob, video_job_id)
         if not video_job:
-            logger.error(f"[Task {self.request.id}] VideoProcessingJob {video_job_id} not found")
+            logger.error(
+                f"[Task {self.request.id}] VideoProcessingJob {video_job_id} not found"
+            )
             return {"status": "error", "message": "Video job not found"}
 
         # Update status to processing
         video_job.update_progress(
-            VideoProcessingStatus.EXTRACTING_AUDIO,
-            "Extracting audio from video...",
-            10
+            VideoProcessingStatus.EXTRACTING_AUDIO, "Extracting audio from video...", 10
         )
         db.session.commit()
 
         # Import the video processor (inside task to avoid circular imports)
-        from app.services.video_processor import VideoRecipeProcessor, check_ffmpeg_installed
+        from app.services.video_processor import (
+            VideoRecipeProcessor,
+            check_ffmpeg_installed,
+        )
 
         # Check FFmpeg is installed
         if not check_ffmpeg_installed():
@@ -177,24 +198,75 @@ def process_video_recipe_task(self, video_job_id: int):
         # Process the video
         processor = VideoRecipeProcessor()
 
+        # Determine video source - download from Cloudinary if needed
+        video_path = video_job.video_path
+        temp_video_file = None
+
+        if video_job.cloudinary_url and (
+            not video_path or not os.path.exists(video_path)
+        ):
+            # Download video from Cloudinary to a temp file
+            video_job.update_progress(
+                VideoProcessingStatus.UPLOADING,
+                "Downloading video for processing...",
+                12,
+            )
+            db.session.commit()
+
+            try:
+                # Create temp file with correct extension
+                original_ext = (
+                    os.path.splitext(video_job.video_original_filename)[1] or ".mp4"
+                )
+                temp_video_file = tempfile.NamedTemporaryFile(
+                    suffix=original_ext, delete=False, prefix="cookle_video_"
+                )
+                temp_video_file.close()
+                video_path = temp_video_file.name
+
+                # Download from Cloudinary
+                logger.info(
+                    f"Downloading video from Cloudinary: {video_job.cloudinary_url}"
+                )
+                response = requests.get(
+                    video_job.cloudinary_url, stream=True, timeout=120
+                )
+                response.raise_for_status()
+
+                with open(video_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+                logger.info(
+                    f"Downloaded video to: {video_path} ({os.path.getsize(video_path)} bytes)"
+                )
+
+            except Exception as download_error:
+                error_msg = (
+                    f"Failed to download video from Cloudinary: {download_error}"
+                )
+                logger.error(f"{error_msg}\nTraceback: {traceback.format_exc()}")
+                video_job.mark_failed(error_msg)
+                db.session.commit()
+                return {"status": "error", "message": error_msg}
+
         # Update progress through the stages
         video_job.update_progress(
-            VideoProcessingStatus.EXTRACTING_AUDIO,
-            "Extracting audio track...",
-            15
+            VideoProcessingStatus.EXTRACTING_AUDIO, "Extracting audio track...", 15
         )
         db.session.commit()
 
         # Run the full processing pipeline
         result = processor.process_video(
-            video_path=video_job.video_path,
-            translate_to_english=video_job.translate_to_english
+            video_path=video_path, translate_to_english=video_job.translate_to_english
         )
 
         if not result.success:
             video_job.mark_failed(result.error_message or "Video processing failed")
             db.session.commit()
-            logger.error(f"[Task {self.request.id}] Video processing failed: {result.error_message}")
+            logger.error(
+                f"[Task {self.request.id}] Video processing failed: {result.error_message}"
+            )
             return {"status": "error", "message": result.error_message}
 
         # Store intermediate results
@@ -207,7 +279,7 @@ def process_video_recipe_task(self, video_job_id: int):
         video_job.update_progress(
             VideoProcessingStatus.PARSING_RECIPE,
             "Creating recipe from extracted content...",
-            85
+            85,
         )
         db.session.commit()
 
@@ -265,9 +337,7 @@ def process_video_recipe_task(self, video_job_id: int):
             # Link to recipe
             db.session.execute(
                 recipe_ingredients.insert().values(
-                    recipe_id=recipe.id,
-                    ingredient_id=ingredient.id,
-                    order=i
+                    recipe_id=recipe.id, ingredient_id=ingredient.id, order=i
                 )
             )
 
@@ -278,9 +348,7 @@ def process_video_recipe_task(self, video_job_id: int):
                 continue
 
             instruction = Instruction(
-                recipe_id=recipe.id,
-                step_number=i + 1,
-                text=inst_text.strip()
+                recipe_id=recipe.id, step_number=i + 1, text=inst_text.strip()
             )
             db.session.add(instruction)
 
@@ -290,26 +358,42 @@ def process_video_recipe_task(self, video_job_id: int):
             if not tag_name or not isinstance(tag_name, str):
                 continue
 
-            tag = Tag(
-                recipe_id=recipe.id,
-                name=tag_name.strip()[:100]
-            )
+            tag = Tag(recipe_id=recipe.id, name=tag_name.strip()[:100])
             db.session.add(tag)
 
         # Update video job with completion
         video_job.recipe_id = recipe.id
         video_job.update_progress(
-            VideoProcessingStatus.COMPLETED,
-            "Recipe extracted successfully!",
-            100
+            VideoProcessingStatus.COMPLETED, "Recipe extracted successfully!", 100
         )
         db.session.commit()
 
-        # Clean up video file
+        # Clean up video files
         try:
-            if os.path.exists(video_job.video_path):
+            # Clean up temp downloaded file
+            if temp_video_file and os.path.exists(video_path):
+                os.remove(video_path)
+                logger.info(f"Cleaned up temp video file: {video_path}")
+
+            # Clean up original video path if it exists
+            if video_job.video_path and os.path.exists(video_job.video_path):
                 os.remove(video_job.video_path)
-                logger.info(f"Cleaned up video file: {video_job.video_path}")
+                logger.info(f"Cleaned up original video file: {video_job.video_path}")
+
+            # Delete video from Cloudinary (we only needed it for processing)
+            if video_job.cloudinary_public_id:
+                try:
+                    cloudinary.uploader.destroy(
+                        video_job.cloudinary_public_id, resource_type="video"
+                    )
+                    logger.info(
+                        f"Deleted video from Cloudinary: {video_job.cloudinary_public_id}"
+                    )
+                except Exception as cloudinary_error:
+                    logger.warning(
+                        f"Failed to delete video from Cloudinary: {cloudinary_error}"
+                    )
+
         except Exception as cleanup_error:
             logger.warning(f"Failed to clean up video file: {cleanup_error}")
 
@@ -321,7 +405,7 @@ def process_video_recipe_task(self, video_job_id: int):
         return {
             "status": "success",
             "video_job_id": video_job_id,
-            "recipe_id": recipe.id
+            "recipe_id": recipe.id,
         }
 
     except Exception as e:
@@ -337,7 +421,9 @@ def process_video_recipe_task(self, video_job_id: int):
                 video_job.mark_failed(f"Processing error: {str(e)[:450]}")
                 db.session.commit()
         except Exception as db_error:
-            logger.error(f"[Task {self.request.id}] Failed to update video job status: {db_error}")
+            logger.error(
+                f"[Task {self.request.id}] Failed to update video job status: {db_error}"
+            )
 
         # Retry the task if retries remain
         raise self.retry(exc=e)
