@@ -7,14 +7,11 @@ All external calls (subprocess, requests, API clients, Redis) are mocked.
 import json
 import os
 import subprocess
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.services.youtube_recipe_service import (
-    CACHE_TTL,
-    MAX_DURATION_SECONDS,
-    YouTubeCaptionError,
     YouTubeDownloadError,
     YouTubeRecipeService,
     YouTubeValidationError,
@@ -569,8 +566,6 @@ class TestEndToEnd:
             "ingredients": ["chicken", "salt"],
             "instructions": ["Season chicken", "Grill"],
         }
-
-        call_count = [0]
 
         def mock_subprocess_run(cmd, **kwargs):
             result = MagicMock()

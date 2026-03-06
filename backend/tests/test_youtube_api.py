@@ -7,10 +7,8 @@ Celery task is mocked to avoid actual processing.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from app import db
-from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
+from app.models.video_job import VideoProcessingJob
 
 
 class TestUploadYouTubeEndpoint:
