@@ -4,6 +4,7 @@ Celery tasks for account management operations.
 These tasks handle background account operations like scheduled deletions
 and data exports.
 """
+
 import logging
 import traceback
 from datetime import datetime
@@ -45,16 +46,20 @@ def purge_scheduled_accounts_task(self):
         accounts_to_delete = User.query.filter(
             User.deletion_scheduled_for <= datetime.utcnow(),
             User.deletion_scheduled_for.isnot(None),
-            User.deleted_at.is_(None)
+            User.deleted_at.is_(None),
         ).all()
 
-        logger.info(f"[Task {self.request.id}] Found {len(accounts_to_delete)} accounts to purge")
+        logger.info(
+            f"[Task {self.request.id}] Found {len(accounts_to_delete)} accounts to purge"
+        )
 
         for user in accounts_to_delete:
             try:
                 _purge_user_account(user)
                 deleted_count += 1
-                logger.info(f"[Task {self.request.id}] Successfully purged account {user.id}")
+                logger.info(
+                    f"[Task {self.request.id}] Successfully purged account {user.id}"
+                )
             except Exception as e:
                 error_msg = f"Failed to purge account {user.id}: {str(e)}"
                 logger.error(
@@ -74,7 +79,7 @@ def purge_scheduled_accounts_task(self):
             "status": "success" if not errors else "partial",
             "deleted_count": deleted_count,
             "error_count": len(errors),
-            "errors": errors[:5]  # Limit error details
+            "errors": errors[:5],  # Limit error details
         }
 
     except Exception as e:
@@ -109,7 +114,9 @@ def _purge_user_account(user: User) -> None:
     try:
         cloudinary_service = CloudinaryService()
     except Exception as e:
-        logger.warning(f"Cloudinary service unavailable, images may not be deleted: {e}")
+        logger.warning(
+            f"Cloudinary service unavailable, images may not be deleted: {e}"
+        )
         cloudinary_service = None
 
     # Delete recipe images from Cloudinary
@@ -119,7 +126,9 @@ def _purge_user_account(user: User) -> None:
                 if image.public_id:
                     try:
                         cloudinary_service.delete_image(image.public_id)
-                        logger.debug(f"Deleted image {image.public_id} for recipe {recipe.id}")
+                        logger.debug(
+                            f"Deleted image {image.public_id} for recipe {recipe.id}"
+                        )
                     except Exception as e:
                         logger.warning(f"Failed to delete image {image.public_id}: {e}")
 

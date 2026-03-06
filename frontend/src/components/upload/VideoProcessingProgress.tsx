@@ -19,6 +19,9 @@ interface VideoJobStatus {
 const STATUS_DETAILS: Record<VideoProcessingStatus, { label: string; icon: string }> = {
   pending: { label: 'Preparing video', icon: '⏳' },
   uploading: { label: 'Uploading video', icon: '📤' },
+  fetching_metadata: { label: 'Fetching video info', icon: '🔍' },
+  extracting_captions: { label: 'Extracting captions', icon: '💬' },
+  downloading_audio: { label: 'Downloading audio', icon: '⬇️' },
   extracting_audio: { label: 'Extracting audio', icon: '🎵' },
   transcribing: { label: 'Transcribing speech', icon: '📝' },
   extracting_frames: { label: 'Extracting video frames', icon: '🎬' },

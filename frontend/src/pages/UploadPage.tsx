@@ -44,8 +44,44 @@ const UploadPage: React.FC = () => {
         // URL import is synchronous - no job polling needed
         setSuccess(result);
 
+      } else if (formData.isVideoMode && formData.isYoutubeLink && formData.youtubeUrl) {
+        // Handle YouTube URL import
+        const uploadOptions: {
+          cookbook_id?: number;
+          is_original_recipe?: boolean;
+          translate_to_english?: boolean;
+          create_new_cookbook?: boolean;
+          new_cookbook_title?: string;
+          new_cookbook_author?: string;
+          new_cookbook_description?: string;
+          new_cookbook_publisher?: string;
+          new_cookbook_isbn?: string;
+        } = {
+          is_original_recipe: formData.is_original_recipe,
+          translate_to_english: formData.translate_to_english,
+        };
+
+        // Determine cookbook ID based on form selection
+        if (formData.create_new_cookbook) {
+          uploadOptions.create_new_cookbook = true;
+          uploadOptions.new_cookbook_title = formData.new_cookbook_title;
+          uploadOptions.new_cookbook_author = formData.new_cookbook_author;
+          uploadOptions.new_cookbook_description = formData.new_cookbook_description;
+          uploadOptions.new_cookbook_publisher = formData.new_cookbook_publisher;
+          uploadOptions.new_cookbook_isbn = formData.new_cookbook_isbn;
+        } else if (formData.search_existing_cookbook && formData.selected_existing_cookbook_id) {
+          uploadOptions.cookbook_id = formData.selected_existing_cookbook_id;
+        } else if (formData.cookbook_id) {
+          uploadOptions.cookbook_id = formData.cookbook_id;
+        }
+
+        const result = await recipesApi.uploadRecipeYouTube(formData.youtubeUrl.trim(), uploadOptions);
+
+        setVideoJobId(result.video_job_id);
+        setIsVideoProcessing(true);
+
       } else if (formData.isVideoMode && formData.videoFile) {
-        // Handle video upload
+        // Handle video file upload
         const uploadOptions: {
           cookbook_id?: number;
           is_original_recipe?: boolean;

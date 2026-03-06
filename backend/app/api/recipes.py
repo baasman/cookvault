@@ -4802,3 +4802,136 @@ def get_video_job_status(current_user, job_id: int) -> Tuple[Response, int]:
 
         traceback.print_exc()
         return jsonify({"error": "Failed to get job status"}), 500
+
+
+@bp.route("/recipes/upload-youtube", methods=["POST"])
+@require_auth
+@rate_limit_upload
+def upload_recipe_youtube(current_user) -> Tuple[Response, int]:
+    """
+    Import a recipe from a YouTube video URL.
+
+    Accepts JSON with a YouTube URL, creates a VideoProcessingJob,
+    and queues async processing via Celery (yt-dlp + captions/audio).
+    """
+    from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
+    from app.services.youtube_recipe_service import (
+        YouTubeRecipeService,
+        YouTubeValidationError,
+    )
+
+    current_app.logger.info(
+        f"YouTube recipe import request from user {current_user.id} "
+        f"({current_user.username})"
+    )
+
+    try:
+        # Check upload limit for free users
+        subscription = current_user.get_or_create_subscription()
+        if not current_user.can_upload_recipe():
+            current_app.logger.warning(
+                f"User {current_user.id} ({current_user.username}) reached upload limit"
+            )
+            return jsonify(
+                {
+                    "error": "Upload limit reached",
+                    "message": (
+                        f"You've used all {subscription.monthly_upload_count} "
+                        f"of your free uploads this month. "
+                        f"Upgrade to Premium for unlimited uploads."
+                    ),
+                    "remaining_uploads": 0,
+                    "upgrade_required": True,
+                }
+            ), 403
+
+        # Parse JSON body
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+
+        url = data.get("url", "").strip()
+        if not url:
+            return jsonify({"error": "YouTube URL is required"}), 400
+
+        # Validate URL and extract video ID
+        try:
+            video_id = YouTubeRecipeService.validate_and_extract_video_id(url)
+        except YouTubeValidationError as e:
+            return jsonify({"error": str(e)}), 400
+
+        # Get optional parameters
+        cookbook_id = data.get("cookbook_id")
+        if cookbook_id is not None:
+            cookbook_id = int(cookbook_id)
+        translate_to_english = bool(data.get("translate_to_english", False))
+        is_original_recipe = bool(data.get("is_original_recipe", False))
+
+        # Handle cookbook creation if requested
+        create_new_cookbook = bool(data.get("create_new_cookbook", False))
+        if create_new_cookbook:
+            new_cookbook_title = (data.get("new_cookbook_title") or "").strip()
+            if not new_cookbook_title:
+                return jsonify(
+                    {"error": "Cookbook title required when creating new cookbook"}
+                ), 400
+
+            cookbook = Cookbook(
+                title=new_cookbook_title,
+                author=(data.get("new_cookbook_author") or "").strip() or None,
+                description=(
+                    (data.get("new_cookbook_description") or "").strip() or None
+                ),
+                publisher=((data.get("new_cookbook_publisher") or "").strip() or None),
+                isbn=(data.get("new_cookbook_isbn") or "").strip() or None,
+                user_id=current_user.id,
+            )
+            db.session.add(cookbook)
+            db.session.flush()
+            cookbook_id = cookbook.id
+
+        # Create VideoProcessingJob with synthetic file values for YouTube
+        video_job = VideoProcessingJob(
+            user_id=current_user.id,
+            video_filename=f"youtube_{video_id}",
+            video_original_filename=f"youtube_{video_id}",
+            video_path="youtube",
+            video_size_bytes=0,
+            video_content_type="video/youtube",
+            status=VideoProcessingStatus.PENDING,
+            progress_message="Queued for processing",
+            progress_percentage=0,
+            is_original_recipe=is_original_recipe,
+            translate_to_english=translate_to_english,
+            cookbook_id=cookbook_id,
+            youtube_url=url,
+            youtube_video_id=video_id,
+        )
+
+        db.session.add(video_job)
+        db.session.commit()
+
+        current_app.logger.info(
+            f"Created YouTube VideoProcessingJob {video_job.id} "
+            f"for video {video_id}, user {current_user.id}"
+        )
+
+        # Queue Celery task
+        from app.tasks.recipe_tasks import process_youtube_recipe_task
+
+        process_youtube_recipe_task.delay(video_job.id)
+
+        return jsonify(
+            {
+                "message": "YouTube video queued for processing.",
+                "video_job_id": video_job.id,
+                "status": video_job.status.value,
+            }
+        ), 202
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"YouTube upload error: {str(e)}\nTraceback: {traceback.format_exc()}"
+        )
+        return jsonify({"error": f"YouTube import failed: {str(e)}"}), 500
