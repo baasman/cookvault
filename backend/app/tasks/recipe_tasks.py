@@ -8,8 +8,6 @@ import json
 import logging
 import os
 import traceback
-from datetime import datetime
-
 from app import db
 from app.celery_app import celery
 from app.models.recipe import (
@@ -342,4 +340,215 @@ def process_video_recipe_task(self, video_job_id: int):
             logger.error(f"[Task {self.request.id}] Failed to update video job status: {db_error}")
 
         # Retry the task if retries remain
+        raise self.retry(exc=e)
+
+
+@celery.task(bind=True, max_retries=2, default_retry_delay=60)
+def process_youtube_recipe_task(self, video_job_id: int):
+    """
+    Celery task to process a YouTube URL and extract a recipe.
+
+    This task:
+    1. Fetches video metadata via yt-dlp
+    2. Extracts captions (Tier 1) or downloads audio + Whisper (Tier 2)
+    3. Optionally downloads thumbnail for visual context
+    4. Parses transcript into structured recipe via Claude
+    5. Creates the Recipe in the database
+
+    Args:
+        self: Celery task instance (bound)
+        video_job_id: ID of the VideoProcessingJob to process
+
+    Returns:
+        Dict with status and video_job_id
+    """
+    logger.info(
+        f"[Task {self.request.id}] Starting YouTube recipe task for job {video_job_id}"
+    )
+
+    try:
+        video_job = db.session.get(VideoProcessingJob, video_job_id)
+        if not video_job:
+            logger.error(
+                f"[Task {self.request.id}] VideoProcessingJob {video_job_id} not found"
+            )
+            return {"status": "error", "message": "Video job not found"}
+
+        if not video_job.youtube_video_id:
+            video_job.mark_failed("No YouTube video ID set on job")
+            db.session.commit()
+            return {"status": "error", "message": "Missing YouTube video ID"}
+
+        # Import inside task to avoid circular imports
+        from app.services.youtube_recipe_service import YouTubeRecipeService
+
+        service = YouTubeRecipeService()
+
+        # Progress callback that updates the job in the DB
+        def progress_callback(status: str, message: str, percentage: int):
+            try:
+                status_enum = VideoProcessingStatus(status)
+                video_job.update_progress(status_enum, message, percentage)
+                db.session.commit()
+            except Exception as e:
+                logger.warning(
+                    f"[Task {self.request.id}] Failed to update progress: {e}"
+                )
+
+        # Run the processing pipeline
+        result = service.process_youtube_url(
+            video_id=video_job.youtube_video_id,
+            youtube_url=video_job.youtube_url or "",
+            translate_to_english=video_job.translate_to_english,
+            progress_callback=progress_callback,
+        )
+
+        if not result.success:
+            # Save transcript/method even on failure for debugging
+            if result.transcript:
+                video_job.transcript = result.transcript
+            if result.extraction_method:
+                video_job.extraction_method = result.extraction_method
+            video_job.mark_failed(
+                result.error_message or "YouTube processing failed"
+            )
+            db.session.commit()
+            logger.error(
+                f"[Task {self.request.id}] YouTube processing failed: "
+                f"{result.error_message}"
+            )
+            return {"status": "error", "message": result.error_message}
+
+        # Store intermediate results
+        video_job.transcript = result.transcript
+        video_job.extraction_method = result.extraction_method
+        if result.video_duration_seconds:
+            video_job.video_duration_seconds = result.video_duration_seconds
+
+        video_job.update_progress(
+            VideoProcessingStatus.PARSING_RECIPE,
+            "Creating recipe from extracted content...",
+            85,
+        )
+        db.session.commit()
+
+        # Create the Recipe from parsed data
+        parsed_recipe = result.parsed_recipe
+        if not parsed_recipe:
+            video_job.mark_failed("Could not parse recipe from video content")
+            db.session.commit()
+            return {"status": "error", "message": "Recipe parsing failed"}
+
+        # Build source string
+        youtube_source = video_job.youtube_url or (
+            f"https://www.youtube.com/watch?v={video_job.youtube_video_id}"
+        )
+
+        recipe = Recipe(
+            title=parsed_recipe.get("title", "Recipe from YouTube"),
+            description=parsed_recipe.get("description"),
+            cookbook_id=video_job.cookbook_id,
+            user_id=video_job.user_id,
+            uploaded_by_id=video_job.user_id,
+            prep_time=parsed_recipe.get("prep_time"),
+            cook_time=parsed_recipe.get("cook_time"),
+            servings=parsed_recipe.get("servings"),
+            difficulty=parsed_recipe.get("difficulty"),
+            course_type=parsed_recipe.get("course_type"),
+            source=youtube_source,
+            is_original_recipe=video_job.is_original_recipe,
+            source_language=parsed_recipe.get("source_language"),
+            source_language_name=parsed_recipe.get("source_language_name"),
+            is_translated=parsed_recipe.get("is_translated", False),
+            original_title=parsed_recipe.get("original_title"),
+            original_description=parsed_recipe.get("original_description"),
+        )
+
+        db.session.add(recipe)
+        db.session.flush()
+
+        # Add ingredients
+        for i, ing_text in enumerate(parsed_recipe.get("ingredients", [])):
+            if not ing_text or not isinstance(ing_text, str):
+                continue
+
+            ing_name = ing_text.strip()
+            ingredient = Ingredient.query.filter(
+                Ingredient.name.ilike(ing_name[:200])
+            ).first()
+
+            if not ingredient:
+                ingredient = Ingredient(name=ing_name[:200])
+                db.session.add(ingredient)
+                db.session.flush()
+
+            db.session.execute(
+                recipe_ingredients.insert().values(
+                    recipe_id=recipe.id,
+                    ingredient_id=ingredient.id,
+                    order=i,
+                )
+            )
+
+        # Add instructions
+        for i, inst_text in enumerate(parsed_recipe.get("instructions", [])):
+            if not inst_text or not isinstance(inst_text, str):
+                continue
+
+            instruction = Instruction(
+                recipe_id=recipe.id,
+                step_number=i + 1,
+                text=inst_text.strip(),
+            )
+            db.session.add(instruction)
+
+        # Add tags
+        for tag_name in parsed_recipe.get("tags", []):
+            if not tag_name or not isinstance(tag_name, str):
+                continue
+
+            tag = Tag(
+                recipe_id=recipe.id,
+                name=tag_name.strip()[:100],
+            )
+            db.session.add(tag)
+
+        # Complete the job
+        video_job.recipe_id = recipe.id
+        video_job.update_progress(
+            VideoProcessingStatus.COMPLETED,
+            "Recipe extracted successfully!",
+            100,
+        )
+        db.session.commit()
+
+        logger.info(
+            f"[Task {self.request.id}] Completed YouTube recipe task for "
+            f"job {video_job_id}, created recipe {recipe.id}: {recipe.title}"
+        )
+
+        return {
+            "status": "success",
+            "video_job_id": video_job_id,
+            "recipe_id": recipe.id,
+        }
+
+    except Exception as e:
+        logger.error(
+            f"[Task {self.request.id}] Failed YouTube recipe task for "
+            f"job {video_job_id}: {str(e)}\n"
+            f"Traceback: {traceback.format_exc()}"
+        )
+
+        try:
+            video_job = db.session.get(VideoProcessingJob, video_job_id)
+            if video_job:
+                video_job.mark_failed(f"Processing error: {str(e)[:450]}")
+                db.session.commit()
+        except Exception as db_error:
+            logger.error(
+                f"[Task {self.request.id}] Failed to update YouTube job status: "
+                f"{db_error}"
+            )
+
         raise self.retry(exc=e)

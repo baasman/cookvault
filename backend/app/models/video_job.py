@@ -17,6 +17,9 @@ class VideoProcessingStatus(Enum):
 
     PENDING = "pending"
     UPLOADING = "uploading"
+    FETCHING_METADATA = "fetching_metadata"
+    EXTRACTING_CAPTIONS = "extracting_captions"
+    DOWNLOADING_AUDIO = "downloading_audio"
     EXTRACTING_AUDIO = "extracting_audio"
     TRANSCRIBING = "transcribing"
     EXTRACTING_FRAMES = "extracting_frames"
@@ -53,6 +56,15 @@ class VideoProcessingJob(db.Model):
     video_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     video_duration_seconds: Mapped[Optional[float]] = mapped_column(db.Float)
     video_content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # YouTube-specific fields (nullable — only set for YouTube imports)
+    youtube_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    youtube_video_id: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True, index=True
+    )
+    extraction_method: Mapped[Optional[str]] = mapped_column(
+        String(30), nullable=True
+    )  # "captions", "audio_fallback", "file_upload"
 
     # Processing status
     status: Mapped[VideoProcessingStatus] = mapped_column(
@@ -119,6 +131,9 @@ class VideoProcessingJob(db.Model):
             "video_original_filename": self.video_original_filename,
             "video_size_bytes": self.video_size_bytes,
             "video_duration_seconds": self.video_duration_seconds,
+            "youtube_url": self.youtube_url,
+            "youtube_video_id": self.youtube_video_id,
+            "extraction_method": self.extraction_method,
             "status": self.status.value,
             "progress_message": self.progress_message,
             "progress_percentage": self.progress_percentage,

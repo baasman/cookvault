@@ -1196,6 +1196,74 @@ class RecipesApi {
     }
   }
 
+  async uploadRecipeYouTube(
+    url: string,
+    options?: {
+      cookbook_id?: number;
+      is_original_recipe?: boolean;
+      translate_to_english?: boolean;
+      create_new_cookbook?: boolean;
+      new_cookbook_title?: string;
+      new_cookbook_author?: string;
+      new_cookbook_description?: string;
+      new_cookbook_publisher?: string;
+      new_cookbook_isbn?: string;
+    }
+  ): Promise<VideoUploadResponse> {
+    try {
+      const payload: Record<string, unknown> = { url };
+
+      if (options?.cookbook_id) {
+        payload.cookbook_id = options.cookbook_id;
+      }
+
+      if (options?.is_original_recipe !== undefined) {
+        payload.is_original_recipe = options.is_original_recipe;
+      }
+
+      if (options?.translate_to_english) {
+        payload.translate_to_english = true;
+      }
+
+      if (options?.create_new_cookbook) {
+        payload.create_new_cookbook = true;
+        if (options.new_cookbook_title) {
+          payload.new_cookbook_title = options.new_cookbook_title;
+        }
+        if (options.new_cookbook_author) {
+          payload.new_cookbook_author = options.new_cookbook_author;
+        }
+        if (options.new_cookbook_description) {
+          payload.new_cookbook_description = options.new_cookbook_description;
+        }
+        if (options.new_cookbook_publisher) {
+          payload.new_cookbook_publisher = options.new_cookbook_publisher;
+        }
+        if (options.new_cookbook_isbn) {
+          payload.new_cookbook_isbn = options.new_cookbook_isbn;
+        }
+      }
+
+      const response = await apiFetch(`${this.baseUrl}/recipes/upload-youtube`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error uploading YouTube recipe:', error);
+      throw error;
+    }
+  }
+
   async getVideoJobStatus(jobId: number): Promise<VideoJobStatusResponse> {
     try {
       const response = await apiFetch(`${this.baseUrl}/recipes/video-job-status/${jobId}`, {

@@ -282,6 +282,9 @@ export interface MultiJobStatusResponse extends MultiRecipeJob {
 export type VideoProcessingStatus =
   | 'pending'
   | 'uploading'
+  | 'fetching_metadata'
+  | 'extracting_captions'
+  | 'downloading_audio'
   | 'extracting_audio'
   | 'transcribing'
   | 'extracting_frames'
@@ -297,6 +300,9 @@ export interface VideoProcessingJob {
   video_original_filename: string;
   video_size_bytes: number;
   video_duration_seconds?: number;
+  youtube_url?: string;
+  youtube_video_id?: string;
+  extraction_method?: string;
   status: VideoProcessingStatus;
   progress_message?: string;
   progress_percentage: number;
@@ -391,6 +397,8 @@ export interface UploadFormData {
   recipeUrl?: string; // URL for recipe import
   isVideoMode?: boolean; // Toggle for video import mode
   videoFile?: File | null; // Video file for video import
+  isYoutubeLink?: boolean; // Toggle between file upload and YouTube link in video mode
+  youtubeUrl?: string; // YouTube URL for recipe import
   cookbook_id?: number;
   // Upload mode selection
   no_cookbook?: boolean;
