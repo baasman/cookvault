@@ -52,7 +52,9 @@ class VideoProcessingJob(db.Model):
     # Video file information
     video_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     video_original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    video_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Local path (may be None)
+    video_path: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True
+    )  # Local path (may be None)
     video_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     video_duration_seconds: Mapped[Optional[float]] = mapped_column(db.Float)
     video_content_type: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -169,9 +169,7 @@ class TestUploadYouTubeEndpoint:
         job_id = create_response.get_json()["video_job_id"]
 
         # Check status
-        status_response = auth_client.get(
-            f"/api/recipes/video-job-status/{job_id}"
-        )
+        status_response = auth_client.get(f"/api/recipes/video-job-status/{job_id}")
         assert status_response.status_code == 200
         data = status_response.get_json()
         assert data["youtube_url"] == "https://www.youtube.com/watch?v=dQw4w9WgXcQ"

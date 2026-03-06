@@ -495,9 +495,7 @@ def process_youtube_recipe_task(self, video_job_id: int):
                 video_job.transcript = result.transcript
             if result.extraction_method:
                 video_job.extraction_method = result.extraction_method
-            video_job.mark_failed(
-                result.error_message or "YouTube processing failed"
-            )
+            video_job.mark_failed(result.error_message or "YouTube processing failed")
             db.session.commit()
             logger.error(
                 f"[Task {self.request.id}] YouTube processing failed: "

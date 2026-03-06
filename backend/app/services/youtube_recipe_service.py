@@ -62,23 +62,15 @@ class YouTubeProcessingResult:
 # Regex patterns for YouTube URL parsing
 YOUTUBE_URL_PATTERNS = [
     # Standard: youtube.com/watch?v=VIDEO_ID
-    re.compile(
-        r"(?:https?://)?(?:www\.)?youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})"
-    ),
+    re.compile(r"(?:https?://)?(?:www\.)?youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})"),
     # Short: youtu.be/VIDEO_ID
     re.compile(r"(?:https?://)?youtu\.be/([a-zA-Z0-9_-]{11})"),
     # Embed: youtube.com/embed/VIDEO_ID
-    re.compile(
-        r"(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})"
-    ),
+    re.compile(r"(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})"),
     # Shorts: youtube.com/shorts/VIDEO_ID
-    re.compile(
-        r"(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]{11})"
-    ),
+    re.compile(r"(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]{11})"),
     # Mobile: m.youtube.com/watch?v=VIDEO_ID
-    re.compile(
-        r"(?:https?://)?m\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})"
-    ),
+    re.compile(r"(?:https?://)?m\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})"),
 ]
 
 # Patterns that indicate a non-video URL (playlists, channels, etc.)
@@ -122,9 +114,7 @@ class YouTubeRecipeService:
     def _init_redis(self) -> Optional[redis.Redis]:
         """Initialize Redis connection for caching."""
         try:
-            redis_url = current_app.config.get(
-                "REDIS_URL", "redis://localhost:6379/0"
-            )
+            redis_url = current_app.config.get("REDIS_URL", "redis://localhost:6379/0")
             client = redis.from_url(redis_url, decode_responses=True)
             client.ping()
             return client
@@ -160,9 +150,7 @@ class YouTubeRecipeService:
                     raise YouTubeValidationError(
                         "Please provide a single video URL, not a playlist"
                     )
-                raise YouTubeValidationError(
-                    "Not a valid YouTube video URL"
-                )
+                raise YouTubeValidationError("Not a valid YouTube video URL")
 
         # Try to extract video ID
         for pattern in YOUTUBE_URL_PATTERNS:
@@ -206,13 +194,9 @@ class YouTubeRecipeService:
             if result.returncode != 0:
                 stderr = result.stderr.strip()
                 if "Private video" in stderr or "Sign in" in stderr:
-                    raise YouTubeDownloadError(
-                        "Video is private or unavailable"
-                    )
+                    raise YouTubeDownloadError("Video is private or unavailable")
                 if "age" in stderr.lower() and "restrict" in stderr.lower():
-                    raise YouTubeDownloadError(
-                        "Cannot access age-restricted videos"
-                    )
+                    raise YouTubeDownloadError("Cannot access age-restricted videos")
                 raise YouTubeDownloadError(
                     f"Failed to fetch video metadata: {stderr[:300]}"
                 )
@@ -221,9 +205,7 @@ class YouTubeRecipeService:
 
             # Validate: not a live stream
             if metadata.get("is_live"):
-                raise YouTubeValidationError(
-                    "Live streams are not supported"
-                )
+                raise YouTubeValidationError("Live streams are not supported")
 
             # Validate: duration
             duration = metadata.get("duration", 0)
@@ -246,14 +228,10 @@ class YouTubeRecipeService:
                 f"Failed to parse yt-dlp JSON output: {e}\n"
                 f"Traceback: {traceback.format_exc()}"
             )
-            raise YouTubeDownloadError(
-                "Failed to parse video metadata"
-            )
+            raise YouTubeDownloadError("Failed to parse video metadata")
         except FileNotFoundError:
             logger.error("yt-dlp not found on system PATH")
-            raise YouTubeDownloadError(
-                "yt-dlp is not installed on the server"
-            )
+            raise YouTubeDownloadError("yt-dlp is not installed on the server")
         except Exception as e:
             logger.error(
                 f"Unexpected error fetching metadata for {video_id}: {e}\n"
@@ -299,7 +277,10 @@ class YouTubeRecipeService:
         return None
 
     def _extract_captions(
-        self, video_id: str, temp_dir: str, use_auto: bool = False,
+        self,
+        video_id: str,
+        temp_dir: str,
+        use_auto: bool = False,
         lang_code: Optional[str] = None,
     ) -> Optional[str]:
         """
@@ -353,9 +334,7 @@ class YouTubeRecipeService:
             sub_files = [
                 f
                 for f in os.listdir(temp_dir)
-                if f.startswith("subs") and (
-                    f.endswith(".vtt") or f.endswith(".srt")
-                )
+                if f.startswith("subs") and (f.endswith(".vtt") or f.endswith(".srt"))
             ]
 
             if not sub_files:
@@ -371,8 +350,7 @@ class YouTubeRecipeService:
             return None
         except Exception as e:
             logger.error(
-                f"Caption extraction error: {e}\n"
-                f"Traceback: {traceback.format_exc()}"
+                f"Caption extraction error: {e}\nTraceback: {traceback.format_exc()}"
             )
             return None
 
@@ -389,7 +367,9 @@ class YouTubeRecipeService:
                 content = f.read()
 
             # Remove VTT header (WEBVTT + optional metadata lines + blank line)
-            content = re.sub(r"^WEBVTT[^\n]*\n(?:.*?\n)*?\n", "", content, flags=re.DOTALL)
+            content = re.sub(
+                r"^WEBVTT[^\n]*\n(?:.*?\n)*?\n", "", content, flags=re.DOTALL
+            )
 
             # Remove SRT sequence numbers
             content = re.sub(r"^\d+\s*$", "", content, flags=re.MULTILINE)
@@ -420,8 +400,7 @@ class YouTubeRecipeService:
 
         except Exception as e:
             logger.error(
-                f"Subtitle parsing error: {e}\n"
-                f"Traceback: {traceback.format_exc()}"
+                f"Subtitle parsing error: {e}\nTraceback: {traceback.format_exc()}"
             )
             return None
 
@@ -461,9 +440,7 @@ class YouTubeRecipeService:
             )
 
             if result.returncode != 0:
-                logger.error(
-                    f"yt-dlp audio download failed: {result.stderr[:300]}"
-                )
+                logger.error(f"yt-dlp audio download failed: {result.stderr[:300]}")
                 raise YouTubeDownloadError(
                     f"Failed to download audio: {result.stderr[:200]}"
                 )
@@ -491,8 +468,7 @@ class YouTubeRecipeService:
             raise YouTubeDownloadError("yt-dlp is not installed on the server")
         except Exception as e:
             logger.error(
-                f"Audio download error: {e}\n"
-                f"Traceback: {traceback.format_exc()}"
+                f"Audio download error: {e}\nTraceback: {traceback.format_exc()}"
             )
             raise YouTubeDownloadError(f"Audio download failed: {str(e)}")
 
@@ -519,9 +495,7 @@ class YouTubeRecipeService:
                 )
 
             transcript = (
-                response.strip()
-                if isinstance(response, str)
-                else str(response).strip()
+                response.strip() if isinstance(response, str) else str(response).strip()
             )
 
             if not transcript:
@@ -532,16 +506,13 @@ class YouTubeRecipeService:
 
         except Exception as e:
             logger.error(
-                f"Whisper transcription error: {e}\n"
-                f"Traceback: {traceback.format_exc()}"
+                f"Whisper transcription error: {e}\nTraceback: {traceback.format_exc()}"
             )
             return None
 
     # ── Thumbnail ───────────────────────────────────────────────────
 
-    def _download_thumbnail(
-        self, thumbnail_url: str, temp_dir: str
-    ) -> Optional[str]:
+    def _download_thumbnail(self, thumbnail_url: str, temp_dir: str) -> Optional[str]:
         """
         Download video thumbnail for visual context.
 
@@ -703,9 +674,7 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
             # Extract JSON from response
             json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if not json_match:
-                logger.error(
-                    f"No JSON found in Claude response: {response_text[:500]}"
-                )
+                logger.error(f"No JSON found in Claude response: {response_text[:500]}")
                 return None
 
             parsed = json.loads(json_match.group())
@@ -727,24 +696,17 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
                 f"JSON parsing error in recipe extraction: {e}\n"
                 f"Traceback: {traceback.format_exc()}"
             )
-            raise YouTubeCaptionError(
-                f"Failed to parse Claude response as JSON: {e}"
-            )
+            raise YouTubeCaptionError(f"Failed to parse Claude response as JSON: {e}")
         except Exception as e:
             logger.error(
-                f"Recipe parsing error: {e}\n"
-                f"Traceback: {traceback.format_exc()}"
+                f"Recipe parsing error: {e}\nTraceback: {traceback.format_exc()}"
             )
-            raise YouTubeCaptionError(
-                f"Recipe extraction failed: {e}"
-            )
+            raise YouTubeCaptionError(f"Recipe extraction failed: {e}")
 
     # ── Caching ─────────────────────────────────────────────────────
 
     @staticmethod
-    def _generate_cache_key(
-        video_id: str, translate: bool = False
-    ) -> str:
+    def _generate_cache_key(video_id: str, translate: bool = False) -> str:
         """Generate Redis cache key for a YouTube video."""
         suffix = "_translated" if translate else ""
         return f"yt_recipe:{video_id}{suffix}"
@@ -799,9 +761,7 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
 
         try:
             temp_dir = tempfile.mkdtemp(prefix="youtube_recipe_")
-            logger.info(
-                f"Processing YouTube video {video_id} in {temp_dir}"
-            )
+            logger.info(f"Processing YouTube video {video_id} in {temp_dir}")
 
             # ── Check cache ──
             cache_key = self._generate_cache_key(video_id, translate_to_english)
@@ -818,18 +778,14 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
                 )
 
             # ── Fetch metadata ──
-            update_progress(
-                "fetching_metadata", "Fetching video info...", 10
-            )
+            update_progress("fetching_metadata", "Fetching video info...", 10)
             metadata = self._fetch_video_metadata(video_id)
 
             video_title = metadata.get("title", "")
             video_duration = metadata.get("duration")
 
             # ── Try captions (Tier 1) ──
-            update_progress(
-                "extracting_captions", "Looking for captions...", 30
-            )
+            update_progress("extracting_captions", "Looking for captions...", 30)
             caption_source = self._determine_caption_source(metadata)
             transcript = None
             extraction_method = None
@@ -837,11 +793,12 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
             if caption_source:
                 is_manual, lang_code = caption_source
                 logger.info(
-                    f"Found {'manual' if is_manual else 'auto'} captions "
-                    f"in {lang_code}"
+                    f"Found {'manual' if is_manual else 'auto'} captions in {lang_code}"
                 )
                 transcript = self._extract_captions(
-                    video_id, temp_dir, use_auto=not is_manual,
+                    video_id,
+                    temp_dir,
+                    use_auto=not is_manual,
                     lang_code=lang_code,
                 )
 
@@ -865,14 +822,10 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
                         video_duration_seconds=video_duration,
                     )
 
-                update_progress(
-                    "downloading_audio", "Downloading audio...", 40
-                )
+                update_progress("downloading_audio", "Downloading audio...", 40)
                 audio_path = self._download_audio(video_id, temp_dir)
 
-                update_progress(
-                    "transcribing", "Transcribing audio...", 60
-                )
+                update_progress("transcribing", "Transcribing audio...", 60)
                 transcript = self._transcribe_audio(audio_path)
 
                 if not transcript:
@@ -944,9 +897,7 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
 
         except (YouTubeValidationError, YouTubeDownloadError) as e:
             logger.warning(f"YouTube processing error for {video_id}: {e}")
-            return YouTubeProcessingResult(
-                success=False, error_message=str(e)
-            )
+            return YouTubeProcessingResult(success=False, error_message=str(e))
         except Exception as e:
             logger.error(
                 f"Unexpected error processing YouTube video {video_id}: {e}\n"

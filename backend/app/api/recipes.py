@@ -4830,8 +4830,7 @@ def upload_recipe_youtube(current_user) -> Tuple[Response, int]:
         subscription = current_user.get_or_create_subscription()
         if not current_user.can_upload_recipe():
             current_app.logger.warning(
-                f"User {current_user.id} ({current_user.username}) "
-                f"reached upload limit"
+                f"User {current_user.id} ({current_user.username}) reached upload limit"
             )
             return jsonify(
                 {
@@ -4883,9 +4882,7 @@ def upload_recipe_youtube(current_user) -> Tuple[Response, int]:
                 description=(
                     (data.get("new_cookbook_description") or "").strip() or None
                 ),
-                publisher=(
-                    (data.get("new_cookbook_publisher") or "").strip() or None
-                ),
+                publisher=((data.get("new_cookbook_publisher") or "").strip() or None),
                 isbn=(data.get("new_cookbook_isbn") or "").strip() or None,
                 user_id=current_user.id,
             )
@@ -4935,7 +4932,6 @@ def upload_recipe_youtube(current_user) -> Tuple[Response, int]:
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(
-            f"YouTube upload error: {str(e)}\n"
-            f"Traceback: {traceback.format_exc()}"
+            f"YouTube upload error: {str(e)}\nTraceback: {traceback.format_exc()}"
         )
         return jsonify({"error": f"YouTube import failed: {str(e)}"}), 500
