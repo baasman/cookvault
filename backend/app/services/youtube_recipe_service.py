@@ -113,8 +113,13 @@ class YouTubeRecipeService:
         self.cookies_file = self._setup_cookies_file()
         if self.cookies_file:
             logger.info(f"YouTube cookies file configured: {self.cookies_file}")
+            # Log first few chars to verify it's being read
+            if os.path.exists(self.cookies_file):
+                with open(self.cookies_file, 'r') as f:
+                    first_line = f.readline().strip()
+                    logger.info(f"Cookies file first line: {first_line[:50]}...")
         else:
-            logger.info("No YouTube cookies configured - may hit bot detection on cloud IPs")
+            logger.warning("No YouTube cookies configured - YOUTUBE_COOKIES env var not set")
 
         # Log yt-dlp version for debugging
         self._log_ytdlp_version()
@@ -129,9 +134,13 @@ class YouTubeRecipeService:
         - A file path to a Netscape format cookies.txt file
         - The cookies content directly (base64 encoded)
         """
-        cookies_config = current_app.config.get("YOUTUBE_COOKIES")
+        # Check environment variable directly (Flask config doesn't auto-load all env vars)
+        cookies_config = os.environ.get("YOUTUBE_COOKIES")
         if not cookies_config:
+            logger.info("YOUTUBE_COOKIES environment variable is not set")
             return None
+
+        logger.info(f"YOUTUBE_COOKIES env var found, length: {len(cookies_config)} chars")
 
         # Check if it's a file path
         if os.path.exists(cookies_config):
