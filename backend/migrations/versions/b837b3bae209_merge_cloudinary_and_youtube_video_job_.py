@@ -1,0 +1,24 @@
+"""Merge cloudinary and youtube video job migrations
+
+Revision ID: b837b3bae209
+Revises: 393b21eb335f, b5b229f5fefa
+Create Date: 2026-03-09 08:13:02.663876
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision = 'b837b3bae209'
+down_revision = ('393b21eb335f', 'b5b229f5fefa')
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    pass
+
+
+def downgrade():
+    pass
