@@ -4804,6 +4804,137 @@ def get_video_job_status(current_user, job_id: int) -> Tuple[Response, int]:
         return jsonify({"error": "Failed to get job status"}), 500
 
 
+@bp.route("/recipes/job/<int:job_id>/cancel", methods=["POST"])
+@require_auth
+def cancel_processing_job(current_user, job_id: int) -> Tuple[Response, int]:
+    """
+    Cancel a single-image recipe processing job.
+
+    Only jobs in PENDING or PROCESSING state can be cancelled.
+    """
+    try:
+        job = ProcessingJob.query.filter_by(
+            id=job_id, user_id=current_user.id
+        ).first()
+
+        if not job:
+            return jsonify({"error": "Processing job not found"}), 404
+
+        # Check if job can be cancelled
+        if job.status not in [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]:
+            return jsonify({
+                "error": f"Cannot cancel job with status: {job.status.value}"
+            }), 400
+
+        # Mark as cancelled
+        job.status = ProcessingStatus.CANCELLED
+        job.completed_at = datetime.utcnow()
+        db.session.commit()
+
+        current_app.logger.info(f"Processing job {job_id} cancelled by user {current_user.id}")
+
+        return jsonify({"message": "Job cancelled successfully", "status": "cancelled"}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error cancelling processing job: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to cancel job"}), 500
+
+
+@bp.route("/recipes/multi-job/<int:job_id>/cancel", methods=["POST"])
+@require_auth
+def cancel_multi_job(current_user, job_id: int) -> Tuple[Response, int]:
+    """
+    Cancel a multi-image recipe processing job.
+
+    Cancels the parent job and all child processing jobs.
+    Only jobs in PENDING or PROCESSING state can be cancelled.
+    """
+    try:
+        multi_job = MultiRecipeJob.query.filter_by(
+            id=job_id, user_id=current_user.id
+        ).first()
+
+        if not multi_job:
+            return jsonify({"error": "Multi-recipe job not found"}), 404
+
+        # Check if job can be cancelled
+        if multi_job.status not in [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]:
+            return jsonify({
+                "error": f"Cannot cancel job with status: {multi_job.status.value}"
+            }), 400
+
+        # Mark parent job as cancelled
+        multi_job.status = ProcessingStatus.CANCELLED
+        multi_job.completed_at = datetime.utcnow()
+
+        # Cancel all child processing jobs that are still pending/processing
+        child_jobs = ProcessingJob.query.filter_by(multi_job_id=job_id).all()
+        for child in child_jobs:
+            if child.status in [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]:
+                child.status = ProcessingStatus.CANCELLED
+                child.completed_at = datetime.utcnow()
+
+        db.session.commit()
+
+        current_app.logger.info(f"Multi-recipe job {job_id} cancelled by user {current_user.id}")
+
+        return jsonify({"message": "Job cancelled successfully", "status": "cancelled"}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error cancelling multi-recipe job: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to cancel job"}), 500
+
+
+@bp.route("/recipes/video-job/<int:job_id>/cancel", methods=["POST"])
+@require_auth
+def cancel_video_job(current_user, job_id: int) -> Tuple[Response, int]:
+    """
+    Cancel a video recipe processing job.
+
+    Only jobs that haven't completed or failed can be cancelled.
+    """
+    from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
+
+    try:
+        video_job = VideoProcessingJob.query.filter_by(
+            id=job_id, user_id=current_user.id
+        ).first()
+
+        if not video_job:
+            return jsonify({"error": "Video processing job not found"}), 404
+
+        # Check if job can be cancelled (not already completed or failed)
+        terminal_states = [
+            VideoProcessingStatus.COMPLETED,
+            VideoProcessingStatus.FAILED,
+            VideoProcessingStatus.CANCELLED
+        ]
+        if video_job.status in terminal_states:
+            return jsonify({
+                "error": f"Cannot cancel job with status: {video_job.status.value}"
+            }), 400
+
+        # Mark as cancelled
+        video_job.status = VideoProcessingStatus.CANCELLED
+        video_job.progress_message = "Cancelled by user"
+        video_job.completed_at = datetime.utcnow()
+        db.session.commit()
+
+        current_app.logger.info(f"Video job {job_id} cancelled by user {current_user.id}")
+
+        return jsonify({"message": "Job cancelled successfully", "status": "cancelled"}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error cancelling video job: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to cancel job"}), 500
+
+
 @bp.route("/recipes/upload-youtube", methods=["POST"])
 @require_auth
 @rate_limit_upload

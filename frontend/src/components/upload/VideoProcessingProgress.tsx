@@ -6,6 +6,7 @@ interface VideoProcessingProgressProps {
   videoJobId: number;
   onComplete: (recipeId: number) => void;
   onError: (error: string) => void;
+  onCancel?: () => void;
 }
 
 interface VideoJobStatus {
@@ -29,18 +30,36 @@ const STATUS_DETAILS: Record<VideoProcessingStatus, { label: string; icon: strin
   parsing_recipe: { label: 'Creating recipe', icon: '📖' },
   completed: { label: 'Recipe ready!', icon: '✅' },
   failed: { label: 'Processing failed', icon: '❌' },
+  cancelled: { label: 'Cancelled', icon: '🚫' },
 };
 
 export const VideoProcessingProgress: React.FC<VideoProcessingProgressProps> = ({
   videoJobId,
   onComplete,
   onError,
+  onCancel,
 }) => {
   const [jobStatus, setJobStatus] = useState<VideoJobStatus>({
     status: 'pending',
     progress_percentage: 0,
   });
   const [isPolling, setIsPolling] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancel = async () => {
+    if (isCancelling) return;
+
+    setIsCancelling(true);
+    try {
+      await recipesApi.cancelVideoJob(videoJobId);
+      setIsPolling(false);
+      setJobStatus(prev => ({ ...prev, status: 'cancelled' }));
+      onCancel?.();
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+      setIsCancelling(false);
+    }
+  };
 
   useEffect(() => {
     if (!isPolling) return;
@@ -64,6 +83,9 @@ export const VideoProcessingProgress: React.FC<VideoProcessingProgressProps> = (
         } else if (status.status === 'failed') {
           setIsPolling(false);
           onError(status.error_message || 'Video processing failed unexpectedly');
+        } else if (status.status === 'cancelled') {
+          setIsPolling(false);
+          onCancel?.();
         }
       } catch (error) {
         console.error('Error polling video job status:', error);
@@ -184,9 +206,32 @@ export const VideoProcessingProgress: React.FC<VideoProcessingProgressProps> = (
         )}
 
         {/* Time estimate */}
-        {jobStatus.status !== 'completed' && jobStatus.status !== 'failed' && (
+        {jobStatus.status !== 'completed' && jobStatus.status !== 'failed' && jobStatus.status !== 'cancelled' && (
           <p className="mt-4 text-sm" style={{ color: '#9b644b' }}>
             Video processing usually takes 30-90 seconds
+          </p>
+        )}
+
+        {/* Cancel button */}
+        {jobStatus.status !== 'completed' && jobStatus.status !== 'failed' && jobStatus.status !== 'cancelled' && (
+          <button
+            onClick={handleCancel}
+            disabled={isCancelling}
+            className="mt-4 px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+            style={{
+              backgroundColor: isCancelling ? '#e5e7eb' : '#fee2e2',
+              color: isCancelling ? '#9ca3af' : '#dc2626',
+              cursor: isCancelling ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isCancelling ? 'Cancelling...' : 'Cancel Processing'}
+          </button>
+        )}
+
+        {/* Cancelled message */}
+        {jobStatus.status === 'cancelled' && (
+          <p className="mt-4 text-sm" style={{ color: '#6b7280' }}>
+            Processing was cancelled
           </p>
         )}
 

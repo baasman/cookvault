@@ -949,6 +949,69 @@ class RecipesApi {
     }
   }
 
+  async cancelJob(jobId: number): Promise<{ message: string; status: string }> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/job/${jobId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+      throw error;
+    }
+  }
+
+  async cancelMultiJob(jobId: number): Promise<{ message: string; status: string }> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/multi-job/${jobId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error cancelling multi-job:', error);
+      throw error;
+    }
+  }
+
+  async cancelVideoJob(jobId: number): Promise<{ message: string; status: string }> {
+    try {
+      const response = await apiFetch(`${this.baseUrl}/recipes/video-job/${jobId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error cancelling video job:', error);
+      throw error;
+    }
+  }
+
   async deleteRecipe(recipeId: number): Promise<{ message: string }> {
     try {
       const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}`, {

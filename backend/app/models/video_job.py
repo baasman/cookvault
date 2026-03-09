@@ -27,6 +27,7 @@ class VideoProcessingStatus(Enum):
     PARSING_RECIPE = "parsing_recipe"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class VideoProcessingJob(db.Model):

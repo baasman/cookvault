@@ -291,7 +291,8 @@ export type VideoProcessingStatus =
   | 'analyzing_frames'
   | 'parsing_recipe'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'cancelled';
 
 export interface VideoProcessingJob {
   id: number;

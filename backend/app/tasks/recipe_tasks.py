@@ -52,6 +52,11 @@ def process_single_recipe_task(self, job_id: int, user_id: int = None):
             logger.error(f"[Task {self.request.id}] ProcessingJob {job_id} not found")
             return {"status": "error", "message": "Job not found"}
 
+        # Check if job was cancelled before we started
+        if job.status == ProcessingStatus.CANCELLED:
+            logger.info(f"[Task {self.request.id}] Job {job_id} was cancelled, skipping")
+            return {"status": "cancelled", "job_id": job_id}
+
         # Import the existing processing function (inside task to avoid circular imports)
         from app.api.recipes import _process_recipe_image
 
@@ -110,6 +115,11 @@ def process_multi_recipe_task(self, multi_job_id: int):
                 f"[Task {self.request.id}] MultiRecipeJob {multi_job_id} not found"
             )
             return {"status": "error", "message": "Multi-job not found"}
+
+        # Check if job was cancelled before we started
+        if multi_job.status == ProcessingStatus.CANCELLED:
+            logger.info(f"[Task {self.request.id}] Multi-job {multi_job_id} was cancelled, skipping")
+            return {"status": "cancelled", "multi_job_id": multi_job_id}
 
         # Import the existing processing function (inside task to avoid circular imports)
         from app.api.recipes import process_multi_image_job
@@ -176,6 +186,11 @@ def process_video_recipe_task(self, video_job_id: int):
                 f"[Task {self.request.id}] VideoProcessingJob {video_job_id} not found"
             )
             return {"status": "error", "message": "Video job not found"}
+
+        # Check if job was cancelled before we started
+        if video_job.status == VideoProcessingStatus.CANCELLED:
+            logger.info(f"[Task {self.request.id}] Video job {video_job_id} was cancelled, skipping")
+            return {"status": "cancelled", "video_job_id": video_job_id}
 
         # Update status to processing
         video_job.update_progress(
