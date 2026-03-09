@@ -60,6 +60,10 @@ class VideoProcessingJob(db.Model):
     video_duration_seconds: Mapped[Optional[float]] = mapped_column(db.Float)
     video_content_type: Mapped[str] = mapped_column(String(100), nullable=False)
 
+    # Cloudinary storage (for cross-service access)
+    cloudinary_public_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    cloudinary_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
     # YouTube-specific fields (nullable — only set for YouTube imports)
     youtube_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     youtube_video_id: Mapped[Optional[str]] = mapped_column(
