@@ -203,8 +203,9 @@ class YouTubeRecipeService:
                     "--dump-json",
                     "--no-download",
                     "--no-playlist",
-                    # Use Android client to bypass some restrictions
-                    "--extractor-args", "youtube:player_client=android",
+                    # Enable Node.js runtime and download challenge solver from GitHub
+                    "--js-runtimes", "node",
+                    "--remote-components", "ejs:github",
                     url,
                 ],
                 capture_output=True,
@@ -348,8 +349,9 @@ class YouTubeRecipeService:
                     "vtt/srt/best",
                     "--skip-download",
                     "--no-playlist",
-                    # Use Android client to bypass some restrictions
-                    "--extractor-args", "youtube:player_client=android",
+                    # Enable Node.js runtime and download challenge solver from GitHub
+                    "--js-runtimes", "node",
+                    "--remote-components", "ejs:github",
                     "-o",
                     os.path.join(temp_dir, "subs"),
                     url,
@@ -465,8 +467,9 @@ class YouTubeRecipeService:
                     "--audio-quality",
                     "5",
                     "--no-playlist",
-                    # Use Android client to bypass some restrictions
-                    "--extractor-args", "youtube:player_client=android",
+                    # Enable Node.js runtime and download challenge solver from GitHub
+                    "--js-runtimes", "node",
+                    "--remote-components", "ejs:github",
                     "-o",
                     output_template,
                     url,
