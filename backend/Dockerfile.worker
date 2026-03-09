@@ -6,6 +6,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies (including tesseract for OCR, ffmpeg for video processing)
+# Node.js is required by yt-dlp for YouTube video extraction (JS runtime)
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-eng \
@@ -14,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     g++ \
     curl \
     ffmpeg \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for faster Python package management
