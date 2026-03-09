@@ -109,6 +109,9 @@ class YouTubeRecipeService:
                 "OPENAI_API_KEY not configured — audio fallback will not work"
             )
 
+        # Log yt-dlp version for debugging
+        self._log_ytdlp_version()
+
         self.redis_client = self._init_redis()
 
     def _init_redis(self) -> Optional[redis.Redis]:
@@ -121,6 +124,22 @@ class YouTubeRecipeService:
         except Exception as e:
             logger.warning(f"Redis connection failed, caching disabled: {e}")
             return None
+
+    def _log_ytdlp_version(self):
+        """Log yt-dlp version for debugging."""
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                logger.info(f"yt-dlp version: {result.stdout.strip()}")
+            else:
+                logger.warning(f"Could not get yt-dlp version: {result.stderr}")
+        except Exception as e:
+            logger.warning(f"Error checking yt-dlp version: {e}")
 
     # ── URL Validation ──────────────────────────────────────────────
 
@@ -193,12 +212,24 @@ class YouTubeRecipeService:
 
             if result.returncode != 0:
                 stderr = result.stderr.strip()
-                if "Private video" in stderr or "Sign in" in stderr:
-                    raise YouTubeDownloadError("Video is private or unavailable")
-                if "age" in stderr.lower() and "restrict" in stderr.lower():
-                    raise YouTubeDownloadError("Cannot access age-restricted videos")
+                logger.warning(f"yt-dlp metadata fetch failed for {video_id}: {stderr[:500]}")
+
+                # Check for specific error types
+                stderr_lower = stderr.lower()
+                if "private video" in stderr_lower:
+                    raise YouTubeDownloadError("This video is private")
+                if "sign in" in stderr_lower and "confirm your age" in stderr_lower:
+                    raise YouTubeDownloadError("This video is age-restricted and requires sign-in")
+                if "sign in" in stderr_lower:
+                    raise YouTubeDownloadError("This video requires sign-in (may be members-only or region-restricted)")
+                if "video unavailable" in stderr_lower or "is unavailable" in stderr_lower:
+                    raise YouTubeDownloadError("This video is unavailable (may be deleted or region-restricted)")
+                if "age" in stderr_lower and "restrict" in stderr_lower:
+                    raise YouTubeDownloadError("This video is age-restricted")
+
+                # Generic error with details
                 raise YouTubeDownloadError(
-                    f"Failed to fetch video metadata: {stderr[:300]}"
+                    f"Failed to fetch video: {stderr[:200]}"
                 )
 
             metadata = json.loads(result.stdout)
