@@ -153,6 +153,19 @@ class YouTubeRecipeService:
             cookies_path = "/tmp/youtube_cookies.txt"
             with open(cookies_path, "w") as f:
                 f.write(cookies_content)
+
+            # Log cookie domains present (for debugging, without revealing values)
+            lines = cookies_content.strip().split('\n')
+            cookie_domains = set()
+            for line in lines:
+                if line.startswith('#') or not line.strip():
+                    continue
+                parts = line.split('\t')
+                if len(parts) >= 1:
+                    cookie_domains.add(parts[0])
+            logger.info(f"Cookie domains found: {sorted(cookie_domains)}")
+            logger.info(f"Total cookie lines: {len([l for l in lines if not l.startswith('#') and l.strip()])}")
+
             return cookies_path
         except Exception as e:
             logger.warning(f"Failed to decode YOUTUBE_COOKIES: {e}")
@@ -276,6 +289,14 @@ class YouTubeRecipeService:
                 "--no-download",
                 url,
             ]
+
+            # Log the command for debugging (mask the URL to avoid log spam)
+            logger.info(f"Running yt-dlp with args: {' '.join(args[:6])}... (cookies_file={self.cookies_file})")
+            if self.cookies_file and os.path.exists(self.cookies_file):
+                file_size = os.path.getsize(self.cookies_file)
+                logger.info(f"Cookies file exists, size: {file_size} bytes")
+            elif self.cookies_file:
+                logger.warning(f"Cookies file path set but file not found: {self.cookies_file}")
 
             result = subprocess.run(
                 args,
