@@ -126,7 +126,7 @@ class YouTubeRecipeService:
             return None
 
     def _log_ytdlp_version(self):
-        """Log yt-dlp version for debugging."""
+        """Log yt-dlp version and environment for debugging."""
         try:
             result = subprocess.run(
                 ["yt-dlp", "--version"],
@@ -138,8 +138,20 @@ class YouTubeRecipeService:
                 logger.info(f"yt-dlp version: {result.stdout.strip()}")
             else:
                 logger.warning(f"Could not get yt-dlp version: {result.stderr}")
+
+            # Check if Node.js is available
+            node_result = subprocess.run(
+                ["node", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if node_result.returncode == 0:
+                logger.info(f"Node.js version: {node_result.stdout.strip()}")
+            else:
+                logger.warning(f"Node.js not available: {node_result.stderr}")
         except Exception as e:
-            logger.warning(f"Error checking yt-dlp version: {e}")
+            logger.warning(f"Error checking yt-dlp/node version: {e}")
 
     # ── URL Validation ──────────────────────────────────────────────
 
@@ -215,7 +227,13 @@ class YouTubeRecipeService:
 
             if result.returncode != 0:
                 stderr = result.stderr.strip()
-                logger.warning(f"yt-dlp metadata fetch failed for {video_id}: {stderr[:500]}")
+                # Log full stderr for debugging (will appear in Sentry/logs)
+                logger.error(
+                    f"yt-dlp metadata fetch failed for {video_id}.\n"
+                    f"Return code: {result.returncode}\n"
+                    f"Full stderr:\n{stderr}\n"
+                    f"Stdout (if any): {result.stdout[:500] if result.stdout else 'empty'}"
+                )
 
                 # Check for specific error types
                 stderr_lower = stderr.lower()
