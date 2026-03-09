@@ -109,10 +109,63 @@ class YouTubeRecipeService:
                 "OPENAI_API_KEY not configured — audio fallback will not work"
             )
 
+        # Check for YouTube cookies file (for bypassing bot detection)
+        self.cookies_file = self._setup_cookies_file()
+        if self.cookies_file:
+            logger.info(f"YouTube cookies file configured: {self.cookies_file}")
+        else:
+            logger.info("No YouTube cookies configured - may hit bot detection on cloud IPs")
+
         # Log yt-dlp version for debugging
         self._log_ytdlp_version()
 
         self.redis_client = self._init_redis()
+
+    def _setup_cookies_file(self) -> Optional[str]:
+        """
+        Set up YouTube cookies file from environment variable.
+
+        The YOUTUBE_COOKIES env var can contain either:
+        - A file path to a Netscape format cookies.txt file
+        - The cookies content directly (base64 encoded)
+        """
+        cookies_config = current_app.config.get("YOUTUBE_COOKIES")
+        if not cookies_config:
+            return None
+
+        # Check if it's a file path
+        if os.path.exists(cookies_config):
+            return cookies_config
+
+        # Check if it's base64 encoded cookies content
+        try:
+            cookies_content = base64.b64decode(cookies_config).decode('utf-8')
+            # Write to a temp file
+            cookies_path = "/tmp/youtube_cookies.txt"
+            with open(cookies_path, "w") as f:
+                f.write(cookies_content)
+            return cookies_path
+        except Exception as e:
+            logger.warning(f"Failed to decode YOUTUBE_COOKIES: {e}")
+            return None
+
+    def _get_yt_dlp_base_args(self) -> List[str]:
+        """Get base yt-dlp arguments including cookies if configured."""
+        args = [
+            "yt-dlp",
+            "--no-playlist",
+            # Enable Node.js runtime and download challenge solver from GitHub
+            "--js-runtimes", "node",
+            "--remote-components", "ejs:github",
+            # Bypass geo-restrictions
+            "--geo-bypass",
+        ]
+
+        # Add cookies if configured
+        if self.cookies_file:
+            args.extend(["--cookies", self.cookies_file])
+
+        return args
 
     def _init_redis(self) -> Optional[redis.Redis]:
         """Initialize Redis connection for caching."""
@@ -209,17 +262,14 @@ class YouTubeRecipeService:
         url = f"https://www.youtube.com/watch?v={video_id}"
 
         try:
+            args = self._get_yt_dlp_base_args() + [
+                "--dump-json",
+                "--no-download",
+                url,
+            ]
+
             result = subprocess.run(
-                [
-                    "yt-dlp",
-                    "--dump-json",
-                    "--no-download",
-                    "--no-playlist",
-                    # Enable Node.js runtime and download challenge solver from GitHub
-                    "--js-runtimes", "node",
-                    "--remote-components", "ejs:github",
-                    url,
-                ],
+                args,
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -241,6 +291,11 @@ class YouTubeRecipeService:
                     raise YouTubeDownloadError("This video is private")
                 if "sign in" in stderr_lower and "confirm your age" in stderr_lower:
                     raise YouTubeDownloadError("This video is age-restricted and requires sign-in")
+                if "sign in" in stderr_lower and "not a bot" in stderr_lower:
+                    raise YouTubeDownloadError(
+                        "YouTube is blocking this request. This is a known issue with cloud servers. "
+                        "Try uploading the video file directly instead of using a YouTube link."
+                    )
                 if "sign in" in stderr_lower:
                     raise YouTubeDownloadError("This video requires sign-in (may be members-only or region-restricted)")
                 if "video unavailable" in stderr_lower or "is unavailable" in stderr_lower:
@@ -357,23 +412,20 @@ class YouTubeRecipeService:
             if lang_code and lang_code not in ("en", "en-US", "en-GB"):
                 lang_list = f"{lang_code},{lang_list}"
 
+            args = self._get_yt_dlp_base_args() + [
+                *sub_args,
+                "--sub-lang",
+                lang_list,
+                "--sub-format",
+                "vtt/srt/best",
+                "--skip-download",
+                "-o",
+                os.path.join(temp_dir, "subs"),
+                url,
+            ]
+
             result = subprocess.run(
-                [
-                    "yt-dlp",
-                    *sub_args,
-                    "--sub-lang",
-                    lang_list,
-                    "--sub-format",
-                    "vtt/srt/best",
-                    "--skip-download",
-                    "--no-playlist",
-                    # Enable Node.js runtime and download challenge solver from GitHub
-                    "--js-runtimes", "node",
-                    "--remote-components", "ejs:github",
-                    "-o",
-                    os.path.join(temp_dir, "subs"),
-                    url,
-                ],
+                args,
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -476,22 +528,19 @@ class YouTubeRecipeService:
         output_template = os.path.join(temp_dir, "audio.%(ext)s")
 
         try:
+            args = self._get_yt_dlp_base_args() + [
+                "-x",
+                "--audio-format",
+                "mp3",
+                "--audio-quality",
+                "5",
+                "-o",
+                output_template,
+                url,
+            ]
+
             result = subprocess.run(
-                [
-                    "yt-dlp",
-                    "-x",
-                    "--audio-format",
-                    "mp3",
-                    "--audio-quality",
-                    "5",
-                    "--no-playlist",
-                    # Enable Node.js runtime and download challenge solver from GitHub
-                    "--js-runtimes", "node",
-                    "--remote-components", "ejs:github",
-                    "-o",
-                    output_template,
-                    url,
-                ],
+                args,
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minutes for longer videos
