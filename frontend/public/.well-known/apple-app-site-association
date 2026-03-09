@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "789H8MH4WR.com.cookle.app",
+        "paths": [
+          "/recipes/*",
+          "/cookbooks/*",
+          "/users/*",
+          "/upload"
+        ]
+      }
+    ]
+  }
+}

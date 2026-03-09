@@ -6,6 +6,7 @@ import { Layout } from './components/layout/Layout';
 import { CookieConsentBanner } from './components/ui/CookieConsentBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { hideKeyboard, useKeyboardScrollFix } from './hooks/useKeyboard';
+import { useDeepLinks } from './hooks/useDeepLinks';
 import { isNativePlatform } from './utils/platform';
 import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, SourcesPage, SourceDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage, ForgotPasswordPage, ResetPasswordPage } from './pages';
 import { LoginPage } from './pages/LoginPage';
@@ -23,6 +24,12 @@ import NotFoundPage from './pages/NotFoundPage';
 
 // Create a client
 const queryClient = new QueryClient();
+
+// Component to handle deep links (must be inside Router)
+function DeepLinkHandler({ children }: { children: React.ReactNode }) {
+  useDeepLinks();
+  return <>{children}</>;
+}
 
 // Handle tap outside inputs to dismiss keyboard on iOS
 const handleTapOutside = (e: React.MouseEvent) => {
@@ -52,6 +59,7 @@ function App() {
           <AuthProvider>
             <div onClick={handleTapOutside}>
               <Router>
+                <DeepLinkHandler>
                 <Layout>
                   <Routes>
                     <Route path="/" element={<HomePage />} />
@@ -87,6 +95,7 @@ function App() {
                   </Routes>
                 </Layout>
                 <CookieConsentBanner />
+                </DeepLinkHandler>
               </Router>
             </div>
           </AuthProvider>
