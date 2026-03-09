@@ -203,6 +203,8 @@ class YouTubeRecipeService:
                     "--dump-json",
                     "--no-download",
                     "--no-playlist",
+                    # Use Android client to bypass some restrictions
+                    "--extractor-args", "youtube:player_client=android",
                     url,
                 ],
                 capture_output=True,
@@ -346,6 +348,8 @@ class YouTubeRecipeService:
                     "vtt/srt/best",
                     "--skip-download",
                     "--no-playlist",
+                    # Use Android client to bypass some restrictions
+                    "--extractor-args", "youtube:player_client=android",
                     "-o",
                     os.path.join(temp_dir, "subs"),
                     url,
@@ -461,6 +465,8 @@ class YouTubeRecipeService:
                     "--audio-quality",
                     "5",
                     "--no-playlist",
+                    # Use Android client to bypass some restrictions
+                    "--extractor-args", "youtube:player_client=android",
                     "-o",
                     output_template,
                     url,
