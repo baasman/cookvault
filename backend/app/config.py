@@ -204,6 +204,11 @@ class Config:
             os.environ.get("REDIS_URL") or "redis://localhost:6379/1"
         )
 
+        # Feature flags
+        app.config["YOUTUBE_IMPORT_ENABLED"] = (
+            os.environ.get("YOUTUBE_IMPORT_ENABLED", "false").lower() == "true"
+        )
+
         # Lulu Print API settings
         app.config["LULU_CLIENT_KEY"] = os.environ.get("LULU_CLIENT_KEY")
         app.config["LULU_CLIENT_SECRET"] = os.environ.get("LULU_CLIENT_SECRET")

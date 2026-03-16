@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input } from '../ui';
 import { GoogleBooksSearch } from '../cookbook/GoogleBooksSearch';
 import { cookbooksApi, type GoogleBook } from '../../services/cookbooksApi';
+import { recipesApi } from '../../services/recipesApi';
 import { captureRecipePhoto } from '../../services/cameraService';
 import { isNativePlatform } from '../../utils/platform';
 import type { UploadFormData, ImagePreview } from '../../types';
@@ -49,6 +50,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imagePreviews, setImagePreviews] = useState<ImagePreview[]>([]);
   const [videoPreview, setVideoPreview] = useState<{ name: string; size: string } | null>(null);
+  const [youtubeImportEnabled, setYoutubeImportEnabled] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
@@ -581,6 +583,15 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     setFormData(prev => ({ ...prev, isMultiImage: shouldBeMultiImage }));
   };
 
+  // Fetch feature flags on mount
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      const features = await recipesApi.getFeatures();
+      setYoutubeImportEnabled(features.youtube_import_enabled);
+    };
+    fetchFeatures();
+  }, []);
+
   // Initialize form with cookbook data if provided (e.g., adding recipe from cookbook page)
   useEffect(() => {
     if (initialCookbookData?.cookbookId) {
@@ -769,38 +780,40 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
               </p>
             </div>
 
-            {/* Video source toggle: Upload File vs YouTube Link */}
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ ...prev, isYoutubeLink: false, youtubeUrl: '' }))}
-                className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium`}
-                style={{
-                  borderColor: !formData.isYoutubeLink ? '#8b5cf6' : '#e8d7cf',
-                  backgroundColor: !formData.isYoutubeLink ? '#f5f3ff' : '#ffffff',
-                  color: !formData.isYoutubeLink ? '#6d28d9' : '#9b644b',
-                }}
-              >
-                📁 Upload File
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData(prev => ({ ...prev, isYoutubeLink: true, videoFile: null }));
-                  setVideoPreview(null);
-                }}
-                className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium`}
-                style={{
-                  borderColor: formData.isYoutubeLink ? '#8b5cf6' : '#e8d7cf',
-                  backgroundColor: formData.isYoutubeLink ? '#f5f3ff' : '#ffffff',
-                  color: formData.isYoutubeLink ? '#6d28d9' : '#9b644b',
-                }}
-              >
-                ▶️ YouTube Link
-              </button>
-            </div>
+            {/* Video source toggle: Upload File vs YouTube Link (only show toggle when YouTube is enabled) */}
+            {youtubeImportEnabled ? (
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, isYoutubeLink: false, youtubeUrl: '' }))}
+                  className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium`}
+                  style={{
+                    borderColor: !formData.isYoutubeLink ? '#8b5cf6' : '#e8d7cf',
+                    backgroundColor: !formData.isYoutubeLink ? '#f5f3ff' : '#ffffff',
+                    color: !formData.isYoutubeLink ? '#6d28d9' : '#9b644b',
+                  }}
+                >
+                  📁 Upload File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, isYoutubeLink: true, videoFile: null }));
+                    setVideoPreview(null);
+                  }}
+                  className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium`}
+                  style={{
+                    borderColor: formData.isYoutubeLink ? '#8b5cf6' : '#e8d7cf',
+                    backgroundColor: formData.isYoutubeLink ? '#f5f3ff' : '#ffffff',
+                    color: formData.isYoutubeLink ? '#6d28d9' : '#9b644b',
+                  }}
+                >
+                  ▶️ YouTube Link
+                </button>
+              </div>
+            ) : null}
 
-            {formData.isYoutubeLink ? (
+            {youtubeImportEnabled && formData.isYoutubeLink ? (
               /* YouTube URL Input */
               <div>
                 <input

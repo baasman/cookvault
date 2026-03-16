@@ -47,8 +47,33 @@ interface UpdateTagsParams {
   tags: string[];
 }
 
+interface FeaturesResponse {
+  youtube_import_enabled: boolean;
+}
+
 class RecipesApi {
   private baseUrl = getApiUrl();
+
+  async getFeatures(): Promise<FeaturesResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/features`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching features:', error);
+      // Default to disabled if fetch fails
+      return { youtube_import_enabled: false };
+    }
+  }
 
   async createEmptyRecipe(title: string, cookbook_id?: number): Promise<Recipe> {
     try {

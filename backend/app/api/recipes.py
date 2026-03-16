@@ -246,6 +246,19 @@ def search_ingredients() -> Response:
         ), 500
 
 
+@bp.route("/features", methods=["GET"])
+def get_features() -> Response:
+    """
+    Expose feature flags to the frontend.
+
+    Returns a JSON object with boolean flags for features that
+    may be enabled/disabled via environment variables.
+    """
+    return jsonify({
+        "youtube_import_enabled": current_app.config.get("YOUTUBE_IMPORT_ENABLED", False)
+    })
+
+
 @bp.route("/recipes", methods=["GET"])
 @require_auth
 def get_recipes(current_user) -> Response:
@@ -4945,6 +4958,12 @@ def upload_recipe_youtube(current_user) -> Tuple[Response, int]:
     Accepts JSON with a YouTube URL, creates a VideoProcessingJob,
     and queues async processing via Celery (yt-dlp + captions/audio).
     """
+    # Check if YouTube import is enabled
+    if not current_app.config.get("YOUTUBE_IMPORT_ENABLED", False):
+        return jsonify({
+            "error": "YouTube import is temporarily disabled. Please upload video files directly."
+        }), 503
+
     from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
     from app.services.youtube_recipe_service import (
         YouTubeRecipeService,
