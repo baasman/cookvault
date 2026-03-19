@@ -97,7 +97,12 @@ const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex-shrink-0">
-              <Link to="/" className="flex items-center">
+              <Link to="/" className="flex items-center gap-2">
+                <img
+                  src="/icons/icon-192x192.png"
+                  alt="Cookle"
+                  className="w-10 h-10 rounded-lg"
+                />
                 <span className="text-2xl font-bold" style={{color: '#1c120d'}}>
                   Cookle
                 </span>
