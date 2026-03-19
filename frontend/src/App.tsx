@@ -20,6 +20,7 @@ import { CreateCookbookPage } from './pages/CreateCookbookPage';
 import CopyrightPolicyPage from './pages/CopyrightPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import SupportPage from './pages/SupportPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Create a client
@@ -90,6 +91,7 @@ function App() {
                     <Route path="/copyright-policy" element={<CopyrightPolicyPage />} />
                     <Route path="/terms-of-service" element={<TermsOfServicePage />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                    <Route path="/support" element={<SupportPage />} />
                     {/* Catch-all route for 404 */}
                     <Route path="*" element={<NotFoundPage />} />
                   </Routes>

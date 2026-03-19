@@ -1,14 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { openExternalUrl } from '../../utils/platform';
 
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
-
-  const handleContactClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    openExternalUrl('mailto:boudeyz@gmail.com');
-  };
 
   return (
     <footer className="border-t border-gray-200 mt-auto" style={{ backgroundColor: '#fcf9f8' }}>
@@ -41,12 +35,12 @@ const Footer: React.FC = () => {
             >
               Copyright Policy
             </Link>
-            <button
-              onClick={handleContactClick}
+            <Link
+              to="/support"
               className="text-gray-600 hover:text-gray-900 transition-colors"
             >
-              Contact
-            </button>
+              Support
+            </Link>
           </nav>
         </div>
       </div>
