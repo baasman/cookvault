@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { BetaModeRestrictionModal } from '../ui/BetaModeRestrictionModal';
 import { useBetaModeRestriction } from '../../hooks/useBetaModeRestriction';
 import { paymentsApi, type PaymentIntent } from '../../services/paymentsApi';
+import { isNativePlatform } from '../../utils/platform';
 
 interface CookbookPurchaseButtonProps {
   cookbook: {
@@ -78,6 +79,12 @@ export const CookbookPurchaseButton: React.FC<CookbookPurchaseButtonProps> = ({
       setIsLoading(false);
     }
   };
+
+  // Don't show on native platforms - requires In-App Purchase
+  // Stripe payments are only available on web
+  if (isNativePlatform()) {
+    return null;
+  }
 
   // Don't show button if cookbook is not purchasable
   if (!cookbook.is_purchasable || cookbook.price <= 0) {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import { PremiumUpgradeModal } from './PremiumUpgradeModal';
+import { isNativePlatform } from '../../utils/platform';
 
 interface UploadLimitWarningProps {
   onUpgradeSuccess?: () => void;
@@ -46,6 +47,10 @@ export const UploadLimitWarning: React.FC<UploadLimitWarningProps> = ({
     return null;
   }
 
+  // On native platforms, show a simpler message without upgrade buttons
+  // (Stripe payments require IAP on iOS/Android)
+  const showStripePayments = !isNativePlatform();
+
   return (
     <div className={className}>
       <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
@@ -61,29 +66,33 @@ export const UploadLimitWarning: React.FC<UploadLimitWarningProps> = ({
             </h3>
             <div className="mt-2 text-sm text-orange-700">
               <p>
-                You've used all {subscription.monthly_upload_count} of your free uploads this month. 
-                Upgrade to Premium for unlimited uploads and access to advanced features.
+                You've used all {subscription.monthly_upload_count} of your free uploads this month.
+                {showStripePayments
+                  ? ' Upgrade to Premium for unlimited uploads and access to advanced features.'
+                  : ' Your uploads will reset next month.'}
               </p>
             </div>
-            <div className="mt-4">
-              <div className="flex">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowUpgradeModal(true)}
-                >
-                  Upgrade to Premium
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="ml-3"
-                  onClick={() => setShowUpgradeModal(true)}
-                >
-                  Learn More
-                </Button>
+            {showStripePayments && (
+              <div className="mt-4">
+                <div className="flex">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setShowUpgradeModal(true)}
+                  >
+                    Upgrade to Premium
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="ml-3"
+                    onClick={() => setShowUpgradeModal(true)}
+                  >
+                    Learn More
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

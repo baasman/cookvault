@@ -4,6 +4,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { paymentsApi, type PaymentIntent } from '../../services/paymentsApi';
+import { isNativePlatform } from '../../utils/platform';
 
 interface PremiumUpgradeModalProps {
   isOpen: boolean;
@@ -349,6 +350,12 @@ export const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
         return null;
     }
   };
+
+  // Don't show on native platforms - requires In-App Purchase
+  // Stripe payments are only available on web
+  if (isNativePlatform()) {
+    return null;
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>

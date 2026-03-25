@@ -44,6 +44,9 @@ const Header: React.FC<HeaderProps> = ({
   // Check if we're on native iOS
   const showIOSLayout = isNativeIOS();
 
+  // Don't show Stripe payment options on native platforms (requires IAP)
+  const showStripePayments = !isNativePlatform();
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -226,8 +229,8 @@ const Header: React.FC<HeaderProps> = ({
                           Settings
                         </Link>
 
-                        {/* Upgrade option if not premium */}
-                        {subscription && !subscription.is_premium && (
+                        {/* Upgrade option if not premium (hidden on native - requires IAP) */}
+                        {showStripePayments && subscription && !subscription.is_premium && (
                           <button
                             onClick={() => {
                               setIsUserMenuOpen(false);
@@ -381,8 +384,8 @@ const Header: React.FC<HeaderProps> = ({
                   <div className="pt-4 border-t" style={{borderColor: '#e8d7cf'}}>
                     {isAuthenticated ? (
                       <div className="space-y-2">
-                        {/* Upgrade option if not premium */}
-                        {subscription && !subscription.is_premium && (
+                        {/* Upgrade option if not premium (hidden on native - requires IAP) */}
+                        {showStripePayments && subscription && !subscription.is_premium && (
                           <button
                             onClick={() => {
                               setIsMobileMenuOpen(false);
@@ -487,7 +490,7 @@ const Header: React.FC<HeaderProps> = ({
               label: 'Settings',
               onClick: () => navigate('/settings'),
             },
-            ...(subscription && !subscription.is_premium
+            ...(showStripePayments && subscription && !subscription.is_premium
               ? [{
                   label: 'Upgrade to Premium',
                   onClick: () => {
