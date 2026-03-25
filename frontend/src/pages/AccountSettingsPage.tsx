@@ -394,7 +394,7 @@ const AccountSettingsPage: React.FC = () => {
             <div>
               <h3 className="font-medium text-gray-900">Cookle</h3>
               <p className="text-sm text-gray-600 mt-1">
-                Version 1.0.0
+                Version 1.2
               </p>
             </div>
             <div className="pt-4 border-t border-gray-200">
