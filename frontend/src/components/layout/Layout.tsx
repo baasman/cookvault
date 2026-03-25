@@ -1,7 +1,6 @@
 import React from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import BetaBanner from '../ui/BetaBanner';
 import OfflineBanner from '../OfflineBanner';
 import { useSwipeBack } from '../../hooks/useSwipeBack';
 import { TabBar } from '../navigation/TabBar';
@@ -64,7 +63,6 @@ const Layout: React.FC<LayoutProps> = ({ children, className = '' }) => {
           </div>
         </div>
       )}
-      <BetaBanner />
       <OfflineBanner />
       <Header />
       <main className={`max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 overflow-x-hidden box-border ${showTabBar ? 'pb-tab-bar' : ''} ${className}`}>
