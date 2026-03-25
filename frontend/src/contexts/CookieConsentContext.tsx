@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as Sentry from '@sentry/react';
+import { isNativePlatform } from '../utils/platform';
 
 interface CookieConsentContextType {
   hasConsented: boolean | null; // null = not yet decided
@@ -40,6 +41,15 @@ export const CookieConsentProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Check for existing consent on mount
   useEffect(() => {
+    // On native platforms (iOS/Android), auto-enable Sentry without consent prompt
+    // Sentry is error monitoring, not advertising tracking, so ATT is not required
+    if (isNativePlatform()) {
+      setHasConsented(true);
+      initializeSentry();
+      return;
+    }
+
+    // On web, check for stored consent
     const storedConsent = localStorage.getItem(CONSENT_KEY);
 
     if (storedConsent === 'true') {

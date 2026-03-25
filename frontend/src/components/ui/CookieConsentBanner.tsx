@@ -1,9 +1,16 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useCookieConsent } from '../../contexts/CookieConsentContext';
+import { isNativePlatform } from '../../utils/platform';
 
 export const CookieConsentBanner: React.FC = () => {
   const { hasConsented, acceptCookies, declineCookies } = useCookieConsent();
+
+  // Don't show on native platforms (iOS/Android) - consent is handled differently
+  // and Sentry error monitoring doesn't require App Tracking Transparency
+  if (isNativePlatform()) {
+    return null;
+  }
 
   // Don't show if user has already made a choice
   if (hasConsented !== null) {
