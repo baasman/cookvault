@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { Cookbook } from '../../types';
 import { decodeHtmlEntities } from '../../utils/textUtils';
 import { CookbookPurchaseButton } from '../payments';
+import { isNativePlatform } from '../../utils/platform';
 
 interface CookbookCardProps {
   cookbook: Cookbook & {
@@ -92,8 +93,8 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick, showPurc
             </span>
           </div>
 
-          {/* Price badge */}
-          {cookbook.is_purchasable && cookbook.price && cookbook.price > 0 && (
+          {/* Price badge - hidden on native iOS (App Store Guideline 3.1.1) */}
+          {!isNativePlatform() && cookbook.is_purchasable && cookbook.price && cookbook.price > 0 && (
             <div className="absolute top-3 right-3">
               <span className="px-2 py-1 text-xs font-medium text-white rounded-full bg-green-600">
                 ${cookbook.price.toFixed(2)}

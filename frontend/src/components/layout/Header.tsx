@@ -7,7 +7,7 @@ import { BetaModeRestrictionModal } from '../ui/BetaModeRestrictionModal';
 import { useBetaModeRestriction } from '../../hooks/useBetaModeRestriction';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import type { NavItem } from '../../types';
-import { isIOS, isNativePlatform } from '../../utils/platform';
+import { isIOS, isNativePlatform, openExternalUpgrade } from '../../utils/platform';
 import { ActionSheet } from '../ui/ActionSheet';
 
 // Check if we're on native iOS for header adjustments
@@ -44,8 +44,20 @@ const Header: React.FC<HeaderProps> = ({
   // Check if we're on native iOS
   const showIOSLayout = isNativeIOS();
 
-  // Don't show Stripe payment options on native platforms (requires IAP)
-  const showStripePayments = !isNativePlatform();
+  // On native platforms, open external browser for payments (App Store Guideline 3.1.1)
+  const isNative = isNativePlatform();
+
+  // Handler for upgrade action - opens external browser on native, modal on web
+  const handleUpgradeClick = async () => {
+    if (checkBetaRestriction('premium')) {
+      return;
+    }
+    if (isNative) {
+      await openExternalUpgrade();
+    } else {
+      setShowUpgradeModal(true);
+    }
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -229,15 +241,12 @@ const Header: React.FC<HeaderProps> = ({
                           Settings
                         </Link>
 
-                        {/* Upgrade option if not premium (hidden on native - requires IAP) */}
-                        {showStripePayments && subscription && !subscription.is_premium && (
+                        {/* Upgrade option if not premium - opens external browser on iOS */}
+                        {subscription && !subscription.is_premium && (
                           <button
                             onClick={() => {
                               setIsUserMenuOpen(false);
-                              if (checkBetaRestriction('premium')) {
-                                return;
-                              }
-                              setShowUpgradeModal(true);
+                              handleUpgradeClick();
                             }}
                             className="w-full text-left px-4 py-2 text-sm hover:bg-orange-50 transition-colors"
                             style={{ color: '#e27b36' }}
@@ -384,15 +393,12 @@ const Header: React.FC<HeaderProps> = ({
                   <div className="pt-4 border-t" style={{borderColor: '#e8d7cf'}}>
                     {isAuthenticated ? (
                       <div className="space-y-2">
-                        {/* Upgrade option if not premium (hidden on native - requires IAP) */}
-                        {showStripePayments && subscription && !subscription.is_premium && (
+                        {/* Upgrade option if not premium - opens external browser on iOS */}
+                        {subscription && !subscription.is_premium && (
                           <button
                             onClick={() => {
                               setIsMobileMenuOpen(false);
-                              if (checkBetaRestriction('premium')) {
-                                return;
-                              }
-                              setShowUpgradeModal(true);
+                              handleUpgradeClick();
                             }}
                             className="w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors hover:bg-orange-50"
                             style={{ color: '#e27b36' }}
@@ -490,14 +496,10 @@ const Header: React.FC<HeaderProps> = ({
               label: 'Settings',
               onClick: () => navigate('/settings'),
             },
-            ...(showStripePayments && subscription && !subscription.is_premium
+            ...(subscription && !subscription.is_premium
               ? [{
                   label: 'Upgrade to Premium',
-                  onClick: () => {
-                    if (!checkBetaRestriction('premium')) {
-                      setShowUpgradeModal(true);
-                    }
-                  },
+                  onClick: handleUpgradeClick,
                 }]
               : []),
             {

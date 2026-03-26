@@ -9,6 +9,7 @@ import { hideKeyboard, useKeyboardScrollFix } from './hooks/useKeyboard';
 import { useDeepLinks } from './hooks/useDeepLinks';
 import { isNativePlatform } from './utils/platform';
 import { HomePage, UploadPage, CreateRecipePage, RecipesPage, RecipeDetailPage, RecipeGroupDetailPage, CookbooksPage, CookbookDetailPage, SourcesPage, SourceDetailPage, UserPage, OrdersPage, VerifyEmailPage, VerifyEmailSentPage, ForgotPasswordPage, ResetPasswordPage } from './pages';
+import { UpgradePage } from './pages/UpgradePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { EditProfilePage } from './pages/EditProfilePage';
@@ -80,6 +81,7 @@ function App() {
                     <Route path="/profile/edit" element={<EditProfilePage />} />
                     <Route path="/profile/change-password" element={<ChangePasswordPage />} />
                     <Route path="/settings" element={<AccountSettingsPage />} />
+                    <Route path="/upgrade" element={<UpgradePage />} />
                     <Route path="/users/:userId" element={<PublicUserPage />} />
                     <Route path="/users/by-username/:username" element={<PublicUserPage />} />
                     <Route path="/login" element={<LoginPage />} />

@@ -53,3 +53,23 @@ export const openExternalUrl = async (url: string): Promise<void> => {
     window.open(url, '_blank');
   }
 };
+
+/**
+ * Get the web app base URL for external links.
+ * This is used when opening web pages from the native app.
+ */
+export const getWebAppUrl = (): string => {
+  // In production, use the actual domain
+  // In development, this might be localhost but native apps need the real URL
+  return 'https://cookle.app';
+};
+
+/**
+ * Open the premium upgrade page in Safari (for iOS App Store compliance).
+ * Apple's Guideline 3.1.1 requires that in-app purchases use IAP,
+ * but allows linking out to a web browser for payment in the US.
+ */
+export const openExternalUpgrade = async (): Promise<void> => {
+  const upgradeUrl = `${getWebAppUrl()}/upgrade`;
+  await openExternalUrl(upgradeUrl);
+};

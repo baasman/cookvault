@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import { PremiumUpgradeModal } from './PremiumUpgradeModal';
+import { isNativePlatform, openExternalUpgrade } from '../../utils/platform';
 
 interface SubscriptionStatusProps {
   className?: string;
@@ -59,6 +60,15 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
 
   const handleUpgradeSuccess = () => {
     loadSubscription(); // Refresh subscription data
+  };
+
+  // Handler for upgrade action - opens external browser on native, modal on web
+  const handleUpgradeClick = async () => {
+    if (isNativePlatform()) {
+      await openExternalUpgrade();
+    } else {
+      setShowUpgradeModal(true);
+    }
   };
 
   if (isLoading) {
@@ -152,11 +162,12 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
           </div>
 
           <div className="flex gap-2">
+            {/* Upgrade button - opens external browser on iOS (App Store Guideline 3.1.1) */}
             {!isPremium && !hasUnlimitedUploads && showUpgradeButton && (
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setShowUpgradeModal(true)}
+                onClick={handleUpgradeClick}
               >
                 Upgrade to Premium
               </Button>

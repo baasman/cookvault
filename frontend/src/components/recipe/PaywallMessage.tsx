@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CookbookPurchaseButton } from '../payments/CookbookPurchaseButton';
+import { isNativePlatform } from '../../utils/platform';
 
 interface PaywallMessageProps {
   cookbook?: {
@@ -15,15 +16,20 @@ interface PaywallMessageProps {
   type: 'ingredients' | 'instructions';
 }
 
-export const PaywallMessage: React.FC<PaywallMessageProps> = ({ 
-  cookbook, 
-  message, 
-  type 
+export const PaywallMessage: React.FC<PaywallMessageProps> = ({
+  cookbook,
+  message,
+  type
 }) => {
   const navigate = useNavigate();
-  const defaultMessage = cookbook && cookbook.is_purchasable 
-    ? `Purchase "${cookbook.title}" to view the full recipe ${type}.`
-    : `This recipe's ${type} are not available.`;
+  const isNative = isNativePlatform();
+
+  // Different message for native iOS (App Store Guideline 3.1.1 - no external purchase references)
+  const defaultMessage = isNative
+    ? `This recipe's ${type} are only available on the web version.`
+    : cookbook && cookbook.is_purchasable
+      ? `Purchase "${cookbook.title}" to view the full recipe ${type}.`
+      : `This recipe's ${type} are not available.`;
 
   return (
     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
@@ -50,7 +56,8 @@ export const PaywallMessage: React.FC<PaywallMessageProps> = ({
           </p>
         </div>
 
-        {cookbook && cookbook.is_purchasable && (
+        {/* Purchase button hidden on native iOS (App Store Guideline 3.1.1) */}
+        {!isNative && cookbook && cookbook.is_purchasable && (
           <div className="space-y-3">
             <CookbookPurchaseButton
               cookbook={{
@@ -67,15 +74,27 @@ export const PaywallMessage: React.FC<PaywallMessageProps> = ({
                 navigate(`/cookbooks/${cookbook.id}/purchase-success`);
               }}
             />
-            
+
             <div className="pt-2 border-t border-gray-200">
-              <Link 
+              <Link
                 to={`/cookbooks/${cookbook.id}`}
                 className="text-sm text-blue-600 hover:text-blue-800 underline"
               >
                 View cookbook details →
               </Link>
             </div>
+          </div>
+        )}
+
+        {/* On native iOS, show link to cookbook without purchase reference */}
+        {isNative && cookbook && (
+          <div className="pt-2">
+            <Link
+              to={`/cookbooks/${cookbook.id}`}
+              className="text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              View cookbook details →
+            </Link>
           </div>
         )}
       </div>

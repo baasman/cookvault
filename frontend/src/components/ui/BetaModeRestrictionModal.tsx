@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import { isNativePlatform } from '../../utils/platform';
 
 interface BetaModeRestrictionModalProps {
   isOpen: boolean;
@@ -55,7 +56,8 @@ export const BetaModeRestrictionModal: React.FC<BetaModeRestrictionModalProps> =
             as we continue to enhance your Cookle experience.
           </p>
           
-          {price && (
+          {/* Price info hidden on native iOS (App Store Guideline 3.1.1) */}
+          {!isNativePlatform() && price && (
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
               <p className="text-sm text-gray-700">
                 <span className="font-medium">Price when available:</span> ${price.toFixed(2)}
