@@ -1,9 +1,8 @@
-import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
-from flask import Response, current_app, jsonify, request, send_file
+from flask import Response, current_app, jsonify, request
 from sqlalchemy import select, text
 
 from app import db
@@ -23,13 +22,10 @@ from app.models import (
     ProcessingJob,
     ProcessingStatus,
     Recipe,
-    RecipeComment,
     RecipeImage,
-    RecipeNote,
     Tag,
     UserRecipeCollection,
     CopyrightConsent,
-    UserRole,
 )
 from app.models.recipe import recipe_ingredients
 from app.services.recipe_parser import RecipeParser

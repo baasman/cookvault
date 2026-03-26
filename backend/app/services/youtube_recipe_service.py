@@ -164,7 +164,7 @@ class YouTubeRecipeService:
                 if len(parts) >= 1:
                     cookie_domains.add(parts[0])
             logger.info(f"Cookie domains found: {sorted(cookie_domains)}")
-            logger.info(f"Total cookie lines: {len([l for l in lines if not l.startswith('#') and l.strip()])}")
+            logger.info(f"Total cookie lines: {len([ln for ln in lines if not ln.startswith('#') and ln.strip()])}")
 
             return cookies_path
         except Exception as e:

@@ -10,7 +10,6 @@ attempted to use alter_column which doesn't work for adding enum values in PG.
 
 """
 from alembic import op
-import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.

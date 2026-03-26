@@ -28,6 +28,10 @@ export default defineConfig(({ mode }) => {
           'src/vite-env.d.ts',
         ],
       },
+      // Provide environment variables for tests
+      env: {
+        VITE_API_URL: 'http://localhost:5001/api',
+      },
     },
     base: '/',
     

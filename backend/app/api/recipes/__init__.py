@@ -15,8 +15,6 @@ Note: The routes are still registered on the main api blueprint (bp) to maintain
 backwards compatibility with existing frontend code.
 """
 
-from flask import Blueprint
-
 # Create a sub-blueprint for recipes
 # Note: Currently routes are added to the main api bp for backwards compatibility
 # In the future, this could be registered as a nested blueprint

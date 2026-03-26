@@ -189,7 +189,9 @@ export const handlers = [
   http.get(`${API_BASE}/recipes`, ({ request }) => {
     const url = new URL(request.url)
     const page = parseInt(url.searchParams.get('page') || '1')
-    const perPage = parseInt(url.searchParams.get('per_page') || '12')
+    // per_page is available but not currently used in mock response
+    const _perPage = parseInt(url.searchParams.get('per_page') || '12')
+    void _perPage // Suppress unused variable warning
 
     return HttpResponse.json({
       recipes: [mockRecipe],
@@ -230,7 +232,7 @@ export const handlers = [
     })
   }),
 
-  http.delete(`${API_BASE}/recipes/:id`, ({ params }) => {
+  http.delete(`${API_BASE}/recipes/:id`, () => {
     return HttpResponse.json({ message: 'Recipe deleted' })
   }),
 
