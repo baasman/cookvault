@@ -36,7 +36,7 @@ export const BetaModeRestrictionModal: React.FC<BetaModeRestrictionModalProps> =
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="p-6">
-        {/* Beta Icon */}
+        {/* Info Icon */}
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,8 +51,8 @@ export const BetaModeRestrictionModal: React.FC<BetaModeRestrictionModalProps> =
             {title} - Coming Soon!
           </h3>
           <p className="text-gray-600 leading-relaxed mb-4">
-            Thank you for your interest in {description}! Cookle is currently in beta mode, 
-            and purchasing features are temporarily disabled while we fine-tune the experience.
+            Thank you for your interest in {description}! This feature is coming soon
+            as we continue to enhance your Cookle experience.
           </p>
           
           {price && (
@@ -81,18 +81,18 @@ export const BetaModeRestrictionModal: React.FC<BetaModeRestrictionModalProps> =
                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
               </svg>
               <a
-                href="mailto:boudeyz@gmail.com?subject=Early Access Request - Beta User"
+                href="mailto:boudeyz@gmail.com?subject=Early Access Request"
                 className="text-blue-600 hover:text-blue-800 text-sm font-medium"
               >
                 boudeyz@gmail.com
               </a>
             </div>
-            
+
             <div className="text-xs text-blue-600 bg-blue-100 rounded p-3">
               <p className="font-medium mb-1">📧 Email us about:</p>
               <ul className="space-y-1">
                 <li>• Early access to premium features</li>
-                <li>• Feedback on the beta experience</li>
+                <li>• Feedback on your experience</li>
                 <li>• Special pricing for early supporters</li>
                 <li>• Feature requests and suggestions</li>
               </ul>
