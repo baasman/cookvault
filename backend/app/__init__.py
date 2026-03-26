@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 from pathlib import Path
 
 import sentry_sdk
@@ -261,6 +262,27 @@ def create_app(config_name: str | None = None) -> Flask:
                 app.logger.warning(
                     f"CORS preflight blocked for origin: {origin}, allowed: {cors_origins}"
                 )
+
+    # Request timing middleware for monitoring
+    @app.before_request
+    def start_timer():
+        """Record request start time for performance monitoring."""
+        g.start_time = time.time()
+
+    @app.after_request
+    def log_request_timing(response):
+        """Log request timing information after each request."""
+        if hasattr(g, "start_time"):
+            duration_ms = (time.time() - g.start_time) * 1000
+            # Log timing for non-static requests (skip health checks and assets)
+            if not request.path.startswith("/static") and request.path not in [
+                "/health",
+                "/favicon.ico",
+            ]:
+                app.logger.info(
+                    f"{request.method} {request.path} - {response.status_code} - {duration_ms:.2f}ms"
+                )
+        return response
 
     # Add catch-all route for debugging API calls
     @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])

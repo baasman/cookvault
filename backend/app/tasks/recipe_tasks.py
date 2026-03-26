@@ -122,7 +122,7 @@ def process_multi_recipe_task(self, multi_job_id: int):
             return {"status": "cancelled", "multi_job_id": multi_job_id}
 
         # Import the existing processing function (inside task to avoid circular imports)
-        from app.api.recipes import process_multi_image_job
+        from app.api.recipes.routes import process_multi_image_job
 
         # Process all images (this function already handles all the logic)
         process_multi_image_job(multi_job_id)
