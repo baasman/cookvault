@@ -61,7 +61,7 @@ export const openExternalUrl = async (url: string): Promise<void> => {
 export const getWebAppUrl = (): string => {
   // In production, use the actual domain
   // In development, this might be localhost but native apps need the real URL
-  return 'https://cookle.app';
+  return 'https://cookle.food';
 };
 
 /**
