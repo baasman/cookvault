@@ -273,12 +273,12 @@ def cancel_video_job(current_user, job_id: int) -> Tuple[Response, int]:
         terminal_states = [
             VideoProcessingStatus.COMPLETED,
             VideoProcessingStatus.FAILED,
-            VideoProcessingStatus.CANCELLED
+            VideoProcessingStatus.CANCELLED,
         ]
         if video_job.status in terminal_states:
-            return jsonify({
-                "error": f"Cannot cancel job with status: {video_job.status.value}"
-            }), 400
+            return jsonify(
+                {"error": f"Cannot cancel job with status: {video_job.status.value}"}
+            ), 400
 
         # Mark as cancelled
         video_job.status = VideoProcessingStatus.CANCELLED
@@ -286,9 +286,13 @@ def cancel_video_job(current_user, job_id: int) -> Tuple[Response, int]:
         video_job.completed_at = datetime.utcnow()
         db.session.commit()
 
-        current_app.logger.info(f"Video job {job_id} cancelled by user {current_user.id}")
+        current_app.logger.info(
+            f"Video job {job_id} cancelled by user {current_user.id}"
+        )
 
-        return jsonify({"message": "Job cancelled successfully", "status": "cancelled"}), 200
+        return jsonify(
+            {"message": "Job cancelled successfully", "status": "cancelled"}
+        ), 200
 
     except Exception as e:
         current_app.logger.error(f"Error cancelling video job: {e}")
@@ -308,9 +312,11 @@ def upload_recipe_youtube(current_user) -> Tuple[Response, int]:
     """
     # Check if YouTube import is enabled
     if not current_app.config.get("YOUTUBE_IMPORT_ENABLED", False):
-        return jsonify({
-            "error": "YouTube import is temporarily disabled. Please upload video files directly."
-        }), 503
+        return jsonify(
+            {
+                "error": "YouTube import is temporarily disabled. Please upload video files directly."
+            }
+        ), 503
 
     from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
     from app.services.youtube_recipe_service import (

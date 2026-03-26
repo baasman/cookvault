@@ -90,9 +90,13 @@ def get_features() -> Response:
     Returns a JSON object with boolean flags for features that
     may be enabled/disabled via environment variables.
     """
-    return jsonify({
-        "youtube_import_enabled": current_app.config.get("YOUTUBE_IMPORT_ENABLED", False)
-    })
+    return jsonify(
+        {
+            "youtube_import_enabled": current_app.config.get(
+                "YOUTUBE_IMPORT_ENABLED", False
+            )
+        }
+    )
 
 
 @bp.route("/recipes", methods=["GET"])
@@ -3787,31 +3791,34 @@ def cancel_processing_job(current_user, job_id: int) -> Tuple[Response, int]:
     Only jobs in PENDING or PROCESSING state can be cancelled.
     """
     try:
-        job = ProcessingJob.query.filter_by(
-            id=job_id, user_id=current_user.id
-        ).first()
+        job = ProcessingJob.query.filter_by(id=job_id, user_id=current_user.id).first()
 
         if not job:
             return jsonify({"error": "Processing job not found"}), 404
 
         # Check if job can be cancelled
         if job.status not in [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]:
-            return jsonify({
-                "error": f"Cannot cancel job with status: {job.status.value}"
-            }), 400
+            return jsonify(
+                {"error": f"Cannot cancel job with status: {job.status.value}"}
+            ), 400
 
         # Mark as cancelled
         job.status = ProcessingStatus.CANCELLED
         job.completed_at = datetime.utcnow()
         db.session.commit()
 
-        current_app.logger.info(f"Processing job {job_id} cancelled by user {current_user.id}")
+        current_app.logger.info(
+            f"Processing job {job_id} cancelled by user {current_user.id}"
+        )
 
-        return jsonify({"message": "Job cancelled successfully", "status": "cancelled"}), 200
+        return jsonify(
+            {"message": "Job cancelled successfully", "status": "cancelled"}
+        ), 200
 
     except Exception as e:
         current_app.logger.error(f"Error cancelling processing job: {e}")
         import traceback
+
         traceback.print_exc()
         return jsonify({"error": "Failed to cancel job"}), 500
 
@@ -3834,10 +3841,13 @@ def cancel_multi_job(current_user, job_id: int) -> Tuple[Response, int]:
             return jsonify({"error": "Multi-recipe job not found"}), 404
 
         # Check if job can be cancelled
-        if multi_job.status not in [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]:
-            return jsonify({
-                "error": f"Cannot cancel job with status: {multi_job.status.value}"
-            }), 400
+        if multi_job.status not in [
+            ProcessingStatus.PENDING,
+            ProcessingStatus.PROCESSING,
+        ]:
+            return jsonify(
+                {"error": f"Cannot cancel job with status: {multi_job.status.value}"}
+            ), 400
 
         # Mark parent job as cancelled
         multi_job.status = ProcessingStatus.CANCELLED
@@ -3852,12 +3862,17 @@ def cancel_multi_job(current_user, job_id: int) -> Tuple[Response, int]:
 
         db.session.commit()
 
-        current_app.logger.info(f"Multi-recipe job {job_id} cancelled by user {current_user.id}")
+        current_app.logger.info(
+            f"Multi-recipe job {job_id} cancelled by user {current_user.id}"
+        )
 
-        return jsonify({"message": "Job cancelled successfully", "status": "cancelled"}), 200
+        return jsonify(
+            {"message": "Job cancelled successfully", "status": "cancelled"}
+        ), 200
 
     except Exception as e:
         current_app.logger.error(f"Error cancelling multi-recipe job: {e}")
         import traceback
+
         traceback.print_exc()
         return jsonify({"error": "Failed to cancel job"}), 500

@@ -115,11 +115,13 @@ class YouTubeRecipeService:
             logger.info(f"YouTube cookies file configured: {self.cookies_file}")
             # Log first few chars to verify it's being read
             if os.path.exists(self.cookies_file):
-                with open(self.cookies_file, 'r') as f:
+                with open(self.cookies_file, "r") as f:
                     first_line = f.readline().strip()
                     logger.info(f"Cookies file first line: {first_line[:50]}...")
         else:
-            logger.warning("No YouTube cookies configured - YOUTUBE_COOKIES env var not set")
+            logger.warning(
+                "No YouTube cookies configured - YOUTUBE_COOKIES env var not set"
+            )
 
         # Log yt-dlp version for debugging
         self._log_ytdlp_version()
@@ -140,7 +142,9 @@ class YouTubeRecipeService:
             logger.info("YOUTUBE_COOKIES environment variable is not set")
             return None
 
-        logger.info(f"YOUTUBE_COOKIES env var found, length: {len(cookies_config)} chars")
+        logger.info(
+            f"YOUTUBE_COOKIES env var found, length: {len(cookies_config)} chars"
+        )
 
         # Check if it's a file path
         if os.path.exists(cookies_config):
@@ -148,23 +152,25 @@ class YouTubeRecipeService:
 
         # Check if it's base64 encoded cookies content
         try:
-            cookies_content = base64.b64decode(cookies_config).decode('utf-8')
+            cookies_content = base64.b64decode(cookies_config).decode("utf-8")
             # Write to a temp file
             cookies_path = "/tmp/youtube_cookies.txt"
             with open(cookies_path, "w") as f:
                 f.write(cookies_content)
 
             # Log cookie domains present (for debugging, without revealing values)
-            lines = cookies_content.strip().split('\n')
+            lines = cookies_content.strip().split("\n")
             cookie_domains = set()
             for line in lines:
-                if line.startswith('#') or not line.strip():
+                if line.startswith("#") or not line.strip():
                     continue
-                parts = line.split('\t')
+                parts = line.split("\t")
                 if len(parts) >= 1:
                     cookie_domains.add(parts[0])
             logger.info(f"Cookie domains found: {sorted(cookie_domains)}")
-            logger.info(f"Total cookie lines: {len([ln for ln in lines if not ln.startswith('#') and ln.strip()])}")
+            logger.info(
+                f"Total cookie lines: {len([ln for ln in lines if not ln.startswith('#') and ln.strip()])}"
+            )
 
             return cookies_path
         except Exception as e:
@@ -177,8 +183,10 @@ class YouTubeRecipeService:
             "yt-dlp",
             "--no-playlist",
             # Enable Node.js runtime and download challenge solver from GitHub
-            "--js-runtimes", "node",
-            "--remote-components", "ejs:github",
+            "--js-runtimes",
+            "node",
+            "--remote-components",
+            "ejs:github",
             # Bypass geo-restrictions
             "--geo-bypass",
         ]
@@ -291,12 +299,16 @@ class YouTubeRecipeService:
             ]
 
             # Log the command for debugging (mask the URL to avoid log spam)
-            logger.info(f"Running yt-dlp with args: {' '.join(args[:6])}... (cookies_file={self.cookies_file})")
+            logger.info(
+                f"Running yt-dlp with args: {' '.join(args[:6])}... (cookies_file={self.cookies_file})"
+            )
             if self.cookies_file and os.path.exists(self.cookies_file):
                 file_size = os.path.getsize(self.cookies_file)
                 logger.info(f"Cookies file exists, size: {file_size} bytes")
             elif self.cookies_file:
-                logger.warning(f"Cookies file path set but file not found: {self.cookies_file}")
+                logger.warning(
+                    f"Cookies file path set but file not found: {self.cookies_file}"
+                )
 
             result = subprocess.run(
                 args,
@@ -320,23 +332,30 @@ class YouTubeRecipeService:
                 if "private video" in stderr_lower:
                     raise YouTubeDownloadError("This video is private")
                 if "sign in" in stderr_lower and "confirm your age" in stderr_lower:
-                    raise YouTubeDownloadError("This video is age-restricted and requires sign-in")
+                    raise YouTubeDownloadError(
+                        "This video is age-restricted and requires sign-in"
+                    )
                 if "sign in" in stderr_lower and "not a bot" in stderr_lower:
                     raise YouTubeDownloadError(
                         "YouTube is blocking this request. This is a known issue with cloud servers. "
                         "Try uploading the video file directly instead of using a YouTube link."
                     )
                 if "sign in" in stderr_lower:
-                    raise YouTubeDownloadError("This video requires sign-in (may be members-only or region-restricted)")
-                if "video unavailable" in stderr_lower or "is unavailable" in stderr_lower:
-                    raise YouTubeDownloadError("This video is unavailable (may be deleted or region-restricted)")
+                    raise YouTubeDownloadError(
+                        "This video requires sign-in (may be members-only or region-restricted)"
+                    )
+                if (
+                    "video unavailable" in stderr_lower
+                    or "is unavailable" in stderr_lower
+                ):
+                    raise YouTubeDownloadError(
+                        "This video is unavailable (may be deleted or region-restricted)"
+                    )
                 if "age" in stderr_lower and "restrict" in stderr_lower:
                     raise YouTubeDownloadError("This video is age-restricted")
 
                 # Generic error with details
-                raise YouTubeDownloadError(
-                    f"Failed to fetch video: {stderr[:200]}"
-                )
+                raise YouTubeDownloadError(f"Failed to fetch video: {stderr[:200]}")
 
             metadata = json.loads(result.stdout)
 

@@ -9,12 +9,13 @@ added to the PostgreSQL enum types. The previous migration (b5b229f5fefa)
 attempted to use alter_column which doesn't work for adding enum values in PG.
 
 """
+
 from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = 'c8f9d2a3b4e5'
-down_revision = '3bb951b65276'
+revision = "c8f9d2a3b4e5"
+down_revision = "3bb951b65276"
 branch_labels = None
 depends_on = None
 
@@ -25,17 +26,19 @@ def upgrade():
     # but "IF NOT EXISTS" makes it safe to run even if values already exist.
 
     bind = op.get_bind()
-    if bind.dialect.name == 'postgresql':
+    if bind.dialect.name == "postgresql":
         # Add missing values to videoprocessingstatus enum
         # These were supposed to be added in b5b229f5fefa but alter_column doesn't work for PG enums
         video_status_values = [
-            'FETCHING_METADATA',
-            'EXTRACTING_CAPTIONS',
-            'DOWNLOADING_AUDIO',
-            'CANCELLED',
+            "FETCHING_METADATA",
+            "EXTRACTING_CAPTIONS",
+            "DOWNLOADING_AUDIO",
+            "CANCELLED",
         ]
         for value in video_status_values:
-            op.execute(f"ALTER TYPE videoprocessingstatus ADD VALUE IF NOT EXISTS '{value}'")
+            op.execute(
+                f"ALTER TYPE videoprocessingstatus ADD VALUE IF NOT EXISTS '{value}'"
+            )
 
         # Add CANCELLED to processingstatus enum (for ProcessingJob and MultiRecipeJob)
         op.execute("ALTER TYPE processingstatus ADD VALUE IF NOT EXISTS 'CANCELLED'")

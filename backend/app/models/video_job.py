@@ -61,7 +61,9 @@ class VideoProcessingJob(db.Model):
     video_content_type: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Cloudinary storage (for cross-service access)
-    cloudinary_public_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    cloudinary_public_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
     cloudinary_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # YouTube-specific fields (nullable — only set for YouTube imports)
