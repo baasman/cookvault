@@ -58,7 +58,7 @@ def process_single_recipe_task(self, job_id: int, user_id: int = None):
             return {"status": "cancelled", "job_id": job_id}
 
         # Import the existing processing function (inside task to avoid circular imports)
-        from app.api.recipes import _process_recipe_image
+        from app.api.recipes.routes import _process_recipe_image
 
         # Process the image (this function already handles all the logic)
         _process_recipe_image(job_id, user_id)
