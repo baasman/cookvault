@@ -5,10 +5,13 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { paymentsApi, type PaymentIntent, type Subscription } from '../services/paymentsApi';
+import { isIOS, isWeb } from '../utils/platform';
+import { useAppleIap } from '../hooks/useAppleIap';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
-const PaymentForm: React.FC<{
+// Stripe payment form for web users
+const StripePaymentForm: React.FC<{
   onSuccess: () => void;
   onError: (error: string) => void;
 }> = ({ onSuccess, onError }) => {
@@ -112,6 +115,121 @@ const PaymentForm: React.FC<{
   );
 };
 
+// Apple IAP payment form for iOS users
+const ApplePaymentForm: React.FC<{
+  onSuccess: () => void;
+  onError: (error: string) => void;
+}> = ({ onSuccess, onError }) => {
+  const {
+    products,
+    isLoading,
+    error: iapError,
+    loadProducts,
+    purchase,
+    restorePurchases,
+    clearError,
+  } = useAppleIap();
+
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  // Load products when component mounts
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  // Handle IAP errors
+  useEffect(() => {
+    if (iapError) {
+      onError(iapError);
+      clearError();
+    }
+  }, [iapError, onError, clearError]);
+
+  const handlePurchase = async () => {
+    const productId = 'com.cookle.app.premium.monthly';
+    const result = await purchase(productId);
+
+    if (result) {
+      onSuccess();
+    }
+  };
+
+  const handleRestore = async () => {
+    setIsRestoring(true);
+    try {
+      const restored = await restorePurchases();
+      if (restored) {
+        onSuccess();
+      } else {
+        onError('No previous purchases found to restore.');
+      }
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  // Get the premium product for display
+  const premiumProduct = products.find(p => p.id === 'com.cookle.app.premium.monthly');
+
+  return (
+    <div className="space-y-4">
+      {/* Product info from App Store */}
+      {premiumProduct && (
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="text-center">
+            <p className="text-sm text-gray-600">{premiumProduct.description}</p>
+            <p className="text-2xl font-bold text-indigo-600 mt-2">
+              {premiumProduct.displayPrice}
+              <span className="text-sm font-normal text-gray-600">/month</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase button */}
+      <Button
+        type="button"
+        variant="primary"
+        className="w-full"
+        onClick={handlePurchase}
+        disabled={isLoading || !premiumProduct}
+      >
+        {isLoading ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
+            Processing...
+          </>
+        ) : (
+          <>
+            <svg className="w-5 h-5 mr-2 inline-block" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+            </svg>
+            Subscribe with Apple
+          </>
+        )}
+      </Button>
+
+      {/* Restore purchases */}
+      <button
+        type="button"
+        className="w-full text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+        onClick={handleRestore}
+        disabled={isRestoring || isLoading}
+      >
+        {isRestoring ? 'Restoring...' : 'Restore Previous Purchases'}
+      </button>
+
+      {/* Loading products indicator */}
+      {isLoading && !premiumProduct && (
+        <div className="text-center text-sm text-gray-500">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+          Loading subscription options...
+        </div>
+      )}
+    </div>
+  );
+};
+
 const UpgradePage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -119,6 +237,10 @@ const UpgradePage: React.FC = () => {
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
   const [step, setStep] = useState<'overview' | 'payment' | 'success' | 'error'>('overview');
   const [error, setError] = useState<string | null>(null);
+
+  // Determine which payment method to use based on platform
+  const useApplePay = isIOS();
+  const useStripePay = isWeb();
 
   useEffect(() => {
     const loadSubscription = async () => {
@@ -317,7 +439,7 @@ const UpgradePage: React.FC = () => {
                 className="flex-1"
                 onClick={() => setStep('payment')}
               >
-                Continue to Payment
+                {useApplePay ? 'Continue' : 'Continue to Payment'}
               </Button>
             </div>
           </>
@@ -328,25 +450,42 @@ const UpgradePage: React.FC = () => {
                 Complete Your Upgrade
               </h1>
               <p className="text-gray-600">
-                Enter your payment details to upgrade to Premium
+                {useApplePay
+                  ? 'Subscribe using your Apple ID'
+                  : 'Enter your payment details to upgrade to Premium'
+                }
               </p>
-              <div className="mt-2">
-                <span className="inline-block bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full mb-1">
-                  Early Adopter Price
-                </span>
-                <div>
-                  <span className="text-xl font-bold text-indigo-600">$0.99</span>
-                  <span className="text-gray-600 ml-1">/ month</span>
+              {!useApplePay && (
+                <div className="mt-2">
+                  <span className="inline-block bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full mb-1">
+                    Early Adopter Price
+                  </span>
+                  <div>
+                    <span className="text-xl font-bold text-indigo-600">$0.99</span>
+                    <span className="text-gray-600 ml-1">/ month</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            <Elements stripe={stripePromise}>
-              <PaymentForm
+            {/* Render appropriate payment form based on platform */}
+            {useApplePay ? (
+              <ApplePaymentForm
                 onSuccess={handlePaymentSuccess}
                 onError={handlePaymentError}
               />
-            </Elements>
+            ) : useStripePay ? (
+              <Elements stripe={stripePromise}>
+                <StripePaymentForm
+                  onSuccess={handlePaymentSuccess}
+                  onError={handlePaymentError}
+                />
+              </Elements>
+            ) : (
+              <div className="text-center text-gray-600">
+                <p>Payment is not available on this platform.</p>
+              </div>
+            )}
 
             <div className="mt-4">
               <Button
@@ -354,13 +493,15 @@ const UpgradePage: React.FC = () => {
                 className="w-full"
                 onClick={() => setStep('overview')}
               >
-                ← Back
+                &larr; Back
               </Button>
             </div>
 
-            <p className="text-xs text-gray-500 text-center mt-4">
-              Your payment is processed securely by Stripe.
-            </p>
+            {useStripePay && (
+              <p className="text-xs text-gray-500 text-center mt-4">
+                Your payment is processed securely by Stripe.
+              </p>
+            )}
           </>
         )}
       </div>

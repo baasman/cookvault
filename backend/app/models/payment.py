@@ -48,11 +48,19 @@ class Subscription(db.Model):
         ForeignKey("user.id"), nullable=False, unique=True
     )
 
+    # Payment provider tracking ('stripe' or 'apple')
+    payment_provider: Mapped[Optional[str]] = mapped_column(String(20))
+
     # Stripe integration fields
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
         String(255), unique=True
     )
     stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Apple IAP fields
+    apple_original_transaction_id: Mapped[Optional[str]] = mapped_column(String(100))
+    apple_product_id: Mapped[Optional[str]] = mapped_column(String(100))
+    apple_expires_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # Subscription details
     tier: Mapped[SubscriptionTier] = mapped_column(default=SubscriptionTier.FREE)
@@ -135,6 +143,7 @@ class Subscription(db.Model):
             "tier": self.tier.value,
             "status": self.status.value,
             "is_premium": self.is_premium(),
+            "payment_provider": self.payment_provider,
             "current_period_start": self.current_period_start.isoformat()
             if self.current_period_start
             else None,
@@ -148,6 +157,10 @@ class Subscription(db.Model):
             "can_upload": self.can_upload_recipe(),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            # Apple IAP fields (only included if present)
+            "apple_expires_date": self.apple_expires_date.isoformat()
+            if self.apple_expires_date
+            else None,
         }
 
 

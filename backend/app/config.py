@@ -209,6 +209,11 @@ class Config:
             os.environ.get("YOUTUBE_IMPORT_ENABLED", "false").lower() == "true"
         )
 
+        # Apple In-App Purchase settings
+        app.config["APPLE_BUNDLE_ID"] = os.environ.get(
+            "APPLE_BUNDLE_ID", "com.cookle.app"
+        )
+
         # Lulu Print API settings
         app.config["LULU_CLIENT_KEY"] = os.environ.get("LULU_CLIENT_KEY")
         app.config["LULU_CLIENT_SECRET"] = os.environ.get("LULU_CLIENT_SECRET")

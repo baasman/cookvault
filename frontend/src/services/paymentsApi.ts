@@ -10,6 +10,7 @@ export interface Subscription {
   tier: 'free' | 'premium';
   status: string;
   is_premium: boolean;
+  payment_provider: 'stripe' | 'apple' | null;
   current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -19,6 +20,8 @@ export interface Subscription {
   can_upload: boolean;
   created_at: string;
   updated_at: string;
+  // Apple IAP fields
+  apple_expires_date: string | null;
 }
 
 export interface Payment {
