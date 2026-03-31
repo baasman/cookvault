@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import { PremiumUpgradeModal } from './PremiumUpgradeModal';
-import { isNativePlatform, openExternalUpgrade } from '../../utils/platform';
+import { isNativePlatform } from '../../utils/platform';
 
 interface SubscriptionStatusProps {
   className?: string;
@@ -13,6 +14,7 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
   className = '',
   showUpgradeButton = true,
 }) => {
+  const navigate = useNavigate();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +64,10 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
     loadSubscription(); // Refresh subscription data
   };
 
-  // Handler for upgrade action - opens external browser on native, modal on web
+  // Handler for upgrade action - navigate to upgrade page on native, show modal on web
   const handleUpgradeClick = async () => {
     if (isNativePlatform()) {
-      await openExternalUpgrade();
+      navigate('/upgrade');
     } else {
       setShowUpgradeModal(true);
     }

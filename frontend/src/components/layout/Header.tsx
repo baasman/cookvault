@@ -7,7 +7,7 @@ import { BetaModeRestrictionModal } from '../ui/BetaModeRestrictionModal';
 import { useBetaModeRestriction } from '../../hooks/useBetaModeRestriction';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import type { NavItem } from '../../types';
-import { isIOS, isNativePlatform, openExternalUpgrade } from '../../utils/platform';
+import { isIOS, isNativePlatform } from '../../utils/platform';
 import { ActionSheet } from '../ui/ActionSheet';
 
 // Check if we're on native iOS for header adjustments
@@ -47,13 +47,13 @@ const Header: React.FC<HeaderProps> = ({
   // On native platforms, open external browser for payments (App Store Guideline 3.1.1)
   const isNative = isNativePlatform();
 
-  // Handler for upgrade action - opens external browser on native, modal on web
+  // Handler for upgrade action - navigate to upgrade page on iOS, show modal on web
   const handleUpgradeClick = async () => {
     if (checkBetaRestriction('premium')) {
       return;
     }
     if (isNative) {
-      await openExternalUpgrade();
+      navigate('/upgrade');
     } else {
       setShowUpgradeModal(true);
     }
