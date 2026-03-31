@@ -1,5 +1,7 @@
 """Service for validating Apple In-App Purchase receipts using StoreKit 2."""
 
+import base64
+import json
 import logging
 import traceback
 from datetime import datetime
@@ -26,68 +28,86 @@ class AppleIAPService:
 
     def validate_transaction(self, jws_transaction: str) -> Dict[str, Any]:
         """
-        Validate a JWS-signed transaction from StoreKit 2.
+        Validate a transaction from StoreKit 2.
         Returns decoded transaction info if valid.
 
-        StoreKit 2 transactions are pre-verified on the device, but we decode
-        to extract the transaction data for our records.
+        Handles both:
+        - JWS-signed transactions from App Store (production/sandbox)
+        - Base64-encoded JSON from Xcode StoreKit testing
         """
+        payload = None
+
+        # First try decoding as a JWT (production/sandbox App Store transactions)
         try:
-            # Decode without verification - StoreKit 2 already verified on device
-            # In production with App Store Server API, you'd verify with Apple's keys
             payload = jwt.decode(
                 jws_transaction,
                 options={"verify_signature": False},
             )
+            logger.info("Decoded Apple transaction as JWS")
+        except jwt.exceptions.DecodeError:
+            logger.info("JWS decode failed, trying base64 JSON (StoreKit testing)")
 
-            # Validate bundle ID matches our app
-            transaction_bundle_id = payload.get("bundleId")
-            if transaction_bundle_id != self.bundle_id:
-                logger.warning(
-                    f"Bundle ID mismatch: expected {self.bundle_id}, got {transaction_bundle_id}"
-                )
-                raise ValueError(f"Bundle ID mismatch: {transaction_bundle_id}")
+        # Fall back to base64-encoded JSON (Xcode StoreKit config file testing)
+        if payload is None:
+            try:
+                decoded_bytes = base64.b64decode(jws_transaction)
+                payload = json.loads(decoded_bytes)
+                logger.info("Decoded Apple transaction as base64 JSON (StoreKit testing)")
+            except (base64.binascii.Error, json.JSONDecodeError) as e:
+                logger.error(f"Failed to decode Apple transaction: {e}")
+                logger.error(traceback.format_exc())
+                raise ValueError(f"Invalid transaction format: {str(e)}")
 
-            # Extract transaction data
-            transaction_id = payload.get("transactionId")
-            original_transaction_id = payload.get("originalTransactionId")
-            product_id = payload.get("productId")
+        if not payload:
+            raise ValueError("Could not decode transaction data")
 
-            # Convert timestamps from milliseconds to datetime
-            purchase_date_ms = payload.get("purchaseDate", 0)
-            purchase_date = datetime.fromtimestamp(purchase_date_ms / 1000)
-
-            expires_date = None
-            expires_date_ms = payload.get("expiresDate")
-            if expires_date_ms:
-                expires_date = datetime.fromtimestamp(expires_date_ms / 1000)
-
-            environment = payload.get("environment", "Production")
-
-            logger.info(
-                f"Validated Apple transaction {transaction_id} for product {product_id}, "
-                f"environment: {environment}"
+        # Validate bundle ID matches our app (if present)
+        transaction_bundle_id = payload.get("bundleId")
+        if transaction_bundle_id and transaction_bundle_id != self.bundle_id:
+            logger.warning(
+                f"Bundle ID mismatch: expected {self.bundle_id}, got {transaction_bundle_id}"
             )
+            raise ValueError(f"Bundle ID mismatch: {transaction_bundle_id}")
 
-            return {
-                "transaction_id": transaction_id,
-                "original_transaction_id": original_transaction_id,
-                "product_id": product_id,
-                "purchase_date": purchase_date,
-                "expires_date": expires_date,
-                "is_upgraded": payload.get("isUpgraded", False),
-                "environment": environment,
-                "bundle_id": transaction_bundle_id,
-            }
+        # Extract transaction data
+        transaction_id = payload.get("transactionId")
+        original_transaction_id = payload.get("originalTransactionId") or payload.get("originalID")
+        product_id = payload.get("productId") or payload.get("productID")
 
-        except jwt.exceptions.DecodeError as e:
-            logger.error(f"Failed to decode Apple transaction JWS: {e}")
-            logger.error(traceback.format_exc())
-            raise ValueError(f"Invalid transaction format: {str(e)}")
-        except Exception as e:
-            logger.error(f"Failed to validate Apple transaction: {e}")
-            logger.error(traceback.format_exc())
-            raise ValueError(f"Invalid transaction: {str(e)}")
+        # Convert timestamps - handle both milliseconds and seconds
+        purchase_date_ms = payload.get("purchaseDate", 0)
+        if purchase_date_ms > 1e12:
+            purchase_date = datetime.fromtimestamp(purchase_date_ms / 1000)
+        elif purchase_date_ms > 0:
+            purchase_date = datetime.fromtimestamp(purchase_date_ms)
+        else:
+            purchase_date = datetime.utcnow()
+
+        expires_date = None
+        expires_date_ms = payload.get("expiresDate")
+        if expires_date_ms:
+            if expires_date_ms > 1e12:
+                expires_date = datetime.fromtimestamp(expires_date_ms / 1000)
+            else:
+                expires_date = datetime.fromtimestamp(expires_date_ms)
+
+        environment = payload.get("environment", "Xcode")
+
+        logger.info(
+            f"Validated Apple transaction {transaction_id} for product {product_id}, "
+            f"environment: {environment}"
+        )
+
+        return {
+            "transaction_id": str(transaction_id) if transaction_id else None,
+            "original_transaction_id": str(original_transaction_id) if original_transaction_id else None,
+            "product_id": product_id,
+            "purchase_date": purchase_date,
+            "expires_date": expires_date,
+            "is_upgraded": payload.get("isUpgraded", False),
+            "environment": environment,
+            "bundle_id": transaction_bundle_id,
+        }
 
     def process_webhook(self, signed_payload: str) -> Dict[str, Any]:
         """
