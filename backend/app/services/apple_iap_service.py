@@ -52,7 +52,9 @@ class AppleIAPService:
             try:
                 decoded_bytes = base64.b64decode(jws_transaction)
                 payload = json.loads(decoded_bytes)
-                logger.info("Decoded Apple transaction as base64 JSON (StoreKit testing)")
+                logger.info(
+                    "Decoded Apple transaction as base64 JSON (StoreKit testing)"
+                )
             except (base64.binascii.Error, json.JSONDecodeError) as e:
                 logger.error(f"Failed to decode Apple transaction: {e}")
                 logger.error(traceback.format_exc())
@@ -71,7 +73,9 @@ class AppleIAPService:
 
         # Extract transaction data
         transaction_id = payload.get("transactionId")
-        original_transaction_id = payload.get("originalTransactionId") or payload.get("originalID")
+        original_transaction_id = payload.get("originalTransactionId") or payload.get(
+            "originalID"
+        )
         product_id = payload.get("productId") or payload.get("productID")
 
         # Convert timestamps - handle both milliseconds and seconds
@@ -100,7 +104,9 @@ class AppleIAPService:
 
         return {
             "transaction_id": str(transaction_id) if transaction_id else None,
-            "original_transaction_id": str(original_transaction_id) if original_transaction_id else None,
+            "original_transaction_id": str(original_transaction_id)
+            if original_transaction_id
+            else None,
             "product_id": product_id,
             "purchase_date": purchase_date,
             "expires_date": expires_date,
