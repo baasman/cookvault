@@ -4,8 +4,8 @@ import logging
 import traceback
 
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from app.api.payments import jwt_required, get_jwt_identity
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ apple_bp = Blueprint("apple", __name__, url_prefix="/apple")
 
 
 @apple_bp.route("/validate-receipt", methods=["POST"])
-@jwt_required()
+@jwt_required
 def validate_receipt():
     """
     Validate Apple IAP receipt and update subscription.
@@ -137,7 +137,7 @@ def apple_webhook():
 
 
 @apple_bp.route("/subscription-status", methods=["GET"])
-@jwt_required()
+@jwt_required
 def get_subscription_status():
     """
     Get current Apple IAP subscription status for the authenticated user.
@@ -192,7 +192,7 @@ def get_subscription_status():
 
 
 @apple_bp.route("/restore", methods=["POST"])
-@jwt_required()
+@jwt_required
 def restore_purchases():
     """
     Restore purchases for a user.
