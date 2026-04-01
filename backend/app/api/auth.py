@@ -743,8 +743,15 @@ def login() -> Tuple[Response, int]:
 
         # Check if account is locked
         if user.is_account_locked():
+            remaining_minutes = (
+                int((user.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
+            )
             return (
-                jsonify({"error": "Account is locked due to too many failed attempts"}),
+                jsonify(
+                    {
+                        "error": f"Account is temporarily locked. Try again in {remaining_minutes} minute{'s' if remaining_minutes != 1 else ''}."
+                    }
+                ),
                 423,
             )
 
@@ -752,7 +759,28 @@ def login() -> Tuple[Response, int]:
         if not user.check_password(password):
             user.increment_failed_login()
             db.session.commit()
-            return jsonify({"error": "Invalid credentials"}), 401
+            max_attempts = 5
+            remaining = max_attempts - user.failed_login_attempts
+            if remaining <= 0:
+                return (
+                    jsonify(
+                        {
+                            "error": "Account locked due to too many failed attempts. Try again in 30 minutes."
+                        }
+                    ),
+                    423,
+                )
+            elif remaining <= 2:
+                return (
+                    jsonify(
+                        {
+                            "error": f"Incorrect password. {remaining} attempt{'s' if remaining != 1 else ''} remaining before account is locked."
+                        }
+                    ),
+                    401,
+                )
+            else:
+                return jsonify({"error": "Incorrect username or password"}), 401
 
         # Check account status
         if user.status != UserStatus.ACTIVE:
