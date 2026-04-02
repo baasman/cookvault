@@ -20,7 +20,10 @@ const CookingMode: React.FC<CookingModeProps> = ({ recipe, scaleFactor, onClose 
   );
   const totalSteps = sortedInstructions.length;
   const [currentStep, setCurrentStep] = useState(1);
-  const [showIngredients, setShowIngredients] = useState(true);
+  // Default open on desktop, closed on mobile
+  const [showIngredients, setShowIngredients] = useState(
+    typeof window !== 'undefined' && window.innerWidth >= 768
+  );
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Keep screen awake while cooking
@@ -201,6 +204,7 @@ const CookingMode: React.FC<CookingModeProps> = ({ recipe, scaleFactor, onClose 
               "
               style={{
                 paddingTop: window.innerWidth < 768 ? 'env(safe-area-inset-top, 0px)' : undefined,
+                paddingLeft: 'env(safe-area-inset-left, 0px)',
               }}
             >
               {/* Sidebar header */}
@@ -267,12 +271,12 @@ const CookingMode: React.FC<CookingModeProps> = ({ recipe, scaleFactor, onClose 
           {/* Ingredients toggle — only shown on mobile where sidebar is an overlay */}
           <button
             onClick={toggleIngredients}
-            className={`md:hidden p-3 rounded-xl active:scale-[0.97] border ${showIngredients ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-white'}`}
-            aria-label="Toggle ingredients"
+            className={`md:hidden flex items-center gap-1.5 py-3 px-3 rounded-xl active:scale-[0.97] border text-sm font-medium ${showIngredients ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-gray-200 bg-white text-gray-600'}`}
           >
-            <svg className="w-5 h-5" fill="none" stroke={showIngredients ? '#f15f1c' : '#6b7280'} viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
+            Ingredients
           </button>
 
           {currentStep < totalSteps ? (
