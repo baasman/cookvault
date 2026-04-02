@@ -1149,6 +1149,22 @@ class RecipesApi {
     }
   }
 
+  // Instruction Note Methods
+  async saveInstructionNote(recipeId: number, instructionId: number, content: string): Promise<{ note: { content: string } | null }> {
+    const response = await apiFetch(`${this.baseUrl}/recipes/${recipeId}/instructions/${instructionId}/note`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save note');
+    }
+
+    return response.json();
+  }
+
   // Recipe Rating Methods
   async getRating(recipeId: number): Promise<RatingResponse> {
     try {

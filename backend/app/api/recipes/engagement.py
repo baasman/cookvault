@@ -6,10 +6,13 @@ from datetime import datetime
 
 from flask import Response, current_app, jsonify, request
 
+import traceback
+
 from app import db
 from app.api import bp
 from app.api.auth import optional_auth, require_auth
 from app.models import Recipe, RecipeComment, RecipeNote
+from app.models.recipe import Instruction, InstructionNote
 
 
 # Recipe Notes Endpoints
@@ -110,6 +113,64 @@ def delete_recipe_note(current_user, recipe_id: int) -> Response:
         db.session.rollback()
         current_app.logger.error(f"Error deleting recipe note: {e}")
         return jsonify({"error": "Failed to delete note"}), 500
+
+
+# Instruction Note Endpoints
+
+
+@bp.route(
+    "/recipes/<int:recipe_id>/instructions/<int:instruction_id>/note", methods=["PUT"]
+)
+@require_auth
+def save_instruction_note(
+    current_user, recipe_id: int, instruction_id: int
+) -> Response:
+    """Create or update a user's note on a specific instruction step."""
+    instruction = Instruction.query.filter_by(
+        id=instruction_id, recipe_id=recipe_id
+    ).first()
+    if not instruction:
+        return jsonify({"error": "Instruction not found"}), 404
+
+    data = request.get_json()
+    if not data or "content" not in data:
+        return jsonify({"error": "Note content is required"}), 400
+
+    content = data["content"].strip()
+
+    try:
+        note = InstructionNote.query.filter_by(
+            user_id=current_user.id, instruction_id=instruction_id
+        ).first()
+
+        if not content:
+            # Empty content means delete the note
+            if note:
+                db.session.delete(note)
+                db.session.commit()
+            return jsonify({"note": None}), 200
+
+        if len(content) > 500:
+            return jsonify({"error": "Note cannot exceed 500 characters"}), 400
+
+        if note:
+            note.content = content
+            note.updated_at = datetime.utcnow()
+        else:
+            note = InstructionNote(
+                user_id=current_user.id,
+                instruction_id=instruction_id,
+                content=content,
+            )
+            db.session.add(note)
+
+        db.session.commit()
+        return jsonify({"note": note.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error saving instruction note: {e}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"error": "Failed to save note"}), 500
 
 
 # Recipe Rating Endpoints

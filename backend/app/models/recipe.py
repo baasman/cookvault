@@ -264,8 +264,8 @@ class Instruction(db.Model):
         "Recipe", back_populates="recipe_instructions"
     )
 
-    def to_dict(self) -> dict:
-        return {
+    def to_dict(self, current_user_id: Optional[int] = None) -> dict:
+        result = {
             "id": self.id,
             "step_number": self.step_number,
             "text": self.text,
@@ -276,6 +276,14 @@ class Instruction(db.Model):
             "cloudinary_url": self.cloudinary_url,
             "cloudinary_thumbnail_url": self.cloudinary_thumbnail_url,
         }
+
+        if current_user_id:
+            note = InstructionNote.query.filter_by(
+                user_id=current_user_id, instruction_id=self.id
+            ).first()
+            result["user_note"] = note.content if note else None
+
+        return result
 
 
 class ProcessingStatus(Enum):
@@ -722,7 +730,7 @@ class Recipe(db.Model):
                 {
                     "ingredients": self.get_recipe_ingredients(),
                     "instructions": [
-                        instruction.to_dict()
+                        instruction.to_dict(current_user_id=current_user_id)
                         for instruction in self.recipe_instructions
                     ],
                     "tags": [tag.to_dict() for tag in self.recipe_tags],
@@ -1005,6 +1013,41 @@ class RecipeNote(db.Model):
             "id": self.id,
             "user_id": self.user_id,
             "recipe_id": self.recipe_id,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class InstructionNote(db.Model):
+    """User's personal notes on individual recipe instructions (steps)"""
+
+    __tablename__ = "instruction_notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    instruction_id: Mapped[int] = mapped_column(
+        ForeignKey("instruction.id"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id", "instruction_id", name="unique_user_instruction_note"
+        ),
+    )
+
+    instruction: Mapped["Instruction"] = relationship("Instruction")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "instruction_id": self.instruction_id,
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

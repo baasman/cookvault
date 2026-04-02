@@ -58,6 +58,8 @@ export interface Instruction {
   cloudinary_public_id?: string | null;
   cloudinary_url?: string | null;
   cloudinary_thumbnail_url?: string | null;
+  // User's personal note on this step
+  user_note?: string | null;
 }
 
 export interface Tag {

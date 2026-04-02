@@ -22,6 +22,7 @@ import { RecipeScaler } from '../components/recipe/RecipeScaler';
 import { StarRating } from '../components/recipe/StarRating';
 import { ExportButton } from '../components/export';
 import { ActionSheet, type ActionSheetOption } from '../components/ui/ActionSheet';
+import { CookingMode } from '../components/cooking-mode/CookingMode';
 import { scaleQuantity, isScalableQuantity } from '../utils/recipeScaling';
 import { isIOS, isNativePlatform } from '../utils/platform';
 import type { Recipe } from '../types';
@@ -38,6 +39,7 @@ const RecipeDetailPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [scaleFactor, setScaleFactor] = useState(1);
+  const [showCookingMode, setShowCookingMode] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showMobileActionSheet, setShowMobileActionSheet] = useState(false);
   const [desiredServings, setDesiredServings] = useState<number | undefined>(undefined);
@@ -688,6 +690,32 @@ const RecipeDetailPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Start Cooking Button */}
+          {recipe.instructions && recipe.instructions.length > 0 && recipe.has_full_access !== false && !isEditing && (
+            <div className="mb-6">
+              <button
+                onClick={() => setShowCookingMode(true)}
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white font-medium text-lg active:scale-[0.97] transition-transform"
+                style={{ backgroundColor: '#f15f1c' }}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Start Cooking
+              </button>
+            </div>
+          )}
+
+          {/* Cooking Mode Overlay */}
+          {showCookingMode && recipe && (
+            <CookingMode
+              recipe={recipe}
+              scaleFactor={scaleFactor}
+              onClose={() => setShowCookingMode(false)}
+            />
+          )}
+
           {/* Recipe Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Ingredients */}
@@ -801,6 +829,18 @@ const RecipeDetailPage: React.FC = () => {
                                       }
                                     }}
                                   />
+                                </div>
+                              )}
+
+                              {/* User's step note */}
+                              {instruction.user_note && (
+                                <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                                  <p className="text-sm text-amber-800 flex items-start gap-1.5">
+                                    <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    {instruction.user_note}
+                                  </p>
                                 </div>
                               )}
                             </div>
