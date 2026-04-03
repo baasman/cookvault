@@ -295,11 +295,30 @@ class ProductionConfig(Config):
     def init_app(cls, app):
         """Production-specific initialization"""
         # Validate critical env vars before anything else
-        required_vars = ["SECRET_KEY", "DATABASE_URL"]
+        required_vars = [
+            "SECRET_KEY",
+            "DATABASE_URL",
+            "STRIPE_SECRET_KEY",
+            "ANTHROPIC_API_KEY",
+        ]
+        recommended_vars = [
+            "REDIS_URL",
+            "CORS_ORIGINS",
+            "CLOUDINARY_CLOUD_NAME",
+            "SENDGRID_API_KEY",
+            "APPLE_BUNDLE_ID",
+        ]
         missing = [v for v in required_vars if not os.environ.get(v)]
         if missing:
             raise ValueError(
                 f"Missing required environment variables for production: {missing}"
+            )
+        missing_recommended = [v for v in recommended_vars if not os.environ.get(v)]
+        if missing_recommended:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"Recommended environment variables not set: {missing_recommended}"
             )
 
         # Call parent init_app first
