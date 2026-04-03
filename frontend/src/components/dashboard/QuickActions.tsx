@@ -4,10 +4,10 @@ import { PlusIcon, BookOpenIcon, MagnifyingGlassIcon } from '@heroicons/react/24
 
 const QuickActions: React.FC = () => {
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-col sm:flex-row gap-3">
       <Link
         to="/upload"
-        className="inline-flex items-center px-4 py-2 rounded-lg text-white font-medium transition-colors"
+        className="flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-colors"
         style={{ backgroundColor: '#f15f1c' }}
         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d9541a'}
         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f15f1c'}
@@ -17,7 +17,7 @@ const QuickActions: React.FC = () => {
       </Link>
       <Link
         to="/cookbooks/create"
-        className="inline-flex items-center px-4 py-2 rounded-lg border-2 font-medium transition-colors"
+        className="flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg border-2 font-medium transition-colors"
         style={{ borderColor: '#f15f1c', color: '#f15f1c' }}
         onMouseEnter={(e) => {
           e.currentTarget.style.backgroundColor = '#f15f1c';
@@ -33,7 +33,7 @@ const QuickActions: React.FC = () => {
       </Link>
       <Link
         to="/recipes"
-        className="inline-flex items-center px-4 py-2 rounded-lg border-2 font-medium transition-colors"
+        className="flex-1 inline-flex items-center justify-center px-4 py-2 rounded-lg border-2 font-medium transition-colors"
         style={{ borderColor: '#9b644b', color: '#9b644b' }}
         onMouseEnter={(e) => {
           e.currentTarget.style.backgroundColor = '#9b644b';

@@ -502,6 +502,31 @@ const UpgradePage: React.FC = () => {
                 Your payment is processed securely by Stripe.
               </p>
             )}
+
+            {useApplePay && (
+              <p className="text-xs text-gray-500 text-center mt-4">
+                Cookle Premium is a $0.99/month auto-renewable subscription. Payment will be charged to your Apple ID account at confirmation of purchase. The subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage and cancel your subscription in your App Store account settings.
+              </p>
+            )}
+
+            <div className="flex justify-center gap-3 mt-3">
+              <a
+                href="https://cookle.food/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-gray-400 underline"
+              >
+                Privacy Policy
+              </a>
+              <a
+                href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-gray-400 underline"
+              >
+                Terms of Use
+              </a>
+            </div>
           </>
         )}
       </div>
