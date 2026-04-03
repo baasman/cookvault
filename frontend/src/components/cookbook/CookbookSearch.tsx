@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { cookbooksApi } from '../../services/cookbooksApi';
 import { decodeHtmlEntities } from '../../utils/textUtils';
+import { formatYear } from '../../utils/formatters';
 import type { Cookbook } from '../../types';
 
 interface CookbookSearchProps {
@@ -41,15 +42,6 @@ const CookbookSearch: React.FC<CookbookSearchProps> = ({ onSelect, onCreateNew }
 
     performSearch();
   }, [debouncedSearchQuery]);
-
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.getFullYear().toString();
-    } catch {
-      return '';
-    }
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,7 +107,7 @@ const CookbookSearch: React.FC<CookbookSearchProps> = ({ onSelect, onCreateNew }
                           <span>{cookbook.publisher}</span>
                         )}
                         {cookbook.publication_date && (
-                          <span>{formatDate(cookbook.publication_date)}</span>
+                          <span>{formatYear(cookbook.publication_date)}</span>
                         )}
                         {cookbook.isbn && (
                           <span>ISBN: {cookbook.isbn}</span>

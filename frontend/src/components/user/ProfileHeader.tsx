@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { PencilIcon } from '@heroicons/react/24/outline';
+import { formatDateLong } from '../../utils/formatters';
 import type { UserInfo } from '../../types';
 
 interface ProfileHeaderProps {
@@ -8,19 +9,6 @@ interface ProfileHeaderProps {
 }
 
 const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch {
-      return '';
-    }
-  };
-
   const getDisplayName = () => {
     if (user.first_name || user.last_name) {
       return `${user.first_name || ''} ${user.last_name || ''}`.trim();
@@ -72,7 +60,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
               </>
             )}
             <span className="hidden sm:inline">•</span>
-            <span>Joined {formatDate(user.created_at)}</span>
+            <span>Joined {formatDateLong(user.created_at)}</span>
           </div>
           
           {user.bio && (

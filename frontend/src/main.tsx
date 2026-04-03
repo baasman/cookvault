@@ -4,7 +4,7 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { isNativePlatform } from './utils/platform'
 import './index.css'
-import App from './App.tsx'
+import { App } from './App.tsx'
 
 // Note: Sentry initialization is handled by CookieConsentContext
 // after user consents to cookies (GDPR compliance)

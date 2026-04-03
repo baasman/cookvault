@@ -93,4 +93,4 @@ const CopyrightPolicyPage: React.FC = () => {
   );
 };
 
-export default CopyrightPolicyPage;
+export { CopyrightPolicyPage };

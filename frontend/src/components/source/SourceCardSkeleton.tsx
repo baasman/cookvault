@@ -40,4 +40,3 @@ const SourceCardSkeleton: React.FC = () => {
 };
 
 export { SourceCardSkeleton };
-export default SourceCardSkeleton;

@@ -4,7 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { CookieConsentProvider } from './contexts/CookieConsentContext';
 import { Layout } from './components/layout/Layout';
 import { CookieConsentBanner } from './components/ui/CookieConsentBanner';
-import ErrorBoundary from './components/ErrorBoundary';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { hideKeyboard, useKeyboardScrollFix } from './hooks/useKeyboard';
 import { useDeepLinks } from './hooks/useDeepLinks';
 import { isNativePlatform } from './utils/platform';
@@ -18,11 +18,11 @@ import { AccountSettingsPage } from './pages/AccountSettingsPage';
 import { PublicUserPage } from './pages/PublicUserPage';
 import { CookbookPurchaseSuccessPage } from './pages/CookbookPurchaseSuccessPage';
 import { CreateCookbookPage } from './pages/CreateCookbookPage';
-import CopyrightPolicyPage from './pages/CopyrightPolicyPage';
-import TermsOfServicePage from './pages/TermsOfServicePage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import SupportPage from './pages/SupportPage';
-import NotFoundPage from './pages/NotFoundPage';
+import { CopyrightPolicyPage } from './pages/CopyrightPolicyPage';
+import { TermsOfServicePage } from './pages/TermsOfServicePage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { SupportPage } from './pages/SupportPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 // Create a client
 const queryClient = new QueryClient();
@@ -109,4 +109,4 @@ function App() {
   );
 }
 
-export default App
+export { App }

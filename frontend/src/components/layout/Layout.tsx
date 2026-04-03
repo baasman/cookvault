@@ -1,7 +1,7 @@
 import React from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
-import OfflineBanner from '../OfflineBanner';
+import { OfflineBanner } from '../OfflineBanner';
 import { useSwipeBack } from '../../hooks/useSwipeBack';
 import { TabBar } from '../navigation/TabBar';
 import { isIOS, isNativePlatform } from '../../utils/platform';

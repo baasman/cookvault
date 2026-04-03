@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Cookbook } from '../../types';
 import { decodeHtmlEntities } from '../../utils/textUtils';
+import { formatYear } from '../../utils/formatters';
 import { CookbookPurchaseButton } from '../payments';
 import { isNativePlatform } from '../../utils/platform';
 
@@ -33,15 +34,6 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick, showPurc
     cookbook.user_id &&
     cookbook.user_id.toString() === user.id.toString() &&
     !cookbook.is_google_books;
-
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.getFullYear().toString();
-    } catch {
-      return '';
-    }
-  };
 
   return (
     <Link to={`/cookbooks/${cookbook.id}`} onClick={handleClick} className="h-full">
@@ -142,7 +134,7 @@ const CookbookCard: React.FC<CookbookCardProps> = ({ cookbook, onClick, showPurc
                   <svg className="h-3 w-3 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span>{formatDate(cookbook.publication_date)}</span>
+                  <span>{formatYear(cookbook.publication_date)}</span>
                 </div>
               )}
 

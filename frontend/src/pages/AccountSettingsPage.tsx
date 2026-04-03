@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { SubscriptionStatus } from '../components/payments';
 import { Button, Modal, Input } from '../components/ui';
@@ -152,7 +153,7 @@ const AccountSettingsPage: React.FC = () => {
       document.body.removeChild(a);
     } catch (error) {
       console.error('Failed to export data:', error);
-      alert('Failed to export data. Please try again.');
+      toast.error('Failed to export data. Please try again.');
     } finally {
       setIsExporting(false);
     }

@@ -31,4 +31,3 @@ const CookbookCardSkeleton: React.FC = () => {
 };
 
 export { CookbookCardSkeleton };
-export default CookbookCardSkeleton;

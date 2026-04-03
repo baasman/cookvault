@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { formatDateShort } from '../../utils/formatters';
 
 interface ActivityItem {
   type: string;
@@ -14,20 +15,6 @@ interface RecentActivityProps {
 }
 
 const RecentActivity: React.FC<RecentActivityProps> = ({ activities }) => {
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '';
-    }
-  };
-
   if (activities.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border p-6" style={{ borderColor: '#e8d7cf' }}>
@@ -86,7 +73,7 @@ const RecentActivity: React.FC<RecentActivityProps> = ({ activities }) => {
               </div>
             </div>
             <span className="text-sm" style={{ color: '#9b644b' }}>
-              {formatDate(activity.created_at)}
+              {formatDateShort(activity.created_at)}
             </span>
           </div>
         ))}

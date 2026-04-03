@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { apiFetch } from '../utils/apiInterceptor';
 import { getApiUrl } from '../utils/getApiUrl';
+import { formatDateShort } from '../utils/formatters';
 
 interface PrintOrder {
   id: number;
@@ -149,16 +150,6 @@ export const OrdersPage: React.FC = () => {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(dateString));
   };
 
   const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -318,7 +309,7 @@ export const OrdersPage: React.FC = () => {
                       
                       <div>
                         <span className="font-medium">Ordered:</span>
-                        <span className="block">{formatDate(order.created_at)}</span>
+                        <span className="block">{formatDateShort(order.created_at)}</span>
                       </div>
                     </div>
 

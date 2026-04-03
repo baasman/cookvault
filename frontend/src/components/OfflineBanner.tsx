@@ -42,4 +42,4 @@ const OfflineBanner: React.FC<OfflineBannerProps> = ({ className = '' }) => {
   );
 };
 
-export default OfflineBanner;
+export { OfflineBanner };

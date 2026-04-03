@@ -117,4 +117,4 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   );
 };
 
-export default OnboardingModal;
+export { OnboardingModal };

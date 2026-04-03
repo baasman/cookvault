@@ -80,7 +80,9 @@ class Config:
         app.config["TESTING"] = False
 
         # Load dynamic config values at runtime
-        app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key"
+        app.config["SECRET_KEY"] = (
+            os.environ.get("SECRET_KEY") or "dev-secret-key-not-for-production"
+        )
         app.config["SQLALCHEMY_DATABASE_URI"] = (
             os.environ.get("DATABASE_URL") or "sqlite:///cookbook.db"
         )
@@ -292,6 +294,14 @@ class ProductionConfig(Config):
     @classmethod
     def init_app(cls, app):
         """Production-specific initialization"""
+        # Validate critical env vars before anything else
+        required_vars = ["SECRET_KEY", "DATABASE_URL"]
+        missing = [v for v in required_vars if not os.environ.get(v)]
+        if missing:
+            raise ValueError(
+                f"Missing required environment variables for production: {missing}"
+            )
+
         # Call parent init_app first
         super().init_app(app)
 

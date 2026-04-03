@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { Button, Input } from '../ui';
 import { cookbooksApi, type GoogleBook } from '../../services/cookbooksApi';
+import { formatYear } from '../../utils/formatters';
 
 interface GoogleBooksSearchProps {
   onBookSelect: (book: GoogleBook) => void;
@@ -60,17 +61,6 @@ const GoogleBooksSearch: React.FC<GoogleBooksSearchProps> = ({
     onBookSelect(book);
     setShowResults(false);
     setSearchQuery('');
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '';
-    
-    try {
-      const date = new Date(dateString);
-      return date.getFullYear().toString();
-    } catch {
-      return dateString;
-    }
   };
 
   return (
@@ -155,7 +145,7 @@ const GoogleBooksSearch: React.FC<GoogleBooksSearchProps> = ({
                         <span>{book.publisher}</span>
                       )}
                       {book.publication_date && (
-                        <span>• {formatDate(book.publication_date)}</span>
+                        <span>• {formatYear(book.publication_date)}</span>
                       )}
                       {book.page_count && (
                         <span>• {book.page_count} pages</span>

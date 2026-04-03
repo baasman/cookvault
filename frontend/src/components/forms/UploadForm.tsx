@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Button, Input } from '../ui';
 import { GoogleBooksSearch } from '../cookbook/GoogleBooksSearch';
 import { cookbooksApi, type GoogleBook } from '../../services/cookbooksApi';
 import { recipesApi } from '../../services/recipesApi';
 import { captureRecipePhoto } from '../../services/cameraService';
 import { isNativePlatform } from '../../utils/platform';
+import { FILE_LIMITS } from '../../utils/constants';
 import type { UploadFormData, ImagePreview } from '../../types';
 
 interface UploadFormProps {
@@ -64,13 +66,13 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     // Validate file type
     const allowedTypes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif', 'image/bmp', 'image/tiff'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Please select valid image files (PNG, JPG, JPEG, GIF, BMP, TIFF)');
+      toast.error('Please select valid image files (PNG, JPG, JPEG, GIF, BMP, TIFF)');
       return false;
     }
 
     // Validate file size (10MB limit per file)
-    if (file.size > 10 * 1024 * 1024) {
-      alert(`File "${file.name}" is too large. Each file must be less than 10MB`);
+    if (file.size > FILE_LIMITS.IMAGE_MAX_SIZE) {
+      toast.error(`File "${file.name}" is too large. Each file must be less than 10MB`);
       return false;
     }
 
@@ -86,7 +88,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     // Check total file count (max 10 images)
     const totalFiles = imagePreviews.length + validFiles.length;
     if (totalFiles > 10) {
-      alert(`Maximum 10 images allowed per recipe. You can add ${10 - imagePreviews.length} more images.`);
+      toast.error(`Maximum 10 images allowed per recipe. You can add ${10 - imagePreviews.length} more images.`);
       return;
     }
 
@@ -95,8 +97,8 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     const newFilesSize = validFiles.reduce((sum, file) => sum + file.size, 0);
     const totalSize = currentSize + newFilesSize;
     
-    if (totalSize > 50 * 1024 * 1024) {
-      alert('Total file size exceeds 50MB limit');
+    if (totalSize > FILE_LIMITS.TOTAL_IMAGES_SIZE) {
+      toast.error('Total file size exceeds 50MB limit');
       return;
     }
 
@@ -145,13 +147,13 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     // Validate file type
     const allowedTypes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif', 'image/bmp', 'image/tiff'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Please select a valid image file (PNG, JPG, JPEG, GIF, BMP, TIFF)');
+      toast.error('Please select a valid image file (PNG, JPG, JPEG, GIF, BMP, TIFF)');
       return;
     }
 
     // Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB');
+    if (file.size > FILE_LIMITS.IMAGE_MAX_SIZE) {
+      toast.error('File size must be less than 10MB');
       return;
     }
 
@@ -216,13 +218,13 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     // Validate file type
     const allowedTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Please select a valid video file (MP4, MOV, WebM, AVI)');
+      toast.error('Please select a valid video file (MP4, MOV, WebM, AVI)');
       return false;
     }
 
     // Validate file size (100MB limit)
-    if (file.size > 100 * 1024 * 1024) {
-      alert('Video file size must be less than 100MB');
+    if (file.size > FILE_LIMITS.VIDEO_MAX_SIZE) {
+      toast.error('Video file size must be less than 100MB');
       return false;
     }
 
@@ -287,7 +289,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
     if (formData.isUrlMode) {
       // Validate URL input
       if (!formData.recipeUrl || formData.recipeUrl.trim() === '') {
-        alert('Please enter a URL');
+        toast.error('Please enter a URL');
         return;
       }
       // Basic URL validation
@@ -300,17 +302,17 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           new URL(url);
         }
       } catch {
-        alert('Please enter a valid URL');
+        toast.error('Please enter a valid URL');
         return;
       }
     } else if (formData.isTextMode) {
       // Validate text input
       if (!formData.recipeText || formData.recipeText.trim() === '') {
-        alert('Please enter recipe text');
+        toast.error('Please enter recipe text');
         return;
       }
       if (formData.recipeText.length > 50000) {
-        alert('Recipe text exceeds maximum length of 50,000 characters');
+        toast.error('Recipe text exceeds maximum length of 50,000 characters');
         return;
       }
     } else if (formData.isVideoMode) {
@@ -319,17 +321,17 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
         // Validate YouTube URL
         const url = (formData.youtubeUrl || '').trim();
         if (!url) {
-          alert('Please enter a YouTube URL');
+          toast.error('Please enter a YouTube URL');
           return;
         }
         const ytRegex = /(?:youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/)|youtu\.be\/)[a-zA-Z0-9_-]{11}/;
         if (!ytRegex.test(url)) {
-          alert('Please enter a valid YouTube video URL');
+          toast.error('Please enter a valid YouTube video URL');
           return;
         }
       } else {
         if (!formData.videoFile) {
-          alert('Please select a video file to upload');
+          toast.error('Please select a video file to upload');
           return;
         }
       }
@@ -337,12 +339,12 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
       // Validate images
       if (formData.isMultiImage) {
         if (formData.images.length === 0) {
-          alert('Please select at least one image to upload');
+          toast.error('Please select at least one image to upload');
           return;
         }
       } else {
         if (!formData.image) {
-          alert('Please select an image to upload');
+          toast.error('Please select an image to upload');
           return;
         }
       }
@@ -350,20 +352,20 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
 
     // Validate new cookbook creation if selected
     if (formData.create_new_cookbook && (!formData.new_cookbook_title || formData.new_cookbook_title.trim() === '')) {
-      alert('Please enter a cookbook title');
+      toast.error('Please enter a cookbook title');
       return;
     }
 
     // Validate cookbook selection if selected
     if (formData.search_google_books && !formData.selected_google_book) {
-      alert('Please select a cookbook or enter details manually');
+      toast.error('Please select a cookbook or enter details manually');
       return;
     }
 
     // Validate recipe source selection (skip for URL and Video modes - always external)
     if (!formData.isUrlMode && !formData.isVideoMode) {
       if (formData.is_original_recipe === undefined) {
-        alert('Please indicate whether this is your own recipe or from another source.');
+        toast.error('Please indicate whether this is your own recipe or from another source.');
         return;
       }
 
@@ -373,7 +375,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                             formData.search_google_books ||
                             formData.cookbook_id;
         if (!hasCookbook || formData.no_cookbook) {
-          alert('Please link this recipe to a cookbook. Since this recipe is from a cookbook or other source, you must specify which cookbook it belongs to.');
+          toast.error('Please link this recipe to a cookbook. Since this recipe is from a cookbook or other source, you must specify which cookbook it belongs to.');
           return;
         }
       }
@@ -1382,7 +1384,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
                       }));
                     } catch (error) {
                       console.error('Error creating cookbook from Google Books:', error);
-                      alert('Failed to create cookbook from online database. Please try again.');
+                      toast.error('Failed to create cookbook from online database. Please try again.');
                     }
                   }}
                   onManualEntry={() => {

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { cookbooksApi } from '../../services/cookbooksApi';
 import type { Cookbook } from '../../types';
 
@@ -31,13 +32,13 @@ const CookbookImageDisplay: React.FC<CookbookImageDisplayProps> = ({ cookbook, c
     // Validate file type
     const allowedTypes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Please select a valid image file (PNG, JPG, JPEG, GIF)');
+      toast.error('Please select a valid image file (PNG, JPG, JPEG, GIF)');
       return;
     }
 
     // Validate file size (5MB limit)
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size must be less than 5MB');
+      toast.error('File size must be less than 5MB');
       return;
     }
 

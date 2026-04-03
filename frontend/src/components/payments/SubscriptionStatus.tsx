@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { Button } from '../ui/Button';
 import { paymentsApi, type Subscription } from '../../services/paymentsApi';
 import { PremiumUpgradeModal } from './PremiumUpgradeModal';
@@ -54,7 +55,7 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
       await loadSubscription(); // Refresh subscription data
     } catch (err) {
       console.error('Failed to cancel subscription:', err);
-      alert('Failed to cancel subscription. Please try again.');
+      toast.error('Failed to cancel subscription. Please try again.');
     } finally {
       setIsCanceling(false);
     }

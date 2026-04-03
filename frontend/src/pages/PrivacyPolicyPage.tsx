@@ -211,4 +211,4 @@ const PrivacyPolicyPage: React.FC = () => {
   );
 };
 
-export default PrivacyPolicyPage;
+export { PrivacyPolicyPage };

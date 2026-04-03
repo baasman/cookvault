@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { recipesApi } from '../../services/recipesApi';
 import type { Recipe } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,7 +31,7 @@ export const FeatureToggleButton: React.FC<FeatureToggleButtonProps> = ({
     },
     onError: (error) => {
       console.error('Error featuring recipe:', error);
-      alert('Failed to feature recipe. ' + (error instanceof Error ? error.message : 'Please try again.'));
+      toast.error('Failed to feature recipe. ' + (error instanceof Error ? error.message : 'Please try again.'));
     }
   });
 
@@ -44,7 +45,7 @@ export const FeatureToggleButton: React.FC<FeatureToggleButtonProps> = ({
     },
     onError: (error) => {
       console.error('Error unfeaturing recipe:', error);
-      alert('Failed to unfeature recipe. ' + (error instanceof Error ? error.message : 'Please try again.'));
+      toast.error('Failed to unfeature recipe. ' + (error instanceof Error ? error.message : 'Please try again.'));
     }
   });
 

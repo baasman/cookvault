@@ -249,7 +249,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       setShowModal(false);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export PDF. Please try again.');
+      toast.error('Failed to export PDF. Please try again.');
     } finally {
       setIsExporting(false);
     }

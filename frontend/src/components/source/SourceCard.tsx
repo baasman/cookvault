@@ -87,4 +87,3 @@ const SourceCard: React.FC<SourceCardProps> = ({ source, onClick }) => {
 };
 
 export { SourceCard };
-export default SourceCard;

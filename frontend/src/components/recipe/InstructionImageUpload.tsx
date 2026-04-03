@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import type { Instruction } from '../../types';
 import { recipesApi } from '../../services/recipesApi';
+import { FILE_LIMITS } from '../../utils/constants';
 import toast from 'react-hot-toast';
 
 interface InstructionImageUploadProps {
@@ -30,7 +31,7 @@ export const InstructionImageUpload: React.FC<InstructionImageUploadProps> = ({
     }
 
     // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > FILE_LIMITS.IMAGE_MAX_SIZE) {
       toast.error('Image must be smaller than 10MB');
       return;
     }

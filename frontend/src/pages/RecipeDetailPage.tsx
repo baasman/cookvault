@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { recipesApi } from '../services/recipesApi';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,12 +19,14 @@ import { RecipeActionsDropdown } from '../components/recipe/RecipeActionsDropdow
 import { NotesSection } from '../components/recipe/NotesSection';
 import { CommentsSection } from '../components/recipe/CommentsSection';
 import { PaywallMessage } from '../components/recipe/PaywallMessage';
+import { formatCookingTime } from '../utils/formatters';
 import { RecipeScaler } from '../components/recipe/RecipeScaler';
 import { StarRating } from '../components/recipe/StarRating';
 import { ExportButton } from '../components/export';
 import { ActionSheet, type ActionSheetOption } from '../components/ui/ActionSheet';
 import { CookingMode } from '../components/cooking-mode/CookingMode';
 import { scaleQuantity, isScalableQuantity } from '../utils/recipeScaling';
+import { DIFFICULTY_COLORS } from '../utils/constants';
 import { isIOS, isNativePlatform } from '../utils/platform';
 import type { Recipe } from '../types';
 
@@ -68,7 +71,7 @@ const RecipeDetailPage: React.FC = () => {
     },
     onError: (error: any) => {
       console.error('Error deleting recipe:', error);
-      alert('Failed to delete recipe. Please try again.');
+      toast.error('Failed to delete recipe. Please try again.');
     }
   });
 
@@ -123,21 +126,9 @@ const RecipeDetailPage: React.FC = () => {
     setDesiredServings(newDesiredServings);
   };
 
-  const formatTime = (minutes: number | undefined) => {
-    if (!minutes) return 'Not specified';
-    if (minutes < 60) return `${minutes} minutes`;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return mins > 0 ? `${hours} hour${hours > 1 ? 's' : ''} ${mins} minutes` : `${hours} hour${hours > 1 ? 's' : ''}`;
-  };
 
   const getDifficultyColor = (difficulty: string | undefined) => {
-    switch (difficulty?.toLowerCase()) {
-      case 'easy': return '#22c55e';
-      case 'medium': return '#f59e0b';
-      case 'hard': return '#ef4444';
-      default: return '#9b644b';
-    }
+    return DIFFICULTY_COLORS[difficulty?.toLowerCase() ?? ''] ?? '#9b644b';
   };
 
   // Allow unauthenticated users to view public recipes
@@ -430,12 +421,12 @@ const RecipeDetailPage: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   <div className="text-center p-3 bg-background-secondary rounded-lg">
                     <div className="text-sm text-text-secondary mb-1">Prep Time</div>
-                    <div className="font-medium text-text-primary">{formatTime(recipe.prep_time)}</div>
+                    <div className="font-medium text-text-primary">{formatCookingTime(recipe.prep_time)}</div>
                   </div>
 
                   <div className="text-center p-3 bg-background-secondary rounded-lg">
                     <div className="text-sm text-text-secondary mb-1">Cook Time</div>
-                    <div className="font-medium text-text-primary">{formatTime(recipe.cook_time)}</div>
+                    <div className="font-medium text-text-primary">{formatCookingTime(recipe.cook_time)}</div>
                   </div>
 
                   <div className="text-center p-3 bg-background-secondary rounded-lg">

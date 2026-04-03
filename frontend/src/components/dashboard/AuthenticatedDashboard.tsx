@@ -7,7 +7,7 @@ import { StatCard } from '../user/StatCard';
 import { QuickActions } from './QuickActions';
 import { RecentActivity } from './RecentActivity';
 import { AppStoreBanner } from '../homepage/AppStoreBanner';
-import OnboardingModal from '../onboarding/OnboardingModal';
+import { OnboardingModal } from '../onboarding/OnboardingModal';
 
 const ONBOARDING_KEY = 'cookle_has_seen_onboarding';
 

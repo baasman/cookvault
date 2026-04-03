@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { userApi } from '../services/userApi';
+import { formatDateShort } from '../utils/formatters';
 import { StatCard } from '../components/user/StatCard';
 
 const PublicUserPage: React.FC = () => {
@@ -25,20 +26,6 @@ const PublicUserPage: React.FC = () => {
     enabled: Boolean(userId || username),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
-
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '';
-    }
-  };
 
   const formatMemberSince = (dateString: string) => {
     try {
@@ -192,7 +179,7 @@ const PublicUserPage: React.FC = () => {
                   </div>
                 </div>
                 <span className="text-sm text-text-secondary">
-                  {formatDate(activity.created_at)}
+                  {formatDateShort(activity.created_at)}
                 </span>
               </div>
             ))}
