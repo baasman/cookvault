@@ -132,3 +132,4 @@ render.env
 scripts/reports
 .ruff_cache
 .playwright-mcp
+.agents/
