@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesUploadApi } from '../../services/recipesUploadApi';
 import type { MultiJobStatusResponse } from '../../types';
 
 interface MultiProcessingProgressProps {
@@ -22,7 +22,7 @@ export const MultiProcessingProgress: React.FC<MultiProcessingProgressProps> = (
 
     const pollMultiJobStatus = async () => {
       try {
-        const jobStatus = await recipesApi.getMultiJobStatus(multiJobId);
+        const jobStatus = await recipesUploadApi.getMultiJobStatus(multiJobId);
         setStatus(jobStatus);
 
         // Update status text based on job state

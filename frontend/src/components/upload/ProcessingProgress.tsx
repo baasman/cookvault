@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesUploadApi } from '../../services/recipesUploadApi';
 
 interface ProcessingProgressProps {
   jobId: number;
@@ -31,7 +31,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
 
     setIsCancelling(true);
     try {
-      await recipesApi.cancelJob(jobId);
+      await recipesUploadApi.cancelJob(jobId);
       setIsPolling(false);
       setStatus({ status: 'cancelled' });
       setStatusText('Processing cancelled');
@@ -47,7 +47,7 @@ export const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
 
     const pollJobStatus = async () => {
       try {
-        const jobStatus = await recipesApi.getJobStatus(jobId);
+        const jobStatus = await recipesUploadApi.getJobStatus(jobId);
         setStatus(jobStatus);
 
         // Update status text based on job state

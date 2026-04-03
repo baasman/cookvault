@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesEngagementApi } from '../../services/recipesEngagementApi';
 import type { Recipe } from '../../types';
 
 interface AddToCollectionButtonProps {
@@ -20,7 +20,7 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
   const queryClient = useQueryClient();
 
   const addToCollectionMutation = useMutation({
-    mutationFn: () => recipesApi.addToCollection(recipe.id),
+    mutationFn: () => recipesEngagementApi.addToCollection(recipe.id),
     onSuccess: (data) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
@@ -38,7 +38,7 @@ const AddToCollectionButton: React.FC<AddToCollectionButtonProps> = ({
   });
 
   const removeFromCollectionMutation = useMutation({
-    mutationFn: () => recipesApi.removeFromCollection(recipe.id),
+    mutationFn: () => recipesEngagementApi.removeFromCollection(recipe.id),
     onSuccess: (data) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipes'] });

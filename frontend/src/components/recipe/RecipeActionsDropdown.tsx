@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { recipesApi } from '../../services/recipesApi';
+import { recipesEngagementApi } from '../../services/recipesEngagementApi';
 import { recipeGroupsApi } from '../../services/recipeGroupsApi';
 import { shareRecipe } from '../../services/shareService';
 import { CopyrightConsentModal } from '../ui/CopyrightConsentModal';
@@ -50,7 +51,7 @@ const RecipeActionsDropdown: React.FC<RecipeActionsDropdownProps> = ({
 
   // Add to Collection mutation
   const addToCollectionMutation = useMutation({
-    mutationFn: () => recipesApi.addToCollection(recipe.id),
+    mutationFn: () => recipesEngagementApi.addToCollection(recipe.id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
       queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
@@ -63,7 +64,7 @@ const RecipeActionsDropdown: React.FC<RecipeActionsDropdownProps> = ({
   });
 
   const removeFromCollectionMutation = useMutation({
-    mutationFn: () => recipesApi.removeFromCollection(recipe.id),
+    mutationFn: () => recipesEngagementApi.removeFromCollection(recipe.id),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
       queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
@@ -77,7 +78,7 @@ const RecipeActionsDropdown: React.FC<RecipeActionsDropdownProps> = ({
 
   // Copy Recipe mutation
   const copyRecipeMutation = useMutation({
-    mutationFn: () => recipesApi.copyRecipe(recipe.id),
+    mutationFn: () => recipesEngagementApi.copyRecipe(recipe.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
       toast.success('Recipe copied to your collection!');

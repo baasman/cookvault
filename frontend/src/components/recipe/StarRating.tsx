@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesEngagementApi } from '../../services/recipesEngagementApi';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -38,13 +38,13 @@ const StarRating: React.FC<StarRatingProps> = ({
   // Fetch rating data
   const { data: ratingData, isLoading } = useQuery({
     queryKey: ['recipe-rating', recipeId],
-    queryFn: () => recipesApi.getRating(recipeId),
+    queryFn: () => recipesEngagementApi.getRating(recipeId),
     staleTime: 30000, // 30 seconds
   });
 
   // Submit rating mutation
   const submitMutation = useMutation({
-    mutationFn: (rating: number) => recipesApi.submitRating(recipeId, rating),
+    mutationFn: (rating: number) => recipesEngagementApi.submitRating(recipeId, rating),
     onSuccess: (data) => {
       queryClient.setQueryData(['recipe-rating', recipeId], data);
       toast.success('Rating saved!');
@@ -56,7 +56,7 @@ const StarRating: React.FC<StarRatingProps> = ({
 
   // Delete rating mutation
   const deleteMutation = useMutation({
-    mutationFn: () => recipesApi.deleteRating(recipeId),
+    mutationFn: () => recipesEngagementApi.deleteRating(recipeId),
     onSuccess: (data) => {
       queryClient.setQueryData(['recipe-rating', recipeId], {
         aggregate: data.aggregate,

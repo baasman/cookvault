@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Instruction } from '../../types';
 import { detectTimers, detectDonenessCues } from '../../utils/timerDetection';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesEngagementApi } from '../../services/recipesEngagementApi';
 import { CookingModeTimer } from './CookingModeTimer';
 
 interface CookingModeStepProps {
@@ -35,7 +35,7 @@ const CookingModeStep: React.FC<CookingModeStepProps> = ({
   const saveNote = useCallback(async (content: string) => {
     setIsSaving(true);
     try {
-      await recipesApi.saveInstructionNote(recipeId, instruction.id, content);
+      await recipesEngagementApi.saveInstructionNote(recipeId, instruction.id, content);
       // Invalidate recipe query so the note appears on the detail page
       queryClient.invalidateQueries({ queryKey: ['recipe', recipeId] });
     } catch (error) {

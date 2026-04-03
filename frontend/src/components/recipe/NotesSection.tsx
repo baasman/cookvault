@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesEngagementApi } from '../../services/recipesEngagementApi';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Recipe } from '../../types';
 import toast from 'react-hot-toast';
@@ -36,7 +36,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ recipe }) => {
 
   // Save note mutation
   const saveNoteMutation = useMutation({
-    mutationFn: (content: string) => recipesApi.saveUserNote(recipe.id, content),
+    mutationFn: (content: string) => recipesEngagementApi.saveUserNote(recipe.id, content),
     onMutate: () => setIsSaving(true),
     onSuccess: (data) => {
       // Update the recipe cache with the new note
@@ -57,7 +57,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ recipe }) => {
 
   // Delete note mutation
   const deleteNoteMutation = useMutation({
-    mutationFn: () => recipesApi.deleteUserNote(recipe.id),
+    mutationFn: () => recipesEngagementApi.deleteUserNote(recipe.id),
     onMutate: () => setIsSaving(true),
     onSuccess: () => {
       // Update the recipe cache to remove the note

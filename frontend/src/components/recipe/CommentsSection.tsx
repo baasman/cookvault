@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesEngagementApi } from '../../services/recipesEngagementApi';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Recipe, RecipeComment } from '../../types';
 import toast from 'react-hot-toast';
@@ -187,7 +187,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
   // Only fetch comments if user is authenticated
   const { data: commentsData, isLoading } = useQuery({
     queryKey: ['recipe-comments', recipe.id, currentPage],
-    queryFn: () => recipesApi.getRecipeComments(recipe.id, { page: currentPage }),
+    queryFn: () => recipesEngagementApi.getRecipeComments(recipe.id, { page: currentPage }),
     enabled: !!user, // Only run query when user is authenticated
   });
 
@@ -200,7 +200,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
 
   // Create comment mutation
   const createCommentMutation = useMutation({
-    mutationFn: (content: string) => recipesApi.createComment(recipe.id, content),
+    mutationFn: (content: string) => recipesEngagementApi.createComment(recipe.id, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipe-comments', recipe.id] });
       setNewComment('');
@@ -214,7 +214,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
   // Update comment mutation
   const updateCommentMutation = useMutation({
     mutationFn: ({ commentId, content }: { commentId: number; content: string }) => 
-      recipesApi.updateComment(recipe.id, commentId, content),
+      recipesEngagementApi.updateComment(recipe.id, commentId, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipe-comments', recipe.id] });
     },
@@ -222,7 +222,7 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ recipe }) => {
 
   // Delete comment mutation
   const deleteCommentMutation = useMutation({
-    mutationFn: (commentId: number) => recipesApi.deleteComment(recipe.id, commentId),
+    mutationFn: (commentId: number) => recipesEngagementApi.deleteComment(recipe.id, commentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipe-comments', recipe.id] });
     },

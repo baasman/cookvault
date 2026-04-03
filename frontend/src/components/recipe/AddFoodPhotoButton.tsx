@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesUploadApi } from '../../services/recipesUploadApi';
 import { captureRecipePhoto } from '../../services/cameraService';
 import { isNativePlatform } from '../../utils/platform';
 import type { Recipe } from '../../types';
@@ -23,7 +23,7 @@ const AddFoodPhotoButton: React.FC<AddFoodPhotoButtonProps> = ({
   const [isCapturing, setIsCapturing] = useState(false);
 
   const uploadMutation = useMutation({
-    mutationFn: (imageFile: File) => recipesApi.uploadPrimaryRecipeImage(recipe.id, imageFile),
+    mutationFn: (imageFile: File) => recipesUploadApi.uploadPrimaryRecipeImage(recipe.id, imageFile),
     onSuccess: () => {
       // Invalidate recipe queries to refresh with new image
       queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });

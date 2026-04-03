@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import type { Instruction } from '../../types';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesUploadApi } from '../../services/recipesUploadApi';
 import { FILE_LIMITS } from '../../utils/constants';
 import toast from 'react-hot-toast';
 
@@ -39,7 +39,7 @@ export const InstructionImageUpload: React.FC<InstructionImageUploadProps> = ({
     setIsUploading(true);
 
     try {
-      const updatedInstruction = await recipesApi.uploadInstructionImage(
+      const updatedInstruction = await recipesUploadApi.uploadInstructionImage(
         recipeId,
         instruction.id,
         file
@@ -58,7 +58,7 @@ export const InstructionImageUpload: React.FC<InstructionImageUploadProps> = ({
     setIsUploading(true);
 
     try {
-      const updatedInstruction = await recipesApi.removeInstructionImage(
+      const updatedInstruction = await recipesUploadApi.removeInstructionImage(
         recipeId,
         instruction.id
       );

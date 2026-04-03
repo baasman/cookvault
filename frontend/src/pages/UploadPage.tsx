@@ -5,7 +5,7 @@ import { ProcessingProgress } from '../components/upload/ProcessingProgress';
 import { MultiProcessingProgress } from '../components/upload/MultiProcessingProgress';
 import { VideoProcessingProgress } from '../components/upload/VideoProcessingProgress';
 import { UploadLimitWarning, useCanUpload } from '../components/payments';
-import { recipesApi } from '../services/recipesApi';
+import { recipesUploadApi } from '../services/recipesUploadApi';
 import { apiFetch } from '../utils/apiInterceptor';
 import { getApiUrl } from '../utils/getApiUrl';
 import type { UploadFormData, UploadResponse, MultiUploadResponse } from '../types';
@@ -39,7 +39,7 @@ const UploadPage: React.FC = () => {
     try {
       if (formData.isUrlMode && formData.recipeUrl) {
         // Handle URL import
-        const result = await recipesApi.uploadRecipeUrl(formData.recipeUrl, formData);
+        const result = await recipesUploadApi.uploadRecipeUrl(formData.recipeUrl, formData);
 
         // URL import is synchronous - no job polling needed
         setSuccess(result);
@@ -75,7 +75,7 @@ const UploadPage: React.FC = () => {
           uploadOptions.cookbook_id = formData.cookbook_id;
         }
 
-        const result = await recipesApi.uploadRecipeYouTube(formData.youtubeUrl.trim(), uploadOptions);
+        const result = await recipesUploadApi.uploadRecipeYouTube(formData.youtubeUrl.trim(), uploadOptions);
 
         setVideoJobId(result.video_job_id);
         setIsVideoProcessing(true);
@@ -101,14 +101,14 @@ const UploadPage: React.FC = () => {
           uploadOptions.cookbook_id = formData.cookbook_id;
         }
 
-        const result = await recipesApi.uploadRecipeVideo(formData.videoFile, uploadOptions);
+        const result = await recipesUploadApi.uploadRecipeVideo(formData.videoFile, uploadOptions);
 
         setVideoJobId(result.video_job_id);
         setIsVideoProcessing(true);
 
       } else if (formData.isTextMode && formData.recipeText) {
         // Handle text upload
-        const result = await recipesApi.uploadRecipeText(formData.recipeText, formData);
+        const result = await recipesUploadApi.uploadRecipeText(formData.recipeText, formData);
 
         // Text upload is synchronous - no job polling needed
         // The result structure matches the backend response
@@ -129,7 +129,7 @@ const UploadPage: React.FC = () => {
           cookbook_id = formData.cookbook_id;
         }
 
-        const result = await recipesApi.uploadMultipleImages(
+        const result = await recipesUploadApi.uploadMultipleImages(
           formData.images,
           cookbook_id,
           formData.is_original_recipe,

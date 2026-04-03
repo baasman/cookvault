@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesUploadApi } from '../../services/recipesUploadApi';
 import { CloudinaryImage } from '../ui/CloudinaryImage';
 import type { Recipe } from '../../types';
 
@@ -22,7 +22,7 @@ const RecipeImageDisplay: React.FC<RecipeImageDisplayProps> = ({ recipe, canEdit
   const primaryImage = recipe.images && recipe.images.length > 0 ? recipe.images[0] : null;
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => recipesApi.uploadRecipeImage(recipe.id, file),
+    mutationFn: (file: File) => recipesUploadApi.uploadRecipeImage(recipe.id, file),
     onSuccess: () => {
       // Invalidate and refetch the recipe data
       queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });

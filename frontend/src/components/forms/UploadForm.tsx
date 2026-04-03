@@ -7,6 +7,10 @@ import { recipesApi } from '../../services/recipesApi';
 import { captureRecipePhoto } from '../../services/cameraService';
 import { isNativePlatform } from '../../utils/platform';
 import { FILE_LIMITS } from '../../utils/constants';
+import { ImageUploadMode } from './ImageUploadMode';
+import { TextUploadMode } from './TextUploadMode';
+import { URLUploadMode } from './URLUploadMode';
+import { VideoUploadMode } from './VideoUploadMode';
 import type { UploadFormData, ImagePreview } from '../../types';
 
 interface UploadFormProps {
@@ -738,525 +742,61 @@ const UploadForm: React.FC<UploadFormProps> = ({ onSubmit, isLoading = false, er
           </div>
         </div>
 
-        {/* URL Input Area (shown when in URL mode) */}
+        {/* Mode-specific upload area */}
         {formData.isUrlMode ? (
-          <div className="flex flex-col">
-            <div className="pb-2">
-              <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
-                Recipe URL *
-              </label>
-              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
-                Paste the URL of a recipe page. Works best with popular recipe sites.
-              </p>
-            </div>
-            <input
-              type="url"
-              value={formData.recipeUrl || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, recipeUrl: e.target.value }))}
-              placeholder="https://example.com/delicious-recipe"
-              className="w-full px-4 py-3 border rounded-lg text-base"
-              style={{
-                borderColor: '#e8d7cf',
-                backgroundColor: '#fcf9f8',
-              }}
-              required
-            />
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700 flex items-start gap-2">
-                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Recipes imported from URLs are for personal use only and cannot be shared publicly.</span>
-              </p>
-            </div>
-          </div>
+          <URLUploadMode
+            recipeUrl={formData.recipeUrl || ''}
+            onUrlChange={(url) => setFormData(prev => ({ ...prev, recipeUrl: url }))}
+          />
         ) : formData.isVideoMode ? (
-          /* Video Upload Area (shown when in video mode) */
-          <div className="flex flex-col">
-            <div className="pb-2">
-              <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
-                Recipe Video *
-              </label>
-              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
-                Upload a cooking video or paste a YouTube link to extract the recipe.
-              </p>
-            </div>
-
-            {/* Video source toggle: Upload File vs YouTube Link (only show toggle when YouTube is enabled) */}
-            {youtubeImportEnabled ? (
-              <div className="flex gap-2 mb-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, isYoutubeLink: false, youtubeUrl: '' }))}
-                  className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium`}
-                  style={{
-                    borderColor: !formData.isYoutubeLink ? '#8b5cf6' : '#e8d7cf',
-                    backgroundColor: !formData.isYoutubeLink ? '#f5f3ff' : '#ffffff',
-                    color: !formData.isYoutubeLink ? '#6d28d9' : '#9b644b',
-                  }}
-                >
-                  📁 Upload File
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData(prev => ({ ...prev, isYoutubeLink: true, videoFile: null }));
-                    setVideoPreview(null);
-                  }}
-                  className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium`}
-                  style={{
-                    borderColor: formData.isYoutubeLink ? '#8b5cf6' : '#e8d7cf',
-                    backgroundColor: formData.isYoutubeLink ? '#f5f3ff' : '#ffffff',
-                    color: formData.isYoutubeLink ? '#6d28d9' : '#9b644b',
-                  }}
-                >
-                  ▶️ YouTube Link
-                </button>
-              </div>
-            ) : null}
-
-            {youtubeImportEnabled && formData.isYoutubeLink ? (
-              /* YouTube URL Input */
-              <div>
-                <input
-                  type="url"
-                  value={formData.youtubeUrl || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-                  placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
-                  className="w-full px-4 py-3 rounded-xl border-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-purple-300"
-                  style={{
-                    borderColor: '#e8d7cf',
-                    backgroundColor: '#fcf9f8',
-                    color: '#1c120d',
-                  }}
-                />
-                <p className="text-xs mt-2" style={{ color: '#9b644b' }}>
-                  Paste any YouTube cooking video URL. We'll extract captions and parse the recipe automatically.
-                </p>
-
-                {/* YouTube info box */}
-                <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                  <div className="flex items-start gap-2 mb-3">
-                    <svg className="w-5 h-5 flex-shrink-0 mt-0.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-sm font-medium text-purple-800">How YouTube import works</span>
-                  </div>
-                  <p className="text-sm text-purple-700 mb-2">
-                    We use video captions when available (fast, ~10 seconds). If no captions exist, we'll download the audio and transcribe it (~30-60 seconds).
-                  </p>
-                  <div className="mt-2 pt-2 border-t border-purple-200">
-                    <p className="text-xs font-medium text-purple-800 mb-1">Requirements:</p>
-                    <ul className="text-xs text-purple-600 space-y-0.5">
-                      <li>• Maximum video duration: 20 minutes</li>
-                      <li>• Public or unlisted videos only</li>
-                      <li>• No live streams or playlists</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                {videoPreview ? (
-                  /* Video Selected Preview */
-                  <div className="border-2 rounded-xl p-4" style={{ borderColor: '#e8d7cf', backgroundColor: '#fcf9f8' }}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#f15f1c' }}>
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm" style={{ color: '#1c120d' }}>{videoPreview.name}</p>
-                          <p className="text-xs" style={{ color: '#9b644b' }}>{videoPreview.size}</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={clearVideo}
-                        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                      >
-                        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* Video Drop Zone */
-                  <div
-                    className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                      dragActive
-                        ? 'border-orange-400 bg-orange-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    } cursor-pointer`}
-                    style={{
-                      borderColor: dragActive ? '#f15f1c' : '#e8d7cf',
-                      backgroundColor: dragActive ? '#fcf9f8' : '#fcf9f8'
-                    }}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleVideoDrop}
-                    onClick={() => videoFileInputRef.current?.click()}
-                  >
-                    <input
-                      ref={videoFileInputRef}
-                      type="file"
-                      accept="video/mp4,video/quicktime,video/webm,video/x-msvideo"
-                      onChange={handleVideoFileInput}
-                      className="hidden"
-                    />
-
-                    <div className="flex flex-col items-center">
-                      <svg className="w-10 h-10 mb-3" style={{ color: '#9b644b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      <p className="text-sm font-medium mb-1" style={{ color: '#1c120d' }}>
-                        Drop a video file here or click to browse
-                      </p>
-                      <p className="text-xs" style={{ color: '#9b644b' }}>
-                        MP4, MOV, WebM, AVI (max 100MB, max 3 minutes)
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* How it works info box */}
-                <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                  <div className="flex items-start gap-2 mb-3">
-                    <svg className="w-5 h-5 flex-shrink-0 mt-0.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-sm font-medium text-purple-800">How video import works</span>
-                  </div>
-                  <p className="text-sm text-purple-700 mb-3">
-                    We'll extract the recipe by analyzing the audio (speech) and video frames. Processing takes 30-90 seconds.
-                  </p>
-
-                  <div className="text-sm text-purple-700 space-y-2">
-                    <p className="font-medium">To save a TikTok video:</p>
-                    <ol className="list-decimal list-inside space-y-1 ml-2 text-purple-600">
-                      <li>Open the TikTok video</li>
-                      <li>Tap the Share button (arrow icon)</li>
-                      <li>Select "Save video" to download to your device</li>
-                      <li>Upload the saved video here</li>
-                    </ol>
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t border-purple-200">
-                    <p className="text-xs font-medium text-purple-800 mb-1">Requirements:</p>
-                    <ul className="text-xs text-purple-600 space-y-0.5">
-                      <li>• Maximum file size: 100MB</li>
-                      <li>• Maximum duration: 3 minutes</li>
-                      <li>• Supported formats: MP4, MOV, WebM, AVI</li>
-                      <li>• Works best with videos that have clear audio</li>
-                    </ul>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Privacy notice */}
-            <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700 flex items-start gap-2">
-                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span>Recipes imported from videos are for personal use only and cannot be shared publicly.</span>
-              </p>
-            </div>
-          </div>
+          <VideoUploadMode
+            videoFile={formData.videoFile || null}
+            youtubeUrl={formData.youtubeUrl || ''}
+            videoPreview={videoPreview}
+            isYoutubeLink={formData.isYoutubeLink || false}
+            youtubeImportEnabled={youtubeImportEnabled}
+            dragActive={dragActive}
+            videoFileInputRef={videoFileInputRef}
+            onSetYoutubeLink={(isYoutube) => {
+              if (isYoutube) {
+                setFormData(prev => ({ ...prev, isYoutubeLink: true, videoFile: null }));
+                setVideoPreview(null);
+              } else {
+                setFormData(prev => ({ ...prev, isYoutubeLink: false, youtubeUrl: '' }));
+              }
+            }}
+            onYoutubeUrlChange={(url) => setFormData(prev => ({ ...prev, youtubeUrl: url }))}
+            onVideoFileInput={handleVideoFileInput}
+            onVideoDrop={handleVideoDrop}
+            onDrag={handleDrag}
+            onClearVideo={clearVideo}
+          />
         ) : formData.isTextMode ? (
-          /* Text Upload Area (shown when in text mode) */
-          <div className="flex flex-col">
-            <div className="pb-2">
-              <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
-                Recipe Text *
-              </label>
-              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
-                Paste or type your recipe below. Include title, ingredients, and instructions.
-              </p>
-            </div>
-            <textarea
-              value={formData.recipeText || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, recipeText: e.target.value }))}
-              placeholder="Example:\n\nChocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup butter\n- 1 cup sugar\n...\n\nInstructions:\n1. Preheat oven to 350°F\n2. Mix dry ingredients\n..."
-              className="w-full px-4 py-3 border rounded-lg resize-y font-mono text-sm"
-              style={{
-                borderColor: '#e8d7cf',
-                backgroundColor: '#fcf9f8',
-                minHeight: '300px',
-                maxHeight: '600px'
-              }}
-              required
-            />
-            <div className="flex justify-between mt-2">
-              <span className="text-xs" style={{color: '#9b644b'}}>
-                {(formData.recipeText || '').length} / 50,000 characters
-              </span>
-              {(formData.recipeText || '').length > 45000 && (
-                <span className="text-xs text-orange-600">
-                  Approaching character limit
-                </span>
-              )}
-            </div>
-          </div>
+          <TextUploadMode
+            recipeText={formData.recipeText || ''}
+            onTextChange={(text) => setFormData(prev => ({ ...prev, recipeText: text }))}
+          />
         ) : (
-        /* Image Upload Area (shown when not in text mode) */
-        <div className="flex flex-col">
-          <div className="pb-2">
-            <label className="block text-base font-medium leading-normal" style={{color: '#1c120d'}}>
-              Recipe Image{formData.isMultiImage ? 's' : ''} *
-            </label>
-            {formData.isMultiImage && formData.images.length > 0 && (
-              <p className="text-sm mt-1" style={{color: '#9b644b'}}>
-                Multi-page mode: {formData.images.length} page{formData.images.length > 1 ? 's' : ''} selected
-              </p>
-            )}
-          </div>
-          
-          {formData.isMultiImage ? (
-            // Multi-image upload interface
-            <div className="space-y-4">
-              <div
-                className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
-                  dragActive
-                    ? 'border-orange-400 bg-orange-50'
-                    : 'border-gray-300 hover:border-gray-400'
-                } ${!isNativePlatform() ? 'cursor-pointer' : ''}`}
-                style={{
-                  borderColor: dragActive ? '#f15f1c' : '#e8d7cf',
-                  backgroundColor: dragActive ? '#fcf9f8' : '#fcf9f8'
-                }}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                onClick={() => !isNativePlatform() && multiFileInputRef.current?.click()}
-              >
-                <input
-                  ref={multiFileInputRef}
-                  type="file"
-                  accept="image/png,image/jpg,image/jpeg,image/gif,image/bmp,image/tiff"
-                  multiple
-                  onChange={handleFileInput}
-                  className="hidden"
-                />
-
-                <div className="flex flex-col items-center">
-                  <svg className="w-8 h-8 mb-3" style={{color: '#9b644b'}} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-
-                  {isNativePlatform() ? (
-                    // Native platform: Show camera button
-                    <>
-                      <p className="text-sm font-medium mb-3" style={{color: '#1c120d'}}>
-                        Add recipe page photos
-                      </p>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddMorePhotos();
-                        }}
-                        className="px-6 py-3 rounded-lg font-medium text-white transition-colors"
-                        style={{ backgroundColor: '#f15f1c' }}
-                      >
-                        <span className="flex items-center gap-2">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          Take Photo
-                        </span>
-                      </button>
-                      <p className="text-xs mt-3" style={{color: '#9b644b'}}>
-                        Max 10 images • 50MB total
-                      </p>
-                    </>
-                  ) : (
-                    // Web: Show drag and drop instructions
-                    <>
-                      <p className="text-sm font-medium mb-1" style={{color: '#1c120d'}}>
-                        Drop your recipe images here
-                      </p>
-                      <p className="text-xs" style={{color: '#9b644b'}}>
-                        or click to browse files
-                      </p>
-                      <p className="text-xs mt-1" style={{color: '#9b644b'}}>
-                        PNG, JPG, JPEG, GIF, BMP, TIFF • Max 10 images • 50MB total
-                      </p>
-                    </>
-                  )}
-
-                  {imagePreviews.length > 0 && (
-                    <p className="text-xs mt-2 font-medium" style={{color: '#f15f1c'}}>
-                      {imagePreviews.length} image{imagePreviews.length > 1 ? 's' : ''} selected
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Image Previews Gallery */}
-              {imagePreviews.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium" style={{color: '#1c120d'}}>
-                      Recipe Pages ({imagePreviews.length})
-                    </h4>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={handleAddMorePhotos}
-                        className="text-xs font-medium hover:underline"
-                        style={{ color: '#f15f1c' }}
-                      >
-                        + Add More
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearAllImages}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Clear All
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {imagePreviews.map((imagePreview, index) => (
-                      <div key={imagePreview.id} className="relative group">
-                        <div className="relative border rounded-lg overflow-hidden" style={{borderColor: '#e8d7cf'}}>
-                          <img
-                            src={imagePreview.preview}
-                            alt={`Recipe page ${index + 1}`}
-                            className="w-full h-32 object-cover"
-                          />
-                          <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                            Page {index + 1}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeImage(imagePreview.id)}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            ×
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-gray-600 truncate" title={imagePreview.file.name}>
-                            {imagePreview.file.name}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => moveImage(index, index - 1)}
-                              disabled={index === 0}
-                              className="text-xs p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Move up"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveImage(index, index + 1)}
-                              disabled={index === imagePreviews.length - 1}
-                              className="text-xs p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Move down"
-                            >
-                              ↓
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            // Single image upload interface
-            <div
-              className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
-                dragActive 
-                  ? 'border-orange-400 bg-orange-50' 
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-              style={{
-                borderColor: dragActive ? '#f15f1c' : '#e8d7cf',
-                backgroundColor: dragActive ? '#fcf9f8' : '#fcf9f8'
-              }}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              onClick={handleImageSelect}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpg,image/jpeg,image/gif,image/bmp,image/tiff"
-                multiple
-                onChange={handleFileInput}
-                className="hidden"
-              />
-            
-            {imagePreview ? (
-              <div className="relative">
-                <img
-                  src={imagePreview}
-                  alt="Recipe preview"
-                  className="max-w-full max-h-64 mx-auto rounded-lg"
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    clearImage();
-                  }}
-                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold"
-                >
-                  ×
-                </button>
-                <p className="mt-2 text-sm" style={{color: '#9b644b'}}>
-                  Click to change image
-                </p>
-                {/* Add more photos button - especially useful on mobile */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addMoreToSingleImage();
-                  }}
-                  className="mt-3 w-full py-2 px-4 border-2 border-dashed rounded-lg text-sm font-medium transition-colors hover:border-accent hover:bg-accent/5"
-                  style={{ borderColor: '#e8d7cf', color: '#9b644b' }}
-                >
-                  + Add more pages (multi-page recipe)
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <svg className="w-8 h-8 mb-3" style={{color: '#9b644b'}} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <p className="text-sm font-medium mb-1" style={{color: '#1c120d'}}>
-                  Drop your recipe image(s) here
-                </p>
-                <p className="text-xs" style={{color: '#9b644b'}}>
-                  or click to browse files (multiple files will switch to multi-page automatically)
-                </p>
-                <p className="text-xs mt-1" style={{color: '#9b644b'}}>
-                  PNG, JPG, JPEG, GIF, BMP, TIFF up to 10MB each
-                </p>
-              </div>
-            )}
-            </div>
-          )}
-        </div>
+          <ImageUploadMode
+            isMultiImage={formData.isMultiImage}
+            image={formData.image}
+            images={formData.images}
+            imagePreview={imagePreview}
+            imagePreviews={imagePreviews}
+            dragActive={dragActive}
+            fileInputRef={fileInputRef}
+            multiFileInputRef={multiFileInputRef}
+            onDrag={handleDrag}
+            onDrop={handleDrop}
+            onFileInput={handleFileInput}
+            onImageSelect={handleImageSelect}
+            onAddMorePhotos={handleAddMorePhotos}
+            onAddMoreToSingleImage={addMoreToSingleImage}
+            onRemoveImage={removeImage}
+            onClearImage={clearImage}
+            onClearAllImages={clearAllImages}
+            onMoveImage={moveImage}
+          />
         )}
 
         {/* Translation Option */}

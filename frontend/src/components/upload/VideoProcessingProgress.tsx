@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesUploadApi } from '../../services/recipesUploadApi';
 import type { VideoProcessingStatus } from '../../types';
 
 interface VideoProcessingProgressProps {
@@ -51,7 +51,7 @@ export const VideoProcessingProgress: React.FC<VideoProcessingProgressProps> = (
 
     setIsCancelling(true);
     try {
-      await recipesApi.cancelVideoJob(videoJobId);
+      await recipesUploadApi.cancelVideoJob(videoJobId);
       setIsPolling(false);
       setJobStatus(prev => ({ ...prev, status: 'cancelled' }));
       onCancel?.();
@@ -66,7 +66,7 @@ export const VideoProcessingProgress: React.FC<VideoProcessingProgressProps> = (
 
     const pollJobStatus = async () => {
       try {
-        const status = await recipesApi.getVideoJobStatus(videoJobId);
+        const status = await recipesUploadApi.getVideoJobStatus(videoJobId);
         setJobStatus({
           status: status.status,
           progress_message: status.progress_message,

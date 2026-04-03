@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { recipesApi } from '../../services/recipesApi';
+import { recipesEngagementApi } from '../../services/recipesEngagementApi';
 import type { Recipe } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -22,7 +22,7 @@ const CopyRecipeButton: React.FC<CopyRecipeButtonProps> = ({
   const queryClient = useQueryClient();
 
   const copyRecipeMutation = useMutation({
-    mutationFn: () => recipesApi.copyRecipe(recipe.id),
+    mutationFn: () => recipesEngagementApi.copyRecipe(recipe.id),
     onSuccess: (data) => {
       // Invalidate relevant queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ['recipes'] });
