@@ -511,7 +511,7 @@ const UpgradePage: React.FC = () => {
 
             <div className="flex justify-center gap-3 mt-3">
               <a
-                href="https://cookle.food/privacy"
+                href="https://cookle.food/privacy-policy"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-gray-400 underline"
