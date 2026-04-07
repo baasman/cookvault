@@ -17,9 +17,12 @@ interface RecipeCardProps {
   showPrivacyControls?: boolean;
   showAddToCollection?: boolean;
   showAddToGroup?: boolean;
+  selectable?: boolean;
+  isSelected?: boolean;
+  onSelectionChange?: (id: number) => void;
 }
 
-const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyControls = true, showAddToCollection = false, showAddToGroup = false }) => {
+const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyControls = true, showAddToCollection = false, showAddToGroup = false, selectable = false, isSelected = false, onSelectionChange }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -150,8 +153,32 @@ const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onClick, showPrivacyCon
               }
             />
 
+            {/* Selection checkbox */}
+            {selectable && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSelectionChange?.(recipe.id);
+                }}
+                className="absolute top-3 left-3 z-10"
+              >
+                <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                  isSelected
+                    ? 'bg-accent border-accent'
+                    : 'bg-white/80 border-gray-400 hover:border-accent'
+                }`}>
+                  {isSelected && (
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+              </button>
+            )}
+
             {/* Multi-image indicator - positioned on the left */}
-            {hasMultipleImages && (
+            {hasMultipleImages && !selectable && (
               <div className="absolute top-3 left-3 px-2 py-1 text-xs font-medium bg-black bg-opacity-75 text-white rounded-full flex items-center gap-1">
                 <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>

@@ -45,3 +45,4 @@ from app.api.recipes import routes  # noqa: E402, F401
 from app.api.recipes import images  # noqa: E402, F401
 from app.api.recipes import engagement  # noqa: E402, F401
 from app.api.recipes import video  # noqa: E402, F401
+from app.api.recipes import bulk  # noqa: E402, F401
