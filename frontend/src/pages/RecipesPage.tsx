@@ -107,7 +107,6 @@ const RecipesPage: React.FC = () => {
   // Fetch smart folders
   const {
     data: smartFoldersData,
-    isLoading: isLoadingSmartFolders,
   } = useQuery({
     queryKey: ['smart-folders', user?.id],
     queryFn: () => smartFoldersApi.getSmartFolders(),
@@ -718,7 +717,6 @@ const RecipesPage: React.FC = () => {
           onSelectAll={selectAll}
           onClearSelection={clearSelection}
           onExitSelectionMode={exitSelectionMode}
-          recipes={filteredRecipes}
         />
       )}
 

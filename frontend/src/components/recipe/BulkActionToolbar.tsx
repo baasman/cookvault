@@ -7,7 +7,6 @@ import { BulkDeleteModal } from './BulkDeleteModal';
 import { BulkTagModal } from './BulkTagModal';
 import { Modal, Button, SearchBar, CopyrightConsentModal } from '../ui';
 import toast from 'react-hot-toast';
-import type { Recipe } from '../../types';
 
 interface BulkActionToolbarProps {
   selectedIds: Set<number>;
@@ -15,7 +14,6 @@ interface BulkActionToolbarProps {
   onSelectAll: (ids: number[]) => void;
   onClearSelection: () => void;
   onExitSelectionMode: () => void;
-  recipes: Recipe[];
 }
 
 const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
@@ -24,7 +22,6 @@ const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
   onSelectAll,
   onClearSelection,
   onExitSelectionMode,
-  recipes,
 }) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
