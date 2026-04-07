@@ -14,6 +14,7 @@ from app.api import (
     print_webhooks,
     system,
     sources,
+    smart_folders,
 )
 from app.api.apple import apple_bp
 
@@ -23,3 +24,4 @@ bp.register_blueprint(print_orders.bp)
 bp.register_blueprint(print_webhooks.bp)
 bp.register_blueprint(system.bp)
 bp.register_blueprint(apple_bp)
+bp.register_blueprint(smart_folders.bp)

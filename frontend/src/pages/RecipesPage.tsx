@@ -4,9 +4,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SearchBar, Button, Modal, IngredientChipInput } from '../components/ui';
 import { RecipeCard, RecipeCardSkeleton } from '../components/recipe';
 import { RecipeGroupCard } from '../components/recipe/RecipeGroupCard';
+import { BulkActionToolbar } from '../components/recipe/BulkActionToolbar';
+import { SmartFolderCard } from '../components/recipe/SmartFolderCard';
+import { SmartFolderRuleBuilder } from '../components/recipe/SmartFolderRuleBuilder';
+import { ImportRecipesModal } from '../components/import/ImportRecipesModal';
 import { recipesApi } from '../services/recipesApi';
 import { recipeGroupsApi } from '../services/recipeGroupsApi';
+import { smartFoldersApi } from '../services/smartFoldersApi';
+import type { SmartFolderRules } from '../services/smartFoldersApi';
 import { useAuth } from '../contexts/AuthContext';
+import { useRecipeSelection } from '../hooks/useRecipeSelection';
 import type { Recipe } from '../types';
 import { COURSE_TYPES } from '../types';
 import toast from 'react-hot-toast';
@@ -27,7 +34,26 @@ const RecipesPage: React.FC = () => {
   const [ingredientMatchMode, setIngredientMatchMode] = useState<'any' | 'all'>('any');
   const [showIngredientFilter, setShowIngredientFilter] = useState(false);
   const [selectedCourseType, setSelectedCourseType] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showCreateSmartFolder, setShowCreateSmartFolder] = useState(false);
+  const [smartFolderName, setSmartFolderName] = useState('');
+  const [smartFolderDescription, setSmartFolderDescription] = useState('');
+  const [smartFolderRules, setSmartFolderRules] = useState<SmartFolderRules>({
+    match: 'all',
+    conditions: [{ field: 'course_type', operator: 'eq', value: '' }],
+  });
   const recipesPerPage = 12;
+
+  const {
+    selectedIds,
+    isSelectionMode,
+    selectionCount,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+    toggleSelectionMode,
+    exitSelectionMode,
+  } = useRecipeSelection();
 
   // Fetch recipes using React Query - different behavior for authenticated vs unauthenticated users
   const {
@@ -78,10 +104,55 @@ const RecipesPage: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  // Fetch smart folders
+  const {
+    data: smartFoldersData,
+    isLoading: isLoadingSmartFolders,
+  } = useQuery({
+    queryKey: ['smart-folders', user?.id],
+    queryFn: () => smartFoldersApi.getSmartFolders(),
+    enabled: isAuthenticated && activeFilter === 'groups',
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Preview count for new smart folder
+  const { data: smartFolderPreview } = useQuery({
+    queryKey: ['smart-folder-preview', smartFolderRules],
+    queryFn: () => smartFoldersApi.previewSmartFolder(smartFolderRules),
+    enabled: showCreateSmartFolder && smartFolderRules.conditions.length > 0 && smartFolderRules.conditions.every(c => c.value !== ''),
+    staleTime: 2000,
+  });
+
+  // Create smart folder mutation
+  const createSmartFolderMutation = useMutation({
+    mutationFn: (params: { name: string; description?: string; rules: SmartFolderRules }) =>
+      smartFoldersApi.createSmartFolder(params),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['smart-folders', user?.id] });
+      toast.success(`Smart folder "${response.smart_folder.name}" created!`);
+      setShowCreateSmartFolder(false);
+      setSmartFolderName('');
+      setSmartFolderDescription('');
+      setSmartFolderRules({ match: 'all', conditions: [{ field: 'course_type', operator: 'eq', value: '' }] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create smart folder');
+    },
+  });
+
+  const filteredSmartFolders = (smartFoldersData?.smart_folders || []).filter(folder =>
+    !searchTerm || folder.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   // Reset to page 1 when search term, filter, or ingredient/course filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, activeFilter, selectedIngredients, ingredientMatchMode, selectedCourseType]);
+
+  // Exit selection mode when switching tabs
+  useEffect(() => {
+    exitSelectionMode();
+  }, [activeFilter, exitSelectionMode]);
 
   // Set appropriate filter for unauthenticated users
   useEffect(() => {
@@ -270,6 +341,26 @@ const RecipesPage: React.FC = () => {
             ))}
           </select>
         )}
+        {isAuthenticated && (activeFilter === 'mine' || activeFilter === 'collection') && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-text-secondary hover:border-accent/50 transition-colors whitespace-nowrap"
+            >
+              Import
+            </button>
+            <button
+              onClick={toggleSelectionMode}
+              className={`px-3 py-2 text-sm rounded-lg border transition-colors whitespace-nowrap ${
+                isSelectionMode
+                  ? 'bg-accent text-white border-accent'
+                  : 'border-gray-300 text-text-secondary hover:border-accent/50'
+              }`}
+            >
+              {isSelectionMode ? 'Cancel' : 'Select'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Ingredient Filter Toggle - Only show for recipe views (not groups) */}
@@ -356,8 +447,8 @@ const RecipesPage: React.FC = () => {
       {/* Recipe Groups Content - Only show for authenticated users */}
       {isAuthenticated && activeFilter === 'groups' && !isLoadingGroups && (
         <>
-          {/* Create Group Button */}
-          <div className="flex justify-center mb-8">
+          {/* Create Group / Smart Folder Buttons */}
+          <div className="flex justify-center gap-3 mb-8">
             <Button
               onClick={() => setShowCreateGroupForm(true)}
               variant="primary"
@@ -365,7 +456,16 @@ const RecipesPage: React.FC = () => {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              Create New Group
+              Create Group
+            </Button>
+            <Button
+              onClick={() => setShowCreateSmartFolder(true)}
+              variant="secondary"
+            >
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Create Smart Folder
             </Button>
           </div>
 
@@ -391,6 +491,20 @@ const RecipesPage: React.FC = () => {
                   <RecipeGroupCard key={group.id} group={group} />
                 ))}
               </div>
+
+              {/* Smart Folders */}
+              {filteredSmartFolders.length > 0 && (
+                <>
+                  <div className="text-sm text-text-secondary mt-8 mb-4">
+                    {filteredSmartFolders.length} smart folder{filteredSmartFolders.length !== 1 ? 's' : ''}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filteredSmartFolders.map((folder) => (
+                      <SmartFolderCard key={`sf-${folder.id}`} folder={folder} />
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           ) : (
             /* Empty State */
@@ -460,6 +574,9 @@ const RecipesPage: React.FC = () => {
                     key={recipe.id}
                     recipe={recipe}
                     showAddToCollection={activeFilter === 'discover'}
+                    selectable={isSelectionMode && (activeFilter === 'mine' || activeFilter === 'collection')}
+                    isSelected={selectedIds.has(recipe.id)}
+                    onSelectionChange={toggleSelection}
                   />
                 ))}
               </div>
@@ -592,6 +709,117 @@ const RecipesPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Bulk Action Toolbar */}
+      {isSelectionMode && selectionCount > 0 && (
+        <BulkActionToolbar
+          selectedIds={selectedIds}
+          allVisibleIds={filteredRecipes.map((r: Recipe) => r.id)}
+          onSelectAll={selectAll}
+          onClearSelection={clearSelection}
+          onExitSelectionMode={exitSelectionMode}
+          recipes={filteredRecipes}
+        />
+      )}
+
+      {/* Bottom spacer when toolbar is visible */}
+      {isSelectionMode && selectionCount > 0 && <div className="h-16" />}
+
+      {/* Import Recipes Modal */}
+      <ImportRecipesModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+      />
+
+      {/* Create Smart Folder Modal */}
+      <Modal
+        isOpen={showCreateSmartFolder}
+        onClose={() => {
+          setShowCreateSmartFolder(false);
+          setSmartFolderName('');
+          setSmartFolderDescription('');
+          setSmartFolderRules({ match: 'all', conditions: [{ field: 'course_type', operator: 'eq', value: '' }] });
+        }}
+        size="lg"
+      >
+        <div className="p-6">
+          <h2 className="text-xl font-bold mb-4" style={{ color: '#1c120d' }}>
+            Create Smart Folder
+          </h2>
+          <p className="text-sm text-text-secondary mb-4">
+            Smart folders automatically show recipes matching your rules.
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">Name *</label>
+              <input
+                type="text"
+                value={smartFolderName}
+                onChange={(e) => setSmartFolderName(e.target.value)}
+                placeholder="e.g., Quick Italian, Weeknight Dinners..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                maxLength={200}
+                disabled={createSmartFolderMutation.isPending}
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">Description (optional)</label>
+              <textarea
+                value={smartFolderDescription}
+                onChange={(e) => setSmartFolderDescription(e.target.value)}
+                placeholder="What kind of recipes does this folder collect?"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
+                rows={2}
+                disabled={createSmartFolderMutation.isPending}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">Rules</label>
+              <SmartFolderRuleBuilder
+                rules={smartFolderRules}
+                onChange={setSmartFolderRules}
+                previewCount={smartFolderPreview?.count ?? null}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 mt-6">
+            <Button
+              onClick={() => {
+                setShowCreateSmartFolder(false);
+                setSmartFolderName('');
+                setSmartFolderDescription('');
+                setSmartFolderRules({ match: 'all', conditions: [{ field: 'course_type', operator: 'eq', value: '' }] });
+              }}
+              variant="secondary"
+              disabled={createSmartFolderMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!smartFolderName.trim()) {
+                  toast.error('Name is required');
+                  return;
+                }
+                createSmartFolderMutation.mutate({
+                  name: smartFolderName.trim(),
+                  description: smartFolderDescription.trim() || undefined,
+                  rules: smartFolderRules,
+                });
+              }}
+              variant="primary"
+              disabled={!smartFolderName.trim() || smartFolderRules.conditions.length === 0 || createSmartFolderMutation.isPending}
+            >
+              {createSmartFolderMutation.isPending ? 'Creating...' : 'Create Smart Folder'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Create Group Modal */}
       <Modal
