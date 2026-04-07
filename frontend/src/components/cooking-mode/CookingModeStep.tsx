@@ -148,7 +148,7 @@ const CookingModeStep: React.FC<CookingModeStepProps> = ({
               value={noteText}
               onChange={(e) => handleNoteChange(e.target.value)}
               placeholder="Tip, modification, or reminder..."
-              className="w-full bg-transparent text-sm text-gray-700 resize-none outline-none placeholder-gray-400"
+              className="w-full bg-transparent text-base text-gray-700 resize-none outline-none placeholder-gray-400"
               rows={2}
               maxLength={500}
             />
