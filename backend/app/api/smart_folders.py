@@ -6,7 +6,7 @@ import json
 import logging
 import traceback
 
-from flask import Blueprint, Response, current_app, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 from app import db
 from app.api.auth import require_auth

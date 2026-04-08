@@ -1,6 +1,5 @@
 """Service for building SQLAlchemy queries from smart folder rules."""
 
-import json
 import logging
 
 from sqlalchemy import func
