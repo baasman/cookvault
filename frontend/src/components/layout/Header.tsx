@@ -302,6 +302,15 @@ const Header: React.FC<HeaderProps> = ({
               </div>
             )}
 
+            {/* iOS login button when not authenticated */}
+            {showIOSLayout && !isAuthenticated && (
+              <Link to="/login">
+                <Button variant="primary" size="sm">
+                  Login
+                </Button>
+              </Link>
+            )}
+
             {/* iOS user avatar - opens action sheet */}
             {showIOSLayout && isAuthenticated && (
               <button
