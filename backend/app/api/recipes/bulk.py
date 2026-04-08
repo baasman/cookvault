@@ -30,7 +30,9 @@ def _validate_recipe_ids(data: dict) -> tuple[list[int] | None, Response | None]
 
     if len(recipe_ids) > MAX_BULK_SIZE:
         return None, (
-            jsonify({"error": f"Cannot process more than {MAX_BULK_SIZE} recipes at once"}),
+            jsonify(
+                {"error": f"Cannot process more than {MAX_BULK_SIZE} recipes at once"}
+            ),
             400,
         )
 
@@ -136,12 +138,15 @@ def bulk_add_to_group(current_user) -> Response:
         existing = {row.recipe_id for row in rows}
 
         # Get current max order
-        max_order = db.session.execute(
-            db.text(
-                'SELECT COALESCE(MAX("order"), 0) FROM recipe_group_memberships WHERE group_id = :gid'
-            ),
-            {"gid": group_id},
-        ).scalar() or 0
+        max_order = (
+            db.session.execute(
+                db.text(
+                    'SELECT COALESCE(MAX("order"), 0) FROM recipe_group_memberships WHERE group_id = :gid'
+                ),
+                {"gid": group_id},
+            ).scalar()
+            or 0
+        )
 
         added = []
         already_in_group = []
@@ -192,7 +197,9 @@ def bulk_add_to_group(current_user) -> Response:
         )
         return jsonify({"error": "Bulk add to group failed"}), 500
 
-    return jsonify({"added": added, "already_in_group": already_in_group, "errors": errors}), 200
+    return jsonify(
+        {"added": added, "already_in_group": already_in_group, "errors": errors}
+    ), 200
 
 
 @bp.route("/recipes/bulk/remove-from-group", methods=["POST"])
@@ -252,13 +259,22 @@ def bulk_toggle_privacy(current_user) -> Response:
         return jsonify({"error": "is_public must be a boolean"}), 400
 
     if not is_public:
-        return jsonify({"error": "Bulk privacy toggle only supports making recipes public"}), 400
+        return jsonify(
+            {"error": "Bulk privacy toggle only supports making recipes public"}
+        ), 400
 
     copyright_consent = data.get("copyright_consent", {})
-    required_consents = ["rightsToShare", "understandsPublic", "personalUseOnly", "noCopyrightViolation"]
+    required_consents = [
+        "rightsToShare",
+        "understandsPublic",
+        "personalUseOnly",
+        "noCopyrightViolation",
+    ]
     for consent in required_consents:
         if not copyright_consent.get(consent):
-            return jsonify({"error": f"Copyright consent required: {consent} must be acknowledged"}), 400
+            return jsonify(
+                {"error": f"Copyright consent required: {consent} must be acknowledged"}
+            ), 400
 
     try:
         recipes = Recipe.query.filter(
@@ -272,7 +288,9 @@ def bulk_toggle_privacy(current_user) -> Response:
 
         for rid in recipe_ids:
             if rid not in found_ids:
-                errors.append({"id": rid, "reason": "Recipe not found or access denied"})
+                errors.append(
+                    {"id": rid, "reason": "Recipe not found or access denied"}
+                )
                 continue
 
             recipe = next(r for r in recipes if r.id == rid)
@@ -352,7 +370,9 @@ def bulk_update_tags(current_user) -> Response:
 
         for rid in recipe_ids:
             if rid not in found_ids:
-                errors.append({"id": rid, "reason": "Recipe not found or access denied"})
+                errors.append(
+                    {"id": rid, "reason": "Recipe not found or access denied"}
+                )
 
         for recipe in recipes:
             if action == "set":
@@ -361,7 +381,10 @@ def bulk_update_tags(current_user) -> Response:
                     db.session.add(Tag(recipe_id=recipe.id, name=name))
 
             elif action == "add":
-                existing_tags = {t.name.lower() for t in Tag.query.filter_by(recipe_id=recipe.id).all()}
+                existing_tags = {
+                    t.name.lower()
+                    for t in Tag.query.filter_by(recipe_id=recipe.id).all()
+                }
                 for name in tag_names:
                     if name.lower() not in existing_tags:
                         db.session.add(Tag(recipe_id=recipe.id, name=name))

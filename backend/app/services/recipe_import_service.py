@@ -5,7 +5,14 @@ import traceback
 from datetime import datetime
 
 from app import db
-from app.models.recipe import Ingredient, Instruction, Recipe, RecipeImage, Tag, recipe_ingredients
+from app.models.recipe import (
+    Ingredient,
+    Instruction,
+    Recipe,
+    RecipeImage,
+    Tag,
+    recipe_ingredients,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,11 +159,13 @@ def import_recipes(data: dict, user_id: int) -> dict:
             logger.error(
                 f"Failed to import recipe '{title}': {e}\n{traceback.format_exc()}"
             )
-            errors.append({
-                "index": i,
-                "title": title,
-                "reason": str(e),
-            })
+            errors.append(
+                {
+                    "index": i,
+                    "title": title,
+                    "reason": str(e),
+                }
+            )
 
     if imported_ids:
         db.session.commit()

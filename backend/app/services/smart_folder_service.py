@@ -55,12 +55,16 @@ def validate_rules(rules: dict) -> list[str]:
 
         field = cond.get("field")
         if field not in FIELD_OPERATORS:
-            errors.append(f"Condition {i}: unsupported field '{field}'. Supported: {list(FIELD_OPERATORS.keys())}")
+            errors.append(
+                f"Condition {i}: unsupported field '{field}'. Supported: {list(FIELD_OPERATORS.keys())}"
+            )
             continue
 
         operator = cond.get("operator")
         if operator not in FIELD_OPERATORS[field]:
-            errors.append(f"Condition {i}: invalid operator '{operator}' for field '{field}'")
+            errors.append(
+                f"Condition {i}: invalid operator '{operator}' for field '{field}'"
+            )
 
         if "value" not in cond:
             errors.append(f"Condition {i}: 'value' is required")
@@ -164,7 +168,10 @@ def build_query(rules: dict, user_id: int):
                 filters.append(
                     Recipe.id.in_(
                         db.session.query(recipe_ingredients.c.recipe_id)
-                        .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                        .join(
+                            Ingredient,
+                            Ingredient.id == recipe_ingredients.c.ingredient_id,
+                        )
                         .filter(func.lower(Ingredient.name).in_(ingredient_names))
                     )
                 )
@@ -173,7 +180,10 @@ def build_query(rules: dict, user_id: int):
                     filters.append(
                         Recipe.id.in_(
                             db.session.query(recipe_ingredients.c.recipe_id)
-                            .join(Ingredient, Ingredient.id == recipe_ingredients.c.ingredient_id)
+                            .join(
+                                Ingredient,
+                                Ingredient.id == recipe_ingredients.c.ingredient_id,
+                            )
                             .filter(func.lower(Ingredient.name) == name)
                         )
                     )

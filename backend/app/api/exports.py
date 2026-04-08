@@ -433,11 +433,15 @@ def export_recipe_json(recipe_id):
             return jsonify({"error": "Full access required to export"}), 403
 
         export_data = build_export_data([recipe])
-        json_bytes = json.dumps(export_data, indent=2, ensure_ascii=False).encode("utf-8")
+        json_bytes = json.dumps(export_data, indent=2, ensure_ascii=False).encode(
+            "utf-8"
+        )
 
-        safe_title = "".join(
-            c for c in recipe.title if c.isalnum() or c in (" ", "-", "_")
-        ).rstrip().replace(" ", "_")[:50]
+        safe_title = (
+            "".join(c for c in recipe.title if c.isalnum() or c in (" ", "-", "_"))
+            .rstrip()
+            .replace(" ", "_")[:50]
+        )
 
         logger.info(f"Exported recipe {recipe_id} as JSON for user {user.id}")
 
@@ -449,7 +453,9 @@ def export_recipe_json(recipe_id):
         )
 
     except Exception as e:
-        logger.error(f"Failed to export recipe {recipe_id} as JSON: {e}\n{traceback.format_exc()}")
+        logger.error(
+            f"Failed to export recipe {recipe_id} as JSON: {e}\n{traceback.format_exc()}"
+        )
         return jsonify({"error": "Failed to export recipe"}), 500
 
 
@@ -468,10 +474,13 @@ def export_recipes_json():
             recipes = Recipe.query.filter_by(user_id=user.id).limit(200).all()
         elif recipe_ids:
             if len(recipe_ids) > 200:
-                return jsonify({"error": "Cannot export more than 200 recipes at once"}), 400
+                return jsonify(
+                    {"error": "Cannot export more than 200 recipes at once"}
+                ), 400
             is_admin = user.role == UserRole.ADMIN
             recipes = [
-                r for r in Recipe.query.filter(Recipe.id.in_(recipe_ids)).all()
+                r
+                for r in Recipe.query.filter(Recipe.id.in_(recipe_ids)).all()
                 if r.has_full_access(user.id, is_admin)
             ]
         else:
@@ -481,7 +490,9 @@ def export_recipes_json():
             return jsonify({"error": "No accessible recipes found"}), 404
 
         export_data = build_export_data(recipes)
-        json_bytes = json.dumps(export_data, indent=2, ensure_ascii=False).encode("utf-8")
+        json_bytes = json.dumps(export_data, indent=2, ensure_ascii=False).encode(
+            "utf-8"
+        )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         logger.info(f"Exported {len(recipes)} recipes as JSON for user {user.id}")
@@ -520,12 +531,18 @@ def import_recipes_json():
         else:
             data = request.get_json()
             if not data:
-                return jsonify({"error": "No JSON data provided. Upload a .json file or send JSON body."}), 400
+                return jsonify(
+                    {
+                        "error": "No JSON data provided. Upload a .json file or send JSON body."
+                    }
+                ), 400
 
         # Validate
         validation_errors = validate_import_data(data)
         if validation_errors:
-            return jsonify({"error": "Validation failed", "details": validation_errors}), 400
+            return jsonify(
+                {"error": "Validation failed", "details": validation_errors}
+            ), 400
 
         # Import
         result = import_recipes(data, user.id)

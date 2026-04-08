@@ -23,9 +23,11 @@ bp = Blueprint("smart_folders", __name__)
 def list_smart_folders(current_user) -> Response:
     """List all smart folders for the current user with live recipe counts."""
     try:
-        folders = SmartFolder.query.filter_by(user_id=current_user.id).order_by(
-            SmartFolder.updated_at.desc()
-        ).all()
+        folders = (
+            SmartFolder.query.filter_by(user_id=current_user.id)
+            .order_by(SmartFolder.updated_at.desc())
+            .all()
+        )
 
         result = []
         for folder in folders:
@@ -75,7 +77,9 @@ def create_smart_folder(current_user) -> Response:
         db.session.commit()
 
         count = build_query(rules, current_user.id).count()
-        logger.info(f"Created smart folder '{name}' (id={folder.id}) for user {current_user.id}")
+        logger.info(
+            f"Created smart folder '{name}' (id={folder.id}) for user {current_user.id}"
+        )
 
         return jsonify({"smart_folder": folder.to_dict(recipe_count=count)}), 201
 
@@ -91,9 +95,7 @@ def create_smart_folder(current_user) -> Response:
 @require_auth
 def get_smart_folder(current_user, folder_id: int) -> Response:
     """Get a smart folder's details."""
-    folder = SmartFolder.query.filter_by(
-        id=folder_id, user_id=current_user.id
-    ).first()
+    folder = SmartFolder.query.filter_by(id=folder_id, user_id=current_user.id).first()
     if not folder:
         return jsonify({"error": "Smart folder not found"}), 404
 
@@ -110,9 +112,7 @@ def get_smart_folder(current_user, folder_id: int) -> Response:
 @require_auth
 def update_smart_folder(current_user, folder_id: int) -> Response:
     """Update a smart folder's name, description, or rules."""
-    folder = SmartFolder.query.filter_by(
-        id=folder_id, user_id=current_user.id
-    ).first()
+    folder = SmartFolder.query.filter_by(id=folder_id, user_id=current_user.id).first()
     if not folder:
         return jsonify({"error": "Smart folder not found"}), 404
 
@@ -136,7 +136,9 @@ def update_smart_folder(current_user, folder_id: int) -> Response:
         if "rules" in data:
             validation_errors = validate_rules(data["rules"])
             if validation_errors:
-                return jsonify({"error": "Invalid rules", "details": validation_errors}), 400
+                return jsonify(
+                    {"error": "Invalid rules", "details": validation_errors}
+                ), 400
             folder.rules = json.dumps(data["rules"])
 
         db.session.commit()
@@ -159,9 +161,7 @@ def update_smart_folder(current_user, folder_id: int) -> Response:
 @require_auth
 def delete_smart_folder(current_user, folder_id: int) -> Response:
     """Delete a smart folder."""
-    folder = SmartFolder.query.filter_by(
-        id=folder_id, user_id=current_user.id
-    ).first()
+    folder = SmartFolder.query.filter_by(id=folder_id, user_id=current_user.id).first()
     if not folder:
         return jsonify({"error": "Smart folder not found"}), 404
 
@@ -183,9 +183,7 @@ def delete_smart_folder(current_user, folder_id: int) -> Response:
 @require_auth
 def get_smart_folder_recipes(current_user, folder_id: int) -> Response:
     """Get paginated recipes matching a smart folder's rules."""
-    folder = SmartFolder.query.filter_by(
-        id=folder_id, user_id=current_user.id
-    ).first()
+    folder = SmartFolder.query.filter_by(id=folder_id, user_id=current_user.id).first()
     if not folder:
         return jsonify({"error": "Smart folder not found"}), 404
 
@@ -199,8 +197,12 @@ def get_smart_folder_recipes(current_user, folder_id: int) -> Response:
             search_term = f"%{search}%"
             query = query.filter(
                 db.or_(
-                    db.func.lower(db.cast(db.literal_column("recipe.title"), db.Text)).ilike(search_term),
-                    db.func.lower(db.cast(db.literal_column("recipe.description"), db.Text)).ilike(search_term),
+                    db.func.lower(
+                        db.cast(db.literal_column("recipe.title"), db.Text)
+                    ).ilike(search_term),
+                    db.func.lower(
+                        db.cast(db.literal_column("recipe.description"), db.Text)
+                    ).ilike(search_term),
                 )
             )
 
@@ -210,22 +212,27 @@ def get_smart_folder_recipes(current_user, folder_id: int) -> Response:
         per_page = min(per_page, 50)
 
         total = query.count()
-        recipes = query.order_by(db.desc(db.text("recipe.updated_at"))).offset(
-            (page - 1) * per_page
-        ).limit(per_page).all()
+        recipes = (
+            query.order_by(db.desc(db.text("recipe.updated_at")))
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
 
         is_admin = current_user.role.value == "admin" if current_user.role else False
 
-        return jsonify({
-            "recipes": [
-                r.to_dict(current_user_id=current_user.id, is_admin=is_admin)
-                for r in recipes
-            ],
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-            "pages": (total + per_page - 1) // per_page if per_page > 0 else 0,
-        }), 200
+        return jsonify(
+            {
+                "recipes": [
+                    r.to_dict(current_user_id=current_user.id, is_admin=is_admin)
+                    for r in recipes
+                ],
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "pages": (total + per_page - 1) // per_page if per_page > 0 else 0,
+            }
+        ), 200
 
     except Exception as e:
         logger.error(
