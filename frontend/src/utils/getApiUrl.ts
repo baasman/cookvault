@@ -4,14 +4,14 @@ import { Capacitor } from '@capacitor/core';
  * Get the correct API URL based on the current environment and domain
  */
 export function getApiUrl(): string {
-  // In Capacitor native app, always use production API
-  if (Capacitor.isNativePlatform()) {
-    return 'https://cookvault-exaq.onrender.com/api';
-  }
-
-  // First check if VITE_API_URL is explicitly set
+  // First check if VITE_API_URL is explicitly set (works for both native and web)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
+  }
+
+  // In Capacitor native app, use production API by default
+  if (Capacitor.isNativePlatform()) {
+    return 'https://cookvault-exaq.onrender.com/api';
   }
 
   // In production, determine API URL based on domain
