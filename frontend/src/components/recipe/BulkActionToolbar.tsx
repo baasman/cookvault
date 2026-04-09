@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { isIOS, isNativePlatform } from '../../utils/platform';
 import { recipesApi } from '../../services/recipesApi';
 import { recipeGroupsApi } from '../../services/recipeGroupsApi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -147,8 +148,14 @@ const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
 
   return (
     <>
-      {/* Fixed bottom toolbar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t shadow-lg" style={{ borderColor: '#e8d7cf' }}>
+      {/* Fixed bottom toolbar — sits above iOS tab bar */}
+      <div
+        className="fixed left-0 right-0 z-[60] bg-white border-t shadow-lg"
+        style={{
+          borderColor: '#e8d7cf',
+          bottom: isIOS() && isNativePlatform() ? 'calc(49px + env(safe-area-inset-bottom))' : '0',
+        }}
+      >
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           {/* Left: selection info */}
           <div className="flex items-center gap-3">

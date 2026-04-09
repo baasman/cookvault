@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import type { Instruction } from '../../types';
 import { detectTimers, detectDonenessCues } from '../../utils/timerDetection';
 import { recipesEngagementApi } from '../../services/recipesEngagementApi';
@@ -19,8 +18,6 @@ const CookingModeStep: React.FC<CookingModeStepProps> = ({
   const timers = detectTimers(instruction.text);
   const cues = detectDonenessCues(instruction.text);
   const imageUrl = instruction.cloudinary_url || instruction.image_url;
-  const queryClient = useQueryClient();
-
   const [noteText, setNoteText] = useState(instruction.user_note || '');
   const [isSaving, setIsSaving] = useState(false);
   const [showNote, setShowNote] = useState(!!instruction.user_note);

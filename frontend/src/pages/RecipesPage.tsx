@@ -352,7 +352,7 @@ const RecipesPage: React.FC = () => {
               onClick={toggleSelectionMode}
               className={`px-3 py-2 text-sm rounded-lg border transition-colors whitespace-nowrap ${
                 isSelectionMode
-                  ? 'bg-accent text-white border-accent'
+                  ? 'bg-red-50 text-red-600 border-red-300'
                   : 'border-gray-300 text-text-secondary hover:border-accent/50'
               }`}
             >
