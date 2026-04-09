@@ -444,7 +444,10 @@ const RecipeDetailPage: React.FC = () => {
             <CookingMode
               recipe={recipe}
               scaleFactor={scaleFactor}
-              onClose={() => setShowCookingMode(false)}
+              onClose={() => {
+                setShowCookingMode(false);
+                queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
+              }}
             />
           )}
 

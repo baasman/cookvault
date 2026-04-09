@@ -25,46 +25,59 @@ const CookingModeStep: React.FC<CookingModeStepProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [showNote, setShowNote] = useState(!!instruction.user_note);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
+  const prevInstructionIdRef = useRef(instruction.id);
 
-  // Sync note text when instruction changes (step navigation)
+  // Sync note text only when navigating to a different step
   useEffect(() => {
-    setNoteText(instruction.user_note || '');
-    setShowNote(!!instruction.user_note);
+    if (prevInstructionIdRef.current !== instruction.id) {
+      // Navigated to a new step — flush any pending save for the old step, then reset
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      setNoteText(instruction.user_note || '');
+      setShowNote(!!instruction.user_note);
+      isDirtyRef.current = false;
+      prevInstructionIdRef.current = instruction.id;
+    }
   }, [instruction.id, instruction.user_note]);
 
   const saveNote = useCallback(async (content: string) => {
     setIsSaving(true);
     try {
       await recipesEngagementApi.saveInstructionNote(recipeId, instruction.id, content);
-      // Invalidate recipe query so the note appears on the detail page
-      queryClient.invalidateQueries({ queryKey: ['recipe', recipeId] });
+      isDirtyRef.current = false;
     } catch (error) {
       console.error('Failed to save instruction note:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [recipeId, instruction.id, queryClient]);
+  }, [recipeId, instruction.id]);
 
   const handleNoteChange = useCallback((value: string) => {
     setNoteText(value);
+    isDirtyRef.current = true;
 
-    // Debounce save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
       saveNote(value);
-    }, 800);
+    }, 1200);
   }, [saveNote]);
 
-  // Cleanup timeout on unmount
+  // Flush pending save on unmount
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      // Save immediately on unmount if dirty
+      if (isDirtyRef.current) {
+        recipesEngagementApi.saveInstructionNote(recipeId, instruction.id, noteText).catch(() => {});
+      }
     };
-  }, []);
+  }, [recipeId, instruction.id, noteText]);
 
   return (
     <div className="px-6 py-4">
