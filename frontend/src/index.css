@@ -579,8 +579,9 @@
     opacity: 0.9;
   }
 
-  /* Bottom padding utility for tab bar */
-  .pb-tab-bar {
-    padding-bottom: calc(var(--tab-bar-height) + var(--safe-area-inset-bottom) + 2rem);
-  }
+}
+
+/* Bottom padding utility for tab bar — outside @layer so it overrides Tailwind utilities */
+.pb-tab-bar {
+  padding-bottom: calc(var(--tab-bar-height) + var(--safe-area-inset-bottom) + 2rem) !important;
 }

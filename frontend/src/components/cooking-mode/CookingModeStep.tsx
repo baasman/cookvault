@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import type { Instruction } from '../../types';
 import { detectTimers, detectDonenessCues } from '../../utils/timerDetection';
 import { recipesEngagementApi } from '../../services/recipesEngagementApi';
@@ -19,52 +18,63 @@ const CookingModeStep: React.FC<CookingModeStepProps> = ({
   const timers = detectTimers(instruction.text);
   const cues = detectDonenessCues(instruction.text);
   const imageUrl = instruction.cloudinary_url || instruction.image_url;
-  const queryClient = useQueryClient();
-
   const [noteText, setNoteText] = useState(instruction.user_note || '');
   const [isSaving, setIsSaving] = useState(false);
   const [showNote, setShowNote] = useState(!!instruction.user_note);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
+  const prevInstructionIdRef = useRef(instruction.id);
 
-  // Sync note text when instruction changes (step navigation)
+  // Sync note text only when navigating to a different step
   useEffect(() => {
-    setNoteText(instruction.user_note || '');
-    setShowNote(!!instruction.user_note);
+    if (prevInstructionIdRef.current !== instruction.id) {
+      // Navigated to a new step — flush any pending save for the old step, then reset
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      setNoteText(instruction.user_note || '');
+      setShowNote(!!instruction.user_note);
+      isDirtyRef.current = false;
+      prevInstructionIdRef.current = instruction.id;
+    }
   }, [instruction.id, instruction.user_note]);
 
   const saveNote = useCallback(async (content: string) => {
     setIsSaving(true);
     try {
       await recipesEngagementApi.saveInstructionNote(recipeId, instruction.id, content);
-      // Invalidate recipe query so the note appears on the detail page
-      queryClient.invalidateQueries({ queryKey: ['recipe', recipeId] });
+      isDirtyRef.current = false;
     } catch (error) {
       console.error('Failed to save instruction note:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [recipeId, instruction.id, queryClient]);
+  }, [recipeId, instruction.id]);
 
   const handleNoteChange = useCallback((value: string) => {
     setNoteText(value);
+    isDirtyRef.current = true;
 
-    // Debounce save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
       saveNote(value);
-    }, 800);
+    }, 1200);
   }, [saveNote]);
 
-  // Cleanup timeout on unmount
+  // Flush pending save on unmount
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      // Save immediately on unmount if dirty
+      if (isDirtyRef.current) {
+        recipesEngagementApi.saveInstructionNote(recipeId, instruction.id, noteText).catch(() => {});
+      }
     };
-  }, []);
+  }, [recipeId, instruction.id, noteText]);
 
   return (
     <div className="px-6 py-4">
@@ -148,7 +158,7 @@ const CookingModeStep: React.FC<CookingModeStepProps> = ({
               value={noteText}
               onChange={(e) => handleNoteChange(e.target.value)}
               placeholder="Tip, modification, or reminder..."
-              className="w-full bg-transparent text-sm text-gray-700 resize-none outline-none placeholder-gray-400"
+              className="w-full bg-transparent text-base text-gray-700 resize-none outline-none placeholder-gray-400"
               rows={2}
               maxLength={500}
             />

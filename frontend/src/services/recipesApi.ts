@@ -531,6 +531,72 @@ class RecipesApi {
     }
   }
 
+  // Bulk operations
+  async bulkDelete(recipeIds: number[]): Promise<{ deleted: number[]; errors: Array<{ id: number; reason: string }> }> {
+    const response = await apiFetch(`${this.baseUrl}/recipes/bulk/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipe_ids: recipeIds }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Bulk delete failed');
+    }
+    return response.json();
+  }
+
+  async bulkAddToGroup(recipeIds: number[], groupId: number): Promise<{ added: number[]; already_in_group: number[]; errors: Array<{ id: number; reason: string }> }> {
+    const response = await apiFetch(`${this.baseUrl}/recipes/bulk/add-to-group`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipe_ids: recipeIds, group_id: groupId }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Bulk add to group failed');
+    }
+    return response.json();
+  }
+
+  async bulkRemoveFromGroup(recipeIds: number[], groupId: number): Promise<{ removed: number }> {
+    const response = await apiFetch(`${this.baseUrl}/recipes/bulk/remove-from-group`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipe_ids: recipeIds, group_id: groupId }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Bulk remove from group failed');
+    }
+    return response.json();
+  }
+
+  async bulkTogglePrivacy(recipeIds: number[], isPublic: boolean, copyrightConsent?: Record<string, boolean>): Promise<{ updated: number[]; errors: Array<{ id: number; reason: string }> }> {
+    const response = await apiFetch(`${this.baseUrl}/recipes/bulk/privacy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipe_ids: recipeIds, is_public: isPublic, copyright_consent: copyrightConsent }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Bulk privacy update failed');
+    }
+    return response.json();
+  }
+
+  async bulkUpdateTags(recipeIds: number[], tags: string[], action: 'add' | 'remove' | 'set'): Promise<{ updated: number[]; errors: Array<{ id: number; reason: string }> }> {
+    const response = await apiFetch(`${this.baseUrl}/recipes/bulk/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipe_ids: recipeIds, tags, action }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Bulk tags update failed');
+    }
+    return response.json();
+  }
+
   async unfeatureRecipe(recipeId: number): Promise<Recipe> {
     try {
       const response = await apiFetch(`${this.baseUrl}/admin/recipes/${recipeId}/feature`, {

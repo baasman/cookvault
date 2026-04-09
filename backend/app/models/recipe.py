@@ -1126,3 +1126,34 @@ class RecipeRating(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class SmartFolder(db.Model):
+    __tablename__ = "smart_folder"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    rules: Mapped[str] = mapped_column(Text, nullable=False)  # JSON rules blob
+    icon: Mapped[Optional[str]] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    user: Mapped["User"] = relationship("User")
+
+    def to_dict(self, recipe_count: Optional[int] = None) -> dict:
+        import json as _json
+
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "rules": _json.loads(self.rules) if self.rules else {},
+            "icon": self.icon,
+            "recipe_count": recipe_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

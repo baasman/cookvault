@@ -52,9 +52,14 @@ const CookingMode: React.FC<CookingModeProps> = ({ recipe, scaleFactor, onClose 
     lightImpact();
   }, []);
 
-  // Keyboard navigation
+  // Keyboard navigation — skip when user is typing in an input or textarea
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (isTyping) return;
+
       switch (e.key) {
         case 'ArrowRight':
         case 'ArrowDown':
@@ -68,7 +73,6 @@ const CookingMode: React.FC<CookingModeProps> = ({ recipe, scaleFactor, onClose 
           break;
         case 'Escape':
           e.preventDefault();
-          // On mobile, if ingredients panel is open as overlay, close it first
           if (showIngredients && window.innerWidth < 768) {
             setShowIngredients(false);
           } else {

@@ -20,7 +20,10 @@ interface ExportButtonProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
+type ExportFormat = 'pdf' | 'json';
+
 interface ExportOptions {
+  format: ExportFormat;
   template: string;
   profile: string;
   pageSize: string;
@@ -52,6 +55,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       const savedPageSize = localStorage.getItem('cookbook_export_page_size');
 
       return {
+        format: 'pdf',
         template: savedTemplate || 'modern',
         profile: savedProfile || 'digital',
         pageSize: savedPageSize || 'letter',
@@ -62,6 +66,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       };
     } catch {
       return {
+        format: 'pdf',
         template: 'modern',
         profile: 'digital',
         pageSize: 'letter',
@@ -92,6 +97,56 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       let blob: Blob;
       let filename: string;
 
+      // JSON export path
+      if (exportOptions.format === 'json') {
+        let response: Response;
+        if (type === 'recipe' && recipeId) {
+          response = await apiFetch(
+            `${getApiUrl()}/recipes/${recipeId}/export/json`,
+            { method: 'GET', headers: { 'Accept': 'application/json' } }
+          );
+        } else if (type === 'collection' && recipeIds.length > 0) {
+          response = await apiFetch(`${getApiUrl()}/recipes/export/json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ recipe_ids: recipeIds }),
+          });
+        } else {
+          // Export all user recipes
+          response = await apiFetch(`${getApiUrl()}/recipes/export/json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ all: true }),
+          });
+        }
+
+        if (!response.ok) {
+          throw new Error('Failed to export JSON');
+        }
+
+        blob = await response.blob();
+        const contentDisposition = response.headers.get('Content-Disposition');
+        filename = 'recipes.json';
+        if (contentDisposition) {
+          const match = contentDisposition.match(/filename="(.+)"/);
+          if (match) filename = match[1];
+        }
+
+        // Download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        setShowModal(false);
+        setIsExporting(false);
+        return;
+      }
+
+      // PDF export path
       if (type === 'recipe' && recipeId) {
         const response = await apiFetch(
           `${getApiUrl()}/recipes/${recipeId}/export/pdf?` + new URLSearchParams({
@@ -325,6 +380,31 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
         <h3 className="text-lg font-medium text-gray-900 mb-4">Export Options</h3>
 
         <div className="space-y-4">
+          {/* Format selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Format</label>
+            <div className="mt-1 flex gap-2">
+              {(['pdf', 'json'] as const).map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => onChange({ ...options, format: fmt })}
+                  className={`px-4 py-2 text-sm rounded-md border transition-colors ${
+                    options.format === fmt
+                      ? 'bg-accent text-white border-accent'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-accent/50'
+                  }`}
+                  style={options.format === fmt ? { backgroundColor: '#f15f1c', borderColor: '#f15f1c' } : undefined}
+                >
+                  {fmt.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              {options.format === 'pdf' ? 'Formatted document for printing or reading' : 'Raw recipe data for backup or transfer'}
+            </p>
+          </div>
+
+          {options.format === 'pdf' && (<>
           <div>
             <label className="block text-sm font-medium text-gray-700">Template Style</label>
             <select
@@ -417,6 +497,7 @@ const ExportOptionsModal: React.FC<ExportOptionsModalProps> = ({
               )}
             </div>
           </div>
+          </>)}
         </div>
 
         <div className="mt-6 flex justify-end space-x-3">

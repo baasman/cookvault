@@ -15,6 +15,7 @@ const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.H
 const RecipesPage = lazy(() => import('./pages/RecipesPage').then(m => ({ default: m.RecipesPage })));
 const RecipeDetailPage = lazy(() => import('./pages/RecipeDetailPage').then(m => ({ default: m.RecipeDetailPage })));
 const RecipeGroupDetailPage = lazy(() => import('./pages/RecipeGroupDetailPage').then(m => ({ default: m.RecipeGroupDetailPage })));
+const SmartFolderDetailPage = lazy(() => import('./pages/SmartFolderDetailPage').then(m => ({ default: m.SmartFolderDetailPage })));
 const CookbooksPage = lazy(() => import('./pages/CookbooksPage').then(m => ({ default: m.CookbooksPage })));
 const CookbookDetailPage = lazy(() => import('./pages/CookbookDetailPage').then(m => ({ default: m.CookbookDetailPage })));
 const CreateCookbookPage = lazy(() => import('./pages/CreateCookbookPage').then(m => ({ default: m.CreateCookbookPage })));
@@ -96,6 +97,7 @@ function App() {
                     <Route path="/recipes" element={<RecipesPage />} />
                     <Route path="/recipes/:id" element={<RecipeDetailPage />} />
                     <Route path="/recipe-groups/:id" element={<RecipeGroupDetailPage />} />
+                    <Route path="/smart-folders/:id" element={<SmartFolderDetailPage />} />
                     <Route path="/cookbooks" element={<CookbooksPage />} />
                     <Route path="/cookbooks/create" element={<CreateCookbookPage />} />
                     <Route path="/cookbooks/:id" element={<CookbookDetailPage />} />

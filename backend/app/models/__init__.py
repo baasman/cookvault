@@ -13,6 +13,7 @@ from app.models.recipe import (
     RecipeNote,
     RecipeComment,
     RecipeRating,
+    SmartFolder,
     recipe_ingredients,
     recipe_group_memberships,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "RecipeNote",
     "RecipeComment",
     "RecipeRating",
+    "SmartFolder",
     "recipe_ingredients",
     "recipe_group_memberships",
     "User",
