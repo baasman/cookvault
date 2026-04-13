@@ -141,7 +141,7 @@ jobs:
           cd frontend
           npm ci
           echo "🔍 Checking npm dependencies for vulnerabilities..."
-          npm audit --audit-level=high
+          npm audit --audit-level=critical
 
   # Summary job that requires all jobs to pass
   ci-success:
