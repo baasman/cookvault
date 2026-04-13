@@ -69,11 +69,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --extra dev
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
           cd backend
-          # Run all passing tests
-          uv run pytest tests/test_modern_pdf.py tests/test_auth.py tests/test_api_recipes.py tests/test_api_cookbooks.py tests/test_health.py -v --tb=short
+          uv run pytest tests/ -v --tb=short --cov=app --cov-report=term --cov-fail-under=30
 
   frontend-build:
     name: Frontend Build & Type Check
@@ -130,14 +129,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -145,32 +136,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Python dependencies
-        run: uv sync --frozen --extra dev
-
-      - name: Install pip-audit
-        run: uv pip install pip-audit
-
-      - name: Run pip-audit (Python)
-        run: |
-          echo "🔍 Checking Python dependencies for vulnerabilities..."
-          uv run pip-audit --strict --progress-spinner off || {
-            echo "⚠️ Python vulnerabilities found (see above)"
-            echo "Run 'uv run pip-audit' locally for details"
-            # Don't fail the build, but warn
-            exit 0
-          }
-
       - name: Run npm audit (Node.js)
         run: |
           cd frontend
+          npm ci
           echo "🔍 Checking npm dependencies for vulnerabilities..."
-          npm audit --audit-level=high || {
-            echo "⚠️ npm vulnerabilities found (see above)"
-            echo "Run 'npm audit' locally for details"
-            # Don't fail the build for moderate/low, only critical/high
-            exit 0
-          }
+          npm audit --audit-level=critical
 
   # Summary job that requires all jobs to pass
   ci-success:

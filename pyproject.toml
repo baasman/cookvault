@@ -63,6 +63,7 @@ dev = [
     "sqlalchemy-stubs>=0.4",
     "pytest>=8.4.0",
     "honcho>=2.0.0",
+    "pytest-cov>=7.1.0",
 ]
 
 [project.scripts]
@@ -111,11 +112,25 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 disable_error_code = ["import-untyped", "no-untyped-def"]
 
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+addopts = "--ignore=tests/test_youtube_api.py --ignore=tests/test_youtube_service.py"
+
+[tool.coverage.run]
+source = ["backend/app"]
+
+[tool.coverage.report]
+fail_under = 30
+show_missing = false
+skip_empty = true
+
 [tool.pylint.messages_control]
 disable = ["C0114", "C0115", "C0116"]
 
 [dependency-groups]
-dev = []
+dev = [
+    "pytest-cov>=7.1.0",
+]
 load-test = [
     "locust>=2.17.0",
     "pyyaml>=6.0.1",
