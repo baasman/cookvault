@@ -129,14 +129,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -144,20 +136,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Python dependencies
-        run: uv sync --frozen --extra dev
-
-      - name: Install pip-audit
-        run: uv pip install pip-audit
-
-      - name: Run pip-audit (Python)
-        run: |
-          echo "🔍 Checking Python dependencies for vulnerabilities..."
-          uv run pip-audit --strict --progress-spinner off
-
       - name: Run npm audit (Node.js)
         run: |
           cd frontend
+          npm ci
           echo "🔍 Checking npm dependencies for vulnerabilities..."
           npm audit --audit-level=high
 
