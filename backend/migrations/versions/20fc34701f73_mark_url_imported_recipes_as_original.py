@@ -21,13 +21,13 @@ def upgrade():
     # and should be shareable. Update any that were previously marked as
     # not original (is_original_recipe = False) when they have a source URL.
     op.execute(
-        "UPDATE recipe SET is_original_recipe = 1 "
-        "WHERE source IS NOT NULL AND source != '' AND is_original_recipe = 0"
+        "UPDATE recipe SET is_original_recipe = true "
+        "WHERE source IS NOT NULL AND source != '' AND is_original_recipe = false"
     )
 
 
 def downgrade():
     op.execute(
-        "UPDATE recipe SET is_original_recipe = 0 "
+        "UPDATE recipe SET is_original_recipe = false "
         "WHERE source IS NOT NULL AND source != ''"
     )
