@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SearchBar, Button, Modal, IngredientChipInput } from '../components/ui';
 import { RecipeCard, RecipeCardSkeleton } from '../components/recipe';
@@ -20,13 +20,22 @@ import toast from 'react-hot-toast';
 
 type RecipeFilter = 'collection' | 'discover' | 'mine' | 'groups';
 
+const VALID_FILTERS: RecipeFilter[] = ['collection', 'discover', 'mine', 'groups'];
+
 const RecipesPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeFilter, setActiveFilter] = useState<RecipeFilter>('discover');
+
+  // Derive active filter from URL search params
+  const tabParam = searchParams.get('tab') as RecipeFilter | null;
+  const defaultTab: RecipeFilter = isAuthenticated ? 'mine' : 'discover';
+  const activeFilter: RecipeFilter = tabParam && VALID_FILTERS.includes(tabParam)
+    ? (isAuthenticated ? tabParam : 'discover')
+    : defaultTab;
   const [showCreateGroupForm, setShowCreateGroupForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
@@ -153,12 +162,6 @@ const RecipesPage: React.FC = () => {
     exitSelectionMode();
   }, [activeFilter, exitSelectionMode]);
 
-  // Set appropriate filter for unauthenticated users
-  useEffect(() => {
-    if (!isAuthenticated && activeFilter !== 'discover') {
-      setActiveFilter('discover');
-    }
-  }, [isAuthenticated, activeFilter]);
 
   // Recipes are now filtered on the backend, so just use them directly
   const filteredRecipes = recipesData?.recipes || [];
@@ -201,7 +204,7 @@ const RecipesPage: React.FC = () => {
   };
 
   const handleFilterChange = (filter: RecipeFilter) => {
-    setActiveFilter(filter);
+    setSearchParams({ tab: filter }, { replace: true });
   };
 
   const handlePageChange = (page: number) => {

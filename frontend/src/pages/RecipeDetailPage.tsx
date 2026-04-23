@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { recipesApi } from '../services/recipesApi';
+import { recipeGroupsApi } from '../services/recipeGroupsApi';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import { RecipeImageCarousel } from '../components/recipe/RecipeImageCarousel';
@@ -267,13 +268,13 @@ const RecipeDetailPage: React.FC = () => {
                     </div>
                   )}
                   {recipe && isAuthenticated && (
-                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
-                      <HaveMadeButton recipe={recipe} size="sm" />
+                    <div className="mobile-menu-item">
+                      <HaveMadeButton recipe={recipe} size="sm" onSuccess={() => setShowMobileMenu(false)} />
                     </div>
                   )}
                   {recipe && isAuthenticated && (
-                    <div className="mobile-menu-item" onClick={() => setShowMobileMenu(false)}>
-                      <WantToMakeButton recipe={recipe} size="sm" />
+                    <div className="mobile-menu-item">
+                      <WantToMakeButton recipe={recipe} size="sm" onSuccess={() => setShowMobileMenu(false)} />
                     </div>
                   )}
                   {recipe && isAuthenticated && !isOwnRecipe && recipe.is_public && (
@@ -572,14 +573,30 @@ const RecipeDetailPage: React.FC = () => {
           if (recipe && isAuthenticated) {
             options.push({
               label: recipe.have_made ? 'Unmark as Made' : 'Mark as Made',
-              onClick: () => {
-                // Toggle have made status
+              onClick: async () => {
+                try {
+                  const result = await recipeGroupsApi.toggleSystemGroup('have_made', recipe.id);
+                  toast.success(result.message);
+                  queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
+                  queryClient.invalidateQueries({ queryKey: ['recipe-groups'] });
+                } catch (error) {
+                  console.error('Error toggling have made status:', error);
+                  toast.error('Failed to update status');
+                }
               },
             });
             options.push({
               label: recipe.want_to_make ? 'Remove from Want to Make' : 'Add to Want to Make',
-              onClick: () => {
-                // Toggle want to make status
+              onClick: async () => {
+                try {
+                  const result = await recipeGroupsApi.toggleSystemGroup('want_to_make', recipe.id);
+                  toast.success(result.message);
+                  queryClient.invalidateQueries({ queryKey: ['recipe', recipe.id] });
+                  queryClient.invalidateQueries({ queryKey: ['recipe-groups'] });
+                } catch (error) {
+                  console.error('Error toggling want to make status:', error);
+                  toast.error('Failed to update status');
+                }
               },
             });
           }

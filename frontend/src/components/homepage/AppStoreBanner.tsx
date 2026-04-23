@@ -36,7 +36,7 @@ const AppStoreBanner: React.FC = () => {
           </div>
         </div>
         <a
-          href="https://apps.apple.com/app/cookle/id000000000"
+          href="https://apps.apple.com/us/app/cookle-recipe-vault/id6759613246"
           target="_blank"
           rel="noopener noreferrer"
           className="bg-white text-gray-900 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors flex items-center gap-2"
