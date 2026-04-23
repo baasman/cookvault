@@ -2788,8 +2788,8 @@ def upload_recipe_url(current_user) -> Tuple[Response, int]:
         create_new_cookbook = data.get("create_new_cookbook", False)
         translate_to_english = data.get("translate_to_english", False)
 
-        # URL imports are always marked as not original (from external source)
-        is_original_recipe = False
+        # URL imports from blogs are already publicly available, so allow sharing
+        is_original_recipe = True
 
         # Handle new cookbook creation (same logic as other upload endpoints)
         cookbook = None
