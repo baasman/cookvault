@@ -447,8 +447,28 @@ class Recipe(db.Model):
     # Used to aggregate ratings across URL-imported recipes from the same page
     canonical_source_url: Mapped[Optional[str]] = mapped_column(String(500), index=True)
 
+    # BookProject submission tracking. When book_project_id is set, this Recipe was
+    # contributed to a multi-contributor BookProject (may be authored by a non-account
+    # GuestContributor) rather than added to a personal Cookbook.
+    book_project_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("book_project.id"), nullable=True, index=True
+    )
+    guest_contributor_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("guest_contributor.id"), nullable=True, index=True
+    )
+    # Organizer can exclude a submitted recipe from the final book without deleting it
+    is_excluded_from_project: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
     cookbook: Mapped[Optional["Cookbook"]] = relationship(
         "Cookbook", back_populates="recipes"
+    )
+    book_project: Mapped[Optional["BookProject"]] = relationship(
+        "BookProject", back_populates="recipes"
+    )
+    guest_contributor: Mapped[Optional["GuestContributor"]] = relationship(
+        "GuestContributor", backref="recipes"
     )
     ingredients: Mapped[List["Ingredient"]] = relationship(
         "Ingredient", secondary=recipe_ingredients, back_populates="recipes"

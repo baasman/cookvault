@@ -27,6 +27,14 @@ from app.models.user import (
 )
 from app.models.source import Source
 from app.models.video_job import VideoProcessingJob, VideoProcessingStatus
+from app.models.book_project import (
+    BookProject,
+    BookProjectExport,
+    GuestContributor,
+    ProjectShareLink,
+    ProjectStatus,
+    ProjectType,
+)
 
 __all__ = [
     "Recipe",
@@ -55,4 +63,10 @@ __all__ = [
     "Source",
     "VideoProcessingJob",
     "VideoProcessingStatus",
+    "BookProject",
+    "BookProjectExport",
+    "GuestContributor",
+    "ProjectShareLink",
+    "ProjectStatus",
+    "ProjectType",
 ]
