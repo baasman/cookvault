@@ -1108,6 +1108,82 @@ class TestOrganizerContributions:
         )
         assert response.status_code in (401, 302)
 
+    def test_add_recipes_from_collection_attaches_owned_recipes(
+        self, auth_client, test_user, sample_recipe
+    ):
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/contributions/from-collection",
+            json={"recipe_ids": [sample_recipe.id]},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["added"] == [sample_recipe.id]
+        assert data["already_added"] == []
+        assert data["errors"] == []
+
+        refreshed = db.session.get(Recipe, sample_recipe.id)
+        assert refreshed.book_project_id == project.id
+        assert refreshed.is_excluded_from_project is False
+
+    def test_add_recipes_from_collection_idempotent(
+        self, auth_client, test_user, sample_recipe
+    ):
+        project = _make_project(test_user)
+        recipe = db.session.get(Recipe, sample_recipe.id)
+        recipe.book_project_id = project.id
+        db.session.commit()
+
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/contributions/from-collection",
+            json={"recipe_ids": [sample_recipe.id]},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["added"] == []
+        assert data["already_added"] == [sample_recipe.id]
+
+    def test_add_recipes_from_collection_rejects_other_users_recipes(
+        self, auth_client, test_user, second_user
+    ):
+        # Make a recipe owned by second_user.
+        other_recipe = Recipe(
+            title="Stolen recipe",
+            user_id=second_user.id,
+            uploaded_by_id=second_user.id,
+            is_public=False,
+        )
+        db.session.add(other_recipe)
+        db.session.commit()
+
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/contributions/from-collection",
+            json={"recipe_ids": [other_recipe.id]},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["added"] == []
+        # Surfaces as not_found rather than leaking existence.
+        assert any(
+            e["id"] == other_recipe.id and e["reason"] == "not_found"
+            for e in data["errors"]
+        )
+
+        # Recipe was NOT attached.
+        refreshed = db.session.get(Recipe, other_recipe.id)
+        assert refreshed.book_project_id is None
+
+    def test_add_recipes_from_collection_validates_payload(
+        self, auth_client, test_user
+    ):
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/contributions/from-collection",
+            json={"recipe_ids": []},
+        )
+        assert response.status_code == 400
+
     @patch("app.tasks.recipe_tasks.process_single_recipe_task")
     @patch("app.api.book_projects.process_and_save_image")
     def test_submit_image_as_organizer_dispatches_celery(

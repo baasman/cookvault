@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import React, { useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { bookProjectsApi } from '../../services/bookProjectsApi';
+import { recipesApi } from '../../services/recipesApi';
+import type { Recipe } from '../../types';
 
-type Mode = 'photo' | 'text' | 'url';
+type Mode = 'collection' | 'text' | 'url' | 'photo';
 
 interface Props {
   projectId: number;
@@ -18,7 +20,7 @@ export const AddRecipeModal: React.FC<Props> = ({
   onClose,
   onSubmitted,
 }) => {
-  const [mode, setMode] = useState<Mode>('text');
+  const [mode, setMode] = useState<Mode>('collection');
   const [text, setText] = useState('');
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -100,7 +102,7 @@ export const AddRecipeModal: React.FC<Props> = ({
         </div>
 
         <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ backgroundColor: '#f6efe6' }}>
-          {(['text', 'url', 'photo'] as Mode[]).map((m) => {
+          {(['collection', 'text', 'url', 'photo'] as Mode[]).map((m) => {
             const active = mode === m;
             return (
               <button
@@ -109,7 +111,7 @@ export const AddRecipeModal: React.FC<Props> = ({
                   setMode(m);
                   setError(null);
                 }}
-                className="flex-1 py-2 text-sm rounded-md transition-colors capitalize"
+                className="flex-1 py-2 text-xs rounded-md transition-colors capitalize"
                 style={{
                   backgroundColor: active ? '#fffbf5' : 'transparent',
                   color: active ? '#1c120d' : '#6b5a52',
@@ -117,11 +119,21 @@ export const AddRecipeModal: React.FC<Props> = ({
                   border: active ? '1px solid #e8dccf' : '1px solid transparent',
                 }}
               >
-                {m}
+                {m === 'collection' ? 'My recipes' : m}
               </button>
             );
           })}
         </div>
+
+        {mode === 'collection' && (
+          <CollectionPicker
+            projectId={projectId}
+            onSubmitted={() => {
+              reset();
+              onSubmitted();
+            }}
+          />
+        )}
 
         {mode === 'text' && (
           <div>
@@ -226,6 +238,175 @@ export const AddRecipeModal: React.FC<Props> = ({
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+const CollectionPicker: React.FC<{
+  projectId: number;
+  onSubmitted: () => void;
+}> = ({ projectId, onSubmitted }) => {
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
+  // Debounce search input so we don't fire a request on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-recipes', search],
+    queryFn: () =>
+      recipesApi.fetchRecipes({
+        page: 1,
+        per_page: 20,
+        filter: 'mine',
+        search: search || undefined,
+      }),
+    staleTime: 30 * 1000,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      bookProjectsApi.addRecipesFromCollection(projectId, Array.from(selected)),
+    onSuccess: (resp) => {
+      const failed = resp.errors.length;
+      if (resp.added.length === 0 && resp.already_added.length === 0 && failed > 0) {
+        setError("None of the selected recipes could be added.");
+        return;
+      }
+      setSelected(new Set());
+      onSubmitted();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const recipes: Recipe[] = data?.recipes ?? [];
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={searchInput}
+        onChange={(e) => setSearchInput(e.target.value)}
+        placeholder="Search your recipes…"
+        className="w-full px-3 py-2 rounded border text-sm mb-3"
+        style={{ borderColor: '#e8dccf', backgroundColor: '#fffbf5' }}
+      />
+
+      <div
+        className="rounded border mb-3 overflow-y-auto"
+        style={{
+          borderColor: '#e8dccf',
+          backgroundColor: '#fffbf5',
+          maxHeight: '280px',
+        }}
+      >
+        {isLoading ? (
+          <div className="px-3 py-6 text-center text-sm" style={{ color: '#9b644b' }}>
+            Loading…
+          </div>
+        ) : recipes.length === 0 ? (
+          <div className="px-3 py-6 text-center text-sm" style={{ color: '#9b644b' }}>
+            {search
+              ? 'No recipes match.'
+              : "You don't have any recipes yet."}
+          </div>
+        ) : (
+          <ul>
+            {recipes.map((r) => {
+              const alreadyInProject = r.book_project_id === projectId;
+              const isSelected = selected.has(r.id);
+              return (
+                <li
+                  key={r.id}
+                  className="border-b last:border-b-0"
+                  style={{ borderColor: '#f0e6da' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (alreadyInProject) return;
+                      toggle(r.id);
+                    }}
+                    disabled={alreadyInProject}
+                    className="w-full text-left px-3 py-2 flex items-center justify-between gap-2 hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: isSelected ? '#fff4ed' : 'transparent' }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-sm truncate" style={{ color: '#1c120d' }}>
+                        {r.title}
+                      </div>
+                      {r.description && (
+                        <div className="text-xs truncate" style={{ color: '#9b644b' }}>
+                          {r.description}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className="text-xs whitespace-nowrap"
+                      style={{
+                        color: alreadyInProject
+                          ? '#6b5a52'
+                          : isSelected
+                            ? '#f15f1c'
+                            : '#9b644b',
+                      }}
+                    >
+                      {alreadyInProject
+                        ? '✓ in book'
+                        : isSelected
+                          ? '✓ selected'
+                          : 'Tap to add'}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <button
+        onClick={() => {
+          if (selected.size === 0) {
+            setError('Select at least one recipe.');
+            return;
+          }
+          setError(null);
+          addMutation.mutate();
+        }}
+        disabled={selected.size === 0 || addMutation.isPending}
+        className="w-full py-2.5 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+        style={{ backgroundColor: '#f15f1c' }}
+      >
+        {addMutation.isPending
+          ? 'Adding…'
+          : selected.size > 0
+            ? `Add ${selected.size} recipe${selected.size === 1 ? '' : 's'}`
+            : 'Add to book'}
+      </button>
+
+      {error && (
+        <div
+          className="mt-3 px-3 py-2 rounded text-sm"
+          style={{ backgroundColor: '#fef0ea', color: '#9b3a1c' }}
+        >
+          {error}
+        </div>
+      )}
     </div>
   );
 };

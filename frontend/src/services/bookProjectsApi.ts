@@ -235,6 +235,29 @@ class BookProjectsApi {
     return res.json();
   }
 
+  async addRecipesFromCollection(
+    projectId: number,
+    recipeIds: number[],
+  ): Promise<{
+    added: number[];
+    already_added: number[];
+    errors: { id: number; reason: string }[];
+  }> {
+    const res = await apiFetch(
+      `${this.baseUrl}/book-projects/${projectId}/contributions/from-collection`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipe_ids: recipeIds }),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to add recipes');
+    }
+    return res.json();
+  }
+
   async submitImageAsOrganizer(
     projectId: number,
     file: File,

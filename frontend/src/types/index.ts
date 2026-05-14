@@ -182,6 +182,7 @@ export interface Recipe {
   source?: string;
   user_id?: number;
   uploaded_by_id?: number; // Tracks who actually uploaded the recipe
+  book_project_id?: number | null; // Set when the recipe is a BookProject submission
   is_public: boolean;
   published_at?: string;
   is_featured: boolean;

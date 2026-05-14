@@ -719,6 +719,7 @@ class Recipe(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "user_id": self.user_id,
             "uploaded_by_id": self.uploaded_by_id,
+            "book_project_id": self.book_project_id,
             "has_full_access": has_full_access,
             "is_original_recipe": self.is_original_recipe,
             "can_be_published": can_publish,

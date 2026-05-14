@@ -999,6 +999,70 @@ def submit_url_as_organizer(current_user, project_id: int) -> Response:
         return jsonify({"error": "Failed to submit recipe"}), 500
 
 
+@bp.route("/<int:project_id>/contributions/from-collection", methods=["POST"])
+@require_auth
+def add_recipes_from_collection(current_user, project_id: int) -> Response:
+    """Attach existing recipes from the organizer's collection to this project.
+
+    Body: ``{"recipe_ids": [<int>, ...]}``
+
+    Only recipes owned by the current user are accepted. Idempotent — recipes
+    already attached to this project are reported as ``already_added`` and
+    don't error out, so the UI can fire-and-forget without checking state
+    beforehand. Recipes that exist but belong to another user or are not
+    found at all show up under ``errors`` with a short reason.
+    """
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    raw_ids = data.get("recipe_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return jsonify({"error": "recipe_ids must be a non-empty list"}), 400
+
+    try:
+        recipe_ids = [int(r) for r in raw_ids]
+    except (TypeError, ValueError):
+        return jsonify({"error": "recipe_ids must be integers"}), 400
+
+    added: list[int] = []
+    already_added: list[int] = []
+    errors: list[dict] = []
+
+    try:
+        for rid in recipe_ids:
+            recipe = db.session.get(Recipe, rid)
+            if not recipe:
+                errors.append({"id": rid, "reason": "not_found"})
+                continue
+            if recipe.user_id != current_user.id:
+                # Don't leak existence — same shape as not_found from the
+                # caller's perspective.
+                errors.append({"id": rid, "reason": "not_found"})
+                continue
+            if recipe.book_project_id == project.id:
+                already_added.append(rid)
+                continue
+
+            recipe.book_project_id = project.id
+            # Recipes added from collection start out included (organizer chose
+            # them explicitly), and any prior exclusion is reset.
+            recipe.is_excluded_from_project = False
+            added.append(rid)
+
+        db.session.commit()
+        return jsonify(
+            {"added": added, "already_added": already_added, "errors": errors}
+        ), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Failed to add recipes from collection to project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to add recipes"}), 500
+
+
 @bp.route("/<int:project_id>/contributions/submit-image", methods=["POST"])
 @require_auth
 @rate_limit_upload
