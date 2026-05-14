@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from flask import Response, current_app, jsonify, request
 from sqlalchemy import text
@@ -1421,18 +1421,46 @@ def _create_recipe_from_parsed_data(
     job: ProcessingJob,
     upload_user_id: int = None,
 ) -> Recipe:
-    """Create recipe and all related records from parsed data."""
-    # The uploader is always the upload_user_id (tracks who actually uploaded)
+    """Create recipe and all related records from parsed data.
+
+    Two ownership modes:
+    - Standard upload: cookbook_id may be set, user_id derived from cookbook owner
+      (for shared cookbooks) or falls back to the uploader.
+    - BookProject submission (job.book_project_id is set): cookbook_id stays None,
+      user_id is the project organizer, attribution flows through guest_contributor_id.
+    """
+    # The uploader is always the upload_user_id (tracks who actually uploaded).
+    # For guest book-project submissions this is None.
     uploaded_by_id = upload_user_id
 
-    # Get user_id from cookbook if it exists, otherwise use the upload user_id
-    # user_id = cookbook owner (for shared cookbooks) or uploader (for own cookbooks)
-    user_id = upload_user_id  # Default to the user who uploaded the image
-    if job.cookbook_id:
-        cookbook = Cookbook.query.get(job.cookbook_id)
-        # Only use cookbook.user_id if it's not None (i.e., not a global cookbook)
-        if cookbook and cookbook.user_id is not None:
-            user_id = cookbook.user_id
+    book_project_id: Optional[int] = None
+    guest_contributor_id: Optional[int] = None
+    cookbook_id_for_recipe: Optional[int] = job.cookbook_id
+
+    if job.book_project_id:
+        from app.models import BookProject
+
+        project = BookProject.query.get(job.book_project_id)
+        if project is None:
+            current_app.logger.error(
+                f"ProcessingJob {job.id} references missing BookProject {job.book_project_id}"
+            )
+            user_id = upload_user_id
+        else:
+            user_id = project.owner_user_id
+            book_project_id = project.id
+            guest_contributor_id = job.guest_contributor_id
+            # Submissions to a book project are not attached to a cookbook.
+            cookbook_id_for_recipe = None
+    else:
+        # Get user_id from cookbook if it exists, otherwise use the upload user_id
+        # user_id = cookbook owner (for shared cookbooks) or uploader (for own cookbooks)
+        user_id = upload_user_id  # Default to the user who uploaded the image
+        if job.cookbook_id:
+            cookbook = Cookbook.query.get(job.cookbook_id)
+            # Only use cookbook.user_id if it's not None (i.e., not a global cookbook)
+            if cookbook and cookbook.user_id is not None:
+                user_id = cookbook.user_id
 
     # Generate robust title with smart fallbacks
     title = _generate_recipe_title(parsed_recipe, extracted_text, job)
@@ -1455,14 +1483,16 @@ def _create_recipe_from_parsed_data(
     recipe = Recipe(
         title=title,
         description=parsed_recipe.get("description"),
-        cookbook_id=job.cookbook_id,
+        cookbook_id=cookbook_id_for_recipe,
+        book_project_id=book_project_id,
+        guest_contributor_id=guest_contributor_id,
         prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
         cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
         servings=safe_int_conversion(parsed_recipe.get("servings")),
         difficulty=parsed_recipe.get("difficulty"),
         course_type=parsed_recipe.get("course_type"),
         user_id=user_id,
-        uploaded_by_id=uploaded_by_id,  # Track the actual uploader
+        uploaded_by_id=uploaded_by_id,  # Track the actual uploader (None for guest submissions)
         is_public=False,  # New recipes are private by default
         is_original_recipe=job.is_original_recipe,  # Track recipe source for copyright protection
         # Translation fields

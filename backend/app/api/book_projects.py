@@ -14,18 +14,32 @@ import traceback
 from datetime import date, datetime
 from typing import Optional
 
-from flask import Blueprint, Response, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, g, jsonify, request
 
 from app import db
-from app.api.auth import require_auth
+from app.api.auth import require_auth, require_share_token
+from app.api.recipes.helpers import (
+    ALLOWED_EXTENSIONS,
+    allowed_file,
+    process_and_save_image,
+    safe_int_conversion,
+)
 from app.models import (
     BookProject,
     GuestContributor,
+    ProcessingJob,
     ProjectShareLink,
     ProjectStatus,
     ProjectType,
     Recipe,
 )
+from app.services.recipe_parser import RecipeParser
+from app.services.recipe_parsing_service import (
+    create_recipe_ingredients,
+    create_recipe_instructions,
+    create_recipe_tags,
+)
+from app.utils.rate_limiting import rate_limit_upload
 
 bp = Blueprint("book_projects", __name__, url_prefix="/book-projects")
 
@@ -447,3 +461,379 @@ def update_submission(current_user, project_id: int, recipe_id: int) -> Response
             f"Failed to update submission {recipe_id}: {e}\n{traceback.format_exc()}"
         )
         return jsonify({"error": "Failed to update submission"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Guest submission endpoints (share-token authenticated, no user account)
+# ---------------------------------------------------------------------------
+
+
+def _get_or_create_guest_contributor(
+    project: BookProject,
+    share_link: ProjectShareLink,
+    display_name: Optional[str],
+    email: Optional[str],
+) -> GuestContributor:
+    """Match a contributor by (project, email) so multiple submissions from the same
+    person collapse to a single GuestContributor row. With no email, always create a
+    fresh row."""
+    display_name = (display_name or "").strip() or "Anonymous"
+    email_norm = (email or "").strip().lower() or None
+
+    if email_norm:
+        existing = GuestContributor.query.filter_by(
+            project_id=project.id, email=email_norm
+        ).first()
+        if existing:
+            if display_name and existing.display_name != display_name:
+                existing.display_name = display_name
+            return existing
+
+    contributor = GuestContributor(
+        project_id=project.id,
+        share_link_id=share_link.id,
+        display_name=display_name,
+        email=email_norm,
+    )
+    db.session.add(contributor)
+    db.session.flush()
+    return contributor
+
+
+def _public_project_payload(project: BookProject) -> dict:
+    """Minimal project info exposed to the public contributor landing page. No PII —
+    no organizer name, no contributor list, no email addresses."""
+    return {
+        "id": project.id,
+        "title": project.title,
+        "subtitle": project.subtitle,
+        "project_type": project.project_type.value if project.project_type else None,
+        "honorees": project.honorees or [],
+        "occasion_date": project.occasion_date.isoformat()
+        if project.occasion_date
+        else None,
+        "submission_deadline": project.submission_deadline.isoformat()
+        if project.submission_deadline
+        else None,
+        "dedication": project.dedication,
+        "cover_image_url": project.cover_image_url,
+    }
+
+
+@bp.route("/by-token/<string:token>", methods=["GET"])
+@require_share_token
+def get_project_by_token(token: str) -> Response:
+    """Validate the share token and return public project info for the contributor
+    landing page. No auth required."""
+    project = g.book_project
+    share_link = g.share_link
+    return jsonify(
+        {
+            "project": _public_project_payload(project),
+            "share_link": {
+                "submission_count": share_link.submission_count,
+                "submission_cap": share_link.submission_cap,
+                "expires_at": share_link.expires_at.isoformat()
+                if share_link.expires_at
+                else None,
+            },
+        }
+    ), 200
+
+
+@bp.route("/by-token/<string:token>/submit-text", methods=["POST"])
+@require_share_token
+@rate_limit_upload
+def submit_text_by_token(token: str) -> Response:
+    """Submit a recipe via raw text (paste or typed). Synchronous — parses
+    immediately via the shared RecipeParser and creates a Recipe owned by the
+    project organizer with guest_contributor attribution."""
+    project: BookProject = g.book_project
+    share_link: ProjectShareLink = g.share_link
+
+    data = request.get_json(silent=True) or {}
+    recipe_text = (data.get("text") or "").strip()
+    if not recipe_text:
+        return jsonify({"error": "No recipe text provided"}), 400
+
+    max_text_length = current_app.config.get("MAX_RECIPE_TEXT_LENGTH", 50000)
+    if len(recipe_text) > max_text_length:
+        return jsonify(
+            {
+                "error": (
+                    f"Recipe text too long ({len(recipe_text)} characters). "
+                    f"Maximum {max_text_length} characters allowed."
+                )
+            }
+        ), 400
+
+    display_name = data.get("display_name")
+    email = data.get("email")
+
+    try:
+        contributor = _get_or_create_guest_contributor(
+            project, share_link, display_name, email
+        )
+
+        parser = RecipeParser()
+        parsed_recipe = parser.parse_recipe_text(
+            recipe_text, translate_to_english=False
+        )
+
+        recipe_title = parsed_recipe.get("title") or "Untitled Recipe"
+        if not recipe_title.strip():
+            recipe_title = "Untitled Recipe"
+
+        recipe = Recipe(
+            title=recipe_title,
+            description=parsed_recipe.get("description"),
+            # Recipe is owned by the project organizer so it lives in their
+            # account; attribution to the actual contributor goes via
+            # guest_contributor_id.
+            user_id=project.owner_user_id,
+            uploaded_by_id=None,
+            book_project_id=project.id,
+            guest_contributor_id=contributor.id,
+            is_public=False,
+            # Source unknown for guest text submissions — they may be typing in
+            # their own recipe or copying from somewhere else. None means legacy
+            # / unknown, which matches the existing column semantics.
+            is_original_recipe=None,
+            prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
+            cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
+            servings=safe_int_conversion(parsed_recipe.get("servings")),
+            difficulty=parsed_recipe.get("difficulty"),
+            course_type=parsed_recipe.get("course_type"),
+        )
+        db.session.add(recipe)
+        db.session.flush()
+
+        create_recipe_ingredients(recipe.id, parsed_recipe)
+        create_recipe_instructions(recipe.id, parsed_recipe, recipe_text)
+        create_recipe_tags(recipe.id, parsed_recipe)
+
+        share_link.submission_count += 1
+
+        db.session.commit()
+
+        return jsonify(
+            {
+                "submission": {
+                    "recipe_id": recipe.id,
+                    "title": recipe.title,
+                    "contributor": contributor.to_dict(include_email=False),
+                }
+            }
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Guest text submission failed for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to submit recipe"}), 500
+
+
+@bp.route("/by-token/<string:token>/submit-url", methods=["POST"])
+@require_share_token
+@rate_limit_upload
+def submit_url_by_token(token: str) -> Response:
+    """Submit a recipe via URL (e.g. a recipe blog). Synchronous — fetches and
+    parses via the shared UrlRecipeService."""
+    from app.services.url_recipe_service import (
+        BotProtectionError,
+        RecipeNotFoundError,
+        UrlFetchError,
+        UrlRecipeService,
+        UrlValidationError,
+    )
+
+    project: BookProject = g.book_project
+    share_link: ProjectShareLink = g.share_link
+
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+
+    display_name = data.get("display_name")
+    email = data.get("email")
+
+    url_service = UrlRecipeService()
+    try:
+        result = url_service.import_from_url(url, translate_to_english=False)
+    except UrlValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except UrlFetchError as e:
+        return jsonify({"error": str(e)}), 400
+    except BotProtectionError as e:
+        return jsonify({"error": str(e)}), 403
+    except RecipeNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        current_app.logger.error(
+            f"Guest URL import failed (parsing) for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to fetch or parse the URL"}), 500
+
+    parsed_recipe = result["recipe_data"]
+    source_url = result["source_url"]
+
+    try:
+        contributor = _get_or_create_guest_contributor(
+            project, share_link, display_name, email
+        )
+
+        recipe_title = parsed_recipe.get("title") or "Untitled Recipe"
+        if not recipe_title.strip():
+            recipe_title = "Untitled Recipe"
+
+        recipe = Recipe(
+            title=recipe_title,
+            description=parsed_recipe.get("description"),
+            user_id=project.owner_user_id,
+            uploaded_by_id=None,
+            book_project_id=project.id,
+            guest_contributor_id=contributor.id,
+            is_public=False,
+            # URL-imported recipes come from a publicly-accessible web page —
+            # safe to mark is_original_recipe=True per the project's existing
+            # convention for URL imports.
+            is_original_recipe=True,
+            source=source_url,
+            prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
+            cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
+            servings=safe_int_conversion(parsed_recipe.get("servings")),
+            difficulty=parsed_recipe.get("difficulty"),
+            course_type=parsed_recipe.get("course_type"),
+        )
+        db.session.add(recipe)
+        db.session.flush()
+
+        create_recipe_ingredients(recipe.id, parsed_recipe)
+        create_recipe_instructions(recipe.id, parsed_recipe, "")
+        create_recipe_tags(recipe.id, parsed_recipe)
+
+        share_link.submission_count += 1
+
+        db.session.commit()
+
+        return jsonify(
+            {
+                "submission": {
+                    "recipe_id": recipe.id,
+                    "title": recipe.title,
+                    "source": source_url,
+                    "contributor": contributor.to_dict(include_email=False),
+                }
+            }
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Guest URL submission failed (persist) for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to submit recipe"}), 500
+
+
+@bp.route("/by-token/<string:token>/submit-image", methods=["POST"])
+@require_share_token
+@rate_limit_upload
+def submit_image_by_token(token: str) -> Response:
+    """Submit a recipe via image upload (photo of a handwritten card or printed
+    page). Asynchronous: the file is saved, a ProcessingJob is created with the
+    BookProject/GuestContributor attribution, and a Celery task is dispatched to
+    OCR and parse it. The resulting Recipe lands in the organizer's project.
+
+    Form fields: image (file), display_name (optional), email (optional).
+    """
+    project: BookProject = g.book_project
+    share_link: ProjectShareLink = g.share_link
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files["image"]
+    if not file or file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify(
+            {"error": f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}
+        ), 400
+
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+    file_size_mb = file_size / (1024 * 1024)
+    max_upload_size = current_app.config.get("MAX_UPLOAD_SIZE", 8)
+    if file_size_mb > max_upload_size:
+        return jsonify(
+            {
+                "error": (
+                    f"File too large ({file_size_mb:.1f}MB). "
+                    f"Please use files smaller than {max_upload_size}MB."
+                )
+            }
+        ), 400
+
+    display_name = request.form.get("display_name")
+    email = request.form.get("email")
+
+    try:
+        contributor = _get_or_create_guest_contributor(
+            project, share_link, display_name, email
+        )
+
+        recipe_image = process_and_save_image(
+            file, file.filename, folder=f"book-projects/{project.id}"
+        )
+        db.session.add(recipe_image)
+        db.session.flush()
+
+        processing_job = ProcessingJob(
+            image_id=recipe_image.id,
+            # No cookbook attachment for book-project submissions.
+            cookbook_id=None,
+            # No authenticated uploader — _create_recipe_from_parsed_data reads
+            # owner_user_id from the BookProject when book_project_id is set.
+            user_id=None,
+            book_project_id=project.id,
+            guest_contributor_id=contributor.id,
+            is_original_recipe=None,
+            translate_to_english=False,
+        )
+        db.session.add(processing_job)
+
+        share_link.submission_count += 1
+        db.session.commit()
+
+        from app.tasks.recipe_tasks import process_single_recipe_task
+
+        current_app.logger.info(
+            f"Queuing guest submission task: project={project.id}, "
+            f"contributor={contributor.id}, job={processing_job.id}"
+        )
+        # user_id=None — the task uses the project's owner as the Recipe.user_id.
+        process_single_recipe_task.delay(processing_job.id, None)
+
+        return jsonify(
+            {
+                "submission": {
+                    "job_id": processing_job.id,
+                    "image_id": recipe_image.id,
+                    "status": "processing",
+                    "contributor": contributor.to_dict(include_email=False),
+                }
+            }
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Guest image submission failed for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        # Force GC to clean up any image data lingering in memory after a failure,
+        # matching the pattern used by the authenticated upload endpoint.
+        import gc
+
+        gc.collect()
+        return jsonify({"error": "Failed to submit recipe image"}), 500

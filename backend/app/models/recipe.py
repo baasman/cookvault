@@ -928,6 +928,16 @@ class ProcessingJob(db.Model):
     cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), index=True)
 
+    # BookProject submission tracking. When set, the Celery worker creates the
+    # resulting Recipe with book_project_id and guest_contributor_id attribution
+    # instead of attaching it to a cookbook.
+    book_project_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("book_project.id"), nullable=True, index=True
+    )
+    guest_contributor_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("guest_contributor.id"), nullable=True, index=True
+    )
+
     # Multi-image support fields
     is_multi_image: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     multi_job_id: Mapped[Optional[int]] = mapped_column(
