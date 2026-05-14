@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { bookProjectsApi } from '../services/bookProjectsApi';
 import { getApiUrl } from '../utils/getApiUrl';
-import type { ProjectShareLink, ProjectSubmission } from '../types';
+import { ExportPaywallModal } from '../components/payments/ExportPaywallModal';
+import type { BookProjectExport, ProjectShareLink, ProjectSubmission } from '../types';
 
 const PROJECT_TYPE_COPY: Record<string, string> = {
   wedding: 'Wedding cookbook',
@@ -283,19 +284,44 @@ const SubmissionsSection: React.FC<{
 
 const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [pendingPaidExportId, setPendingPaidExportId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+
   const previewMutation = useMutation({
     mutationFn: () => bookProjectsApi.createPreview(projectId),
     onSuccess: (resp) => {
       setPreviewError(null);
-      // The download endpoint is auth-gated; opening in a new tab lets the
-      // browser send credentials and trigger the PDF download dialog.
       const url = `${getApiUrl()}/book-projects/${projectId}/exports/${resp.export.id}/download`;
       window.open(url, '_blank', 'noopener');
+      queryClient.invalidateQueries({ queryKey: ['book-project-exports', projectId] });
     },
     onError: (err: Error) => {
       setPreviewError(err.message);
     },
   });
+
+  // Poll the exports list when we're waiting on a paid PDF to finish rendering.
+  // Stripe's webhook fires server-side and renders the PDF; the client doesn't
+  // get a direct signal, so we just refetch every couple seconds until the
+  // pdf_file_path appears.
+  const { data: exports } = useQuery({
+    queryKey: ['book-project-exports', projectId],
+    queryFn: () => bookProjectsApi.listExports(projectId),
+    enabled: !!projectId,
+    refetchInterval: pendingPaidExportId ? 2500 : false,
+  });
+
+  // Once the paid export shows up in the list, we know rendering is done.
+  // (`pdf_file_path` lives server-side; the frontend can't see it directly,
+  // but the existence of the export row + a clean download attempt confirms.)
+  const paidReadyExport: BookProjectExport | undefined = exports?.find(
+    (e) => e.id === pendingPaidExportId && !e.is_watermarked,
+  );
+  if (paidReadyExport && pendingPaidExportId) {
+    // We still keep pendingPaidExportId so the UI shows the "ready" state
+    // until the user actually downloads or refreshes.
+  }
 
   return (
     <section>
@@ -323,14 +349,34 @@ const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
           >
             {previewMutation.isPending ? 'Rendering…' : 'Download preview PDF'}
           </button>
-          <button
-            disabled
-            title="Purchase flow lands next (Task 9)"
-            className="px-4 py-2 text-white rounded-lg opacity-50 cursor-not-allowed"
-            style={{ backgroundColor: '#f15f1c' }}
-          >
-            Buy clean PDF (coming soon)
-          </button>
+
+          {pendingPaidExportId && paidReadyExport ? (
+            <button
+              onClick={() => {
+                const url = `${getApiUrl()}/book-projects/${projectId}/exports/${pendingPaidExportId}/download`;
+                window.open(url, '_blank', 'noopener');
+              }}
+              className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#1c120d' }}
+            >
+              Download clean PDF
+            </button>
+          ) : pendingPaidExportId ? (
+            <span
+              className="px-4 py-2 text-sm rounded-lg"
+              style={{ backgroundColor: '#f6efe6', color: '#6b5a52' }}
+            >
+              Rendering clean PDF…
+            </span>
+          ) : (
+            <button
+              onClick={() => setPaywallOpen(true)}
+              className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#f15f1c' }}
+            >
+              Buy clean PDF
+            </button>
+          )}
         </div>
         {previewError && (
           <div
@@ -341,6 +387,19 @@ const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
           </div>
         )}
       </div>
+
+      <ExportPaywallModal
+        projectId={projectId}
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        onPaymentSucceeded={(exportId) => {
+          setPaywallOpen(false);
+          setPendingPaidExportId(exportId);
+          queryClient.invalidateQueries({
+            queryKey: ['book-project-exports', projectId],
+          });
+        }}
+      />
     </section>
   );
 };
