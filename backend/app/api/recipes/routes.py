@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 from flask import Response, current_app, jsonify, request
-from sqlalchemy import select, text
+from sqlalchemy import text
 
 from app import db
 from app.api import bp
@@ -38,6 +38,11 @@ from app.api.recipes.helpers import (
     get_image_data_for_ocr,
     safe_int_conversion,
     ALLOWED_EXTENSIONS,
+)
+from app.services.recipe_parsing_service import (
+    create_recipe_ingredients,
+    create_recipe_instructions,
+    create_recipe_tags,
 )
 
 
@@ -1475,168 +1480,13 @@ def _create_recipe_from_parsed_data(
     original_instructions = (
         parsed_recipe.get("original_instructions") if is_translated else None
     )
-    _create_instructions(
+    create_recipe_instructions(
         recipe.id, parsed_recipe, extracted_text, original_instructions
     )
-    _create_tags(recipe.id, parsed_recipe)
-    _create_ingredients(recipe.id, parsed_recipe)
+    create_recipe_tags(recipe.id, parsed_recipe)
+    create_recipe_ingredients(recipe.id, parsed_recipe)
 
     return recipe
-
-
-def _create_instructions(
-    recipe_id: int,
-    parsed_recipe: Dict[str, Any],
-    fallback_text: str,
-    original_instructions: list = None,
-) -> None:
-    """Create instruction records for the recipe, with optional original text for translations."""
-    instructions = parsed_recipe.get("instructions", [])
-    if isinstance(instructions, str):
-        instructions = [instructions]
-    elif not isinstance(instructions, list):
-        instructions = [fallback_text]
-
-    # Ensure original_instructions is a list if provided
-    if original_instructions and not isinstance(original_instructions, list):
-        original_instructions = None
-
-    for i, instruction_text in enumerate(instructions, 1):
-        # Get corresponding original text if available
-        original_text = None
-        if original_instructions and i <= len(original_instructions):
-            original_text = original_instructions[i - 1]
-            if isinstance(original_text, str):
-                original_text = original_text.strip()
-
-        instruction = Instruction(
-            recipe_id=recipe_id,
-            step_number=i,
-            text=instruction_text.strip(),
-            original_text=original_text,
-        )
-        db.session.add(instruction)
-
-
-def _create_tags(recipe_id: int, parsed_recipe: Dict[str, Any]) -> None:
-    """Create tag records for the recipe."""
-    tags = parsed_recipe.get("tags", [])
-    if isinstance(tags, str):
-        tags = [tag.strip() for tag in tags.split(",")]
-    elif not isinstance(tags, list):
-        tags = []
-
-    for tag_name in tags:
-        if tag_name.strip():
-            tag = Tag(recipe_id=recipe_id, name=tag_name.strip())
-            db.session.add(tag)
-
-
-def _create_ingredients(recipe_id: int, parsed_recipe: Dict[str, Any]) -> None:
-    """Create ingredient records and associations for the recipe."""
-
-    ingredients = parsed_recipe.get("ingredients", [])
-    if isinstance(ingredients, str):
-        ingredients = [ingredients]
-    elif not isinstance(ingredients, list):
-        ingredients = []
-
-    current_app.logger.info(
-        f"Creating {len(ingredients)} ingredients for recipe {recipe_id}"
-    )
-    current_app.logger.debug(f"Ingredients data: {ingredients}")
-
-    for order, ingredient_data in enumerate(ingredients, 1):
-        # Use a savepoint to allow rolling back individual ingredient failures
-        savepoint = db.session.begin_nested()
-        try:
-            # Handle both old format (strings) and new LLM format (objects)
-            if isinstance(ingredient_data, str):
-                # Old format: ingredient as string
-                if ingredient_data.strip():
-                    parsed_ingredient = _parse_ingredient_text(ingredient_data.strip())
-                    ingredient = _find_or_create_ingredient(parsed_ingredient)
-                    _create_recipe_ingredient_association(
-                        recipe_id, ingredient.id, parsed_ingredient, order
-                    )
-            elif isinstance(ingredient_data, dict):
-                # New LLM format: ingredient as structured object
-                ingredient_name = ingredient_data.get("name", "").strip()
-                if ingredient_name:
-                    # Create parsed ingredient from LLM structure
-                    parsed_ingredient = {
-                        "name": ingredient_name,
-                        "quantity": ingredient_data.get("quantity"),
-                        "unit": ingredient_data.get("unit"),
-                        "preparation": ingredient_data.get("preparation"),
-                        "optional": bool(ingredient_data.get("optional", False)),
-                        "category": None,  # Can be added later if needed
-                    }
-
-                    current_app.logger.debug(
-                        f"Processing LLM ingredient: {parsed_ingredient}"
-                    )
-
-                    ingredient = _find_or_create_ingredient(parsed_ingredient)
-                    _create_recipe_ingredient_association(
-                        recipe_id, ingredient.id, parsed_ingredient, order
-                    )
-            else:
-                current_app.logger.warning(
-                    f"Unknown ingredient format: {type(ingredient_data)} - {ingredient_data}"
-                )
-
-            # Commit the savepoint if successful
-            savepoint.commit()
-
-        except Exception as e:
-            # Rollback this ingredient's changes but continue with others
-            savepoint.rollback()
-            current_app.logger.error(
-                f"Failed to create ingredient {order}: {str(e)}", exc_info=True
-            )
-            # Continue with other ingredients rather than failing completely
-
-
-def _find_or_create_ingredient(parsed_ingredient: Dict[str, Any]) -> Ingredient:
-    """Find existing ingredient or create new one."""
-    ingredient = Ingredient.query.filter_by(name=parsed_ingredient["name"]).first()
-    if not ingredient:
-        ingredient = Ingredient(
-            name=parsed_ingredient["name"], category=parsed_ingredient.get("category")
-        )
-        db.session.add(ingredient)
-        db.session.flush()
-    return ingredient
-
-
-def _create_recipe_ingredient_association(
-    recipe_id: int, ingredient_id: int, parsed_ingredient: Dict[str, Any], order: int
-) -> None:
-    """Create association between recipe and ingredient with quantities."""
-    # Check if association already exists (prevents duplicate constraint errors)
-    existing = db.session.execute(
-        select(recipe_ingredients).where(
-            recipe_ingredients.c.recipe_id == recipe_id,
-            recipe_ingredients.c.ingredient_id == ingredient_id,
-        )
-    ).first()
-
-    if existing:
-        # Already exists, skip insertion
-        return
-
-    # Insert into the association table using ORM
-    stmt = recipe_ingredients.insert().values(
-        recipe_id=recipe_id,
-        ingredient_id=ingredient_id,
-        quantity=parsed_ingredient.get("quantity"),
-        unit=parsed_ingredient.get("unit"),
-        preparation=parsed_ingredient.get("preparation"),
-        optional=parsed_ingredient.get("optional", False),
-        order=order,
-    )
-    db.session.execute(stmt)
 
 
 def _associate_recipe_with_job(job: ProcessingJob, recipe: Recipe) -> None:
@@ -1645,104 +1495,6 @@ def _associate_recipe_with_job(job: ProcessingJob, recipe: Recipe) -> None:
     recipe_image = RecipeImage.query.get(job.image_id)
     if recipe_image:
         recipe_image.recipe_id = recipe.id
-
-
-def _parse_ingredient_text(ingredient_text: str) -> Dict[str, Any]:
-    """Parse ingredient text to extract name, quantity, unit, and preparation."""
-    import re
-
-    # Common units pattern
-    units = r"\b(?:cups?|cup|tbsp|tsp|teaspoons?|tablespoons?|oz|ounces?|lbs?|pounds?|g|grams?|kg|kilograms?|ml|milliliters?|l|liters?|pint|pints|quart|quarts|gallon|gallons|inch|inches|cloves?|pieces?|slices?|whole|medium|large|small)\b"
-
-    # Pattern to match quantity + unit + ingredient
-    pattern = (
-        r"^(\d+(?:\.\d+)?(?:/\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?)\s*("
-        + units
-        + r")?\s*(.+)$"
-    )
-
-    match = re.match(pattern, ingredient_text.strip(), re.IGNORECASE)
-
-    if match:
-        quantity_str = match.group(1)
-        unit = match.group(2)
-        remaining = match.group(3)
-
-        # Convert quantity to float
-        try:
-            if "/" in quantity_str:
-                # Handle fractions like "1/2" or "1 1/2"
-                parts = quantity_str.split()
-                if len(parts) == 2:  # "1 1/2"
-                    whole, fraction = parts
-                    num, denom = fraction.split("/")
-                    quantity = float(whole) + float(num) / float(denom)
-                else:  # "1/2"
-                    num, denom = quantity_str.split("/")
-                    quantity = float(num) / float(denom)
-            elif "-" in quantity_str:
-                # Handle ranges like "2-3"
-                quantity = float(quantity_str.split("-")[0])
-            else:
-                quantity = float(quantity_str)
-        except ValueError:
-            quantity = None
-    else:
-        # No quantity/unit found, treat entire text as ingredient name
-        quantity = None
-        unit = None
-        remaining = ingredient_text
-
-    # Split remaining text to separate ingredient from preparation
-    # Look for common preparation indicators
-    prep_indicators = [
-        "chopped",
-        "diced",
-        "sliced",
-        "minced",
-        "grated",
-        "peeled",
-        "cooked",
-        "fresh",
-        "dried",
-        "ground",
-        "whole",
-        "crushed",
-        "beaten",
-        "melted",
-    ]
-
-    name = remaining.strip()
-    preparation = None
-
-    # Look for preparation at the end
-    for prep in prep_indicators:
-        if prep in name.lower():
-            # Try to split on the preparation word
-            parts = name.lower().split(prep)
-            if len(parts) == 2 and parts[1].strip() == "":
-                # Preparation is at the end
-                name = parts[0].strip()
-                preparation = prep
-                break
-            elif len(parts) == 2 and parts[0].strip():
-                # Preparation is in the middle/end
-                name = parts[0].strip()
-                preparation = prep + parts[1].strip()
-                break
-
-    # Clean up the name
-    name = re.sub(r"\s+", " ", name).strip()
-    name = name.strip(",")
-
-    return {
-        "name": name,
-        "quantity": quantity,
-        "unit": unit.lower() if unit else None,
-        "preparation": preparation,
-        "optional": "optional" in ingredient_text.lower(),
-        "category": None,  # Could be enhanced with ingredient categorization
-    }
 
 
 @bp.route("/recipes/<int:recipe_id>/privacy", methods=["PUT"])
@@ -2660,7 +2412,7 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
 
         # Add ingredients
         if parsed_recipe.get("ingredients"):
-            _create_ingredients(recipe.id, parsed_recipe)
+            create_recipe_ingredients(recipe.id, parsed_recipe)
 
         # Add instructions (with original text if translated)
         if parsed_recipe.get("instructions"):
@@ -2669,7 +2421,7 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
                 if parsed_recipe.get("is_translated")
                 else None
             )
-            _create_instructions(
+            create_recipe_instructions(
                 recipe.id,
                 parsed_recipe,
                 recipe_text,
@@ -2678,7 +2430,7 @@ def upload_recipe_text(current_user) -> Tuple[Response, int]:
 
         # Add tags
         if parsed_recipe.get("tags"):
-            _create_tags(recipe.id, parsed_recipe)
+            create_recipe_tags(recipe.id, parsed_recipe)
 
         db.session.commit()
 
@@ -2912,7 +2664,7 @@ def upload_recipe_url(current_user) -> Tuple[Response, int]:
 
         # Add ingredients
         if parsed_recipe.get("ingredients"):
-            _create_ingredients(recipe.id, parsed_recipe)
+            create_recipe_ingredients(recipe.id, parsed_recipe)
 
         # Add instructions (with original text if translated)
         if parsed_recipe.get("instructions"):
@@ -2921,7 +2673,7 @@ def upload_recipe_url(current_user) -> Tuple[Response, int]:
                 if parsed_recipe.get("is_translated")
                 else None
             )
-            _create_instructions(
+            create_recipe_instructions(
                 recipe.id,
                 parsed_recipe,
                 "",  # No fallback text needed
@@ -2930,7 +2682,7 @@ def upload_recipe_url(current_user) -> Tuple[Response, int]:
 
         # Add tags
         if parsed_recipe.get("tags"):
-            _create_tags(recipe.id, parsed_recipe)
+            create_recipe_tags(recipe.id, parsed_recipe)
 
         db.session.commit()
 
@@ -3525,7 +3277,7 @@ def process_multi_image_job(multi_job_id: int):
 
             # Add ingredients if any
             if parsed_recipe.get("ingredients"):
-                _create_ingredients(recipe.id, parsed_recipe)
+                create_recipe_ingredients(recipe.id, parsed_recipe)
 
             # Add instructions if any
             if parsed_recipe.get("instructions"):
