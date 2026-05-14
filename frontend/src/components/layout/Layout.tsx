@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { OfflineBanner } from '../OfflineBanner';
@@ -14,9 +15,30 @@ interface LayoutProps {
 // Check if we're on native iOS for layout adjustments
 const isNativeIOS = (): boolean => isIOS() && isNativePlatform();
 
+// Routes that should render WITHOUT the standard chrome (header/footer/tabbar).
+// Contributor BookProject share links open on mobile from people who don't have
+// accounts — a stripped-down layout keeps the page focused on the submission.
+const NO_CHROME_PREFIXES = ['/contribute/'];
+
 const Layout: React.FC<LayoutProps> = ({ children, className = '' }) => {
   const { isActive, progress } = useSwipeBack();
   const showTabBar = isNativeIOS();
+  const { pathname } = useLocation();
+  const minimal = NO_CHROME_PREFIXES.some((p) => pathname.startsWith(p));
+
+  if (minimal) {
+    return (
+      <div
+        className="min-h-screen flex flex-col overflow-x-hidden w-full max-w-full"
+        style={{ backgroundColor: '#fcf9f8' }}
+      >
+        <OfflineBanner />
+        <main className={`w-full flex-1 overflow-x-hidden box-border ${className}`}>
+          {children}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden w-full max-w-full" style={{ backgroundColor: '#fcf9f8' }}>

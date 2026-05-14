@@ -23,6 +23,7 @@ const CookbookPurchaseSuccessPage = lazy(() => import('./pages/CookbookPurchaseS
 const ProjectsListPage = lazy(() => import('./pages/ProjectsListPage').then(m => ({ default: m.ProjectsListPage })));
 const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage').then(m => ({ default: m.CreateProjectPage })));
 const ProjectDashboardPage = lazy(() => import('./pages/ProjectDashboardPage').then(m => ({ default: m.ProjectDashboardPage })));
+const ContributorLandingPage = lazy(() => import('./pages/ContributorLandingPage').then(m => ({ default: m.ContributorLandingPage })));
 const SourcesPage = lazy(() => import('./pages/SourcesPage').then(m => ({ default: m.SourcesPage })));
 const SourceDetailPage = lazy(() => import('./pages/SourceDetailPage').then(m => ({ default: m.SourceDetailPage })));
 const UploadPage = lazy(() => import('./pages/UploadPage').then(m => ({ default: m.UploadPage })));
@@ -108,6 +109,7 @@ function App() {
                     <Route path="/projects" element={<ProjectsListPage />} />
                     <Route path="/projects/create" element={<CreateProjectPage />} />
                     <Route path="/projects/:id" element={<ProjectDashboardPage />} />
+                    <Route path="/contribute/:token" element={<ContributorLandingPage />} />
                     <Route path="/sources" element={<SourcesPage />} />
                     <Route path="/sources/:id" element={<SourceDetailPage />} />
                     <Route path="/upload" element={<UploadPage />} />
