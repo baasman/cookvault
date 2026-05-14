@@ -1061,3 +1061,93 @@ class TestWebhookHandler:
             assert export.payment_id == payment.id
             assert export.pdf_file_path == str(fake_pdf)
             assert export.is_watermarked is False
+
+
+# ---------------------------------------------------------------------------
+# Organizer-side submission endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestOrganizerContributions:
+    @patch("app.api.book_projects.RecipeParser")
+    def test_submit_text_as_organizer_creates_recipe(
+        self, mock_parser_cls, auth_client, test_user
+    ):
+        mock_parser = MagicMock()
+        mock_parser.parse_recipe_text.return_value = _FAKE_PARSED_RECIPE
+        mock_parser_cls.return_value = mock_parser
+
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/contributions/submit-text",
+            json={"text": "Some recipe text"},
+        )
+        assert response.status_code == 201
+        sub = response.get_json()["submission"]
+
+        recipe = db.session.get(Recipe, sub["recipe_id"])
+        assert recipe.user_id == test_user.id
+        assert recipe.uploaded_by_id == test_user.id
+        assert recipe.guest_contributor_id is None
+        assert recipe.book_project_id == project.id
+        assert recipe.cookbook_id is None
+
+    def test_submit_text_as_organizer_not_owned(self, auth_client, second_user):
+        project = _make_project(second_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/contributions/submit-text",
+            json={"text": "hi"},
+        )
+        assert response.status_code == 404
+
+    def test_submit_text_as_organizer_unauthenticated(self, client, test_user):
+        project = _make_project(test_user)
+        response = client.post(
+            f"/api/book-projects/{project.id}/contributions/submit-text",
+            json={"text": "hi"},
+        )
+        assert response.status_code in (401, 302)
+
+    @patch("app.tasks.recipe_tasks.process_single_recipe_task")
+    @patch("app.api.book_projects.process_and_save_image")
+    def test_submit_image_as_organizer_dispatches_celery(
+        self, mock_save_image, mock_task, auth_client, test_user
+    ):
+        from io import BytesIO
+
+        from app.models import ProcessingJob, RecipeImage
+
+        def fake_save_image(file, filename, folder="recipes"):
+            return RecipeImage(
+                filename=filename,
+                original_filename=filename,
+                file_size=10,
+                content_type="image/jpeg",
+                file_path=f"test/{filename}",
+            )
+
+        mock_save_image.side_effect = fake_save_image
+        mock_task.delay = MagicMock()
+
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/contributions/submit-image",
+            data={"image": (BytesIO(b"fake"), "card.jpg")},
+            content_type="multipart/form-data",
+        )
+        assert response.status_code == 201
+
+        sub = response.get_json()["submission"]
+        job = db.session.get(ProcessingJob, sub["job_id"])
+        # Job carries BookProject context AND the organizer as the upload user
+        # — the resulting Recipe will be owned by the organizer with no guest
+        # contributor.
+        assert job.book_project_id == project.id
+        assert job.guest_contributor_id is None
+        assert job.user_id == test_user.id
+        assert job.cookbook_id is None
+
+        assert mock_task.delay.call_count == 1
+        called_job_id, called_user_id = mock_task.delay.call_args[0]
+        assert called_job_id == sub["job_id"]
+        assert called_user_id == test_user.id

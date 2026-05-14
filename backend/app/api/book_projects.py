@@ -841,6 +841,248 @@ def submit_image_by_token(token: str) -> Response:
 
 
 # ---------------------------------------------------------------------------
+# Organizer-side submission endpoints
+#
+# Mirror the guest /by-token/<token>/submit-* endpoints, but for the organizer
+# contributing recipes directly to their own project. No GuestContributor is
+# created — the resulting Recipe is owned by the organizer with
+# guest_contributor_id null, so the submissions list will show "Added by you".
+# ---------------------------------------------------------------------------
+
+
+def _build_organizer_recipe(
+    *,
+    project: BookProject,
+    parsed_recipe: dict,
+    current_user_id: int,
+    fallback_text: str = "",
+    source_url: Optional[str] = None,
+    is_original_recipe: Optional[bool] = None,
+) -> Recipe:
+    """Build a Recipe owned by ``current_user_id`` and attached to ``project``.
+    Doesn't commit — the caller commits after any additional bookkeeping."""
+    recipe_title = parsed_recipe.get("title") or "Untitled Recipe"
+    if not str(recipe_title).strip():
+        recipe_title = "Untitled Recipe"
+
+    recipe = Recipe(
+        title=recipe_title,
+        description=parsed_recipe.get("description"),
+        user_id=current_user_id,
+        uploaded_by_id=current_user_id,
+        book_project_id=project.id,
+        guest_contributor_id=None,
+        is_public=False,
+        is_original_recipe=is_original_recipe,
+        source=source_url,
+        prep_time=safe_int_conversion(parsed_recipe.get("prep_time")),
+        cook_time=safe_int_conversion(parsed_recipe.get("cook_time")),
+        servings=safe_int_conversion(parsed_recipe.get("servings")),
+        difficulty=parsed_recipe.get("difficulty"),
+        course_type=parsed_recipe.get("course_type"),
+    )
+    db.session.add(recipe)
+    db.session.flush()
+
+    create_recipe_ingredients(recipe.id, parsed_recipe)
+    create_recipe_instructions(recipe.id, parsed_recipe, fallback_text)
+    create_recipe_tags(recipe.id, parsed_recipe)
+    return recipe
+
+
+@bp.route("/<int:project_id>/contributions/submit-text", methods=["POST"])
+@require_auth
+def submit_text_as_organizer(current_user, project_id: int) -> Response:
+    """Organizer adds a recipe to their own project via pasted text."""
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    recipe_text = (data.get("text") or "").strip()
+    if not recipe_text:
+        return jsonify({"error": "No recipe text provided"}), 400
+
+    max_text_length = current_app.config.get("MAX_RECIPE_TEXT_LENGTH", 50000)
+    if len(recipe_text) > max_text_length:
+        return jsonify(
+            {"error": f"Recipe text too long (max {max_text_length} chars)"}
+        ), 400
+
+    try:
+        parser = RecipeParser()
+        parsed_recipe = parser.parse_recipe_text(recipe_text, translate_to_english=False)
+        recipe = _build_organizer_recipe(
+            project=project,
+            parsed_recipe=parsed_recipe,
+            current_user_id=current_user.id,
+            fallback_text=recipe_text,
+        )
+        db.session.commit()
+        return jsonify(
+            {"submission": {"recipe_id": recipe.id, "title": recipe.title}}
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Organizer text submission failed for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to submit recipe"}), 500
+
+
+@bp.route("/<int:project_id>/contributions/submit-url", methods=["POST"])
+@require_auth
+def submit_url_as_organizer(current_user, project_id: int) -> Response:
+    """Organizer adds a recipe to their own project via a URL."""
+    from app.services.url_recipe_service import (
+        BotProtectionError,
+        RecipeNotFoundError,
+        UrlFetchError,
+        UrlRecipeService,
+        UrlValidationError,
+    )
+
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+
+    url_service = UrlRecipeService()
+    try:
+        result = url_service.import_from_url(url, translate_to_english=False)
+    except UrlValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except UrlFetchError as e:
+        return jsonify({"error": str(e)}), 400
+    except BotProtectionError as e:
+        return jsonify({"error": str(e)}), 403
+    except RecipeNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        current_app.logger.error(
+            f"Organizer URL parse failed for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to fetch or parse the URL"}), 500
+
+    parsed_recipe = result["recipe_data"]
+    source_url = result["source_url"]
+
+    try:
+        recipe = _build_organizer_recipe(
+            project=project,
+            parsed_recipe=parsed_recipe,
+            current_user_id=current_user.id,
+            source_url=source_url,
+            # URL imports come from publicly-accessible pages — matches the
+            # existing convention for is_original_recipe on URL imports.
+            is_original_recipe=True,
+        )
+        db.session.commit()
+        return jsonify(
+            {
+                "submission": {
+                    "recipe_id": recipe.id,
+                    "title": recipe.title,
+                    "source": source_url,
+                }
+            }
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Organizer URL submission persist failed for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to submit recipe"}), 500
+
+
+@bp.route("/<int:project_id>/contributions/submit-image", methods=["POST"])
+@require_auth
+@rate_limit_upload
+def submit_image_as_organizer(current_user, project_id: int) -> Response:
+    """Organizer adds a recipe via image upload. Async via Celery, same as the
+    guest image path — the resulting Recipe is owned by the organizer."""
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    if "image" not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files["image"]
+    if not file or file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+    if not allowed_file(file.filename):
+        return jsonify(
+            {"error": f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}
+        ), 400
+
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+    file_size_mb = file_size / (1024 * 1024)
+    max_upload_size = current_app.config.get("MAX_UPLOAD_SIZE", 8)
+    if file_size_mb > max_upload_size:
+        return jsonify(
+            {
+                "error": (
+                    f"File too large ({file_size_mb:.1f}MB). "
+                    f"Please use files smaller than {max_upload_size}MB."
+                )
+            }
+        ), 400
+
+    try:
+        recipe_image = process_and_save_image(
+            file, file.filename, folder=f"book-projects/{project.id}"
+        )
+        db.session.add(recipe_image)
+        db.session.flush()
+
+        processing_job = ProcessingJob(
+            image_id=recipe_image.id,
+            cookbook_id=None,
+            user_id=current_user.id,
+            book_project_id=project.id,
+            guest_contributor_id=None,
+            is_original_recipe=None,
+            translate_to_english=False,
+        )
+        db.session.add(processing_job)
+        db.session.commit()
+
+        from app.tasks.recipe_tasks import process_single_recipe_task
+
+        current_app.logger.info(
+            f"Queuing organizer-submitted task: project={project.id}, "
+            f"user={current_user.id}, job={processing_job.id}"
+        )
+        process_single_recipe_task.delay(processing_job.id, current_user.id)
+
+        return jsonify(
+            {
+                "submission": {
+                    "job_id": processing_job.id,
+                    "image_id": recipe_image.id,
+                    "status": "processing",
+                }
+            }
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Organizer image submission failed for project {project.id}: {e}\n{traceback.format_exc()}"
+        )
+        import gc
+
+        gc.collect()
+        return jsonify({"error": "Failed to submit recipe image"}), 500
+
+
+# ---------------------------------------------------------------------------
 # Export endpoints (PDF preview + paid clean export)
 # ---------------------------------------------------------------------------
 

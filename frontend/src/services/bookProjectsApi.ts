@@ -195,6 +195,66 @@ class BookProjectsApi {
     if (!res.ok) throw new Error('Failed to update submission');
   }
 
+  // --- Organizer-side contributions (auth, no token) --------------------
+
+  async submitTextAsOrganizer(
+    projectId: number,
+    text: string,
+  ): Promise<{ submission: { recipe_id: number; title: string } }> {
+    const res = await apiFetch(
+      `${this.baseUrl}/book-projects/${projectId}/contributions/submit-text`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit recipe');
+    }
+    return res.json();
+  }
+
+  async submitUrlAsOrganizer(
+    projectId: number,
+    url: string,
+  ): Promise<{ submission: { recipe_id: number; title: string; source: string } }> {
+    const res = await apiFetch(
+      `${this.baseUrl}/book-projects/${projectId}/contributions/submit-url`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit recipe');
+    }
+    return res.json();
+  }
+
+  async submitImageAsOrganizer(
+    projectId: number,
+    file: File,
+  ): Promise<{ submission: { job_id: number; image_id: number; status: string } }> {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await apiFetch(
+      `${this.baseUrl}/book-projects/${projectId}/contributions/submit-image`,
+      {
+        method: 'POST',
+        body: form,
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit image');
+    }
+    return res.json();
+  }
+
   // --- Exports -----------------------------------------------------------
 
   async listExports(projectId: number): Promise<BookProjectExport[]> {

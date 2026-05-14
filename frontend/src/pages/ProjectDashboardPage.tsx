@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { bookProjectsApi } from '../services/bookProjectsApi';
 import { getApiUrl } from '../utils/getApiUrl';
 import { ExportPaywallModal } from '../components/payments/ExportPaywallModal';
+import { AddRecipeModal } from '../components/book-projects/AddRecipeModal';
 import type { BookProjectExport, ProjectShareLink, ProjectSubmission } from '../types';
 
 const PROJECT_TYPE_COPY: Record<string, string> = {
@@ -21,7 +22,7 @@ export const ProjectDashboardPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const projectId = Number(id);
 
   const { data: project, isLoading, error } = useQuery({
@@ -110,6 +111,7 @@ export const ProjectDashboardPage: React.FC = () => {
       <SubmissionsSection
         projectId={projectId}
         submissions={submissions ?? []}
+        currentUserId={user?.id}
         onChange={() =>
           queryClient.invalidateQueries({
             queryKey: ['book-project-submissions', projectId],
@@ -220,8 +222,11 @@ const ShareLinksSection: React.FC<{
 const SubmissionsSection: React.FC<{
   projectId: number;
   submissions: ProjectSubmission[];
+  currentUserId: number | undefined;
   onChange: () => void;
-}> = ({ projectId, submissions, onChange }) => {
+}> = ({ projectId, submissions, currentUserId, onChange }) => {
+  const [addOpen, setAddOpen] = useState(false);
+
   const toggleMutation = useMutation({
     mutationFn: ({ recipeId, excluded }: { recipeId: number; excluded: boolean }) =>
       bookProjectsApi.setSubmissionExcluded(projectId, recipeId, excluded),
@@ -230,54 +235,85 @@ const SubmissionsSection: React.FC<{
 
   return (
     <section>
-      <h2 className="text-xl font-semibold mb-3" style={{ color: '#1c120d' }}>
-        Submissions
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-semibold" style={{ color: '#1c120d' }}>
+          Submissions
+        </h2>
+        <button
+          onClick={() => setAddOpen(true)}
+          className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-90 transition-opacity"
+          style={{ backgroundColor: '#f15f1c' }}
+        >
+          Add a recipe
+        </button>
+      </div>
+
       {submissions.length === 0 ? (
         <p className="text-sm" style={{ color: '#9b644b' }}>
-          No recipes yet. Once a contributor submits via your share link, their recipe
-          will land here.
+          No recipes yet. Add one yourself, or share the link above so family and friends
+          can submit theirs.
         </p>
       ) : (
         <ul className="space-y-2">
-          {submissions.map((sub) => (
-            <li
-              key={sub.recipe_id}
-              className="px-3 py-3 rounded-lg border flex items-start justify-between gap-3"
-              style={{
-                borderColor: '#e8dccf',
-                backgroundColor: sub.is_excluded_from_project ? '#f6efe6' : '#fffbf5',
-                opacity: sub.is_excluded_from_project ? 0.6 : 1,
-              }}
-            >
-              <div className="min-w-0">
-                <div className="font-medium truncate" style={{ color: '#1c120d' }}>
-                  {sub.title}
-                </div>
-                <div className="text-xs mt-0.5" style={{ color: '#9b644b' }}>
-                  {sub.contributor ? `From ${sub.contributor.display_name}` : 'Anonymous'}
-                  {sub.is_excluded_from_project ? ' • excluded from book' : ''}
-                </div>
-              </div>
-              <button
-                onClick={() =>
-                  toggleMutation.mutate({
-                    recipeId: sub.recipe_id,
-                    excluded: !sub.is_excluded_from_project,
-                  })
-                }
-                className="px-2 py-1 text-xs rounded hover:opacity-80 whitespace-nowrap"
+          {submissions.map((sub) => {
+            const isMine =
+              !sub.contributor &&
+              currentUserId !== undefined &&
+              sub.uploaded_by_id === currentUserId;
+            const attribution = sub.contributor
+              ? `From ${sub.contributor.display_name}`
+              : isMine
+                ? 'Added by you'
+                : 'Anonymous';
+            return (
+              <li
+                key={sub.recipe_id}
+                className="px-3 py-3 rounded-lg border flex items-start justify-between gap-3"
                 style={{
-                  backgroundColor: sub.is_excluded_from_project ? '#f15f1c' : '#e8dccf',
-                  color: sub.is_excluded_from_project ? '#fff' : '#1c120d',
+                  borderColor: '#e8dccf',
+                  backgroundColor: sub.is_excluded_from_project ? '#f6efe6' : '#fffbf5',
+                  opacity: sub.is_excluded_from_project ? 0.6 : 1,
                 }}
               >
-                {sub.is_excluded_from_project ? 'Include' : 'Exclude'}
-              </button>
-            </li>
-          ))}
+                <div className="min-w-0">
+                  <div className="font-medium truncate" style={{ color: '#1c120d' }}>
+                    {sub.title}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: '#9b644b' }}>
+                    {attribution}
+                    {sub.is_excluded_from_project ? ' • excluded from book' : ''}
+                  </div>
+                </div>
+                <button
+                  onClick={() =>
+                    toggleMutation.mutate({
+                      recipeId: sub.recipe_id,
+                      excluded: !sub.is_excluded_from_project,
+                    })
+                  }
+                  className="px-2 py-1 text-xs rounded hover:opacity-80 whitespace-nowrap"
+                  style={{
+                    backgroundColor: sub.is_excluded_from_project ? '#f15f1c' : '#e8dccf',
+                    color: sub.is_excluded_from_project ? '#fff' : '#1c120d',
+                  }}
+                >
+                  {sub.is_excluded_from_project ? 'Include' : 'Exclude'}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
+
+      <AddRecipeModal
+        projectId={projectId}
+        isOpen={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSubmitted={() => {
+          setAddOpen(false);
+          onChange();
+        }}
+      />
     </section>
   );
 };
