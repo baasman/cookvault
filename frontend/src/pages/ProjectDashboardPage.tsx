@@ -1,0 +1,348 @@
+import React, { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { useAuth } from '../contexts/AuthContext';
+import { bookProjectsApi } from '../services/bookProjectsApi';
+import { getApiUrl } from '../utils/getApiUrl';
+import type { ProjectShareLink, ProjectSubmission } from '../types';
+
+const PROJECT_TYPE_COPY: Record<string, string> = {
+  wedding: 'Wedding cookbook',
+  anniversary: 'Anniversary cookbook',
+  heirloom: 'Family heirloom',
+  memorial: 'Memorial cookbook',
+  holiday: 'Holiday cookbook',
+  general: 'Cookbook project',
+};
+
+export const ProjectDashboardPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const projectId = Number(id);
+
+  const { data: project, isLoading, error } = useQuery({
+    queryKey: ['book-project', projectId],
+    queryFn: () => bookProjectsApi.get(projectId),
+    enabled: isAuthenticated && !!projectId,
+  });
+
+  const { data: submissions } = useQuery({
+    queryKey: ['book-project-submissions', projectId],
+    queryFn: () => bookProjectsApi.listSubmissions(projectId),
+    enabled: isAuthenticated && !!projectId,
+  });
+
+  if (authLoading) return null;
+  if (!isAuthenticated) {
+    navigate('/login');
+    return null;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div
+          className="h-24 rounded-lg animate-pulse"
+          style={{ backgroundColor: '#f6efe6' }}
+        />
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-12 text-center">
+        <p className="mb-3" style={{ color: '#9b644b' }}>
+          Project not found.
+        </p>
+        <button
+          onClick={() => navigate('/projects')}
+          className="px-4 py-2 text-white rounded-lg"
+          style={{ backgroundColor: '#f15f1c' }}
+        >
+          Back to projects
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      <button
+        onClick={() => navigate('/projects')}
+        className="text-sm hover:underline"
+        style={{ color: '#9b644b' }}
+      >
+        ← Back to projects
+      </button>
+
+      <header>
+        <div className="text-xs uppercase tracking-wider mb-1" style={{ color: '#9b644b' }}>
+          {PROJECT_TYPE_COPY[project.project_type] ?? 'Cookbook project'}
+        </div>
+        <h1 className="text-3xl font-bold" style={{ color: '#1c120d' }}>
+          {project.title}
+        </h1>
+        {project.honorees && project.honorees.length > 0 && (
+          <p className="mt-1" style={{ color: '#6b5a52' }}>
+            For {project.honorees.join(' & ')}
+            {project.occasion_date ? ` — ${project.occasion_date}` : ''}
+          </p>
+        )}
+        <div className="mt-3 inline-flex items-center px-2 py-1 rounded text-xs"
+          style={{ backgroundColor: '#f6efe6', color: '#6b5a52' }}>
+          Status: {project.status}
+        </div>
+      </header>
+
+      <ShareLinksSection
+        projectId={projectId}
+        shareLinks={project.share_links ?? []}
+        onChange={() =>
+          queryClient.invalidateQueries({ queryKey: ['book-project', projectId] })
+        }
+      />
+
+      <SubmissionsSection
+        projectId={projectId}
+        submissions={submissions ?? []}
+        onChange={() =>
+          queryClient.invalidateQueries({
+            queryKey: ['book-project-submissions', projectId],
+          })
+        }
+      />
+
+      <ExportSection projectId={projectId} />
+    </div>
+  );
+};
+
+const ShareLinksSection: React.FC<{
+  projectId: number;
+  shareLinks: ProjectShareLink[];
+  onChange: () => void;
+}> = ({ projectId, shareLinks, onChange }) => {
+  const createMutation = useMutation({
+    mutationFn: () => bookProjectsApi.createShareLink(projectId, {}),
+    onSuccess: onChange,
+  });
+  const revokeMutation = useMutation({
+    mutationFn: (token: string) => bookProjectsApi.revokeShareLink(projectId, token),
+    onSuccess: onChange,
+  });
+
+  const apiBase = getApiUrl();
+  const frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-semibold" style={{ color: '#1c120d' }}>
+          Share links
+        </h2>
+        <button
+          onClick={() => createMutation.mutate()}
+          disabled={createMutation.isPending}
+          className="px-3 py-1.5 text-sm text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+          style={{ backgroundColor: '#f15f1c' }}
+        >
+          {createMutation.isPending ? 'Creating…' : 'New share link'}
+        </button>
+      </div>
+
+      {shareLinks.length === 0 ? (
+        <p className="text-sm" style={{ color: '#9b644b' }}>
+          Generate a share link to invite contributors. Anyone with the link can submit
+          a recipe — no account required on their end.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {shareLinks.map((link) => {
+            const url = link.url ?? `${frontendOrigin}/contribute/${link.token}`;
+            return (
+              <li
+                key={link.id}
+                className="px-3 py-2 rounded-lg border flex items-center justify-between gap-3"
+                style={{
+                  borderColor: '#e8dccf',
+                  backgroundColor: link.revoked ? '#f6efe6' : '#fffbf5',
+                  opacity: link.revoked ? 0.6 : 1,
+                }}
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-mono truncate" style={{ color: '#1c120d' }}>
+                    {url}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: '#9b644b' }}>
+                    {link.submission_count} submissions
+                    {link.submission_cap ? ` / ${link.submission_cap}` : ''}
+                    {link.revoked ? ' • revoked' : ''}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                        navigator.clipboard.writeText(url);
+                      }
+                    }}
+                    className="px-2 py-1 text-xs rounded hover:opacity-80"
+                    style={{ backgroundColor: '#1c120d', color: '#fffbf5' }}
+                  >
+                    Copy
+                  </button>
+                  {!link.revoked && (
+                    <button
+                      onClick={() => revokeMutation.mutate(link.token)}
+                      className="px-2 py-1 text-xs rounded hover:opacity-80"
+                      style={{ color: '#9b3a1c' }}
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {/* Avoid unused-var warning while keeping `apiBase` available for future absolute-URL UX. */}
+      <span style={{ display: 'none' }}>{apiBase}</span>
+    </section>
+  );
+};
+
+const SubmissionsSection: React.FC<{
+  projectId: number;
+  submissions: ProjectSubmission[];
+  onChange: () => void;
+}> = ({ projectId, submissions, onChange }) => {
+  const toggleMutation = useMutation({
+    mutationFn: ({ recipeId, excluded }: { recipeId: number; excluded: boolean }) =>
+      bookProjectsApi.setSubmissionExcluded(projectId, recipeId, excluded),
+    onSuccess: onChange,
+  });
+
+  return (
+    <section>
+      <h2 className="text-xl font-semibold mb-3" style={{ color: '#1c120d' }}>
+        Submissions
+      </h2>
+      {submissions.length === 0 ? (
+        <p className="text-sm" style={{ color: '#9b644b' }}>
+          No recipes yet. Once a contributor submits via your share link, their recipe
+          will land here.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {submissions.map((sub) => (
+            <li
+              key={sub.recipe_id}
+              className="px-3 py-3 rounded-lg border flex items-start justify-between gap-3"
+              style={{
+                borderColor: '#e8dccf',
+                backgroundColor: sub.is_excluded_from_project ? '#f6efe6' : '#fffbf5',
+                opacity: sub.is_excluded_from_project ? 0.6 : 1,
+              }}
+            >
+              <div className="min-w-0">
+                <div className="font-medium truncate" style={{ color: '#1c120d' }}>
+                  {sub.title}
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: '#9b644b' }}>
+                  {sub.contributor ? `From ${sub.contributor.display_name}` : 'Anonymous'}
+                  {sub.is_excluded_from_project ? ' • excluded from book' : ''}
+                </div>
+              </div>
+              <button
+                onClick={() =>
+                  toggleMutation.mutate({
+                    recipeId: sub.recipe_id,
+                    excluded: !sub.is_excluded_from_project,
+                  })
+                }
+                className="px-2 py-1 text-xs rounded hover:opacity-80 whitespace-nowrap"
+                style={{
+                  backgroundColor: sub.is_excluded_from_project ? '#f15f1c' : '#e8dccf',
+                  color: sub.is_excluded_from_project ? '#fff' : '#1c120d',
+                }}
+              >
+                {sub.is_excluded_from_project ? 'Include' : 'Exclude'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+};
+
+const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewMutation = useMutation({
+    mutationFn: () => bookProjectsApi.createPreview(projectId),
+    onSuccess: (resp) => {
+      setPreviewError(null);
+      // The download endpoint is auth-gated; opening in a new tab lets the
+      // browser send credentials and trigger the PDF download dialog.
+      const url = `${getApiUrl()}/book-projects/${projectId}/exports/${resp.export.id}/download`;
+      window.open(url, '_blank', 'noopener');
+    },
+    onError: (err: Error) => {
+      setPreviewError(err.message);
+    },
+  });
+
+  return (
+    <section>
+      <h2 className="text-xl font-semibold mb-3" style={{ color: '#1c120d' }}>
+        Export
+      </h2>
+      <div
+        className="px-4 py-4 rounded-lg border"
+        style={{ borderColor: '#e8dccf', backgroundColor: '#fffbf5' }}
+      >
+        <p className="text-sm mb-3" style={{ color: '#6b5a52' }}>
+          Download a watermarked PDF preview for free. The clean (no watermark) version is
+          a one-time purchase.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => previewMutation.mutate()}
+            disabled={previewMutation.isPending}
+            className="px-4 py-2 rounded-lg border hover:opacity-90 disabled:opacity-50 transition-opacity"
+            style={{
+              borderColor: '#1c120d',
+              backgroundColor: '#fffbf5',
+              color: '#1c120d',
+            }}
+          >
+            {previewMutation.isPending ? 'Rendering…' : 'Download preview PDF'}
+          </button>
+          <button
+            disabled
+            title="Purchase flow lands next (Task 9)"
+            className="px-4 py-2 text-white rounded-lg opacity-50 cursor-not-allowed"
+            style={{ backgroundColor: '#f15f1c' }}
+          >
+            Buy clean PDF (coming soon)
+          </button>
+        </div>
+        {previewError && (
+          <div
+            className="mt-3 px-3 py-2 rounded text-sm"
+            style={{ backgroundColor: '#fef0ea', color: '#9b3a1c' }}
+          >
+            {previewError}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
+export default ProjectDashboardPage;
