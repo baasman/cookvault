@@ -1,0 +1,269 @@
+/* Phase 1 BookProject template — clean, print-ready layout that works for
+   wedding / anniversary / heirloom / memorial / holiday variants. The HTML
+   template chooses copy via project.project_type; the CSS is shared. */
+
+@page {
+  size: A5;
+  margin: 18mm 16mm 22mm 16mm;
+  @bottom-center {
+    content: counter(page);
+    font-family: "Georgia", "Times New Roman", serif;
+    font-size: 9pt;
+    color: #6b5a52;
+  }
+}
+
+@page :first {
+  /* The cover page hides the page number. */
+  @bottom-center { content: none; }
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: #1c120d;
+}
+
+h1, h2, h3 {
+  font-family: "Georgia", "Times New Roman", serif;
+  font-weight: normal;
+  color: #1c120d;
+  margin: 0;
+}
+
+/* ---- Watermark for free previews ---- */
+.watermark {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+  transform: rotate(-30deg);
+  transform-origin: center;
+}
+.watermark span {
+  display: block;
+  font-size: 32pt;
+  color: rgba(241, 95, 28, 0.10);
+  letter-spacing: 0.15em;
+  font-family: "Helvetica", "Arial", sans-serif;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+/* ---- Cover ---- */
+.cover {
+  page-break-after: always;
+  page: cover;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 40mm 8mm;
+}
+.cover-inner {
+  border-top: 1px solid #1c120d;
+  border-bottom: 1px solid #1c120d;
+  padding: 18mm 4mm;
+  width: 100%;
+}
+.cover-eyebrow {
+  font-family: "Helvetica", "Arial", sans-serif;
+  font-size: 9pt;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #6b5a52;
+  margin: 0 0 8mm 0;
+}
+.cover-title {
+  font-size: 28pt;
+  line-height: 1.15;
+  margin: 0;
+  font-style: italic;
+}
+.cover-subtitle {
+  margin-top: 6mm;
+  font-size: 11pt;
+  color: #4a3c33;
+}
+.cover-honorees {
+  margin-top: 14mm;
+  font-size: 18pt;
+  font-style: italic;
+}
+.cover-date {
+  margin-top: 4mm;
+  font-size: 10pt;
+  letter-spacing: 0.15em;
+  font-family: "Helvetica", "Arial", sans-serif;
+  color: #6b5a52;
+  text-transform: uppercase;
+}
+
+/* ---- Dedication ---- */
+.dedication {
+  page-break-after: always;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+.dedication p {
+  max-width: 80mm;
+  font-style: italic;
+  font-size: 12pt;
+  line-height: 1.7;
+}
+
+/* ---- Table of contents ---- */
+.toc {
+  page-break-after: always;
+}
+.toc h2 {
+  font-size: 18pt;
+  margin-bottom: 8mm;
+  font-style: italic;
+}
+.toc ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.toc li {
+  padding: 2.5mm 0;
+  border-bottom: 1px dotted #c8b8a8;
+  font-size: 10.5pt;
+}
+.toc-title {
+  font-weight: bold;
+}
+.toc-contributor {
+  color: #6b5a52;
+  font-style: italic;
+}
+
+/* ---- Recipe pages ---- */
+.recipe {
+  page-break-before: always;
+}
+.recipe-header {
+  border-bottom: 1px solid #d4c2b3;
+  padding-bottom: 4mm;
+  margin-bottom: 5mm;
+}
+.recipe-title {
+  font-size: 20pt;
+  font-style: italic;
+  line-height: 1.2;
+}
+.recipe-contributor {
+  margin: 2mm 0 0 0;
+  font-size: 9.5pt;
+  color: #6b5a52;
+  font-style: italic;
+}
+.recipe-description {
+  font-size: 10.5pt;
+  margin: 0 0 5mm 0;
+  color: #3a2d23;
+}
+.recipe-meta {
+  display: flex;
+  gap: 5mm;
+  font-size: 9pt;
+  color: #6b5a52;
+  font-family: "Helvetica", "Arial", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 5mm 0;
+  padding: 2mm 0;
+  border-top: 1px solid #f0e6da;
+  border-bottom: 1px solid #f0e6da;
+}
+.recipe-meta dt {
+  font-weight: bold;
+}
+.recipe-meta dd {
+  margin: 0 4mm 0 1mm;
+}
+.recipe-body h3 {
+  font-size: 11pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: "Helvetica", "Arial", sans-serif;
+  margin-top: 4mm;
+  margin-bottom: 2mm;
+}
+.recipe-ingredients ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.recipe-ingredients li {
+  padding: 1mm 0;
+  border-bottom: 1px dotted #e8dccf;
+  font-size: 10pt;
+}
+.recipe-ingredients li:last-child {
+  border-bottom: none;
+}
+.ingredient-qty {
+  font-weight: bold;
+}
+.ingredient-prep {
+  color: #6b5a52;
+  font-style: italic;
+}
+.recipe-instructions ol {
+  padding-left: 5mm;
+  margin: 0;
+}
+.recipe-instructions li {
+  padding: 2mm 0;
+  font-size: 10.5pt;
+  line-height: 1.6;
+}
+
+/* ---- Empty state ---- */
+.empty {
+  page-break-before: always;
+  text-align: center;
+  padding: 30mm 0;
+  color: #6b5a52;
+  font-style: italic;
+}
+
+/* ---- Colophon ---- */
+.colophon {
+  page-break-before: always;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: #4a3c33;
+  font-style: italic;
+}
+.colophon-meta {
+  margin-top: 4mm;
+  font-size: 9pt;
+  color: #6b5a52;
+  font-style: normal;
+  font-family: "Helvetica", "Arial", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
