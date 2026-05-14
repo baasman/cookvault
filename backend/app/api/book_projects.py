@@ -26,6 +26,7 @@ from app.api.recipes.helpers import (
 )
 from app.models import (
     BookProject,
+    BookProjectExport,
     GuestContributor,
     ProcessingJob,
     ProjectShareLink,
@@ -837,3 +838,164 @@ def submit_image_by_token(token: str) -> Response:
 
         gc.collect()
         return jsonify({"error": "Failed to submit recipe image"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Export endpoints (PDF preview + paid clean export)
+# ---------------------------------------------------------------------------
+
+
+@bp.route("/<int:project_id>/export/preview", methods=["POST"])
+@require_auth
+def create_export_preview(current_user, project_id: int) -> Response:
+    """Render a free watermarked PDF preview of the BookProject. Synchronous.
+    Returns the export id so the caller can immediately fetch the file from
+    /exports/<export_id>/download."""
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    from app.services.book_project_pdf_service import render_book_project_pdf
+
+    try:
+        pdf_path = render_book_project_pdf(project, watermarked=True)
+    except FileNotFoundError as e:
+        current_app.logger.error(
+            f"Preview template missing for project {project_id}: {e}"
+        )
+        return jsonify({"error": "Template not found"}), 500
+    except Exception as e:
+        current_app.logger.error(
+            f"Preview PDF render failed for project {project_id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to render preview PDF"}), 500
+
+    try:
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=current_user.id,
+            payment_id=None,
+            pdf_file_path=pdf_path,
+            is_watermarked=True,
+        )
+        db.session.add(export)
+        db.session.commit()
+        return jsonify(
+            {
+                "export": export.to_dict(),
+                "download_url": (
+                    f"/api/book-projects/{project.id}/exports/{export.id}/download"
+                ),
+            }
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Failed to persist preview export for project {project_id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to record preview"}), 500
+
+
+@bp.route("/<int:project_id>/export/purchase", methods=["POST"])
+@require_auth
+def create_export_purchase(current_user, project_id: int) -> Response:
+    """Start a paid clean-PDF export. Creates a placeholder BookProjectExport
+    + a Stripe PaymentIntent; the webhook handler fills in pdf_file_path once
+    the payment succeeds."""
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    try:
+        # Placeholder export row — pdf_file_path filled in by the webhook.
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=current_user.id,
+            payment_id=None,
+            pdf_file_path=None,
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.flush()
+
+        from app.services.stripe_service import StripeService
+
+        stripe_service = StripeService()
+        intent_info = stripe_service.create_book_project_export_payment_intent(
+            user=current_user, project=project, export_id=export.id
+        )
+
+        return jsonify({"export_id": export.id, **intent_info}), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Failed to create export purchase for project {project_id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to start export purchase"}), 500
+
+
+@bp.route("/<int:project_id>/exports", methods=["GET"])
+@require_auth
+def list_exports(current_user, project_id: int) -> Response:
+    """List BookProjectExports for this project that the current user has
+    requested. Includes both watermarked previews and paid clean exports;
+    the consumer (frontend) can filter or sort however it wants."""
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    exports = (
+        BookProjectExport.query.filter_by(
+            project_id=project.id, user_id=current_user.id
+        )
+        .order_by(BookProjectExport.created_at.desc())
+        .all()
+    )
+    return jsonify({"exports": [e.to_dict() for e in exports]}), 200
+
+
+@bp.route(
+    "/<int:project_id>/exports/<int:export_id>/download", methods=["GET"]
+)
+@require_auth
+def download_export(current_user, project_id: int, export_id: int) -> Response:
+    """Stream the generated PDF if the caller owns it. Paid exports that
+    haven't finished rendering yet return 202 so the frontend can poll
+    rather than treating it as a hard failure."""
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    export = BookProjectExport.query.filter_by(
+        id=export_id, project_id=project.id, user_id=current_user.id
+    ).first()
+    if not export:
+        return jsonify({"error": "Export not found"}), 404
+
+    if not export.pdf_file_path:
+        # Paid exports are rendered by the webhook; until that fires the file
+        # isn't on disk. Frontend can poll the list endpoint to detect ready.
+        return jsonify(
+            {"error": "Export is still being generated", "status": "pending"}
+        ), 202
+
+    import os
+
+    if not os.path.exists(export.pdf_file_path):
+        current_app.logger.error(
+            f"Export file missing from disk: export={export.id} path={export.pdf_file_path}"
+        )
+        return jsonify({"error": "Export file is missing"}), 410
+
+    from flask import send_file
+
+    download_name = (
+        f"book-project-{project.id}"
+        f"{'-preview' if export.is_watermarked else ''}.pdf"
+    )
+    return send_file(
+        export.pdf_file_path,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=download_name,
+    )

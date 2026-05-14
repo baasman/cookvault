@@ -396,6 +396,8 @@ class StripeService:
                 self._handle_cookbook_payment_success(payment, metadata)
             elif payment_type == PaymentType.PRINT_ORDER.value:
                 self._handle_print_order_payment_success(payment, metadata)
+            elif payment_type == PaymentType.BOOK_PROJECT_EXPORT.value:
+                self._handle_book_project_export_payment_success(payment, metadata)
 
             db.session.commit()
             logger.info(f"Successfully processed payment {payment_intent_id}")
@@ -484,6 +486,139 @@ class StripeService:
         logger.info(
             f"Print order {print_order.order_number} payment completed for user {user.id}"
         )
+
+    def create_book_project_export_payment_intent(
+        self, user: User, project, export_id: int
+    ) -> Dict[str, Any]:
+        """Create a Stripe PaymentIntent for the paid clean PDF export of a
+        BookProject. ``export_id`` references a pre-created BookProjectExport row
+        that the webhook handler will populate with the rendered PDF path once
+        payment succeeds.
+        """
+        try:
+            customer_id = self.get_or_create_customer(user)
+
+            price = current_app.config.get("BOOK_PROJECT_EXPORT_PRICE_USD", 19.0)
+            try:
+                price_decimal = Decimal(str(price))
+            except Exception:
+                price_decimal = Decimal("19.0")
+
+            amount_cents = int(price_decimal * 100)
+
+            metadata = {
+                "user_id": str(user.id),
+                "book_project_id": str(project.id),
+                "book_project_export_id": str(export_id),
+                "payment_type": PaymentType.BOOK_PROJECT_EXPORT.value,
+            }
+
+            payment_intent = stripe.PaymentIntent.create(
+                amount=amount_cents,
+                currency="usd",
+                customer=customer_id,
+                metadata=metadata,
+                automatic_payment_methods={"enabled": True},
+            )
+
+            description = (
+                f"Clean PDF export of '{project.title}' (BookProject {project.id})"
+            )
+
+            payment = Payment(
+                user_id=user.id,
+                stripe_payment_intent_id=payment_intent.id,
+                payment_type=PaymentType.BOOK_PROJECT_EXPORT,
+                status=PaymentStatus.PENDING,
+                amount=price_decimal,
+                currency="usd",
+                description=description,
+            )
+            db.session.add(payment)
+            db.session.commit()
+
+            logger.info(
+                f"Created BookProject export payment intent {payment_intent.id} "
+                f"for user {user.id}, project {project.id}, export {export_id}"
+            )
+
+            return {
+                "client_secret": payment_intent.client_secret,
+                "payment_intent_id": payment_intent.id,
+                "amount": amount_cents,
+                "currency": "usd",
+                "export_id": export_id,
+                "project_id": project.id,
+                "price": float(price_decimal),
+            }
+
+        except stripe.error.StripeError as e:
+            logger.error(
+                f"Failed to create BookProject export payment intent for user {user.id}, "
+                f"project {project.id}: {str(e)}"
+            )
+            raise
+
+    def _handle_book_project_export_payment_success(
+        self, payment: Payment, metadata: Dict[str, Any]
+    ) -> None:
+        """Handle successful BookProject export payment: render the clean PDF
+        and link it to the BookProjectExport row that was created at checkout
+        time.
+        """
+        from app.models import BookProject, BookProjectExport
+        from app.services.book_project_pdf_service import render_book_project_pdf
+
+        export_id_raw = metadata.get("book_project_export_id")
+        if not export_id_raw:
+            logger.error(
+                f"BOOK_PROJECT_EXPORT payment {payment.id} is missing export_id metadata"
+            )
+            return
+
+        try:
+            export_id = int(export_id_raw)
+        except (TypeError, ValueError):
+            logger.error(
+                f"BOOK_PROJECT_EXPORT payment {payment.id} has invalid export_id metadata: {export_id_raw}"
+            )
+            return
+
+        export = db.session.get(BookProjectExport, export_id)
+        if not export:
+            logger.error(
+                f"BookProjectExport {export_id} not found for payment {payment.id}"
+            )
+            return
+
+        # Link payment to export so future lookups work both directions.
+        export.payment_id = payment.id
+
+        project = db.session.get(BookProject, export.project_id)
+        if not project:
+            logger.error(
+                f"BookProject {export.project_id} not found for export {export_id}"
+            )
+            return
+
+        # Render the clean (non-watermarked) PDF. If WeasyPrint fails (e.g.
+        # missing system libs in the deployment) we still mark the payment as
+        # succeeded — the user can re-download via a regeneration endpoint
+        # rather than losing their purchase.
+        try:
+            pdf_path = render_book_project_pdf(project, watermarked=False)
+            export.pdf_file_path = pdf_path
+            export.is_watermarked = False
+            logger.info(
+                f"Rendered clean PDF for BookProjectExport {export_id} -> {pdf_path}"
+            )
+        except Exception as render_err:
+            logger.error(
+                f"Failed to render PDF for BookProjectExport {export_id}: {render_err}",
+                exc_info=True,
+            )
+            # Leave pdf_file_path null; the download endpoint will return 503
+            # with a "regenerating" message and a retry-able regenerate route.
 
     def _add_cookbook_recipes_to_collection(
         self, user_id: int, cookbook: "Cookbook"

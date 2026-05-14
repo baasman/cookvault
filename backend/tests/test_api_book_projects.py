@@ -773,3 +773,291 @@ class TestCreateRecipeFromParsedDataBookProject:
             assert recipe.guest_contributor_id == contributor.id
             assert recipe.cookbook_id is None
             assert recipe.uploaded_by_id is None
+
+
+# ---------------------------------------------------------------------------
+# Export endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestExportPreview:
+    @patch("app.api.book_projects.render_book_project_pdf", create=True)
+    @patch(
+        "app.services.book_project_pdf_service.render_book_project_pdf"
+    )
+    def test_create_preview_renders_and_records(
+        self, mock_render, _mock_render_alias, auth_client, test_user, tmp_path
+    ):
+        from app.models import BookProjectExport
+
+        fake_pdf = tmp_path / "preview.pdf"
+        fake_pdf.write_bytes(b"%PDF-1.4\n%fake\n")
+        mock_render.return_value = str(fake_pdf)
+
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/preview", json={}
+        )
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["export"]["is_watermarked"] is True
+        assert data["export"]["payment_id"] is None
+        assert "download_url" in data
+
+        export = db.session.get(BookProjectExport, data["export"]["id"])
+        assert export.user_id == test_user.id
+        assert export.project_id == project.id
+        assert export.pdf_file_path == str(fake_pdf)
+        assert mock_render.call_count == 1
+        # render_book_project_pdf(project, watermarked=True)
+        kwargs = mock_render.call_args.kwargs
+        assert kwargs.get("watermarked") is True
+
+    def test_preview_not_owned(self, auth_client, second_user):
+        project = _make_project(second_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/preview", json={}
+        )
+        assert response.status_code == 404
+
+
+class TestExportPurchase:
+    @patch("app.services.stripe_service.StripeService")
+    def test_create_purchase_creates_export_and_intent(
+        self, mock_service_cls, auth_client, test_user
+    ):
+        from app.models import BookProjectExport
+
+        mock_service = MagicMock()
+        mock_service.create_book_project_export_payment_intent.return_value = {
+            "client_secret": "pi_test_secret_abc",
+            "payment_intent_id": "pi_test_abc",
+            "amount": 1900,
+            "currency": "usd",
+            "export_id": 1,
+            "project_id": 1,
+            "price": 19.0,
+        }
+        mock_service_cls.return_value = mock_service
+
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/purchase", json={}
+        )
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["client_secret"] == "pi_test_secret_abc"
+        assert "export_id" in data
+
+        export = db.session.get(BookProjectExport, data["export_id"])
+        assert export is not None
+        assert export.is_watermarked is False
+        assert export.pdf_file_path is None
+        assert export.user_id == test_user.id
+        # The StripeService should have been called once with the placeholder export.
+        assert (
+            mock_service.create_book_project_export_payment_intent.call_count == 1
+        )
+
+    def test_purchase_not_owned(self, auth_client, second_user):
+        project = _make_project(second_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/purchase", json={}
+        )
+        assert response.status_code == 404
+
+
+class TestListExports:
+    def test_list_returns_own_exports(self, auth_client, test_user):
+        from app.models import BookProjectExport
+
+        project = _make_project(test_user)
+        e1 = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path="/tmp/a.pdf",
+            is_watermarked=True,
+        )
+        e2 = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path=None,
+            is_watermarked=False,
+        )
+        db.session.add_all([e1, e2])
+        db.session.commit()
+
+        response = auth_client.get(f"/api/book-projects/{project.id}/exports")
+        assert response.status_code == 200
+        exports = response.get_json()["exports"]
+        assert len(exports) == 2
+
+    def test_list_empty(self, auth_client, test_user):
+        project = _make_project(test_user)
+        response = auth_client.get(f"/api/book-projects/{project.id}/exports")
+        assert response.status_code == 200
+        assert response.get_json()["exports"] == []
+
+
+class TestDownloadExport:
+    def test_download_ready_file(self, auth_client, test_user, tmp_path):
+        from app.models import BookProjectExport
+
+        pdf_path = tmp_path / "ready.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4\nclean export\n")
+
+        project = _make_project(test_user)
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path=str(pdf_path),
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/{export.id}/download"
+        )
+        assert response.status_code == 200
+        assert response.mimetype == "application/pdf"
+        assert response.data.startswith(b"%PDF-")
+
+    def test_download_pending(self, auth_client, test_user):
+        from app.models import BookProjectExport
+
+        project = _make_project(test_user)
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path=None,
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/{export.id}/download"
+        )
+        assert response.status_code == 202
+        assert response.get_json()["status"] == "pending"
+
+    def test_download_other_users_export(
+        self, auth_client, test_user, second_user, tmp_path
+    ):
+        from app.models import BookProjectExport
+
+        project = _make_project(test_user)
+        # Export belongs to the OTHER user.
+        pdf_path = tmp_path / "other.pdf"
+        pdf_path.write_bytes(b"%PDF-")
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=second_user.id,
+            pdf_file_path=str(pdf_path),
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/{export.id}/download"
+        )
+        # Project IS owned by test_user but export belongs to second_user — 404.
+        assert response.status_code == 404
+
+    def test_download_missing_export(self, auth_client, test_user):
+        project = _make_project(test_user)
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/999999/download"
+        )
+        assert response.status_code == 404
+
+    def test_download_file_missing_from_disk(self, auth_client, test_user):
+        from app.models import BookProjectExport
+
+        project = _make_project(test_user)
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path="/nonexistent/path/file.pdf",
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/{export.id}/download"
+        )
+        assert response.status_code == 410
+
+
+class TestWebhookHandler:
+    @patch(
+        "app.services.book_project_pdf_service.render_book_project_pdf"
+    )
+    @patch(
+        "app.services.stripe_service.StripeService._handle_subscription_payment_success"
+    )
+    def test_book_project_export_webhook_renders_pdf(
+        self, _mock_sub, mock_render, app, test_user, tmp_path
+    ):
+        from app.models import (
+            BookProject,
+            BookProjectExport,
+            ProjectType,
+        )
+        from app.models.payment import Payment, PaymentStatus, PaymentType
+        from app.services.stripe_service import StripeService
+
+        fake_pdf = tmp_path / "clean.pdf"
+        fake_pdf.write_bytes(b"%PDF-1.4\nclean\n")
+        mock_render.return_value = str(fake_pdf)
+
+        with app.app_context():
+            project = BookProject(
+                owner_user_id=test_user.id,
+                title="X",
+                project_type=ProjectType.WEDDING,
+            )
+            db.session.add(project)
+            db.session.flush()
+
+            export = BookProjectExport(
+                project_id=project.id,
+                user_id=test_user.id,
+                payment_id=None,
+                pdf_file_path=None,
+                is_watermarked=False,
+            )
+            db.session.add(export)
+            db.session.flush()
+
+            payment = Payment(
+                user_id=test_user.id,
+                stripe_payment_intent_id="pi_test_webhook_1",
+                payment_type=PaymentType.BOOK_PROJECT_EXPORT,
+                status=PaymentStatus.PENDING,
+                amount=19,
+                currency="usd",
+            )
+            db.session.add(payment)
+            db.session.commit()
+
+            stripe_service = StripeService()
+            stripe_service.handle_payment_succeeded(
+                {
+                    "id": "pi_test_webhook_1",
+                    "metadata": {
+                        "payment_type": "book_project_export",
+                        "book_project_export_id": str(export.id),
+                    },
+                }
+            )
+
+            db.session.refresh(payment)
+            db.session.refresh(export)
+            assert payment.status == PaymentStatus.SUCCEEDED
+            assert export.payment_id == payment.id
+            assert export.pdf_file_path == str(fake_pdf)
+            assert export.is_watermarked is False
