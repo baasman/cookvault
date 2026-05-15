@@ -326,10 +326,17 @@ const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
 
   const previewMutation = useMutation({
     mutationFn: () => bookProjectsApi.createPreview(projectId),
-    onSuccess: (resp) => {
+    onSuccess: async (resp) => {
       setPreviewError(null);
-      const url = `${getApiUrl()}/book-projects/${projectId}/exports/${resp.export.id}/download`;
-      window.open(url, '_blank', 'noopener');
+      try {
+        await bookProjectsApi.downloadExport(
+          projectId,
+          resp.export.id,
+          `book-project-${projectId}-preview.pdf`,
+        );
+      } catch (err) {
+        setPreviewError(err instanceof Error ? err.message : 'Download failed');
+      }
       queryClient.invalidateQueries({ queryKey: ['book-project-exports', projectId] });
     },
     onError: (err: Error) => {
@@ -389,8 +396,17 @@ const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
           {pendingPaidExportId && paidReadyExport ? (
             <button
               onClick={() => {
-                const url = `${getApiUrl()}/book-projects/${projectId}/exports/${pendingPaidExportId}/download`;
-                window.open(url, '_blank', 'noopener');
+                bookProjectsApi
+                  .downloadExport(
+                    projectId,
+                    pendingPaidExportId,
+                    `book-project-${projectId}.pdf`,
+                  )
+                  .catch((err) => {
+                    setPreviewError(
+                      err instanceof Error ? err.message : 'Download failed',
+                    );
+                  });
               }}
               className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
               style={{ backgroundColor: '#1c120d' }}

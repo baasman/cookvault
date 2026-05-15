@@ -322,8 +322,37 @@ class BookProjectsApi {
     return res.json();
   }
 
-  exportDownloadUrl(projectId: number, exportId: number): string {
-    return `${this.baseUrl}/book-projects/${projectId}/exports/${exportId}/download`;
+  /**
+   * Fetch a generated export PDF using the authenticated apiFetch wrapper, then
+   * trigger a browser download via a temporary blob URL + anchor click. Using
+   * window.open() on the raw URL doesn't work because new tabs don't carry the
+   * JWT auth token through, so the request would 401.
+   */
+  async downloadExport(
+    projectId: number,
+    exportId: number,
+    downloadName: string,
+  ): Promise<void> {
+    const res = await apiFetch(
+      `${this.baseUrl}/book-projects/${projectId}/exports/${exportId}/download`,
+      { method: 'GET' },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Download failed (HTTP ${res.status})`);
+    }
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = downloadName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   }
 
   // --- Guest (no auth, share-token path) --------------------------------
