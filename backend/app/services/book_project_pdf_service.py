@@ -19,9 +19,11 @@ Linux (Render) has these as standard packages.
 
 from __future__ import annotations
 
+import ctypes
 import io
 import logging
 import os
+import sys
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -32,6 +34,72 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.models import BookProject, Recipe
 
 logger = logging.getLogger(__name__)
+
+
+# WeasyPrint depends on pango / cairo / glib / harfbuzz / fontconfig system
+# libraries. On macOS the dylibs Homebrew installs are named with version
+# suffixes (libgobject-2.0.0.dylib) that ``ctypes.util.find_library`` can't
+# resolve from the bare names WeasyPrint searches for ("libgobject-2.0-0").
+# DYLD_FALLBACK_LIBRARY_PATH is the canonical fix, but macOS SIP strips
+# DYLD_* env vars when spawning child processes through /bin/sh — so even
+# setting it in the Makefile doesn't reliably reach the Flask + Celery
+# workers. We load the dylibs explicitly by absolute path here so they
+# show up in the process's loaded-libraries table BEFORE WeasyPrint's
+# cffi import runs. On Linux (where everything lives on the standard
+# loader path) this is a no-op.
+_MACOS_HOMEBREW_LIB = "/opt/homebrew/lib"
+_MACOS_DYLIB_NAMES = (
+    "libgobject-2.0.0.dylib",
+    "libpango-1.0.0.dylib",
+    "libpangoft2-1.0.0.dylib",
+    "libharfbuzz.0.dylib",
+    "libfontconfig.1.dylib",
+    "libcairo.2.dylib",
+)
+_dylib_preload_attempted = False
+
+
+def _preload_weasyprint_dylibs() -> None:
+    """Best-effort: make the Homebrew-installed WeasyPrint native deps
+    discoverable by ``ctypes.util.find_library`` (which is what cffi uses).
+    macOS reads ``DYLD_FALLBACK_LIBRARY_PATH`` at lookup time for that
+    function, so injecting it into ``os.environ`` here (before WeasyPrint
+    is imported) is enough — we don't have to rely on the env var
+    surviving the shell → make → honcho → Python process chain, which
+    macOS SIP can strip along the way.
+
+    Also dlopens each lib explicitly so dyld caches it for the rest of the
+    process. On Linux (and on macOS hosts without Homebrew at
+    /opt/homebrew) this is a no-op.
+    """
+    global _dylib_preload_attempted
+    if _dylib_preload_attempted:
+        return
+    _dylib_preload_attempted = True
+
+    if sys.platform != "darwin":
+        return
+    if not os.path.isdir(_MACOS_HOMEBREW_LIB):
+        return
+
+    # Prepend Homebrew's lib dir so find_library() picks it up. Keep any
+    # existing value so user-set paths still win.
+    existing = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+    parts = [p for p in existing.split(":") if p]
+    if _MACOS_HOMEBREW_LIB not in parts:
+        parts.insert(0, _MACOS_HOMEBREW_LIB)
+    os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = ":".join(parts)
+
+    for name in _MACOS_DYLIB_NAMES:
+        path = os.path.join(_MACOS_HOMEBREW_LIB, name)
+        if not os.path.exists(path):
+            continue
+        try:
+            ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
+        except OSError as e:
+            logger.warning(
+                "Could not pre-load WeasyPrint dylib %s: %s", path, e
+            )
 
 # Template directory relative to this module. Each subdirectory is one named
 # template with a template.html (Jinja2) and template.css (print CSS).
@@ -184,6 +252,7 @@ def render_book_project_pdf(
     # Imported here so module import works on hosts where WeasyPrint's system
     # deps aren't installed — only PDF generation itself fails, the rest of
     # the app (and tests that don't touch this path) still runs.
+    _preload_weasyprint_dylibs()
     from weasyprint import CSS, HTML
 
     html_doc = HTML(string=html_str, base_url=str(template_dir))

@@ -139,8 +139,13 @@ class TestJoinNames:
 
 def _weasyprint_available() -> bool:
     """Probe WeasyPrint's runtime dependencies. Returns False if the system
-    libraries can't be loaded (common on macOS in local dev without env vars)."""
+    libraries can't be loaded (e.g. WeasyPrint not installed at all)."""
     try:
+        # Run the production-code preload so the probe matches what the
+        # rendering endpoints actually do at runtime.
+        from app.services.book_project_pdf_service import _preload_weasyprint_dylibs
+
+        _preload_weasyprint_dylibs()
         from weasyprint import HTML  # noqa: F401
 
         HTML(string="<p>probe</p>").render()
