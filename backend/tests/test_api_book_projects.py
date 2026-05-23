@@ -792,7 +792,11 @@ class TestExportPreview:
 
         fake_pdf = tmp_path / "preview.pdf"
         fake_pdf.write_bytes(b"%PDF-1.4\n%fake\n")
-        mock_render.return_value = str(fake_pdf)
+        mock_render.return_value = {
+            "cloudinary_public_id": None,
+            "cloudinary_url": None,
+            "pdf_file_path": str(fake_pdf),
+        }
 
         project = _make_project(test_user)
         response = auth_client.post(
@@ -819,6 +823,31 @@ class TestExportPreview:
             f"/api/book-projects/{project.id}/export/preview", json={}
         )
         assert response.status_code == 404
+
+    @patch("app.api.book_projects.render_book_project_pdf", create=True)
+    @patch("app.services.book_project_pdf_service.render_book_project_pdf")
+    def test_create_preview_persists_cloudinary_fields(
+        self, mock_render, _mock_render_alias, auth_client, test_user
+    ):
+        from app.models import BookProjectExport
+
+        mock_render.return_value = {
+            "cloudinary_public_id": "book_project_exports/project-1-abc",
+            "cloudinary_url": "https://res.cloudinary.com/test/raw/upload/.../clean.pdf",
+            "pdf_file_path": None,
+        }
+
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/preview", json={}
+        )
+        assert response.status_code == 201
+        export_id = response.get_json()["export"]["id"]
+
+        export = db.session.get(BookProjectExport, export_id)
+        assert export.cloudinary_public_id == "book_project_exports/project-1-abc"
+        assert export.cloudinary_url.startswith("https://res.cloudinary.com/")
+        assert export.pdf_file_path is None
 
 
 class TestExportPurchase:
@@ -991,6 +1020,70 @@ class TestDownloadExport:
         )
         assert response.status_code == 410
 
+    @patch("app.api.book_projects.requests.get")
+    def test_download_proxies_cloudinary_url(
+        self, mock_get, auth_client, test_user
+    ):
+        from app.models import BookProjectExport
+
+        upstream = MagicMock()
+        upstream.iter_content.return_value = iter([b"%PDF-1.4\nfrom cloudinary\n"])
+        upstream.raise_for_status.return_value = None
+        mock_get.return_value = upstream
+
+        project = _make_project(test_user)
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path=None,
+            cloudinary_public_id="book_project_exports/project-x-abc",
+            cloudinary_url="https://res.cloudinary.com/test/raw/upload/proj.pdf",
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/{export.id}/download"
+        )
+        assert response.status_code == 200
+        assert response.mimetype == "application/pdf"
+        # Body streamed from upstream.
+        assert response.data == b"%PDF-1.4\nfrom cloudinary\n"
+        # Cloudinary URL is fetched server-side, never sent to the client.
+        assert "cloudinary" not in response.headers.get("Location", "").lower()
+        mock_get.assert_called_once()
+        assert mock_get.call_args.args[0] == (
+            "https://res.cloudinary.com/test/raw/upload/proj.pdf"
+        )
+
+    @patch("app.api.book_projects.requests.get")
+    def test_download_cloudinary_unreachable_returns_410(
+        self, mock_get, auth_client, test_user
+    ):
+        import requests as real_requests
+
+        from app.models import BookProjectExport
+
+        mock_get.side_effect = real_requests.RequestException("connection refused")
+
+        project = _make_project(test_user)
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path=None,
+            cloudinary_public_id="book_project_exports/project-y",
+            cloudinary_url="https://res.cloudinary.com/test/raw/upload/proj.pdf",
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/{export.id}/download"
+        )
+        assert response.status_code == 410
+
 
 class TestWebhookHandler:
     @patch(
@@ -1012,7 +1105,11 @@ class TestWebhookHandler:
 
         fake_pdf = tmp_path / "clean.pdf"
         fake_pdf.write_bytes(b"%PDF-1.4\nclean\n")
-        mock_render.return_value = str(fake_pdf)
+        mock_render.return_value = {
+            "cloudinary_public_id": None,
+            "cloudinary_url": None,
+            "pdf_file_path": str(fake_pdf),
+        }
 
         with app.app_context():
             project = BookProject(

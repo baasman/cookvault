@@ -137,7 +137,11 @@ class TestStripeWebhookBookProjectExport:
         # the handler can store on the export row.
         fake_pdf = tmp_path / "clean.pdf"
         fake_pdf.write_bytes(b"%PDF-1.4\nclean export\n")
-        mock_render.return_value = str(fake_pdf)
+        mock_render.return_value = {
+            "cloudinary_public_id": None,
+            "cloudinary_url": None,
+            "pdf_file_path": str(fake_pdf),
+        }
 
         with app.app_context():
             project = BookProject(

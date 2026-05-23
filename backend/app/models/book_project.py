@@ -247,6 +247,8 @@ class BookProjectExport(db.Model):
     payment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("payments.id"))
 
     pdf_file_path: Mapped[Optional[str]] = mapped_column(String(500))
+    cloudinary_public_id: Mapped[Optional[str]] = mapped_column(String(500))
+    cloudinary_url: Mapped[Optional[str]] = mapped_column(String(1000))
     is_watermarked: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

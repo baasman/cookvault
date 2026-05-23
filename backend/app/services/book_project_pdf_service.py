@@ -26,12 +26,24 @@ import os
 import sys
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TypedDict
 
 from flask import current_app
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.models import BookProject, Recipe
+from app.services.cloudinary_service import cloudinary_service
+
+
+class RenderedPdf(TypedDict):
+    """Where the rendered PDF lives. Exactly one of cloudinary_url or
+    pdf_file_path is populated; the other is None. Callers persist all three
+    fields onto the BookProjectExport row and the download endpoint picks
+    whichever storage backend is set."""
+
+    cloudinary_public_id: Optional[str]
+    cloudinary_url: Optional[str]
+    pdf_file_path: Optional[str]
 
 logger = logging.getLogger(__name__)
 
@@ -220,14 +232,47 @@ def render_book_project_pdf(
     *,
     watermarked: bool,
     template_name: str = "wedding_basic",
-) -> str:
-    """Render the project to a PDF on disk and return the file path.
+) -> RenderedPdf:
+    """Render the project to a PDF and return where it was stored.
+
+    When Cloudinary is enabled (USE_CLOUDINARY=true + creds configured) the
+    PDF is rendered to bytes and uploaded as a raw resource — surviving
+    Render's ephemeral disk between deploys. Otherwise the PDF is written to
+    the local upload directory for dev/local use.
 
     Raises if the template doesn't exist or if WeasyPrint's system libraries
     are missing on the host — callers should catch and translate to an HTTP
     500 (with logging) so the user gets a coherent error rather than a stack
     trace.
     """
+    if cloudinary_service.is_enabled():
+        pdf_bytes = render_book_project_pdf_to_bytes(
+            project, watermarked=watermarked, template_name=template_name
+        )
+        filename = (
+            f"project-{project.id}"
+            f"{'-preview' if watermarked else '-clean'}-{uuid.uuid4().hex}.pdf"
+        )
+        upload = cloudinary_service.upload_pdf(
+            pdf_bytes,
+            filename=filename,
+            folder="book_project_exports",
+        )
+        logger.info(
+            "Rendered BookProject PDF to Cloudinary: project=%s template=%s "
+            "watermarked=%s public_id=%s bytes=%s",
+            project.id,
+            template_name,
+            watermarked,
+            upload["public_id"],
+            upload["bytes"],
+        )
+        return {
+            "cloudinary_public_id": upload["public_id"],
+            "cloudinary_url": upload["url"],
+            "pdf_file_path": None,
+        }
+
     template_dir = _TEMPLATES_ROOT / template_name
     if not template_dir.is_dir():
         raise FileNotFoundError(
@@ -260,14 +305,18 @@ def render_book_project_pdf(
     html_doc.write_pdf(target=str(out_path), stylesheets=stylesheets)
 
     logger.info(
-        "Rendered BookProject PDF: project=%s template=%s watermarked=%s out=%s",
+        "Rendered BookProject PDF to disk: project=%s template=%s watermarked=%s out=%s",
         project.id,
         template_name,
         watermarked,
         out_path,
     )
 
-    return str(out_path)
+    return {
+        "cloudinary_public_id": None,
+        "cloudinary_url": None,
+        "pdf_file_path": str(out_path),
+    }
 
 
 def render_book_project_pdf_to_bytes(

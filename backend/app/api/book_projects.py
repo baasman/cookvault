@@ -9,12 +9,23 @@ share-token decorator. PDF export and Stripe payment endpoints also follow in la
 steps; their stub endpoints are not yet defined here.
 """
 
+import os
 import secrets
 import traceback
 from datetime import date, datetime
 from typing import Optional
 
-from flask import Blueprint, Response, current_app, g, jsonify, request
+import requests
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    g,
+    jsonify,
+    request,
+    send_file,
+    stream_with_context,
+)
 
 from app import db
 from app.api.auth import require_auth, require_share_token
@@ -1164,7 +1175,7 @@ def create_export_preview(current_user, project_id: int) -> Response:
     from app.services.book_project_pdf_service import render_book_project_pdf
 
     try:
-        pdf_path = render_book_project_pdf(project, watermarked=True)
+        rendered = render_book_project_pdf(project, watermarked=True)
     except FileNotFoundError as e:
         current_app.logger.error(
             f"Preview template missing for project {project_id}: {e}"
@@ -1181,7 +1192,9 @@ def create_export_preview(current_user, project_id: int) -> Response:
             project_id=project.id,
             user_id=current_user.id,
             payment_id=None,
-            pdf_file_path=pdf_path,
+            pdf_file_path=rendered["pdf_file_path"],
+            cloudinary_public_id=rendered["cloudinary_public_id"],
+            cloudinary_url=rendered["cloudinary_url"],
             is_watermarked=True,
         )
         db.session.add(export)
@@ -1278,14 +1291,48 @@ def download_export(current_user, project_id: int, export_id: int) -> Response:
     if not export:
         return jsonify({"error": "Export not found"}), 404
 
-    if not export.pdf_file_path:
+    if not export.cloudinary_url and not export.pdf_file_path:
         # Paid exports are rendered by the webhook; until that fires the file
-        # isn't on disk. Frontend can poll the list endpoint to detect ready.
+        # isn't stored anywhere. Frontend can poll the list endpoint to detect
+        # ready.
         return jsonify(
             {"error": "Export is still being generated", "status": "pending"}
         ), 202
 
-    import os
+    download_name = (
+        f"book-project-{project.id}"
+        f"{'-preview' if export.is_watermarked else ''}.pdf"
+    )
+
+    if export.cloudinary_url:
+        # Proxy the download so the client never sees the Cloudinary URL
+        # (which is publicly resolvable — we want all access to go through
+        # the auth'd endpoint).
+        try:
+            upstream = requests.get(export.cloudinary_url, stream=True, timeout=30)
+            upstream.raise_for_status()
+        except requests.RequestException as e:
+            current_app.logger.error(
+                f"Failed to fetch export from Cloudinary: export={export.id} "
+                f"public_id={export.cloudinary_public_id}: {e}\n{traceback.format_exc()}"
+            )
+            return jsonify({"error": "Export file is missing"}), 410
+
+        def _proxy():
+            try:
+                for chunk in upstream.iter_content(chunk_size=8192):
+                    if chunk:
+                        yield chunk
+            finally:
+                upstream.close()
+
+        return Response(
+            stream_with_context(_proxy()),
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{download_name}"',
+            },
+        )
 
     if not os.path.exists(export.pdf_file_path):
         current_app.logger.error(
@@ -1293,12 +1340,6 @@ def download_export(current_user, project_id: int, export_id: int) -> Response:
         )
         return jsonify({"error": "Export file is missing"}), 410
 
-    from flask import send_file
-
-    download_name = (
-        f"book-project-{project.id}"
-        f"{'-preview' if export.is_watermarked else ''}.pdf"
-    )
     return send_file(
         export.pdf_file_path,
         mimetype="application/pdf",

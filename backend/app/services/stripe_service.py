@@ -606,19 +606,23 @@ class StripeService:
         # succeeded — the user can re-download via a regeneration endpoint
         # rather than losing their purchase.
         try:
-            pdf_path = render_book_project_pdf(project, watermarked=False)
-            export.pdf_file_path = pdf_path
+            rendered = render_book_project_pdf(project, watermarked=False)
+            export.pdf_file_path = rendered["pdf_file_path"]
+            export.cloudinary_public_id = rendered["cloudinary_public_id"]
+            export.cloudinary_url = rendered["cloudinary_url"]
             export.is_watermarked = False
             logger.info(
-                f"Rendered clean PDF for BookProjectExport {export_id} -> {pdf_path}"
+                f"Rendered clean PDF for BookProjectExport {export_id}: "
+                f"cloudinary={rendered['cloudinary_public_id']} "
+                f"disk={rendered['pdf_file_path']}"
             )
         except Exception as render_err:
             logger.error(
                 f"Failed to render PDF for BookProjectExport {export_id}: {render_err}",
                 exc_info=True,
             )
-            # Leave pdf_file_path null; the download endpoint will return 503
-            # with a "regenerating" message and a retry-able regenerate route.
+            # Leave storage fields null; the download endpoint will return 202
+            # with a "pending" message and a retry-able regenerate route.
 
     def _add_cookbook_recipes_to_collection(
         self, user_id: int, cookbook: "Cookbook"
