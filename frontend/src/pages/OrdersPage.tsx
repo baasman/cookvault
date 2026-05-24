@@ -17,8 +17,12 @@ interface PrintOrder {
   id: number;
   order_number: string;
   status: string;
-  cookbook_title?: string;
-  cookbook_id?: number;
+  cookbook_title?: string | null;
+  cookbook_id?: number | null;
+  book_project_title?: string | null;
+  book_project_id?: number | null;
+  content_type?: 'cookbook' | 'book_project';
+  content_title?: string | null;
   quantity: number;
   total_cost: number;
   created_at: string;
@@ -284,17 +288,26 @@ export const OrdersPage: React.FC = () => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
                       <div>
-                        <span className="font-medium">Cookbook:</span>
-                        {order.cookbook_title ? (
-                          <Link
-                            to={`/cookbooks/${order.cookbook_id}`}
-                            className="block text-emerald-600 hover:text-emerald-700"
-                          >
-                            {order.cookbook_title}
-                          </Link>
-                        ) : (
-                          <span className="block">Unknown cookbook</span>
-                        )}
+                        <span className="font-medium">
+                          {order.content_type === 'book_project' ? 'Project:' : 'Cookbook:'}
+                        </span>
+                        {(() => {
+                          const title = order.content_title ?? order.cookbook_title ?? order.book_project_title;
+                          if (!title) {
+                            return <span className="block">Untitled</span>;
+                          }
+                          const href = order.content_type === 'book_project'
+                            ? `/projects/${order.book_project_id}`
+                            : `/cookbooks/${order.cookbook_id}`;
+                          return (
+                            <Link
+                              to={href}
+                              className="block text-emerald-600 hover:text-emerald-700"
+                            >
+                              {title}
+                            </Link>
+                          );
+                        })()}
                       </div>
                       
                       <div>

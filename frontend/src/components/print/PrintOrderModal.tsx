@@ -7,9 +7,12 @@ import { PaymentForm } from './PaymentForm';
 import { getApiUrl } from '../../utils/getApiUrl';
 import { apiFetch } from '../../utils/apiInterceptor';
 
+export type PrintableEntityType = 'cookbook' | 'book_project';
+
 interface PrintOrderModalProps {
-  cookbookId: number;
-  cookbookTitle: string;
+  entityType: PrintableEntityType;
+  entityId: number;
+  entityTitle: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -37,8 +40,14 @@ export interface ShippingAddress {
 }
 
 export interface PrintQuote {
-  cookbook_id: number;
-  cookbook_title: string;
+  // Exactly one of cookbook_id / book_project_id is set, mirroring the backend
+  // polymorphic response shape. cookbook_title / book_project_title follow
+  // the same pattern.
+  cookbook_id?: number;
+  cookbook_title?: string;
+  book_project_id?: number;
+  book_project_title?: string;
+  entity_type?: PrintableEntityType;
   quantity: number;
   specification: PrintSpecification;
   costs: {
@@ -60,11 +69,16 @@ export interface PrintQuote {
 type OrderStep = 'specifications' | 'shipping' | 'summary' | 'payment' | 'complete';
 
 export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
-  cookbookId,
-  cookbookTitle,
+  entityType,
+  entityId,
+  entityTitle,
   isOpen,
   onClose
 }) => {
+  // Backend expects either cookbook_id or book_project_id; pick the right
+  // field once and reuse across requests.
+  const entityIdField = entityType === 'cookbook' ? 'cookbook_id' : 'book_project_id';
+  const entityPayload = { [entityIdField]: entityId };
   const [currentStep, setCurrentStep] = useState<OrderStep>('specifications');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +103,9 @@ export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
   const fetchPrintOptions = async () => {
     try {
       setLoading(true);
-      const response = await apiFetch(`${getApiUrl()}/print-orders/specifications?cookbook_id=${cookbookId}`);
+      const response = await apiFetch(
+        `${getApiUrl()}/print-orders/specifications?${entityIdField}=${entityId}`,
+      );
       if (response.ok) {
         const data = await response.json();
         setPrintOptions(data);
@@ -117,7 +133,7 @@ export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          cookbook_id: cookbookId,
+          ...entityPayload,
           quantity,
           specification,
           shipping_address: shippingAddress
@@ -152,7 +168,7 @@ export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          cookbook_id: cookbookId,
+          ...entityPayload,
           quantity,
           specification,
           shipping_address: shippingAddress
@@ -239,7 +255,7 @@ export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
         return (
           <OrderSummary
             quote={quote}
-            cookbookTitle={cookbookTitle}
+            entityTitle={entityTitle}
             onNext={createOrder}
             onBack={() => handleStepChange('shipping')}
             loading={loading}
@@ -292,7 +308,7 @@ export const PrintOrderModal: React.FC<PrintOrderModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{getStepTitle()}</h2>
-            <p className="text-sm text-gray-600 mt-1">Order print copy of "{cookbookTitle}"</p>
+            <p className="text-sm text-gray-600 mt-1">Order print copy of "{entityTitle}"</p>
           </div>
           <button
             onClick={handleClose}

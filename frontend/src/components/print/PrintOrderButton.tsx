@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { PrinterIcon } from '@heroicons/react/24/outline';
-import { PrintOrderModal } from './PrintOrderModal';
+import { PrintOrderModal, type PrintableEntityType } from './PrintOrderModal';
 
 interface PrintOrderButtonProps {
-  cookbookId: number;
-  cookbookTitle: string;
+  entityType: PrintableEntityType;
+  entityId: number;
+  entityTitle: string;
   className?: string;
   buttonText?: string;
   variant?: 'primary' | 'secondary' | 'outline';
 }
 
 export const PrintOrderButton: React.FC<PrintOrderButtonProps> = ({
-  cookbookId,
-  cookbookTitle,
+  entityType,
+  entityId,
+  entityTitle,
   className = '',
   buttonText = 'Order Print Copy',
   variant = 'primary'
@@ -60,8 +62,9 @@ export const PrintOrderButton: React.FC<PrintOrderButtonProps> = ({
 
       {isModalOpen && (
         <PrintOrderModal
-          cookbookId={cookbookId}
-          cookbookTitle={cookbookTitle}
+          entityType={entityType}
+          entityId={entityId}
+          entityTitle={entityTitle}
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
         />

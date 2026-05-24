@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { bookProjectsApi } from '../services/bookProjectsApi';
 import { getApiUrl } from '../utils/getApiUrl';
 import { ExportPaywallModal } from '../components/payments/ExportPaywallModal';
+import { PrintOrderButton } from '../components/print';
 import { AddRecipeModal } from '../components/book-projects/AddRecipeModal';
 import type { BookProjectExport, ProjectShareLink, ProjectSubmission } from '../types';
 
@@ -119,7 +120,7 @@ export const ProjectDashboardPage: React.FC = () => {
         }
       />
 
-      <ExportSection projectId={projectId} />
+      <ExportSection projectId={projectId} projectTitle={project.title} />
     </div>
   );
 };
@@ -318,7 +319,10 @@ const SubmissionsSection: React.FC<{
   );
 };
 
-const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
+const ExportSection: React.FC<{ projectId: number; projectTitle: string }> = ({
+  projectId,
+  projectTitle,
+}) => {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [pendingPaidExportId, setPendingPaidExportId] = useState<number | null>(null);
@@ -438,6 +442,23 @@ const ExportSection: React.FC<{ projectId: number }> = ({ projectId }) => {
             {previewError}
           </div>
         )}
+
+        <div
+          className="mt-4 pt-4 border-t"
+          style={{ borderColor: '#e8dccf' }}
+        >
+          <p className="text-sm mb-2" style={{ color: '#6b5a52' }}>
+            Or have it professionally printed and shipped — bound paperback, your
+            choice of trim and quantity.
+          </p>
+          <PrintOrderButton
+            entityType="book_project"
+            entityId={projectId}
+            entityTitle={projectTitle}
+            buttonText="Order printed book"
+            variant="outline"
+          />
+        </div>
       </div>
 
       <ExportPaywallModal
