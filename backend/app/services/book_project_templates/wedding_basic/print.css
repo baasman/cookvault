@@ -1,0 +1,33 @@
+/* Print-ready overlay for the wedding_basic BookProject template.
+ *
+ * Applied *in addition to* template.css when render_book_project_pdf is
+ * called with print_ready=True. It does NOT set @page size — that's
+ * computed per-trim in Python and added as a third stylesheet, so a
+ * single print.css works across all Lulu trim sizes.
+ *
+ * What this overlay does:
+ *   - Adds 3mm bleed and crop marks for press registration
+ *   - Removes the page-number footer (Lulu uses its own numbering when
+ *     binding; carrying ours risks duplicate or misaligned numbers)
+ *   - Slightly increases inner margin to account for binding gutter
+ */
+
+@page {
+  margin: 18mm 16mm 22mm 22mm;
+  bleed: 3mm;
+  marks: crop cross;
+  @bottom-center { content: none; }
+}
+
+@page :first {
+  /* Cover already had no page number; keep it that way under print mode. */
+  @bottom-center { content: none; }
+}
+
+/* Recipe pages start on a fresh sheet — same as digital, but explicitly
+ * called out so reviewers don't think the print overlay altered pagination. */
+.recipe { page-break-before: always; }
+
+/* Defensive: kill the watermark in case the caller passed watermarked=True
+ * accidentally for a print job. Lulu would reject a watermarked interior. */
+.watermark { display: none !important; }

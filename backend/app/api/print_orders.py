@@ -15,6 +15,7 @@ from flask_limiter.util import get_remote_address
 
 from app import db
 from app.api.auth import require_auth
+from app.models import BookProject
 from app.models.recipe import Cookbook
 from app.models.print_order import (
     PrintOrder,
@@ -24,6 +25,10 @@ from app.models.print_order import (
     BindingType,
     PaperType,
     CoverFinish,
+)
+from app.services.book_project_pdf_service import (
+    build_cover_metadata as build_book_project_cover_metadata,
+    render_book_project_pdf_to_bytes,
 )
 from app.services.lulu_service import LuluService
 from app.services.pdf_service import PDFService
@@ -36,6 +41,136 @@ logger = logging.getLogger(__name__)
 
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
+
+
+def _resolve_printable_entity(source, current_user):
+    """Resolve the printable entity (Cookbook or BookProject) from a request
+    payload or query-args mapping. Source must expose ``.get(key)`` —
+    request.args or a parsed JSON dict both work.
+
+    Returns a 3-tuple (entity, entity_type, error_response). When
+    error_response is not None, it's a (jsonify, status) tuple the caller
+    should return immediately. Otherwise entity is non-None and entity_type
+    is one of 'cookbook' or 'book_project'.
+
+    Enforces:
+      - exactly one of cookbook_id / book_project_id is supplied (400 if
+        neither, 400 if both)
+      - the entity exists (404 otherwise)
+      - the current user owns it (403 otherwise)
+      - for cookbooks, that it isn't a Google Books import (400 — print
+        orders aren't allowed for read-only library books)
+    """
+    cookbook_id = source.get("cookbook_id")
+    book_project_id = source.get("book_project_id")
+
+    if cookbook_id and book_project_id:
+        return None, None, (
+            jsonify(
+                {"error": "Specify either cookbook_id or book_project_id, not both"}
+            ),
+            400,
+        )
+    if not cookbook_id and not book_project_id:
+        return None, None, (
+            jsonify({"error": "cookbook_id or book_project_id is required"}),
+            400,
+        )
+
+    if cookbook_id:
+        cookbook = db.session.get(Cookbook, int(cookbook_id))
+        if not cookbook:
+            return None, None, (jsonify({"error": "Cookbook not found"}), 404)
+        if cookbook.user_id != current_user.id:
+            return None, None, (jsonify({"error": "Access denied"}), 403)
+        if cookbook.google_books_id is not None:
+            return None, None, (
+                jsonify(
+                    {
+                        "error": "Print orders are not available for Google Books cookbooks"
+                    }
+                ),
+                400,
+            )
+        return cookbook, "cookbook", None
+
+    project = db.session.get(BookProject, int(book_project_id))
+    if not project:
+        return None, None, (jsonify({"error": "Book project not found"}), 404)
+    if project.owner_user_id != current_user.id:
+        return None, None, (jsonify({"error": "Access denied"}), 403)
+    return project, "book_project", None
+
+
+def _build_interior_pdf(order: PrintOrder, current_user):
+    """Generate the print-ready interior PDF bytes for an order. Returns a
+    3-tuple ``(pdf_bytes, entity_dict_for_cover, recipe_count)``:
+
+      - ``pdf_bytes``: the interior PDF ready for Lulu upload
+      - ``entity_dict_for_cover``: the cookbook_data-shaped dict the cover
+        service expects (so we don't re-derive it later)
+      - ``recipe_count``: used by ``estimate_page_count`` for spine sizing
+
+    Routes to the right pipeline based on order.content_type:
+      cookbook    → ReportLab via app.services.pdf_service.PDFService
+                    (the legacy path, kept for Cookbook print orders)
+      book_project → WeasyPrint via render_book_project_pdf_to_bytes
+                    (the wedding_basic template with print.css overlay)
+    """
+    if order.content_type == "cookbook":
+        # Lazy import: pdf_service pulls ReportLab which we don't want to
+        # touch on book_project-only code paths.
+        from app.services.pdf_service import PDFConfig, PDFService, PDFTemplate
+
+        cookbook = order.cookbook
+        cookbook_dict = cookbook.to_dict(current_user_id=current_user.id)
+        recipes = cookbook.get_recipes_for_user(current_user.id)
+        recipes_dict = [
+            r.to_dict(current_user_id=current_user.id, is_admin=True)
+            for r in recipes
+        ]
+
+        template_map = {
+            "classic": PDFTemplate.CLASSIC,
+            "modern": PDFTemplate.MODERN,
+            "book": PDFTemplate.BOOK,
+        }
+        selected_template = template_map.get(
+            order.specification.template, PDFTemplate.MODERN
+        )
+        print_config = PDFConfig(template=selected_template).enable_print_ready_mode(
+            trim_size=order.specification.trim_size.value, include_marks=True
+        )
+        print_config.gutter_adjustment = True
+
+        pdf_service = PDFService()
+        interior_pdf = pdf_service.generate_cookbook_pdf(
+            cookbook_dict, recipes_dict, print_config
+        )
+        return interior_pdf, cookbook_dict, len(recipes_dict)
+
+    # BookProject path
+    project = order.book_project
+    interior_pdf = render_book_project_pdf_to_bytes(
+        project,
+        watermarked=False,
+        template_name="wedding_basic",
+        print_ready=True,
+        trim_size=order.specification.trim_size,
+    )
+    cover_dict = build_book_project_cover_metadata(project)
+    return interior_pdf, cover_dict, _included_recipe_count(
+        project, "book_project", current_user
+    )
+
+
+def _included_recipe_count(entity, entity_type: str, current_user) -> int:
+    """How many recipes the print run will actually include — used for page-count
+    estimation. Cookbook counts user-visible recipes; BookProject counts
+    non-excluded submissions."""
+    if entity_type == "cookbook":
+        return len(entity.get_recipes_for_user(current_user.id))
+    return sum(1 for r in entity.recipes if not r.is_excluded_from_project)
 
 
 @bp.route("/specifications", methods=["GET"])
@@ -85,23 +220,21 @@ def get_print_specifications(current_user):
             "bulk_pricing_tiers": bulk_pricing_tiers,
         }
 
-        # If cookbook_id provided, calculate estimated page count
-        cookbook_id = request.args.get("cookbook_id", type=int)
-        if cookbook_id:
-            cookbook = Cookbook.query.get(cookbook_id)
-            # Reject Google Books cookbooks - print orders only allowed for user-owned cookbooks
-            if cookbook and cookbook.google_books_id is not None:
-                return jsonify(
-                    {
-                        "error": "Print orders are not available for Google Books cookbooks"
-                    }
-                ), 400
-            if cookbook and cookbook.user_id == current_user.id:
-                recipe_count = len(cookbook.get_recipes_for_user(current_user.id))
-                response_data["estimated_page_count"] = (
-                    cover_service.estimate_page_count(recipe_count)
-                )
-                response_data["recipe_count"] = recipe_count
+        # If an entity ID is provided, calculate estimated page count for it.
+        # Both cookbook_id and book_project_id are supported; resolver
+        # returns an error tuple if neither is set, which we swallow here
+        # because the call is optional.
+        if request.args.get("cookbook_id") or request.args.get("book_project_id"):
+            entity, entity_type, err = _resolve_printable_entity(
+                request.args, current_user
+            )
+            if err:
+                return err
+            recipe_count = _included_recipe_count(entity, entity_type, current_user)
+            response_data["estimated_page_count"] = (
+                cover_service.estimate_page_count(recipe_count)
+            )
+            response_data["recipe_count"] = recipe_count
 
         return jsonify(response_data)
     except Exception as e:
@@ -112,36 +245,31 @@ def get_print_specifications(current_user):
 @bp.route("/validate-cover", methods=["POST"])
 @require_auth
 def validate_cover_data(current_user):
-    """Validate cookbook data for cover generation."""
+    """Validate the printable entity's metadata for cover generation. Accepts
+    either cookbook_id or book_project_id alongside trim_size."""
     try:
-        required_fields = ["cookbook_id", "trim_size"]
-        data = validate_json_data(request, required_fields)
-        if isinstance(data, tuple):  # Error response
+        data = validate_json_data(request, ["trim_size"])
+        if isinstance(data, tuple):
             return data
 
-        # Check cookbook access
-        cookbook = Cookbook.query.get(data["cookbook_id"])
-        if not cookbook:
-            return jsonify({"error": "Cookbook not found"}), 404
+        entity, entity_type, err = _resolve_printable_entity(data, current_user)
+        if err:
+            return err
 
-        if cookbook.user_id != current_user.id:
-            return jsonify({"error": "Access denied"}), 403
-
-        # Validate trim size
         try:
             trim_size = TrimSize(data["trim_size"])
         except ValueError:
             return jsonify({"error": "Invalid trim size"}), 400
 
-        # Get cookbook data
-        cookbook_dict = cookbook.to_dict(current_user_id=current_user.id)
+        if entity_type == "cookbook":
+            entity_dict = entity.to_dict(current_user_id=current_user.id)
+        else:
+            entity_dict = build_book_project_cover_metadata(entity)
 
-        # Validate with cover service
         cover_service = CoverGenerationService()
         validation_result = cover_service.validate_cover_content(
-            cookbook_dict, trim_size
+            entity_dict, trim_size
         )
-
         return jsonify(validation_result)
 
     except Exception as e:
@@ -153,15 +281,12 @@ def validate_cover_data(current_user):
 @require_auth
 @limiter.limit("10/minute")
 def get_print_quote(current_user):
-    """Get a quote for printing a cookbook."""
+    """Get a quote for printing a cookbook or book project."""
     try:
-        # Validate request data
-        required_fields = ["cookbook_id", "quantity", "specification"]
-        data = validate_json_data(request, required_fields)
-        if isinstance(data, tuple):  # Error response
+        data = validate_json_data(request, ["quantity", "specification"])
+        if isinstance(data, tuple):
             return data
 
-        # Validate specification fields
         spec_required = [
             "trim_size",
             "binding_type",
@@ -174,21 +299,12 @@ def get_print_quote(current_user):
             if field not in spec_data:
                 return jsonify({"error": f"Missing specification field: {field}"}), 400
 
-        # Check cookbook access
-        cookbook = Cookbook.query.get(data["cookbook_id"])
-        if not cookbook:
-            return jsonify({"error": "Cookbook not found"}), 404
+        entity, entity_type, err = _resolve_printable_entity(data, current_user)
+        if err:
+            return err
 
-        if cookbook.user_id != current_user.id:
-            return jsonify({"error": "Access denied"}), 403
-
-        # Reject Google Books cookbooks - print orders only allowed for user-owned cookbooks
-        if cookbook.google_books_id is not None:
-            return jsonify(
-                {"error": "Print orders are not available for Google Books cookbooks"}
-            ), 400
-
-        # Validate template if provided
+        # Validate template if provided (only meaningful for cookbook; book
+        # projects use the wedding_basic template).
         template = spec_data.get("template", "modern")
         if template not in ("modern", "classic", "book"):
             return jsonify(
@@ -232,10 +348,15 @@ def get_print_quote(current_user):
         if not quote:
             return jsonify({"error": "Failed to get quote from Lulu"}), 500
 
+        entity_response = (
+            {"cookbook_id": entity.id, "cookbook_title": entity.title}
+            if entity_type == "cookbook"
+            else {"book_project_id": entity.id, "book_project_title": entity.title}
+        )
         return jsonify(
             {
-                "cookbook_id": cookbook.id,
-                "cookbook_title": cookbook.title,
+                **entity_response,
+                "entity_type": entity_type,
                 "quantity": data["quantity"],
                 "specification": {
                     "trim_size": spec_data["trim_size"],
@@ -273,32 +394,17 @@ def get_print_quote(current_user):
 @require_auth
 @limiter.limit("5/minute")
 def create_print_order(current_user):
-    """Create a new print order."""
+    """Create a new print order for a cookbook or book project."""
     try:
-        # Validate request data
-        required_fields = [
-            "cookbook_id",
-            "quantity",
-            "specification",
-            "shipping_address",
-        ]
-        data = validate_json_data(request, required_fields)
-        if isinstance(data, tuple):  # Error response
+        data = validate_json_data(
+            request, ["quantity", "specification", "shipping_address"]
+        )
+        if isinstance(data, tuple):
             return data
 
-        # Check cookbook access
-        cookbook = Cookbook.query.get(data["cookbook_id"])
-        if not cookbook:
-            return jsonify({"error": "Cookbook not found"}), 404
-
-        if cookbook.user_id != current_user.id:
-            return jsonify({"error": "Access denied"}), 403
-
-        # Reject Google Books cookbooks - print orders only allowed for user-owned cookbooks
-        if cookbook.google_books_id is not None:
-            return jsonify(
-                {"error": "Print orders are not available for Google Books cookbooks"}
-            ), 400
+        entity, entity_type, err = _resolve_printable_entity(data, current_user)
+        if err:
+            return err
 
         # Validate shipping address
         shipping_required = [
@@ -354,13 +460,17 @@ def create_print_order(current_user):
         if not quote:
             return jsonify({"error": "Failed to get current pricing"}), 500
 
-        # Generate unique order number
-        order_number = f"CKB-{datetime.utcnow().strftime('%Y%m%d')}-{current_user.id:04d}-{len(current_user.print_orders) + 1:03d}"
+        # Generate unique order number. Prefix encodes entity type so order
+        # numbers are recognizable at a glance.
+        prefix = "CKB" if entity_type == "cookbook" else "BPJ"
+        order_number = f"{prefix}-{datetime.utcnow().strftime('%Y%m%d')}-{current_user.id:04d}-{len(current_user.print_orders) + 1:03d}"
 
-        # Create print order
+        # Create print order. Exactly one of cookbook_id / book_project_id
+        # is set; the rest is identical regardless of entity type.
         print_order = PrintOrder(
             user_id=current_user.id,
-            cookbook_id=cookbook.id,
+            cookbook_id=entity.id if entity_type == "cookbook" else None,
+            book_project_id=entity.id if entity_type == "book_project" else None,
             specification_id=specification.id,
             order_number=order_number,
             quantity=data["quantity"],
@@ -539,100 +649,74 @@ def submit_print_order(current_user, order_id):
                 {"error": "Order can only be submitted after payment is completed"}
             ), 400
 
-        # Generate PDF files for the cookbook
-        pdf_service = PDFService()
         lulu_service = LuluService()
+        cover_service = CoverGenerationService()
 
-        # Get cookbook data
-        cookbook_dict = order.cookbook.to_dict(current_user_id=current_user.id)
-        recipes = order.cookbook.get_recipes_for_user(current_user.id)
-        recipes_dict = [
-            recipe.to_dict(current_user_id=current_user.id, is_admin=True)
-            for recipe in recipes
-        ]
-
-        # Generate print-ready interior PDF
+        # Generate the interior + cover PDF bytes. Cookbook orders go through
+        # the ReportLab pipeline (legacy); BookProject orders use the
+        # WeasyPrint print-mode renderer added in Phase 2C.
         try:
-            # Create print-ready configuration with selected template
-            from app.services.pdf_service import PDFConfig, PDFTemplate
-
-            # Map specification template to PDFTemplate enum
-            template_map = {
-                "classic": PDFTemplate.CLASSIC,
-                "modern": PDFTemplate.MODERN,
-                "book": PDFTemplate.BOOK,
-            }
-            selected_template = template_map.get(
-                order.specification.template, PDFTemplate.MODERN
-            )
-
-            print_config = PDFConfig(
-                template=selected_template
-            ).enable_print_ready_mode(
-                trim_size=order.specification.trim_size.value, include_marks=True
-            )
-            print_config.gutter_adjustment = True  # Add binding margin
-
-            interior_pdf = pdf_service.generate_cookbook_pdf(
-                cookbook_dict, recipes_dict, print_config
-            )
-
-            # Upload interior PDF using new method
-            interior_filename = f"interior_{order.order_number}"
-            interior_url = lulu_service.upload_interior_pdf(
-                interior_pdf, interior_filename
-            )
-
-            if not interior_url:
-                return jsonify({"error": "Failed to upload interior PDF"}), 500
-
-            order.interior_file_url = interior_url
-
-            logger.info(
-                f"Generated and uploaded print-ready interior PDF for order {order.order_number}"
+            interior_pdf, entity_dict, recipe_count = _build_interior_pdf(
+                order, current_user
             )
         except Exception as e:
-            lulu_service.handle_api_error(e, "interior PDF generation/upload")
+            logger.error(
+                f"Interior PDF generation failed for order {order.order_number}: {e}",
+                exc_info=True,
+            )
             return jsonify({"error": "Failed to prepare interior file"}), 500
 
-        # Generate print-ready cover PDF
+        # Upload interior PDF to Lulu (generic — same path for both entity types).
         try:
-            from app.services.cover_generation_service import CoverGenerationService
-
-            cover_service = CoverGenerationService()
-
-            # Estimate page count for spine calculation
-            estimated_pages = cover_service.estimate_page_count(len(recipes_dict))
-
-            # Map specification template to cover template name
-            cover_template_map = {
-                "classic": "classic",
-                "modern": "minimalist",  # Modern uses minimalist cover
-                "book": "book",
-            }
-            cover_template = cover_template_map.get(
-                order.specification.template, "minimalist"
+            interior_url = lulu_service.upload_interior_pdf(
+                interior_pdf, f"interior_{order.order_number}"
             )
+            if not interior_url:
+                return jsonify({"error": "Failed to upload interior PDF"}), 500
+            order.interior_file_url = interior_url
+            logger.info(
+                f"Uploaded interior PDF for order {order.order_number}"
+            )
+        except Exception as e:
+            lulu_service.handle_api_error(e, "interior PDF upload")
+            return jsonify({"error": "Failed to prepare interior file"}), 500
+
+        # Generate cover PDF. Cover service is entity-agnostic — same call,
+        # different metadata dict shape depending on entity type.
+        try:
+            estimated_pages = cover_service.estimate_page_count(recipe_count)
+
+            if order.content_type == "cookbook":
+                cover_template_map = {
+                    "classic": "classic",
+                    "modern": "minimalist",
+                    "book": "book",
+                }
+                cover_template = cover_template_map.get(
+                    order.specification.template, "minimalist"
+                )
+            else:
+                # BookProjects use the minimalist cover by default. We can
+                # add a project-type-specific cover later as part of Phase 2E
+                # (premium designer templates).
+                cover_template = "minimalist"
 
             cover_pdf = cover_service.generate_cover_pdf(
-                cookbook_data=cookbook_dict,
+                cookbook_data=entity_dict,
                 trim_size=order.specification.trim_size,
                 page_count=estimated_pages,
                 template_name=cover_template,
                 binding_type=order.specification.binding_type.value.lower(),
             )
 
-            # Upload cover PDF using new method
-            cover_filename = f"cover_{order.order_number}"
-            cover_url = lulu_service.upload_cover_pdf(cover_pdf, cover_filename)
-
+            cover_url = lulu_service.upload_cover_pdf(
+                cover_pdf, f"cover_{order.order_number}"
+            )
             if not cover_url:
                 return jsonify({"error": "Failed to upload cover PDF"}), 500
-
             order.cover_file_url = cover_url
-
             logger.info(
-                f"Generated and uploaded print-ready cover PDF for order {order.order_number}"
+                f"Uploaded cover PDF for order {order.order_number}"
             )
         except Exception as e:
             lulu_service.handle_api_error(e, "cover PDF generation/upload")
@@ -926,13 +1010,16 @@ def reorder_print_order(current_user, order_id):
         if not quote:
             return jsonify({"error": "Failed to get current pricing for reorder"}), 500
 
-        # Generate new order number
-        order_number = f"CKB-{datetime.utcnow().strftime('%Y%m%d')}-{current_user.id:04d}-{len(current_user.print_orders) + 1:03d}"
+        # Generate new order number, preserving the prefix from the original.
+        prefix = "CKB" if original_order.cookbook_id else "BPJ"
+        order_number = f"{prefix}-{datetime.utcnow().strftime('%Y%m%d')}-{current_user.id:04d}-{len(current_user.print_orders) + 1:03d}"
 
-        # Create new order
+        # Create new order. Copy whichever entity FK was on the original —
+        # exactly one is set on the original by construction.
         new_order = PrintOrder(
             user_id=current_user.id,
             cookbook_id=original_order.cookbook_id,
+            book_project_id=original_order.book_project_id,
             specification_id=original_order.specification_id,
             order_number=order_number,
             quantity=original_order.quantity,

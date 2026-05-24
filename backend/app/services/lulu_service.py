@@ -1024,28 +1024,20 @@ class LuluService:
             # Get POD package ID
             pod_package_id = self._get_pod_package_id(order.specification)
 
-            # Build line item details
+            # Build line item details. Title/author/isbn/description come
+            # from whichever entity (Cookbook or BookProject) the order is
+            # for — polymorphism lives on the PrintOrder model.
+            meta = order.lulu_line_item_metadata()
             line_item = {
-                "title": f"Cookbook: {order.cookbook.title}"
-                if order.cookbook
-                else f"Cookbook Order {order.order_number}",
+                "title": meta["title"],
                 "cover": cover_file_url,
                 "interior": interior_file_url,
                 "pod_package_id": pod_package_id,
                 "quantity": order.quantity,
+                "author": meta["author"],
+                "isbn": meta["isbn"],
+                "description": meta["description"],
             }
-
-            # Add book metadata if available
-            if order.cookbook:
-                line_item.update(
-                    {
-                        "author": order.cookbook.author or "Unknown Author",
-                        "isbn": getattr(order.cookbook, "isbn", None),
-                        "description": order.cookbook.description[:500]
-                        if order.cookbook.description
-                        else None,
-                    }
-                )
 
             # Build shipping address
             shipping_address = {

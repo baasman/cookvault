@@ -122,6 +122,42 @@ class TestTemplateRegistry:
         assert "wedding_basic" in templates
 
 
+class TestBuildCoverMetadata:
+    def test_wedding_project_with_honorees(self, app, populated_project_id):
+        from app.services.book_project_pdf_service import build_cover_metadata
+
+        with app.app_context():
+            project = db.session.get(BookProject, populated_project_id)
+            meta = build_cover_metadata(project)
+
+        assert meta["title"] == "Sarah & Maya's Recipe Book"
+        # Subtitle was set explicitly on the project — adapter uses it directly.
+        assert meta["subtitle"] == "A gift from your guests"
+        assert meta["author"] == "Sarah & Maya"
+        assert meta["description"] == "May your kitchen always smell of garlic."
+        # Recipes list only includes the non-excluded one.
+        assert len(meta["recipes"]) == 1
+        assert meta["recipes"][0]["title"] == "Linda's Apple Pie"
+
+    def test_subtitle_fallback_when_unset(self, app, test_user):
+        from app.services.book_project_pdf_service import build_cover_metadata
+
+        with app.app_context():
+            project = BookProject(
+                owner_user_id=test_user.id,
+                title="Bare Project",
+                project_type=ProjectType.WEDDING,
+                # subtitle, honorees, dedication all unset
+            )
+            db.session.add(project)
+            db.session.commit()
+            meta = build_cover_metadata(project)
+
+        assert meta["subtitle"] == "A gift from your guests"
+        assert meta["author"] == ""
+        assert meta["description"] == ""
+
+
 class TestJoinNames:
     @pytest.mark.parametrize(
         "names,expected",
@@ -202,6 +238,40 @@ class TestRenderPdfBytes:
                     watermarked=False,
                     template_name="does_not_exist",
                 )
+
+    def test_render_print_ready_requires_trim_size(
+        self, app, populated_project_id
+    ):
+        from app.services.book_project_pdf_service import (
+            render_book_project_pdf_to_bytes,
+        )
+
+        with app.app_context():
+            project = db.session.get(BookProject, populated_project_id)
+            with pytest.raises(ValueError, match="trim_size is required"):
+                render_book_project_pdf_to_bytes(
+                    project, watermarked=False, print_ready=True
+                )
+
+    def test_render_print_ready_pdf_bytes(self, app, populated_project_id):
+        """Print mode should successfully render bytes with print.css +
+        trim-size override applied. Doesn't assert on specific PDF internals
+        (Lulu validates the real artifact in the sandbox E2E)."""
+        from app.models.print_order import TrimSize
+        from app.services.book_project_pdf_service import (
+            render_book_project_pdf_to_bytes,
+        )
+
+        with app.app_context():
+            project = db.session.get(BookProject, populated_project_id)
+            pdf_bytes = render_book_project_pdf_to_bytes(
+                project,
+                watermarked=False,
+                print_ready=True,
+                trim_size=TrimSize.A5,
+            )
+        assert pdf_bytes.startswith(b"%PDF-")
+        assert len(pdf_bytes) > 1000
 
 
 class TestTemplateRenderingNoWeasyPrint:

@@ -32,7 +32,30 @@ from flask import current_app
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.models import BookProject, Recipe
+from app.models.print_order import TrimSize
 from app.services.cloudinary_service import cloudinary_service
+
+
+# Physical dimensions for each Lulu trim size. Used to emit a runtime
+# @page { size: WxH mm } stylesheet so a single print.css works across
+# every supported trim. Sourced from Lulu's POD trim chart.
+_TRIM_SIZE_MM: dict[TrimSize, tuple[float, float]] = {
+    TrimSize.US_LETTER: (215.9, 279.4),
+    TrimSize.US_TRADE: (152.4, 228.6),
+    TrimSize.DIGEST: (139.7, 215.9),
+    TrimSize.SQUARE_8: (203.2, 203.2),
+    TrimSize.LANDSCAPE_9x7: (228.6, 177.8),
+    TrimSize.A4: (210.0, 297.0),
+    TrimSize.A5: (148.0, 210.0),
+}
+
+
+def _page_size_css(trim_size: TrimSize) -> str:
+    """Return a CSS snippet that sets @page size to the given trim. Designed
+    to be passed to WeasyPrint as an additional stylesheet, applied last so
+    it overrides any size declared in template.css or print.css."""
+    width_mm, height_mm = _TRIM_SIZE_MM[trim_size]
+    return f"@page {{ size: {width_mm}mm {height_mm}mm; }}"
 
 
 class RenderedPdf(TypedDict):
@@ -203,6 +226,52 @@ def _ingredient_assoc_field(recipe: Recipe, ingredient, field: str):
     return row._mapping.get(field)
 
 
+def build_cover_metadata(project: BookProject) -> dict:
+    """Build the cookbook_data-shaped dict that CoverGenerationService expects
+    from a BookProject. Cover service is data-agnostic (takes a plain dict),
+    so this adapter is the only Cookbook→BookProject bridge needed for cover
+    rendering.
+
+    Mapping:
+      title       <- project.title
+      subtitle    <- project.subtitle or a project-type-aware default
+      author      <- honorees joined ("Sarah & Maya") for keepsake-style
+                     projects; for general/heirloom we leave it blank rather
+                     than guess
+      description <- project.dedication (used on back cover)
+      recipes     <- the included recipes (used by cover service for page
+                     count estimation if it does any)
+    """
+    included = _included_recipes(project)
+    honorees = project.honorees or []
+    subtitle = project.subtitle or _default_subtitle(project)
+    author = _join_names(honorees) if honorees else ""
+    return {
+        "title": project.title,
+        "subtitle": subtitle,
+        "author": author,
+        "description": project.dedication or "",
+        "recipes": [{"id": r.id, "title": r.title} for r in included],
+    }
+
+
+def _default_subtitle(project: BookProject) -> str:
+    """Project-type-aware subtitle fallback when the organizer didn't set one.
+    Kept short — covers have limited real estate."""
+    # Lazy import to avoid cycles at module load.
+    from app.models.book_project import ProjectType
+
+    defaults = {
+        ProjectType.WEDDING: "A gift from your guests",
+        ProjectType.ANNIVERSARY: "A celebration in recipes",
+        ProjectType.HEIRLOOM: "Family recipes, collected",
+        ProjectType.MEMORIAL: "Recipes in remembrance",
+        ProjectType.HOLIDAY: "A holiday recipe collection",
+        ProjectType.GENERAL: "",
+    }
+    return defaults.get(project.project_type, "")
+
+
 def _join_names(names: list[str]) -> str:
     """Render an "&"-joined honoree list, e.g. ['Sarah','Maya'] -> 'Sarah & Maya'."""
     names = [n for n in names if n]
@@ -324,15 +393,29 @@ def render_book_project_pdf_to_bytes(
     *,
     watermarked: bool,
     template_name: str = "wedding_basic",
+    print_ready: bool = False,
+    trim_size: Optional[TrimSize] = None,
 ) -> bytes:
     """Like ``render_book_project_pdf`` but returns bytes instead of writing
     to disk. Useful when the caller wants to stream the PDF directly in an
-    HTTP response without touching the filesystem."""
+    HTTP response without touching the filesystem.
+
+    When ``print_ready=True``, additionally applies print.css (bleed + crop
+    marks + page-number suppression) and an inline @page size derived from
+    ``trim_size``. The combination produces a PDF that Lulu's interior
+    validator accepts. ``trim_size`` is required when print_ready=True.
+    """
+    if print_ready and trim_size is None:
+        raise ValueError("trim_size is required when print_ready=True")
+
     template_dir = _TEMPLATES_ROOT / template_name
     if not template_dir.is_dir():
         raise FileNotFoundError(
             f"Book project template not found: {template_name}"
         )
+
+    _preload_weasyprint_dylibs()
+    from weasyprint import CSS, HTML
 
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -342,16 +425,21 @@ def render_book_project_pdf_to_bytes(
     context = _build_template_context(project, watermarked=watermarked)
     html_str = template.render(**context)
 
+    stylesheets: list = []
     css_path = template_dir / "template.css"
-    css_str: Optional[str] = None
     if css_path.exists():
-        css_str = css_path.read_text(encoding="utf-8")
-
-    from weasyprint import CSS, HTML
+        stylesheets.append(CSS(string=css_path.read_text(encoding="utf-8")))
+    if print_ready:
+        print_css_path = template_dir / "print.css"
+        if print_css_path.exists():
+            stylesheets.append(
+                CSS(string=print_css_path.read_text(encoding="utf-8"))
+            )
+        # Trim-size override last so it wins.
+        stylesheets.append(CSS(string=_page_size_css(trim_size)))
 
     html_doc = HTML(string=html_str, base_url=str(template_dir))
-    stylesheets = [CSS(string=css_str)] if css_str else None
 
     buf = io.BytesIO()
-    html_doc.write_pdf(target=buf, stylesheets=stylesheets)
+    html_doc.write_pdf(target=buf, stylesheets=stylesheets or None)
     return buf.getvalue()
