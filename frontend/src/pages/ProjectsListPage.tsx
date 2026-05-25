@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '../contexts/AuthContext';
+import { BooksSubNav } from '../components/navigation/BooksSubNav';
 import { bookProjectsApi } from '../services/bookProjectsApi';
 import type { BookProject, ProjectType } from '../types';
 
@@ -34,10 +35,10 @@ export const ProjectsListPage: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 text-center">
         <h1 className="text-3xl font-bold mb-3" style={{ color: '#1c120d' }}>
-          Book Projects
+          My Books
         </h1>
         <p className="mb-6" style={{ color: '#9b644b' }}>
-          Sign in to create a cookbook project and invite family and friends to contribute.
+          Sign in to create a collaborative cookbook and invite family and friends to contribute.
         </p>
         <button
           onClick={() => navigate('/login')}
@@ -52,10 +53,11 @@ export const ProjectsListPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <BooksSubNav active="projects" />
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: '#1c120d' }}>
-            Book Projects
+            My Books
           </h1>
           <p className="mt-1 text-sm" style={{ color: '#9b644b' }}>
             Collaborative cookbooks — collect recipes from family and friends, export a PDF
@@ -67,7 +69,7 @@ export const ProjectsListPage: React.FC = () => {
           className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
           style={{ backgroundColor: '#f15f1c' }}
         >
-          New project
+          New book
         </button>
       </div>
 
@@ -84,7 +86,7 @@ export const ProjectsListPage: React.FC = () => {
       ) : error ? (
         <div className="text-center py-12">
           <p className="mb-3" style={{ color: '#9b644b' }}>
-            Couldn't load your projects.
+            Couldn't load your books.
           </p>
           <button
             onClick={() => refetch()}
@@ -158,7 +160,7 @@ const EmptyState: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
     style={{ backgroundColor: '#fffbf5', border: '1px dashed #d4c2b3' }}
   >
     <h2 className="text-xl font-semibold mb-2" style={{ color: '#1c120d' }}>
-      Start your first book project
+      Start your first book
     </h2>
     <p className="max-w-md mx-auto mb-5 text-sm" style={{ color: '#6b5a52' }}>
       Create a project for a wedding, an anniversary, or a family heirloom cookbook, share the

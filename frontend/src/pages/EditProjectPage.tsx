@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../contexts/AuthContext';
 import { bookProjectsApi } from '../services/bookProjectsApi';
@@ -15,10 +15,18 @@ const PROJECT_TYPES: { value: ProjectType; label: string; eyebrow: string }[] = 
   { value: 'general', label: 'Something else', eyebrow: 'A general collection' },
 ];
 
-export const CreateProjectPage: React.FC = () => {
+export const EditProjectPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { id } = useParams<{ id: string }>();
+  const projectId = Number(id);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  const { data: project, isLoading: projectLoading, error: projectError } = useQuery({
+    queryKey: ['book-project', projectId],
+    queryFn: () => bookProjectsApi.get(projectId),
+    enabled: isAuthenticated && !!projectId,
+  });
 
   const [projectType, setProjectType] = useState<ProjectType>('wedding');
   const [title, setTitle] = useState('');
@@ -29,13 +37,28 @@ export const CreateProjectPage: React.FC = () => {
   const [dedication, setDedication] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Hydrate the form once the project loads. We intentionally only run this
+  // when the project's id changes — if the user edits a field, we don't want
+  // a background refetch to clobber their input.
+  useEffect(() => {
+    if (!project) return;
+    setProjectType(project.project_type);
+    setTitle(project.title || '');
+    setSubtitle(project.subtitle || '');
+    setHonoreesRaw((project.honorees || []).join(', '));
+    setOccasionDate(project.occasion_date || '');
+    setSubmissionDeadline(project.submission_deadline || '');
+    setDedication(project.dedication || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
+
   const mutation = useMutation({
     mutationFn: () => {
       const honorees = honoreesRaw
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      return bookProjectsApi.create({
+      return bookProjectsApi.update(projectId, {
         title: title.trim(),
         project_type: projectType,
         subtitle: subtitle.trim() || undefined,
@@ -45,12 +68,13 @@ export const CreateProjectPage: React.FC = () => {
         submission_deadline: submissionDeadline || undefined,
       });
     },
-    onSuccess: (project) => {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['book-project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['book-projects'] });
-      navigate(`/projects/${project.id}`);
+      navigate(`/projects/${projectId}`);
     },
     onError: (err: Error) => {
-      setError(err.message || 'Failed to create book');
+      setError(err.message || 'Failed to save changes');
     },
   });
 
@@ -58,6 +82,31 @@ export const CreateProjectPage: React.FC = () => {
   if (!isAuthenticated) {
     navigate('/login');
     return null;
+  }
+
+  if (projectLoading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="h-32 rounded-lg animate-pulse" style={{ backgroundColor: '#f6efe6' }} />
+      </div>
+    );
+  }
+
+  if (projectError || !project) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 text-center">
+        <p className="mb-3" style={{ color: '#9b644b' }}>
+          Book not found.
+        </p>
+        <button
+          onClick={() => navigate('/projects')}
+          className="px-4 py-2 text-white rounded-lg"
+          style={{ backgroundColor: '#f15f1c' }}
+        >
+          Back to Books
+        </button>
+      </div>
+    );
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -73,17 +122,18 @@ export const CreateProjectPage: React.FC = () => {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <button
-        onClick={() => navigate('/projects')}
+        onClick={() => navigate(`/projects/${projectId}`)}
         className="text-sm mb-4 hover:underline"
         style={{ color: '#9b644b' }}
       >
-        ← Back to Books
+        ← Back to book
       </button>
       <h1 className="text-3xl font-bold mb-1" style={{ color: '#1c120d' }}>
-        New book
+        Edit book
       </h1>
       <p className="text-sm mb-6" style={{ color: '#6b5a52' }}>
-        Pick a book type. You can always tweak the cover and copy later.
+        Update the cover copy, dates, or dedication. Changes take effect on the
+        next preview or regenerated clean PDF.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -198,7 +248,7 @@ export const CreateProjectPage: React.FC = () => {
         <div className="flex items-center gap-3 justify-end">
           <button
             type="button"
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate(`/projects/${projectId}`)}
             className="px-4 py-2 rounded-lg hover:underline"
             style={{ color: '#6b5a52' }}
           >
@@ -210,7 +260,7 @@ export const CreateProjectPage: React.FC = () => {
             className="px-5 py-2 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
             style={{ backgroundColor: '#f15f1c' }}
           >
-            {mutation.isPending ? 'Creating…' : 'Create book'}
+            {mutation.isPending ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </form>
@@ -238,4 +288,4 @@ const Field: React.FC<{
   </label>
 );
 
-export default CreateProjectPage;
+export default EditProjectPage;

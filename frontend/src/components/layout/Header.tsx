@@ -21,7 +21,7 @@ const Header: React.FC<HeaderProps> = ({
   navItems = [
     { label: 'Recipes', href: '/recipes' },
     { label: 'Cookbooks', href: '/cookbooks' },
-    { label: 'Projects', href: '/projects' },
+    { label: 'Books', href: '/projects' },
     { label: 'Sources', href: '/sources' }
   ]
 }) => {

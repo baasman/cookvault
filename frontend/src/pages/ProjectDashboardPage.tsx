@@ -16,7 +16,7 @@ const PROJECT_TYPE_COPY: Record<string, string> = {
   heirloom: 'Family heirloom',
   memorial: 'Memorial cookbook',
   holiday: 'Holiday cookbook',
-  general: 'Cookbook project',
+  general: 'Cookbook',
 };
 
 export const ProjectDashboardPage: React.FC = () => {
@@ -59,14 +59,14 @@ export const ProjectDashboardPage: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 text-center">
         <p className="mb-3" style={{ color: '#9b644b' }}>
-          Project not found.
+          Book not found.
         </p>
         <button
           onClick={() => navigate('/projects')}
           className="px-4 py-2 text-white rounded-lg"
           style={{ backgroundColor: '#f15f1c' }}
         >
-          Back to projects
+          Back to Books
         </button>
       </div>
     );
@@ -79,12 +79,12 @@ export const ProjectDashboardPage: React.FC = () => {
         className="text-sm hover:underline"
         style={{ color: '#9b644b' }}
       >
-        ← Back to projects
+        ← Back to Books
       </button>
 
       <header>
         <div className="text-xs uppercase tracking-wider mb-1" style={{ color: '#9b644b' }}>
-          {PROJECT_TYPE_COPY[project.project_type] ?? 'Cookbook project'}
+          {PROJECT_TYPE_COPY[project.project_type] ?? 'Cookbook'}
         </div>
         <h1 className="text-3xl font-bold" style={{ color: '#1c120d' }}>
           {project.title}
@@ -95,9 +95,20 @@ export const ProjectDashboardPage: React.FC = () => {
             {project.occasion_date ? ` — ${project.occasion_date}` : ''}
           </p>
         )}
-        <div className="mt-3 inline-flex items-center px-2 py-1 rounded text-xs"
-          style={{ backgroundColor: '#f6efe6', color: '#6b5a52' }}>
-          Status: {project.status}
+        <div className="mt-3 flex items-center gap-3">
+          <span
+            className="inline-flex items-center px-2 py-1 rounded text-xs"
+            style={{ backgroundColor: '#f6efe6', color: '#6b5a52' }}
+          >
+            Status: {project.status}
+          </span>
+          <button
+            onClick={() => navigate(`/projects/${projectId}/edit`)}
+            className="text-sm hover:underline"
+            style={{ color: '#9b644b' }}
+          >
+            Edit details
+          </button>
         </div>
       </header>
 

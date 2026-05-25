@@ -47,7 +47,7 @@ const PROJECT_TYPE_COPY: Record<ProjectType, CopyVariant> = {
       fallback || 'A holiday cookbook is being put together. Contribute a recipe from the season.',
   },
   general: {
-    eyebrow: 'A cookbook project',
+    eyebrow: 'A collaborative cookbook',
     intro: (_, fallback) => fallback || 'Submit a recipe to be included in the cookbook.',
   },
 };

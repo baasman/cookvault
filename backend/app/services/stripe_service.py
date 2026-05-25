@@ -616,6 +616,20 @@ class StripeService:
                 f"cloudinary={rendered['cloudinary_public_id']} "
                 f"disk={rendered['pdf_file_path']}"
             )
+
+            # Notify the owner — they're typically no longer on the page when
+            # the webhook completes, so email is the primary signal. Failure
+            # is non-fatal; the user can still download from the dashboard.
+            owner = project.owner
+            if owner and owner.email:
+                from app.services.email_service import get_email_service
+
+                get_email_service().send_book_project_export_ready(
+                    email=owner.email,
+                    username=owner.username or owner.email.split("@")[0],
+                    project_title=project.title,
+                    project_id=project.id,
+                )
         except Exception as render_err:
             logger.error(
                 f"Failed to render PDF for BookProjectExport {export_id}: {render_err}",
