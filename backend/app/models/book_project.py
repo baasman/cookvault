@@ -259,11 +259,18 @@ class BookProjectExport(db.Model):
     user: Mapped["User"] = relationship("User", backref="book_project_exports")
 
     def to_dict(self) -> dict:
+        # is_ready signals whether the rendered PDF is actually available for
+        # download. Paid exports are placeholder rows from the moment the
+        # PaymentIntent is created; the storage fields don't get populated
+        # until the Stripe webhook fires and the render completes. Without
+        # this signal the frontend can't distinguish "row exists" from "file
+        # exists" and ends up offering a download that 202s.
         return {
             "id": self.id,
             "project_id": self.project_id,
             "user_id": self.user_id,
             "payment_id": self.payment_id,
             "is_watermarked": self.is_watermarked,
+            "is_ready": bool(self.pdf_file_path or self.cloudinary_url),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

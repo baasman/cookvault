@@ -1085,6 +1085,89 @@ class TestDownloadExport:
         assert response.status_code == 410
 
 
+class TestRegenerateExport:
+    """Post-purchase regeneration: once a user has paid for the clean PDF of a
+    project, they can re-render it (e.g. after adding more recipes) without
+    paying again. The endpoint is gated on having any previously-paid clean
+    export."""
+
+    def _seed_paid_export(self, test_user, project):
+        from app.models import BookProjectExport
+        from app.models.payment import Payment, PaymentStatus, PaymentType
+
+        payment = Payment(
+            user_id=test_user.id,
+            stripe_payment_intent_id="pi_existing_paid",
+            payment_type=PaymentType.BOOK_PROJECT_EXPORT,
+            status=PaymentStatus.SUCCEEDED,
+            amount=19,
+            currency="usd",
+        )
+        db.session.add(payment)
+        db.session.flush()
+        paid_export = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            payment_id=payment.id,
+            pdf_file_path="/tmp/original.pdf",
+            is_watermarked=False,
+        )
+        db.session.add(paid_export)
+        db.session.commit()
+        return paid_export
+
+    def test_regenerate_rejects_without_prior_paid_export(
+        self, auth_client, test_user
+    ):
+        project = _make_project(test_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/regenerate", json={}
+        )
+        assert response.status_code == 403
+
+    def test_regenerate_rejects_unowned_project(self, auth_client, second_user):
+        project = _make_project(second_user)
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/regenerate", json={}
+        )
+        assert response.status_code == 404
+
+    @patch("app.api.book_projects.render_book_project_pdf", create=True)
+    @patch("app.services.book_project_pdf_service.render_book_project_pdf")
+    def test_regenerate_creates_new_export_after_paid(
+        self, mock_render, _alias, auth_client, test_user, tmp_path
+    ):
+        from app.models import BookProjectExport
+
+        fake_pdf = tmp_path / "regenerated.pdf"
+        fake_pdf.write_bytes(b"%PDF-1.4\nfresh\n")
+        mock_render.return_value = {
+            "cloudinary_public_id": None,
+            "cloudinary_url": None,
+            "pdf_file_path": str(fake_pdf),
+        }
+
+        project = _make_project(test_user)
+        paid = self._seed_paid_export(test_user, project)
+
+        response = auth_client.post(
+            f"/api/book-projects/{project.id}/export/regenerate", json={}
+        )
+        assert response.status_code == 201
+        data = response.get_json()
+        new_id = data["export"]["id"]
+        assert new_id != paid.id
+        assert data["export"]["is_watermarked"] is False
+        assert data["export"]["payment_id"] is None
+        assert data["export"]["is_ready"] is True
+
+        # Both exports exist; the new one is the regeneration.
+        new_export = db.session.get(BookProjectExport, new_id)
+        assert new_export.pdf_file_path == str(fake_pdf)
+        # Render kwargs explicit — clean, not preview.
+        assert mock_render.call_args.kwargs.get("watermarked") is False
+
+
 class TestWebhookHandler:
     @patch(
         "app.services.book_project_pdf_service.render_book_project_pdf"

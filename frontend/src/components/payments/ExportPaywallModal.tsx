@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -13,17 +13,22 @@ interface ExportPaywallModalProps {
   onPaymentSucceeded: (exportId: number) => void;
 }
 
+interface IntentInfo {
+  client_secret: string;
+  export_id: number;
+  price: number;
+}
+
 interface PaymentFormProps {
-  projectId: number;
+  intent: IntentInfo;
   onSuccess: (exportId: number) => void;
   onError: (msg: string) => void;
 }
 
-const PaymentForm: React.FC<PaymentFormProps> = ({ projectId, onSuccess, onError }) => {
+const PaymentForm: React.FC<PaymentFormProps> = ({ intent, onSuccess, onError }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
-  const [price, setPrice] = useState<number | null>(null);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -39,9 +44,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ projectId, onSuccess, onError
 
     setLoading(true);
     try {
-      const intent = await bookProjectsApi.createPurchaseIntent(projectId);
-      setPrice(intent.price);
-
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
         intent.client_secret,
         { payment_method: { card: cardElement } },
@@ -63,10 +65,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ projectId, onSuccess, onError
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <p className="text-sm" style={{ color: '#6b5a52' }}>
-        One-time purchase. After payment we render and store your clean (no-watermark) PDF;
-        download it from the project dashboard as soon as it's ready.
-      </p>
       <div
         className="p-3 rounded-md border"
         style={{ borderColor: '#e8dccf', backgroundColor: '#fffbf5' }}
@@ -89,11 +87,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ projectId, onSuccess, onError
         className="w-full py-2.5 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
         style={{ backgroundColor: '#f15f1c' }}
       >
-        {loading
-          ? 'Processing…'
-          : price != null
-            ? `Pay $${price.toFixed(2)}`
-            : 'Pay for clean PDF'}
+        {loading ? 'Processing…' : `Pay $${intent.price.toFixed(2)}`}
       </button>
     </form>
   );
@@ -106,6 +100,43 @@ export const ExportPaywallModal: React.FC<ExportPaywallModalProps> = ({
   onPaymentSucceeded,
 }) => {
   const [error, setError] = useState<string | null>(null);
+  const [intent, setIntent] = useState<IntentInfo | null>(null);
+  const [loadingIntent, setLoadingIntent] = useState(false);
+
+  // Create the PaymentIntent up front so we can show the price before the
+  // user enters their card. Stripe charges nothing for created-but-abandoned
+  // intents; they auto-expire after 24h.
+  useEffect(() => {
+    if (!isOpen) {
+      setIntent(null);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingIntent(true);
+    bookProjectsApi
+      .createPurchaseIntent(projectId)
+      .then((resp) => {
+        if (!cancelled) {
+          setIntent({
+            client_secret: resp.client_secret,
+            export_id: resp.export_id,
+            price: resp.price,
+          });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to start payment');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingIntent(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, projectId]);
 
   if (!isOpen) return null;
 
@@ -140,16 +171,43 @@ export const ExportPaywallModal: React.FC<ExportPaywallModalProps> = ({
           </button>
         </div>
 
-        <Elements stripe={stripePromise}>
-          <PaymentForm
-            projectId={projectId}
-            onSuccess={(exportId) => {
-              setError(null);
-              onPaymentSucceeded(exportId);
-            }}
-            onError={(msg) => setError(msg)}
-          />
-        </Elements>
+        {intent && (
+          <div
+            className="mb-4 px-4 py-3 rounded-md flex items-baseline justify-between"
+            style={{ backgroundColor: '#f6efe6' }}
+          >
+            <span className="text-sm" style={{ color: '#6b5a52' }}>
+              One-time purchase
+            </span>
+            <span className="text-2xl font-bold" style={{ color: '#1c120d' }}>
+              ${intent.price.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        <p className="text-sm mb-4" style={{ color: '#6b5a52' }}>
+          After payment we render and store your clean (no-watermark) PDF; it
+          appears on the dashboard as soon as it's ready.
+        </p>
+
+        {loadingIntent && !intent && (
+          <div className="py-6 text-center text-sm" style={{ color: '#6b5a52' }}>
+            Loading payment details…
+          </div>
+        )}
+
+        {intent && (
+          <Elements stripe={stripePromise}>
+            <PaymentForm
+              intent={intent}
+              onSuccess={(exportId) => {
+                setError(null);
+                onPaymentSucceeded(exportId);
+              }}
+              onError={(msg) => setError(msg)}
+            />
+          </Elements>
+        )}
 
         {error && (
           <div

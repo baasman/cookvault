@@ -359,16 +359,38 @@ const ExportSection: React.FC<{ projectId: number; projectTitle: string }> = ({
     refetchInterval: pendingPaidExportId ? 2500 : false,
   });
 
-  // Once the paid export shows up in the list, we know rendering is done.
-  // (`pdf_file_path` lives server-side; the frontend can't see it directly,
-  // but the existence of the export row + a clean download attempt confirms.)
+  // Wait for is_ready to flip true server-side (the Stripe webhook ran, the
+  // PDF rendered, storage fields populated). Without this check the row
+  // exists from the moment the PaymentIntent was created and the dashboard
+  // would offer a broken download that 202s.
   const paidReadyExport: BookProjectExport | undefined = exports?.find(
-    (e) => e.id === pendingPaidExportId && !e.is_watermarked,
+    (e) => e.id === pendingPaidExportId && !e.is_watermarked && e.is_ready,
   );
-  if (paidReadyExport && pendingPaidExportId) {
-    // We still keep pendingPaidExportId so the UI shows the "ready" state
-    // until the user actually downloads or refreshes.
-  }
+
+  // Project is "unlocked" if any export carries a payment_id — that paid row
+  // is the original purchase. Subsequent free regenerations don't have a
+  // payment_id of their own but inherit the unlock.
+  const hasPaidClean = (exports ?? []).some(
+    (e) => !e.is_watermarked && e.payment_id !== null,
+  );
+
+  // For the Download button: the most recent clean export that's actually
+  // ready (paid OR regenerated). Sorting client-side; exports are typically
+  // few per project so the cost is negligible.
+  const latestReadyClean: BookProjectExport | undefined = [...(exports ?? [])]
+    .filter((e) => !e.is_watermarked && e.is_ready)
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+
+  const regenerateMutation = useMutation({
+    mutationFn: () => bookProjectsApi.regenerateCleanExport(projectId),
+    onSuccess: () => {
+      setPreviewError(null);
+      queryClient.invalidateQueries({ queryKey: ['book-project-exports', projectId] });
+    },
+    onError: (err: Error) => {
+      setPreviewError(err.message);
+    },
+  });
 
   return (
     <section>
@@ -397,34 +419,57 @@ const ExportSection: React.FC<{ projectId: number; projectTitle: string }> = ({
             {previewMutation.isPending ? 'Rendering…' : 'Download preview PDF'}
           </button>
 
-          {pendingPaidExportId && paidReadyExport ? (
-            <button
-              onClick={() => {
-                bookProjectsApi
-                  .downloadExport(
-                    projectId,
-                    pendingPaidExportId,
-                    `book-project-${projectId}.pdf`,
-                  )
-                  .catch((err) => {
-                    setPreviewError(
-                      err instanceof Error ? err.message : 'Download failed',
-                    );
-                  });
-              }}
-              className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#1c120d' }}
-            >
-              Download clean PDF
-            </button>
-          ) : pendingPaidExportId ? (
+          {/* Mid-purchase, before webhook completes. */}
+          {pendingPaidExportId && !paidReadyExport && (
             <span
               className="px-4 py-2 text-sm rounded-lg"
               style={{ backgroundColor: '#f6efe6', color: '#6b5a52' }}
             >
               Rendering clean PDF…
             </span>
-          ) : (
+          )}
+
+          {/* Project is unlocked: offer download (always) and regenerate
+              (after the user adds more recipes / edits the project). */}
+          {hasPaidClean && latestReadyClean && (
+            <>
+              <button
+                onClick={() => {
+                  bookProjectsApi
+                    .downloadExport(
+                      projectId,
+                      latestReadyClean.id,
+                      `book-project-${projectId}.pdf`,
+                    )
+                    .catch((err) => {
+                      setPreviewError(
+                        err instanceof Error ? err.message : 'Download failed',
+                      );
+                    });
+                }}
+                className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: '#1c120d' }}
+              >
+                Download clean PDF
+              </button>
+              <button
+                onClick={() => regenerateMutation.mutate()}
+                disabled={regenerateMutation.isPending}
+                className="px-4 py-2 rounded-lg border hover:opacity-90 disabled:opacity-50 transition-opacity"
+                style={{
+                  borderColor: '#1c120d',
+                  backgroundColor: '#fffbf5',
+                  color: '#1c120d',
+                }}
+                title="Re-render the clean PDF with your latest recipes (free, you've already paid)."
+              >
+                {regenerateMutation.isPending ? 'Regenerating…' : 'Regenerate clean PDF'}
+              </button>
+            </>
+          )}
+
+          {/* Never paid yet — show the paywall CTA. */}
+          {!hasPaidClean && !pendingPaidExportId && (
             <button
               onClick={() => setPaywallOpen(true)}
               className="px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"

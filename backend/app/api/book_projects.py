@@ -1253,6 +1253,79 @@ def create_export_purchase(current_user, project_id: int) -> Response:
         return jsonify({"error": "Failed to start export purchase"}), 500
 
 
+@bp.route("/<int:project_id>/export/regenerate", methods=["POST"])
+@require_auth
+def regenerate_clean_export(current_user, project_id: int) -> Response:
+    """Re-render the clean PDF for a project the user already paid for. Synchronous —
+    returns the new export row directly so the frontend can download immediately.
+    No new Stripe charge: the original payment unlocks unlimited regenerations of
+    the clean version of this project. Requires the user to already have at least
+    one paid clean export for this project."""
+    project = _project_for_owner(project_id, current_user)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    # Gate: at least one previously-paid clean export must exist for this user
+    # on this project. Without this check anyone could call regenerate to bypass
+    # the paywall.
+    has_paid_clean = (
+        BookProjectExport.query.filter_by(
+            project_id=project.id,
+            user_id=current_user.id,
+            is_watermarked=False,
+        )
+        .filter(BookProjectExport.payment_id.isnot(None))
+        .first()
+        is not None
+    )
+    if not has_paid_clean:
+        return jsonify(
+            {"error": "Buy the clean PDF first; regeneration is free after that"}
+        ), 403
+
+    from app.services.book_project_pdf_service import render_book_project_pdf
+
+    try:
+        rendered = render_book_project_pdf(project, watermarked=False)
+    except FileNotFoundError as e:
+        current_app.logger.error(
+            f"Regenerate template missing for project {project_id}: {e}"
+        )
+        return jsonify({"error": "Template not found"}), 500
+    except Exception as e:
+        current_app.logger.error(
+            f"Regenerate render failed for project {project_id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to render PDF"}), 500
+
+    try:
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=current_user.id,
+            payment_id=None,  # regenerated rows don't have their own payment
+            pdf_file_path=rendered["pdf_file_path"],
+            cloudinary_public_id=rendered["cloudinary_public_id"],
+            cloudinary_url=rendered["cloudinary_url"],
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+        return jsonify(
+            {
+                "export": export.to_dict(),
+                "download_url": (
+                    f"/api/book-projects/{project.id}/exports/{export.id}/download"
+                ),
+            }
+        ), 201
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(
+            f"Failed to persist regenerated export for project {project_id}: {e}\n{traceback.format_exc()}"
+        )
+        return jsonify({"error": "Failed to record export"}), 500
+
+
 @bp.route("/<int:project_id>/exports", methods=["GET"])
 @require_auth
 def list_exports(current_user, project_id: int) -> Response:

@@ -306,6 +306,22 @@ class BookProjectsApi {
     return res.json();
   }
 
+  async regenerateCleanExport(projectId: number): Promise<PreviewExportResponse> {
+    const res = await apiFetch(
+      `${this.baseUrl}/book-projects/${projectId}/export/regenerate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to regenerate PDF');
+    }
+    return res.json();
+  }
+
   async createPurchaseIntent(projectId: number): Promise<PurchaseExportResponse> {
     const res = await apiFetch(
       `${this.baseUrl}/book-projects/${projectId}/export/purchase`,

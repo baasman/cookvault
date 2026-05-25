@@ -647,6 +647,10 @@ export interface BookProjectExport {
   user_id: number;
   payment_id: number | null;
   is_watermarked: boolean;
+  // True once the rendered PDF is actually downloadable. Paid exports start
+  // as placeholder rows with is_ready=false; the Stripe webhook flips it to
+  // true after rendering completes.
+  is_ready: boolean;
   created_at: string;
 }
 
