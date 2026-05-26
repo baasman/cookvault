@@ -107,18 +107,49 @@ class LuluServiceUnavailableError(LuluAPIError):
 class LuluService:
     """Service for interacting with Lulu Print API."""
 
-    # Lulu trim size mappings
-    TRIM_SIZE_MAPPING = {
-        TrimSize.US_LETTER: "USTRADE0850X1100",  # 8.5" x 11"
-        TrimSize.US_TRADE: "USTRADE0600X0900",  # 6" x 9"
-        TrimSize.DIGEST: "DIGEST0550X0850",  # 5.5" x 8.5"
-        TrimSize.SQUARE_8: "SQUARE0800X0800",  # 8" x 8"
-        TrimSize.LANDSCAPE_9x7: "LANDSCAPE0900X0700",  # 9" x 7"
-        TrimSize.A4: "A4",  # 210mm x 297mm
-        TrimSize.A5: "A5",  # 148mm x 210mm
+    # Lulu's POD package IDs are a single 27-character SKU encoding trim,
+    # color, print quality, binding, paper weight + color, finish, and
+    # laminate. We can't build them from per-attribute pieces — Lulu only
+    # accepts a small set of pre-validated full SKUs. Hardcoded table is the
+    # simplest correct approach; missing combinations raise a clear error.
+    #
+    # Reference: https://developers.lulu.com/product-data
+    # SKU format: <trim mm 9-char> <BW|FC> <paper-prefix 3> <binding 2>
+    #             <weight 3> <paper-color 2> <finish 3> <laminate 3>
+    POD_PACKAGE_IDS = {
+        # (trim, binding, paper, color_pages): SKU
+        (TrimSize.A5, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
+            "0148X0210BWSTDPB060UW444MNG",
+        (TrimSize.A5, BindingType.PERFECT_BOUND, PaperType.STANDARD_CREAM, False):
+            "0148X0210BWSTDPB060UC444MNG",
+        (TrimSize.US_TRADE, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
+            "0600X0900BWSTDPB060UW444MNG",
+        (TrimSize.US_TRADE, BindingType.PERFECT_BOUND, PaperType.STANDARD_CREAM, False):
+            "0600X0900BWSTDPB060UC444MNG",
+        (TrimSize.DIGEST, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
+            "0550X0850BWSTDPB060UW444MNG",
+        (TrimSize.US_LETTER, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
+            "0850X1100BWSTDPB060UW444MNG",
+        (TrimSize.A4, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
+            "0210X0297BWSTDPB060UW444MNG",
+        # Color variants
+        (TrimSize.A5, BindingType.PERFECT_BOUND, PaperType.PREMIUM_COLOR, True):
+            "0148X0210FCSTDPB080CW444MNG",
+        (TrimSize.US_TRADE, BindingType.PERFECT_BOUND, PaperType.PREMIUM_COLOR, True):
+            "0600X0900FCSTDPB080CW444MNG",
     }
 
-    # Lulu binding type mappings
+    # Legacy per-attribute mappings kept for downstream consumers that need
+    # symbolic names (logging, UI). NOT used to build POD SKUs.
+    TRIM_SIZE_MAPPING = {
+        TrimSize.US_LETTER: "USTRADE0850X1100",
+        TrimSize.US_TRADE: "USTRADE0600X0900",
+        TrimSize.DIGEST: "DIGEST0550X0850",
+        TrimSize.SQUARE_8: "SQUARE0800X0800",
+        TrimSize.LANDSCAPE_9x7: "LANDSCAPE0900X0700",
+        TrimSize.A4: "A4",
+        TrimSize.A5: "A5",
+    }
     BINDING_TYPE_MAPPING = {
         BindingType.PERFECT_BOUND: "PERFECT",
         BindingType.COIL_BOUND: "COIL",
@@ -126,8 +157,6 @@ class LuluService:
         BindingType.CASE_WRAP: "CASE_WRAP",
         BindingType.DUST_JACKET: "DUST_JACKET",
     }
-
-    # Lulu paper type mappings
     PAPER_TYPE_MAPPING = {
         PaperType.STANDARD_WHITE: "STANDARD_WHITE",
         PaperType.STANDARD_CREAM: "STANDARD_CREAM",
@@ -394,11 +423,22 @@ class LuluService:
                         continue
 
                 elif response.status_code >= 400:
-                    # Client error - don't retry
+                    # Client error - don't retry. Lulu's error body is
+                    # sometimes a dict ({"detail": "..."} / {"message": "..."}
+                    # / per-field errors) and sometimes a list of field
+                    # validation errors. Handle both shapes so we surface the
+                    # actual message instead of crashing during error logging.
                     error_data = response.json() if response.content else {}
-                    error_message = error_data.get(
-                        "message", f"API error: {response.status_code}"
-                    )
+                    if isinstance(error_data, dict):
+                        error_message = error_data.get(
+                            "message",
+                            error_data.get("detail", f"API error: {response.status_code}"),
+                        )
+                    elif isinstance(error_data, list) and error_data:
+                        # List of field errors — stringify for visibility.
+                        error_message = f"API error: {response.status_code}: {error_data}"
+                    else:
+                        error_message = f"API error: {response.status_code}"
                     raise LuluAPIError(error_message, response.status_code, error_data)
 
                 # Success - return response
@@ -466,67 +506,36 @@ class LuluService:
             f"Uploading {file_type} PDF file: {filename} ({len(pdf_bytes)} bytes)"
         )
 
+        # Lulu's Print API doesn't expose a file-hosting endpoint anymore —
+        # the model is "you provide PDFs at public HTTPS URLs, we fetch them
+        # when creating the print job and again when validating." We host
+        # PDFs on Cloudinary (already used for digital BookProject exports)
+        # and pass those URLs straight through to Lulu downstream.
+        from app.services.cloudinary_service import cloudinary_service
+
+        if not cloudinary_service.is_enabled():
+            raise LuluAPIError(
+                "Cloudinary must be enabled to host print PDFs — set USE_CLOUDINARY=true"
+                " and CLOUDINARY_* credentials"
+            )
+
         try:
-            # Step 1: Request upload URL from Lulu
-            upload_request = {
-                "file_name": filename,
-                "file_type": "application/pdf",
-                "content_type": "application/pdf",
-            }
-
-            upload_info = self._make_request(
-                "POST", "/files/upload-url/", data=upload_request
+            upload = cloudinary_service.upload_pdf(
+                pdf_bytes,
+                filename=filename,
+                folder=f"print_orders/{file_type}",
             )
-
-            upload_url = upload_info.get("upload_url")
-            file_id = upload_info.get("file_id")
-
-            if not upload_url or not file_id:
-                raise LuluAPIError("Invalid upload response from Lulu")
-
-            logger.debug(f"Got upload URL for file_id: {file_id}")
-
-            # Step 2: Upload file to the provided URL
-            upload_headers = {
-                "Content-Type": "application/pdf",
-                "Content-Length": str(len(pdf_bytes)),
-            }
-
-            # Add any additional headers provided by Lulu
-            if "upload_headers" in upload_info:
-                upload_headers.update(upload_info["upload_headers"])
-
-            upload_response = requests.put(
-                upload_url,
-                data=pdf_bytes,
-                headers=upload_headers,
-                timeout=300,  # 5 minutes for large files
-            )
-
-            upload_response.raise_for_status()
-            logger.info(f"Successfully uploaded {file_type} PDF to Lulu")
-
-            # Step 3: Confirm upload and get final file URL
-            confirmation_response = self._make_request(
-                "POST", f"/files/{file_id}/confirm/", data={"status": "uploaded"}
-            )
-
-            file_url = confirmation_response.get("file_url")
-            if not file_url:
-                # Fallback to constructing URL
-                file_url = f"https://files.lulu.com/{file_id}"
-
-            logger.info(f"File upload confirmed, URL: {file_url}")
-            return file_url
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"File upload failed: {str(e)}")
-            raise LuluAPIError(f"File upload failed: {str(e)}")
         except Exception as e:
             logger.error(
-                f"Unexpected error during file upload: {str(e)}", exc_info=True
+                f"Cloudinary upload failed for {file_type} PDF: {e}", exc_info=True
             )
             raise LuluAPIError(f"File upload error: {str(e)}")
+
+        file_url = upload["url"]
+        logger.info(
+            f"Hosted {file_type} PDF on Cloudinary for Lulu fetch: {file_url}"
+        )
+        return file_url
 
     def upload_interior_pdf(
         self, pdf_bytes: bytes, filename: Optional[str] = None
@@ -996,30 +1005,10 @@ class LuluService:
                     "Cover file URL not found - file must be uploaded first"
                 )
 
-            # Validate files before creating job
-            logger.info("Validating uploaded files")
-
-            # Validate interior file
-            interior_valid, interior_error, interior_details = (
-                self.validate_uploaded_file(
-                    interior_file_url,
-                    "interior",
-                    page_count=order.specification.page_count,
-                )
-            )
-
-            if not interior_valid:
-                raise LuluAPIError(f"Interior file validation failed: {interior_error}")
-
-            # Validate cover file
-            cover_valid, cover_error, cover_details = self.validate_uploaded_file(
-                cover_file_url, "cover"
-            )
-
-            if not cover_valid:
-                raise LuluAPIError(f"Cover file validation failed: {cover_error}")
-
-            logger.info("File validation completed successfully")
+            # Lulu's current API doesn't expose standalone pre-validation
+            # endpoints — validation happens implicitly when /print-jobs/
+            # fetches the URLs. Validation errors come back via the print-job
+            # response and the async validation webhook.
 
             # Get POD package ID
             pod_package_id = self._get_pod_package_id(order.specification)
@@ -1062,7 +1051,11 @@ class LuluService:
                 "shipping_address": shipping_address,
                 "contact_email": order.shipping_email,
                 "production_delay": 120,  # Standard production time (2 days)
-                "shipping_level": "STANDARD",  # STANDARD, PRIORITY, EXPRESS
+                # Lulu's valid shipping levels: MAIL, PRIORITY_MAIL, GROUND_HD,
+                # GROUND, GROUND_BUS, EXPEDITED, EXPRESS. We default to MAIL
+                # (cheapest); the spec/order could expose this as a user-
+                # selectable field later.
+                "shipping_level": "MAIL",
                 "external_id": order.order_number,  # Our order reference
             }
 
@@ -1444,37 +1437,33 @@ class LuluService:
             return {"error": str(e)}
 
     def _get_pod_package_id(self, specification: PrintSpecification) -> str:
-        """
-        Get Lulu POD package ID for given specifications.
+        """Resolve a valid Lulu POD package SKU for the given spec.
 
-        Args:
-            specification: Book specifications
-
-        Returns:
-            str: Lulu POD package ID
-        """
-        # If we already have a cached POD package ID, use it
+        Lulu only accepts a small set of pre-validated 27-character SKUs;
+        they can't be built from independent attribute pieces. We look up
+        the (trim, binding, paper, color) tuple in POD_PACKAGE_IDS and raise
+        a clear LuluAPIError if no SKU is registered for that combination —
+        better to fail at job submission with an actionable message than
+        send a synthesized fake SKU that Lulu would reject."""
         if specification.lulu_pod_package_id:
             return specification.lulu_pod_package_id
 
-        # Build POD package ID from specifications
-        # Format: SIZE_BINDING_PAPER_COLOR
-        size_code = self.TRIM_SIZE_MAPPING.get(specification.trim_size)
-        binding_code = self.BINDING_TYPE_MAPPING.get(specification.binding_type)
-        paper_code = self.PAPER_TYPE_MAPPING.get(specification.paper_type)
+        key = (
+            specification.trim_size,
+            specification.binding_type,
+            specification.paper_type,
+            bool(specification.color_pages),  # default-False on read
+        )
+        sku = self.POD_PACKAGE_IDS.get(key)
+        if not sku:
+            raise LuluAPIError(
+                f"No Lulu POD package SKU registered for trim={specification.trim_size.value} "
+                f"binding={specification.binding_type.value} paper={specification.paper_type.value} "
+                f"color={specification.color_pages}. Add it to LuluService.POD_PACKAGE_IDS."
+            )
 
-        if specification.color_pages:
-            color_code = "COLOR"
-        else:
-            color_code = "BW"
-
-        # Example: "USTRADE0600X0900_PERFECT_STANDARD_WHITE_BW"
-        pod_package_id = f"{size_code}_{binding_code}_{paper_code}_{color_code}"
-
-        # Cache for future use
-        specification.lulu_pod_package_id = pod_package_id
-
-        return pod_package_id
+        specification.lulu_pod_package_id = sku
+        return sku
 
     def handle_webhook_event(self, event_type: str, event_data: Dict) -> None:
         """
