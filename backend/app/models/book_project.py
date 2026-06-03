@@ -56,13 +56,27 @@ class BookProject(db.Model):
         ForeignKey("user.id"), nullable=False, index=True
     )
 
+    # SQLAlchemy's default db.Enum serializes by enum NAME (uppercase like
+    # WEDDING). Our PG enum types are created with lowercase VALUES (see
+    # book_projects_001 migration), so without values_callable PG rejects
+    # inserts with "invalid input value for enum projecttype: WEDDING".
+    # SQLite stores enums as plain strings and accepts either, which is why
+    # this bug only surfaces in production.
     project_type: Mapped[ProjectType] = mapped_column(
-        db.Enum(ProjectType, name="projecttype"),
+        db.Enum(
+            ProjectType,
+            name="projecttype",
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=ProjectType.GENERAL,
         nullable=False,
     )
     status: Mapped[ProjectStatus] = mapped_column(
-        db.Enum(ProjectStatus, name="projectstatus"),
+        db.Enum(
+            ProjectStatus,
+            name="projectstatus",
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=ProjectStatus.COLLECTING,
         nullable=False,
     )
