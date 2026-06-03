@@ -86,6 +86,15 @@ export const TabBar: React.FC = () => {
     if (tab.id === 'add') {
       return false; // Add button is never "active"
     }
+    // The Books tab covers both Cookbooks and collaborative BookProjects.
+    // They share a top-of-page sub-nav so the user can switch between them
+    // without leaving the tab.
+    if (tab.id === 'cookbooks') {
+      return (
+        location.pathname.startsWith('/cookbooks') ||
+        location.pathname.startsWith('/projects')
+      );
+    }
     return location.pathname.startsWith(tab.path);
   };
 

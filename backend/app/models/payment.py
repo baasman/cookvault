@@ -28,6 +28,7 @@ class PaymentType(Enum):
     SUBSCRIPTION = "subscription"
     COOKBOOK = "cookbook"
     PRINT_ORDER = "print_order"
+    BOOK_PROJECT_EXPORT = "book_project_export"
 
 
 class PaymentStatus(Enum):

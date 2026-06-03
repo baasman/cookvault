@@ -20,6 +20,11 @@ const CookbooksPage = lazy(() => import('./pages/CookbooksPage').then(m => ({ de
 const CookbookDetailPage = lazy(() => import('./pages/CookbookDetailPage').then(m => ({ default: m.CookbookDetailPage })));
 const CreateCookbookPage = lazy(() => import('./pages/CreateCookbookPage').then(m => ({ default: m.CreateCookbookPage })));
 const CookbookPurchaseSuccessPage = lazy(() => import('./pages/CookbookPurchaseSuccessPage').then(m => ({ default: m.CookbookPurchaseSuccessPage })));
+const ProjectsListPage = lazy(() => import('./pages/ProjectsListPage').then(m => ({ default: m.ProjectsListPage })));
+const CreateProjectPage = lazy(() => import('./pages/CreateProjectPage').then(m => ({ default: m.CreateProjectPage })));
+const EditProjectPage = lazy(() => import('./pages/EditProjectPage').then(m => ({ default: m.EditProjectPage })));
+const ProjectDashboardPage = lazy(() => import('./pages/ProjectDashboardPage').then(m => ({ default: m.ProjectDashboardPage })));
+const ContributorLandingPage = lazy(() => import('./pages/ContributorLandingPage').then(m => ({ default: m.ContributorLandingPage })));
 const SourcesPage = lazy(() => import('./pages/SourcesPage').then(m => ({ default: m.SourcesPage })));
 const SourceDetailPage = lazy(() => import('./pages/SourceDetailPage').then(m => ({ default: m.SourceDetailPage })));
 const UploadPage = lazy(() => import('./pages/UploadPage').then(m => ({ default: m.UploadPage })));
@@ -102,6 +107,11 @@ function App() {
                     <Route path="/cookbooks/create" element={<CreateCookbookPage />} />
                     <Route path="/cookbooks/:id" element={<CookbookDetailPage />} />
                     <Route path="/cookbooks/:cookbookId/purchase-success" element={<CookbookPurchaseSuccessPage />} />
+                    <Route path="/projects" element={<ProjectsListPage />} />
+                    <Route path="/projects/create" element={<CreateProjectPage />} />
+                    <Route path="/projects/:id/edit" element={<EditProjectPage />} />
+                    <Route path="/projects/:id" element={<ProjectDashboardPage />} />
+                    <Route path="/contribute/:token" element={<ContributorLandingPage />} />
                     <Route path="/sources" element={<SourcesPage />} />
                     <Route path="/sources/:id" element={<SourceDetailPage />} />
                     <Route path="/upload" element={<UploadPage />} />

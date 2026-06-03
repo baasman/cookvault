@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ project.title }}</title>
+  </head>
+  <body>
+    {% if watermarked %}
+      <div class="watermark">
+        <span>{{ watermark_text }}</span>
+        <span>{{ watermark_text }}</span>
+        <span>{{ watermark_text }}</span>
+        <span>{{ watermark_text }}</span>
+        <span>{{ watermark_text }}</span>
+        <span>{{ watermark_text }}</span>
+      </div>
+    {% endif %}
+
+    {# ---- Cover page ---- #}
+    <section class="cover">
+      <div class="cover-inner">
+        <p class="cover-eyebrow">
+          {% if project.project_type.value == "wedding" %}
+            A gift from your guests
+          {% elif project.project_type.value == "anniversary" %}
+            On your anniversary
+          {% elif project.project_type.value == "heirloom" %}
+            A family heirloom
+          {% elif project.project_type.value == "memorial" %}
+            In loving memory
+          {% elif project.project_type.value == "holiday" %}
+            For the holidays
+          {% else %}
+            A collection
+          {% endif %}
+        </p>
+        <h1 class="cover-title">{{ project.title }}</h1>
+        {% if project.subtitle %}
+          <p class="cover-subtitle">{{ project.subtitle }}</p>
+        {% endif %}
+        {% if honorees_joined %}
+          <p class="cover-honorees">{{ honorees_joined }}</p>
+        {% endif %}
+        {% if project.occasion_date %}
+          <p class="cover-date">{{ project.occasion_date.strftime("%B %-d, %Y") }}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {# ---- Dedication / intro ---- #}
+    {% if project.dedication %}
+      <section class="dedication">
+        <p>{{ project.dedication }}</p>
+      </section>
+    {% endif %}
+
+    {# ---- Table of contents ---- #}
+    {% if recipes %}
+      <section class="toc">
+        <h2>Recipes</h2>
+        <ol>
+          {% for recipe in recipes %}
+            <li>
+              <span class="toc-title">{{ recipe.title }}</span>
+              {% if recipe.contributor_name %}
+                <span class="toc-contributor">— {{ recipe.contributor_name }}</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% endif %}
+
+    {# ---- Recipe pages ---- #}
+    {% for recipe in recipes %}
+      <section class="recipe">
+        <header class="recipe-header">
+          <h2 class="recipe-title">{{ recipe.title }}</h2>
+          {% if recipe.contributor_name %}
+            <p class="recipe-contributor">From {{ recipe.contributor_name }}</p>
+          {% endif %}
+        </header>
+
+        {% if recipe.description %}
+          <p class="recipe-description">{{ recipe.description }}</p>
+        {% endif %}
+
+        <dl class="recipe-meta">
+          {% if recipe.prep_time %}
+            <dt>Prep</dt><dd>{{ recipe.prep_time }} min</dd>
+          {% endif %}
+          {% if recipe.cook_time %}
+            <dt>Cook</dt><dd>{{ recipe.cook_time }} min</dd>
+          {% endif %}
+          {% if recipe.servings %}
+            <dt>Serves</dt><dd>{{ recipe.servings }}</dd>
+          {% endif %}
+        </dl>
+
+        <div class="recipe-body">
+          {% if recipe.ingredients %}
+            <div class="recipe-ingredients">
+              <h3>Ingredients</h3>
+              <ul>
+                {% for ing in recipe.ingredients %}
+                  <li>
+                    {%- if ing.quantity is not none -%}
+                      <span class="ingredient-qty">{{ ing.quantity }}</span>
+                    {%- endif -%}
+                    {%- if ing.unit -%}
+                      <span class="ingredient-unit"> {{ ing.unit }}</span>
+                    {%- endif -%}
+                    <span class="ingredient-name"> {{ ing.name }}</span>
+                    {%- if ing.preparation -%}
+                      <span class="ingredient-prep">, {{ ing.preparation }}</span>
+                    {%- endif -%}
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+
+          {% if recipe.instructions %}
+            <div class="recipe-instructions">
+              <h3>Method</h3>
+              <ol>
+                {% for step in recipe.instructions %}
+                  <li>{{ step.text }}</li>
+                {% endfor %}
+              </ol>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    {% else %}
+      <section class="empty">
+        <p>No recipes have been submitted yet.</p>
+      </section>
+    {% endfor %}
+
+    {# ---- Colophon ---- #}
+    <section class="colophon">
+      <p>
+        {% if honorees_joined %}
+          Created with love for {{ honorees_joined }}.
+        {% else %}
+          Created with love.
+        {% endif %}
+      </p>
+      <p class="colophon-meta">
+        {{ recipe_count }} {% if recipe_count == 1 %}recipe{% else %}recipes{% endif %}
+        from family and friends.
+      </p>
+    </section>
+  </body>
+</html>

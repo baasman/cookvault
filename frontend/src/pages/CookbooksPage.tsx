@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SearchBar, Button } from '../components/ui';
 import { CookbookCard, CookbookCardSkeleton } from '../components/cookbook';
+import { BooksSubNav } from '../components/navigation/BooksSubNav';
 import { cookbooksApi } from '../services/cookbooksApi';
 import { useAuth } from '../contexts/AuthContext';
 import type { Cookbook } from '../types';
@@ -87,6 +88,8 @@ const CookbooksPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {isAuthenticated && <BooksSubNav active="cookbooks" />}
+
       {/* Page Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2" style={{color: '#1c120d'}}>

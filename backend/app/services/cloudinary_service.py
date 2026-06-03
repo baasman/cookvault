@@ -137,6 +137,65 @@ class CloudinaryService:
             logger.error(f"Failed to upload image to Cloudinary: {e}")
             raise RuntimeError(f"Cloudinary upload failed: {str(e)}")
 
+    def upload_pdf(
+        self,
+        pdf_data: bytes,
+        filename: str,
+        folder: str = "book_project_exports",
+    ) -> Dict[str, Any]:
+        """Upload a PDF as a raw resource. Returned secure_url ends in ``.pdf``
+        so external fetchers (e.g. Lulu's print-job downloader) get the right
+        content-type — without the extension Cloudinary serves raw resources
+        as ``application/octet-stream`` which some pickier consumers reject.
+        Passing ``folder`` alongside ``public_id`` doubles the prefix, so we
+        build ``public_id`` to already include the folder and DON'T pass
+        ``folder`` separately."""
+        if not self.is_enabled():
+            raise RuntimeError("Cloudinary service is not enabled or configured")
+
+        base_name = os.path.splitext(filename)[0]
+        # Public ID includes folder + .pdf extension so the resulting URL is
+        # ``.../raw/upload/<folder>/<name>.pdf`` and Cloudinary infers the
+        # correct content-type when serving.
+        public_id = f"{folder}/{base_name}.pdf"
+
+        upload_result = cloudinary.uploader.upload(
+            pdf_data,
+            public_id=public_id,
+            resource_type="raw",
+            overwrite=True,
+            use_filename=False,
+        )
+
+        result = {
+            "public_id": upload_result["public_id"],
+            "url": upload_result["secure_url"],
+            "bytes": upload_result["bytes"],
+            "created_at": upload_result["created_at"],
+        }
+        logger.info(f"Successfully uploaded PDF to Cloudinary: {public_id}")
+        return result
+
+    def delete_pdf(self, public_id: str) -> bool:
+        """Delete a raw-resource (PDF) from Cloudinary."""
+        if not self.is_enabled():
+            logger.warning("Cloudinary service is not enabled, cannot delete PDF")
+            return False
+
+        try:
+            result = cloudinary.uploader.destroy(public_id, resource_type="raw")
+            success = result.get("result") == "ok"
+            if success:
+                logger.info(f"Successfully deleted PDF from Cloudinary: {public_id}")
+            else:
+                logger.warning(
+                    f"Failed to delete PDF from Cloudinary: {public_id}, result: {result}"
+                )
+            return success
+        except Exception as e:
+            logger.error(f"Error deleting PDF from Cloudinary: {e}")
+            return False
+
     def delete_image(self, public_id: str) -> bool:
         """
         Delete an image from Cloudinary

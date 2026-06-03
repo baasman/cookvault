@@ -182,6 +182,7 @@ export interface Recipe {
   source?: string;
   user_id?: number;
   uploaded_by_id?: number; // Tracks who actually uploaded the recipe
+  book_project_id?: number | null; // Set when the recipe is a BookProject submission
   is_public: boolean;
   published_at?: string;
   is_featured: boolean;
@@ -570,4 +571,100 @@ export interface RecentActivity {
   title: string;
   created_at: string;
   cookbook_title?: string;
+}
+
+// ---- BookProject ---------------------------------------------------------
+
+export type ProjectType =
+  | 'wedding'
+  | 'anniversary'
+  | 'heirloom'
+  | 'memorial'
+  | 'holiday'
+  | 'general';
+
+export type ProjectStatus =
+  | 'collecting'
+  | 'review'
+  | 'finalized'
+  | 'exported';
+
+export interface BookProject {
+  id: number;
+  owner_user_id: number;
+  project_type: ProjectType;
+  status: ProjectStatus;
+  title: string;
+  subtitle: string | null;
+  dedication: string | null;
+  honorees: string[];
+  occasion_date: string | null;
+  submission_deadline: string | null;
+  cover_image_url: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  recipe_count?: number;
+  contributor_count?: number;
+  share_links?: ProjectShareLink[];
+  contributors?: GuestContributor[];
+}
+
+export interface ProjectShareLink {
+  id: number;
+  project_id: number;
+  token: string;
+  url?: string; // populated on creation
+  expires_at: string | null;
+  submission_cap: number | null;
+  submission_count: number;
+  revoked: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface GuestContributor {
+  id: number;
+  project_id: number;
+  display_name: string;
+  email?: string;
+  created_at: string;
+}
+
+export interface ProjectSubmission {
+  recipe_id: number;
+  title: string;
+  description: string | null;
+  is_excluded_from_project: boolean;
+  contributor: GuestContributor | null;
+  uploaded_by_id: number | null;
+  created_at: string | null;
+}
+
+export interface BookProjectExport {
+  id: number;
+  project_id: number;
+  user_id: number;
+  payment_id: number | null;
+  is_watermarked: boolean;
+  // True once the rendered PDF is actually downloadable. Paid exports start
+  // as placeholder rows with is_ready=false; the Stripe webhook flips it to
+  // true after rendering completes.
+  is_ready: boolean;
+  created_at: string;
+}
+
+export interface PreviewExportResponse {
+  export: BookProjectExport;
+  download_url: string;
+}
+
+export interface PurchaseExportResponse {
+  export_id: number;
+  client_secret: string;
+  payment_intent_id: string;
+  amount: number;
+  currency: string;
+  project_id: number;
+  price: number;
 }

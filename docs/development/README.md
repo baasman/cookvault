@@ -30,6 +30,13 @@ Guidelines, standards, and tools for developing Cookbook Creator.
 - Certificate generation
 - HTTPS configuration for local development
 
+### Stripe Webhooks (local dev)
+➡️ **[Stripe Webhooks Guide](stripe-webhooks.md)**
+
+- `stripe listen` forwarding for paid flows in dev
+- End-to-end BookProject clean-PDF test
+- Production webhook registration
+
 ---
 
 ## Development Workflow

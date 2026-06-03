@@ -43,6 +43,10 @@ jobs:
       DATABASE_URL: sqlite:///test.db
       ANTHROPIC_API_KEY: test-key
       REDIS_URL: redis://localhost:6379/0
+      # Stripe tests mock the API calls but StripeService.__init__
+      # asserts on a non-empty key at construction time.
+      STRIPE_SECRET_KEY: sk_test_ci_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_ci_dummy
 
     services:
       redis:

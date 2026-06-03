@@ -77,6 +77,55 @@ def optional_auth(f):
     return decorated_function
 
 
+def require_share_token(f):
+    """Require a valid project share token in the URL path.
+
+    Looks up the token (from kwargs['token']), validates it (not revoked, not
+    expired, submission cap not exceeded), and stores ``g.share_link`` and
+    ``g.book_project`` for the wrapped function. Used for unauthenticated
+    guest submission endpoints — no user account is required.
+
+    Distinct from ``@require_auth``: the wrapped function is NOT called with a
+    ``current_user`` argument. The recipe submitted via this path is owned by
+    the project's organizer (read from ``g.book_project.owner_user_id``).
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        from app.models import ProjectShareLink
+
+        token = kwargs.get("token")
+        if not token:
+            return jsonify({"error": "Share token required"}), 401
+
+        share_link = ProjectShareLink.query.filter_by(token=token).first()
+        if not share_link:
+            return jsonify({"error": "Invalid share token"}), 404
+
+        if share_link.revoked:
+            return jsonify({"error": "This share link has been revoked"}), 403
+        if share_link.expires_at and share_link.expires_at < datetime.utcnow():
+            return jsonify({"error": "This share link has expired"}), 403
+        if (
+            share_link.submission_cap is not None
+            and share_link.submission_count >= share_link.submission_cap
+        ):
+            return jsonify(
+                {"error": "This share link has reached its submission limit"}
+            ), 403
+
+        project = share_link.project
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+
+        g.share_link = share_link
+        g.book_project = project
+
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
 def require_admin(f):
     """Decorator to require admin role for endpoints."""
 

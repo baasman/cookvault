@@ -4,7 +4,7 @@ import type { PrintQuote } from './PrintOrderModal';
 
 interface OrderSummaryProps {
   quote: PrintQuote | null;
-  cookbookTitle: string;
+  entityTitle: string;
   onNext: () => void;
   onBack: () => void;
   loading: boolean;
@@ -12,7 +12,7 @@ interface OrderSummaryProps {
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
   quote,
-  cookbookTitle,
+  entityTitle,
   onNext,
   onBack,
   loading
@@ -75,7 +75,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         <div className="space-y-3">
           <div className="flex justify-between">
             <span className="text-sm text-gray-600">Cookbook</span>
-            <span className="text-sm font-medium text-gray-900">"{cookbookTitle}"</span>
+            <span className="text-sm font-medium text-gray-900">"{entityTitle}"</span>
           </div>
           
           <div className="flex justify-between">

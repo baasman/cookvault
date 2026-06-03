@@ -140,9 +140,14 @@ class PrintOrder(db.Model):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # User and cookbook references
+    # User and printable-entity references. Exactly one of cookbook_id or
+    # book_project_id is non-null on each row (enforced by a CHECK constraint
+    # on PostgreSQL; see book_projects_005 migration).
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    cookbook_id: Mapped[int] = mapped_column(ForeignKey("cookbook.id"), nullable=False)
+    cookbook_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cookbook.id"))
+    book_project_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("book_project.id"), index=True
+    )
     specification_id: Mapped[int] = mapped_column(
         ForeignKey("print_specifications.id"), nullable=False
     )
@@ -226,8 +231,11 @@ class PrintOrder(db.Model):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="print_orders")
-    cookbook: Mapped["Cookbook"] = relationship(
+    cookbook: Mapped[Optional["Cookbook"]] = relationship(
         "Cookbook", back_populates="print_orders"
+    )
+    book_project: Mapped[Optional["BookProject"]] = relationship(
+        "BookProject", backref="print_orders"
     )
     specification: Mapped["PrintSpecification"] = relationship(
         "PrintSpecification", back_populates="print_orders"
@@ -240,6 +248,68 @@ class PrintOrder(db.Model):
         back_populates="print_order",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def content_type(self) -> str:
+        """Return 'cookbook' or 'book_project' depending on which FK is set.
+
+        Raises ValueError if both or neither are set — that state is
+        prevented by the DB-level CHECK constraint on PostgreSQL but this
+        guard catches violations on SQLite (where CHECK constraints aren't
+        applied) and during in-memory ORM construction before commit."""
+        has_cookbook = self.cookbook_id is not None
+        has_project = self.book_project_id is not None
+        if has_cookbook and has_project:
+            raise ValueError(
+                f"PrintOrder {self.id} has both cookbook_id and "
+                "book_project_id set; exactly one must be non-null"
+            )
+        if not has_cookbook and not has_project:
+            raise ValueError(
+                f"PrintOrder {self.id} has neither cookbook_id nor "
+                "book_project_id set; exactly one must be non-null"
+            )
+        return "cookbook" if has_cookbook else "book_project"
+
+    @property
+    def content(self):
+        """Return the linked Cookbook or BookProject, whichever is set."""
+        if self.content_type == "cookbook":
+            return self.cookbook
+        return self.book_project
+
+    def lulu_line_item_metadata(self) -> Dict[str, Any]:
+        """Return the (title, author, description, isbn) the Lulu line item
+        needs for this order. Cookbooks have all four fields directly;
+        BookProjects use honorees-joined as the author and the dedication
+        (truncated) as the description, with no ISBN."""
+        if self.content_type == "cookbook":
+            cb = self.cookbook
+            description = (cb.description or "")[:500] or None
+            return {
+                "title": f"Cookbook: {cb.title}",
+                "author": cb.author or "Unknown Author",
+                "isbn": getattr(cb, "isbn", None),
+                "description": description,
+            }
+        # BookProject
+        bp = self.book_project
+        honorees = bp.honorees or []
+        if len(honorees) == 0:
+            author = "Various Contributors"
+        elif len(honorees) == 1:
+            author = honorees[0]
+        elif len(honorees) == 2:
+            author = f"{honorees[0]} & {honorees[1]}"
+        else:
+            author = f"{', '.join(honorees[:-1])} & {honorees[-1]}"
+        description = (bp.dedication or "")[:500] or None
+        return {
+            "title": bp.title,
+            "author": author,
+            "isbn": None,
+            "description": description,
+        }
 
     def calculate_total(self) -> Decimal:
         """Calculate total cost including all fees."""
@@ -270,10 +340,27 @@ class PrintOrder(db.Model):
 
     def to_dict(self, include_shipping: bool = False) -> Dict[str, Any]:
         """Convert order to dictionary."""
+        content_type = "cookbook" if self.cookbook_id is not None else "book_project"
+        # Title is convenient for list/detail views; populate from whichever
+        # entity is linked. Cheap because both relationships are typically
+        # eager-loaded with the order.
+        content_title = None
+        if content_type == "cookbook" and self.cookbook is not None:
+            content_title = self.cookbook.title
+        elif content_type == "book_project" and self.book_project is not None:
+            content_title = self.book_project.title
+
         result = {
             "id": self.id,
             "order_number": self.order_number,
             "cookbook_id": self.cookbook_id,
+            "cookbook_title": content_title if content_type == "cookbook" else None,
+            "book_project_id": self.book_project_id,
+            "book_project_title": (
+                content_title if content_type == "book_project" else None
+            ),
+            "content_type": content_type,
+            "content_title": content_title,
             "quantity": self.quantity,
             "status": self.status.value,
             "specification": self.specification.to_dict()

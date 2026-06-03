@@ -259,6 +259,89 @@ class EmailService:
             )
             return False
 
+    def send_book_project_export_ready(
+        self,
+        email: str,
+        username: str,
+        project_title: str,
+        project_id: int,
+    ) -> bool:
+        """Notify the organizer that the paid clean PDF of their book is ready
+        to download. Sent from the Stripe webhook handler after rendering
+        completes — the user is typically no longer on the page when this
+        runs, so the email is the primary signal.
+
+        Returns False (but does not raise) on failure: the email is a nice-to-
+        have, not a hard requirement for the payment flow to succeed."""
+        if not self.initialized:
+            logger.warning(
+                "Email service not initialized; skipping book-project export ready email"
+            )
+            return False
+
+        try:
+            frontend_url = self._get_frontend_url()
+            dashboard_url = f"{frontend_url}/projects/{project_id}"
+
+            html_content = f"""
+            <html>
+              <body style="font-family: Georgia, 'Times New Roman', serif; line-height: 1.6; color: #1c120d; background: #fcf9f8;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 32px 24px; background: #fffbf5; border: 1px solid #e8dccf; border-radius: 8px;">
+                  <h2 style="color: #f15f1c; margin: 0 0 16px 0; font-style: italic;">Your clean PDF is ready</h2>
+                  <p>Hi {username},</p>
+                  <p>The clean (no-watermark) PDF of <strong>"{project_title}"</strong> just finished rendering and is ready to download from your book dashboard.</p>
+                  <p style="margin: 32px 0;">
+                    <a href="{dashboard_url}"
+                       style="background-color: #1c120d; color: white; padding: 12px 28px;
+                              text-decoration: none; border-radius: 6px; display: inline-block;">
+                      Download your book
+                    </a>
+                  </p>
+                  <p style="font-size: 13px; color: #6b5a52;">
+                    If you keep adding recipes, you can regenerate the clean PDF for free
+                    anytime from the same dashboard — your purchase covers unlimited
+                    regenerations of this book.
+                  </p>
+                  <hr style="border: none; border-top: 1px solid #e8dccf; margin: 24px 0;">
+                  <p style="font-size: 11px; color: #9b644b;">
+                    Cookle — collaborative cookbooks, printed beautifully.
+                  </p>
+                </div>
+              </body>
+            </html>
+            """
+
+            text_content = (
+                f"Hi {username},\n\n"
+                f'The clean (no-watermark) PDF of "{project_title}" is ready to download.\n\n'
+                f"Open your book dashboard: {dashboard_url}\n\n"
+                "If you keep adding recipes you can regenerate the clean PDF for free.\n"
+            )
+
+            recipient = self._get_recipient_email(email)
+            params: resend.Emails.SendParams = {
+                "from": self._get_from_formatted(),
+                "to": [recipient],
+                "subject": f'"{project_title}" — your clean PDF is ready',
+                "html": html_content,
+                "text": text_content,
+            }
+            response = resend.Emails.send(params)
+            if response and response.get("id"):
+                logger.info(
+                    f"Export-ready email sent to {recipient} (project {project_id}), id={response['id']}"
+                )
+                return True
+            logger.error(
+                f"Export-ready email send returned no id for project {project_id}: {response}"
+            )
+            return False
+        except Exception as e:
+            logger.error(
+                f"Error sending export-ready email for project {project_id}: {e}\n{traceback.format_exc()}"
+            )
+            return False
+
 
 # Singleton instance
 _email_service = None
