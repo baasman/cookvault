@@ -1,316 +1,249 @@
-# Phase 1: BookProject — Multi-Contributor Collection Flow + Basic PDF Export
+# Phase 2: Verify Payments, Persist PDFs, Print via Lulu, Polish
 
-**Task ID:** 2026-05-14-1016
+**Task ID:** 2026-05-15-1742
 **Status:** In Progress
 
 ## Original Plan
 
 ### Context
 
-Cookle's recipe-management feature surface is in a crowded competitive space (Paprika, Mealie, etc.) and user growth has stalled. The strategic response — decided across the conversation that produced this plan — is to add **multi-contributor cookbook projects** ("BookProject") as a new core differentiating feature, while keeping the existing recipe-management product unchanged for existing users.
+Phase 1 shipped a working BookProject feature on `feature/book-projects` — organizers create cookbook projects, contributors submit recipes via share links without accounts, organizers curate submissions, and a free watermarked PDF preview renders end-to-end. The paid clean export and Stripe webhook code is in place but unverified in a live payment flow, and the rendered PDF lands on ephemeral disk that Render wipes on each deploy.
 
-**The user-facing scenario (v1 marketing wedge: wedding gifts):** One person (the *organizer*) creates a BookProject as a gift — e.g. a sibling making a recipe book for an engaged couple. They generate a shareable link and send it to family + friends (*contributors*). Each contributor opens the link on their phone — **without creating an account** — and submits a recipe (photo of a handwritten card, URL, typed text). Submissions auto-land in the organizer's project. When ready, the organizer downloads a PDF of the assembled cookbook (free watermarked preview, paid clean version). Phase 2 (NOT in this plan) adds print-on-demand fulfillment via the existing Lulu integration and premium designer templates.
+The strategic goal of Phase 2 is to take this from "demo-quality on a feature branch" to "production-quality, printable book." That breaks into:
 
-**Why this is differentiated:** Every recipe app does single-user collection. Nobody does the *non-technical multi-contributor-to-printable-book* flow well. Cookle's existing import infrastructure (URL, photo/OCR, multi-image, video, text, YouTube) is the unfair advantage that makes "Aunt Linda snaps her handwritten card on her phone" actually work end-to-end. The strategic emphasis (new dev, marketing) shifts to BookProject; existing recipe management stays first-class and supported.
+1. **Verify the existing Stripe paid-export flow works end-to-end** — the audit found the webhook plumbing is already in place (`/api/payments/webhook`, signature verification, BOOK_PROJECT_EXPORT routing in `handle_payment_succeeded`). What's missing is verification + local-dev tooling, not net-new code.
+2. **Persist generated PDFs in Cloudinary** so paid customers don't lose access after a deploy.
+3. **Integrate Lulu print-on-demand for BookProjects** — the existing Lulu integration (`LuluService`, `PrintOrder` model, webhook handlers) is structurally complete but cookbook-coupled and shelf-ware (sandbox mode default, no production activation). Bridge it to BookProjects, extend the WeasyPrint template with print CSS for bleed/crop marks (single template system across digital + print, per architecture decision).
+4. **Phase 1.5 polish** — iOS TabBar, EditProjectPage, email notifications, user-facing feature name — once the headline print flow works.
+5. **Premium templates** — gated on the designer friend's deliverables.
 
-**Strategic context preserved in memory** at `/Users/baasman/.claude/projects/-Users-baasman-projects-cookbook-creator/memory/pivot-wedding-cookbook-focus.md`.
-
-### Architectural Decisions (locked in conversation)
+**Architecture decisions for Phase 2:**
 
 | Decision | Choice |
 |---|---|
-| Entity model | New `BookProject` entity, generic fields (NOT wedding-hardcoded) |
-| PDF tooling | **WeasyPrint** (new dependency). Existing ReportLab code stays for now but becomes legacy; Phase 2 extends WeasyPrint templates with print CSS for the Lulu pipeline. |
-| Guest auth | No account required. Optional email for future magic-link claim. New `GuestContributor` model. |
-| Submission landing | Auto-land in project (organizer edits/excludes after, no review queue gate) |
-| Pricing gate | Free unlimited collection + free watermarked PDF; paid clean PDF export (one-time, ~$15–25, exact amount TBD, set on env config) |
-| User-facing feature name | **TBD** — placeholder "Book Project" in copy. Confirm before frontend copy is written. |
-
-### Out of Scope (Phase 2 or later)
-- Print-on-demand fulfillment (Lulu integration exists but stays untouched in Phase 1)
-- Premium designer templates (Phase 1 ships **one** generic-but-decent template)
-- Magic-link / guest account claiming
-- Multiple template choices in UI
-- Marketing site / new landing page
-- Removal of legacy ReportLab code (defer until WeasyPrint covers print-ready output in Phase 2)
-- Replacing the existing iOS TabBar entries (Phase 1 adds Book Projects under the existing Cookbooks tab; full IA decision deferred)
+| Print-ready PDF engine for BookProjects | **WeasyPrint with `@page` print CSS** — one template system for digital + print, designer friend authors HTML/CSS, ReportLab `print_pdf_builder.py` stays as legacy for the existing Cookbook print path |
+| PDF storage | **Cloudinary `resource_type="raw"`** — extend the existing service that handles recipe images, proxy downloads through the auth'd endpoint (don't expose Cloudinary URLs to the frontend) |
+| `PrintOrder` polymorphism | **Nullable `cookbook_id` + new nullable `book_project_id` + CHECK constraint** (exactly one set) — minimal model churn, generalizes existing endpoints with branching logic |
+| Polish-item timing | **After Lulu** — keep focus on the headline feature first |
 
 ---
 
-### Backend Changes
+### Phase 2A: Verify Stripe paid-export flow (small — ~half day)
 
-#### New models — `backend/app/models/book_project.py` (new file)
+**Goal:** confirm the existing Stripe webhook path actually works for `BOOK_PROJECT_EXPORT`, both locally and in production. No code changes expected beyond docs + tests.
 
-```
-BookProject
-  id, owner_user_id (FK User)
-  project_type (enum: wedding | anniversary | heirloom | memorial | holiday | general)
-  status (enum: collecting | review | finalized | exported)
-  title, subtitle, dedication (text)
-  honorees (JSON / ARRAY of string — couples, individuals, deceased)
-  occasion_date (date, nullable)
-  submission_deadline (date, nullable)
-  cover_image_url (nullable)
-  metadata (JSONB — template-specific extras)
-  created_at, updated_at
+#### Verify in local dev
+- Document `stripe listen` setup in the project README. Command: `stripe listen --forward-to localhost:5001/api/payments/webhook`. The webhook secret it prints goes into `.env` as `STRIPE_WEBHOOK_SECRET`.
+- End-to-end manual test: dashboard → Buy clean PDF → Stripe Elements with test card `4242 4242 4242 4242` → confirm webhook arrives → confirm `_handle_book_project_export_payment_success` runs → confirm `BookProjectExport.pdf_file_path` is populated → confirm "Download clean PDF" button appears and the file downloads.
 
-ProjectShareLink
-  id, project_id (FK BookProject)
-  token (string, indexed unique — 32+ char URL-safe random)
-  expires_at (datetime, nullable)
-  submission_cap (int, nullable)
-  submission_count (int, default 0)
-  revoked (bool, default False)
-  created_at
+#### Verify in production
+- Manually register the webhook in the Stripe dashboard pointing at `https://cookle-backend.onrender.com/api/payments/webhook`.
+- Subscribe to events: `payment_intent.succeeded`, `payment_intent.payment_failed`, plus the existing subscription/invoice events the handler already listens to.
+- Set `STRIPE_WEBHOOK_SECRET` in Render env vars.
+- Test with a real Stripe test-mode card against the deployed app (or wait for a real first customer and watch Sentry).
 
-GuestContributor
-  id, project_id (FK BookProject)
-  display_name (string)
-  email (string, nullable — for future magic-link claim)
-  share_link_id (FK ProjectShareLink — which link they came in through)
-  created_at
-  (No password, no auth credentials. Identified by project+id during a single submission session via a short-lived cookie.)
+#### Add a regression test
+- New test in `backend/tests/test_payments.py` that simulates a `payment_intent.succeeded` webhook for a `BOOK_PROJECT_EXPORT` and asserts the export row is updated. The existing `TestWebhookHandler` test in `test_api_book_projects.py` covers the handler in isolation but doesn't exercise the HTTP webhook route + signature verification path.
 
-BookProjectExport
-  id, project_id (FK BookProject)
-  user_id (FK User — the purchaser)
-  payment_id (FK Payment, nullable — null for free watermarked previews)
-  pdf_file_path (string)
-  is_watermarked (bool)
-  created_at
-```
+#### Files
+- **Read:** `backend/app/api/payments.py:461` (webhook endpoint), `backend/app/services/stripe_service.py:686-732` (event routing), `backend/app/services/stripe_service.py:562-621` (BookProject handler)
+- **Modify:** `README.md` or `docs/development/*.md` (add stripe-listen instructions)
+- **Add:** test in `backend/tests/test_payments.py` covering the HTTP webhook route for BOOK_PROJECT_EXPORT
 
-#### Additions to `Recipe` — modify `backend/app/models/recipe.py`
-- New nullable column: `book_project_id` (FK BookProject) — when set, this Recipe is a submission to a project
-- New nullable column: `guest_contributor_id` (FK GuestContributor) — attribution for "From Aunt Linda"
-- Update `Recipe.can_be_viewed_by(user_id, is_admin)` to include "viewer holds valid project share token" path (passed through request context)
-
-#### Alembic migration
-Single migration: `backend/migrations/versions/<auto>_book_projects.py`
-- Creates four new tables above
-- Adds `book_project_id` and `guest_contributor_id` columns to `recipes` with indexes and FKs
-- No backfill required (all existing rows: null)
-
-#### Auth — extend `backend/app/api/auth.py`
-- Add new decorator `@require_share_token_or_auth` that:
-  1. If JWT present → validate as usual (sets `g.current_user`)
-  2. Else if `?share_token=...` query param present → look up `ProjectShareLink`, validate (not revoked, not expired, cap not exceeded), sets `g.share_link` and `g.book_project`
-  3. Else → 401
-- Existing `@require_auth` and `@optional_auth` decorators in this file are the reference pattern. Add the new decorator alongside them.
-
-#### New API blueprint — `backend/app/api/book_projects.py` (new file)
-Register in `backend/app/api/__init__.py` alongside existing blueprints.
-
-Endpoints (URL prefix `/book-projects`):
-
-**Organizer (auth required):**
-- `POST /` — create project
-- `GET /` — list current user's projects
-- `GET /<id>` — get project detail + submission summary
-- `PATCH /<id>` — update metadata (title, dedication, deadline, honorees, etc.)
-- `DELETE /<id>` — soft delete (matches existing User soft-delete pattern)
-- `POST /<id>/share-links` — generate new share link (returns full URL including token)
-- `DELETE /<id>/share-links/<token>` — revoke
-- `GET /<id>/submissions` — list submitted recipes with contributor attribution
-- `PATCH /<id>/submissions/<recipe_id>` — edit recipe content (reuses existing recipe edit endpoint logic) or set `excluded` flag
-- `POST /<id>/export/preview` — generate watermarked PDF (free, async via Celery — existing Celery is wired up per backend agent report)
-- `POST /<id>/export/purchase` — Stripe Payment Intent for clean PDF (mirrors `payments.create_cookbook_purchase()` pattern)
-- `POST /<id>/export/confirm` — confirm Stripe payment and generate clean PDF
-- `GET /<id>/export/<export_id>/download` — download generated PDF
-
-**Guest (share token required, no auth):**
-- `GET /by-token/<token>` — validate token, return minimal project info (title, honorees, project_type — for landing page copy)
-- `POST /by-token/<token>/submit-image` — submit recipe via image upload (multi-image supported). Reuses existing parsing pipeline from `backend/app/api/recipes/routes.py` — extract the parsing logic into `backend/app/services/recipe_parsing_service.py` if not already a service, then call from both organizer and guest endpoints.
-- `POST /by-token/<token>/submit-text` — submit via raw text
-- `POST /by-token/<token>/submit-url` — submit via URL
-- All `submit-*` endpoints: accept optional `display_name` and `email` in body, create/match `GuestContributor`, create `Recipe` with `book_project_id`, `guest_contributor_id`, `user_id = project.owner_user_id`, increment `ProjectShareLink.submission_count`
-- Rate-limit aggressively via Flask-Limiter (already in stack) — e.g. 10 submissions/IP/hour, 50/token/day
-
-#### WeasyPrint PDF service — `backend/app/services/book_project_pdf_service.py` (new file)
-- Add `weasyprint` to `pyproject.toml` (and its system deps: Pango, Cairo — `uv` should handle via wheels, but document in README)
-- Service function: `generate_book_project_pdf(project_id, watermarked: bool) -> file_path`
-- Renders HTML template via Jinja2 (Flask already has Jinja), passes through WeasyPrint
-- Stores generated PDF in existing image/file storage location (mirror how recipe images are stored — `backend/app/utils/storage.py` or equivalent)
-- Watermark: applied via CSS `position: fixed` with low-opacity "PREVIEW — cookle.food" repeated, when `watermarked=True`
-
-#### WeasyPrint template — `backend/app/services/book_project_templates/wedding_basic/` (new directory)
-- `template.html` (Jinja2) — cover page, dedication page, TOC, recipe pages (with contributor attribution: "From Aunt Linda"), back cover
-- `template.css` — print-quality CSS (using `@page` rules, web fonts, no print CSS for crop/bleed in Phase 1)
-- Driven by `project_type` for copy variations (wedding → "A gift from your guests" intro; generic → neutral intro). Single layout, copy switches.
-
-#### Payment integration — modify `backend/app/models/payment.py`
-- Extend `PaymentType` enum with `BOOK_PROJECT_EXPORT`
-- New service method `StripeService.create_book_project_export_purchase(project_id, user_id)` mirroring existing `create_cookbook_purchase()` in `backend/app/services/stripe_service.py`
-- Stripe webhook handler in `backend/app/api/print_webhooks.py` (or wherever webhooks live — verify in implementation) extended to mark `BookProjectExport.payment_id` and generate the clean PDF asynchronously upon `payment_intent.succeeded`
-
-#### Reuse — recipe parsing pipeline
-- Critical to reuse, NOT reimplement: existing endpoints in `backend/app/api/recipes/routes.py` do photo/OCR, URL, text, multi-image, video parsing
-- Refactor the parsing into a service layer (`backend/app/services/recipe_parsing_service.py`) callable from both the existing authenticated routes AND new guest-submit endpoints
-- This refactor is a prerequisite — do it as the first PR within Phase 1 (small, low-risk, no behavior change for existing flows)
+#### Verification
+- `stripe listen` running locally, manual end-to-end test as described above, clean PDF downloads after payment.
+- Pytest new test passes.
 
 ---
 
-### Frontend Changes
+### Phase 2B: Persistent PDF storage via Cloudinary (medium — ~1 day)
 
-#### Stack reuse (no new dependencies for Phase 1)
-React 19 + TypeScript + Vite + react-router-dom v7 + TanStack Query + Tailwind 4 + Capacitor 8. Reuse `apiFetch`, `AuthContext`, existing form-validation pattern (manual), `useMutation`/`useQuery`.
+**Goal:** generated BookProject PDFs survive deploys and storage rotations. Today they live in `backend/uploads/book_project_exports/` which Render wipes.
 
-#### New routes — modify `frontend/src/App.tsx`
-- `/projects` → ProjectsListPage (auth)
-- `/projects/create` → CreateProjectPage (auth) — wizard with project_type chooser, then metadata form
-- `/projects/:id` → ProjectDashboardPage (auth) — submissions, share-link management, export button
-- `/projects/:id/edit` → EditProjectPage (auth)
-- `/projects/:id/export-success` → ProjectExportSuccessPage (auth) — post-purchase landing
-- `/contribute/:token` → ContributorLandingPage (**no auth, no Header — minimal layout**)
+#### Backend changes
 
-#### Public layout — new component `frontend/src/components/layout/ContributorLayout.tsx`
-- Minimal: project title, organizer name, honorees + project type-specific copy
-- No nav/header — different from existing pages which all use the standard `Layout`
-- Mobile-first design (Tailwind responsive utilities)
+1. **Extend `cloudinary_service.py`** with a `upload_pdf(pdf_bytes, original_filename, folder) -> dict` method that calls `cloudinary.uploader.upload` with `resource_type="raw"`. Mirror the existing `upload_image` shape (returns `public_id`, `url`, `bytes`).
+   - File: `backend/app/services/cloudinary_service.py`
 
-#### New pages
-- `frontend/src/pages/ProjectsListPage.tsx` — modeled on `CookbooksPage.tsx`
-- `frontend/src/pages/CreateProjectPage.tsx` — modeled on `CreateCookbookPage.tsx` with project_type selector
-- `frontend/src/pages/ProjectDashboardPage.tsx` — modeled on `CookbookDetailPage.tsx`, with new ShareLinkManager + SubmissionList sections
-- `frontend/src/pages/EditProjectPage.tsx` — simple form
-- `frontend/src/pages/ContributorLandingPage.tsx` — the public share-link entry; reuses `ImageUploadMode`, `URLUploadMode`, `TextUploadMode` from `frontend/src/components/forms/` but in unauthenticated context
-- `frontend/src/pages/ProjectExportSuccessPage.tsx` — mirrors existing `CookbookPurchaseSuccessPage.tsx`
+2. **Migration `book_projects_004`** adding `cloudinary_public_id: Optional[str]` and `cloudinary_url: Optional[str]` to `book_project_export`. Keep `pdf_file_path` for local-dev fallback when Cloudinary isn't enabled.
+   - File: `backend/migrations/versions/book_projects_004_export_cloudinary_fields.py` (new)
+   - Modify: `backend/app/models/book_project.py:234-267` (add fields)
 
-#### New components
-- `frontend/src/components/book-projects/ProjectCard.tsx`
-- `frontend/src/components/book-projects/ProjectTypeSelector.tsx`
-- `frontend/src/components/book-projects/ShareLinkManager.tsx` (generate, copy, revoke, view submission count, see expiry)
-- `frontend/src/components/book-projects/SubmissionList.tsx` (per-recipe edit/exclude actions, contributor attribution)
-- `frontend/src/components/book-projects/ExportPaywallModal.tsx` (mirrors existing `PremiumUpgradeModal.tsx` Stripe Elements pattern)
+3. **Update `book_project_pdf_service.render_book_project_pdf`** to return a structured result rather than just a path string. Two variants:
+   - When Cloudinary enabled: render to bytes (use existing `render_book_project_pdf_to_bytes`), upload via `cloudinary_service.upload_pdf`, return `{"cloudinary_public_id": ..., "cloudinary_url": ..., "pdf_file_path": None}`.
+   - When Cloudinary disabled: write to disk as today, return `{"cloudinary_public_id": None, "cloudinary_url": None, "pdf_file_path": str}`.
+   - File: `backend/app/services/book_project_pdf_service.py`
 
-#### Component reuse (KEY)
-The contributor submission form is the **same component tree** as the authenticated UploadPage, just rendered inside `ContributorLandingPage` with:
-- `apiFetch` calls pointed at `/book-projects/by-token/<token>/submit-*` endpoints (passed via prop or context)
-- No Capacitor camera path on the contributor side (default to HTML5 file input with `capture="environment"` — most contributors are on mobile web, not the native app)
-- The Capacitor camera path remains for the organizer's own future contributions to their projects
-- Verify `ImageUploadMode.tsx`, `URLUploadMode.tsx`, `TextUploadMode.tsx` cleanly accept a `submitEndpoint` and `displayNameField` prop without coupling to AuthContext. Light refactor if needed.
+4. **Update both export call sites** to write the returned fields onto the export row:
+   - `book_projects.py:create_export_preview` (preview)
+   - `stripe_service.py:_handle_book_project_export_payment_success` (paid clean)
 
-#### Nav integration
-- `frontend/src/components/layout/Header.tsx`: add "Book Projects" entry to `navItems` array (after "Cookbooks")
-- `frontend/src/components/navigation/TabBar.tsx` (iOS): keep 5 tabs. Add Book Projects as a section *within* the existing Cookbooks tab (which becomes "Books" — listing both Cookbooks and Book Projects). Phase 1 doesn't add a 6th tab; full IA review deferred.
-- `frontend/src/services/shareService.ts`: extend with `shareProjectLink(project, shareLink)` wrapping `shareUrl`
+5. **Update `download_export` endpoint** to handle both storage backends:
+   - If `cloudinary_url` is set: backend-side fetch via `requests.get(cloudinary_url, stream=True)` and stream to the user with `Response(stream_with_context(...), mimetype="application/pdf")`. **Proxy strategy** — don't expose the Cloudinary URL to the frontend, since the URLs are publicly resolvable.
+   - If `pdf_file_path` is set: existing `send_file` path.
+   - If neither: existing 202 "pending" / 410 "gone" responses.
+   - File: `backend/app/api/book_projects.py:1263-1307`
 
-#### Wedge copy
-- ContributorLandingPage reads `project.project_type` and renders copy variants:
-  - `wedding`: "[Honorees] are getting married! Submit a favorite recipe — it'll become part of a cookbook gift from everyone they love."
-  - `general`: "[Organizer] is putting together a cookbook. Submit a recipe to be included."
-- Single layout, copy switches via a `projectTypeCopy[type]` map.
+#### Tests
+- Mock `cloudinary_service.upload_pdf` in the existing PDF service tests so they don't hit Cloudinary.
+- New test: preview generation when Cloudinary is enabled writes the right fields; download endpoint proxies correctly.
+
+#### Files
+- **Read for pattern:** `backend/app/api/recipes/helpers.py:26-98` (existing image upload + local fallback)
+- **Add:** migration `book_projects_004`
+- **Modify:** `cloudinary_service.py`, `book_project.py` (model), `book_project_pdf_service.py`, `book_projects.py` (preview + download), `stripe_service.py` (handler)
+- **Modify:** `backend/tests/test_book_project_pdf_service.py`, `backend/tests/test_api_book_projects.py`
+
+#### Verification
+- With `USE_CLOUDINARY=true` and creds set: generate a preview, confirm `pdf_file_path` is null and `cloudinary_url` is set on the row. Download via the dashboard, confirm the file streams correctly.
+- With `USE_CLOUDINARY=false`: confirm local-disk fallback still works (existing tests pass).
+- Run full test suite.
 
 ---
 
-### Implementation Sequence (within Phase 1)
+### Phase 2C: Lulu print fulfillment for BookProjects (large — ~1.5 weeks)
 
-Build in order — each step is independently shippable behind a feature flag if desired:
+**Goal:** organizer can click "Order printed book" on the dashboard, configure size/binding/quantity/shipping, pay, and Lulu fulfills the actual print. End-to-end in Lulu sandbox first; production activation gated on a sandbox test order.
 
-1. **Recipe parsing service refactor** — extract parsing logic from `recipes/routes.py` into `services/recipe_parsing_service.py`. No behavior change. PR is small and low-risk. Foundation for guest submission.
-2. **Database models + migration** — new tables, Recipe column additions. No UI yet, no endpoints.
-3. **Backend endpoints (organizer side)** — project CRUD, share-link generation. Tests.
-4. **Backend endpoints (guest side)** — share-token decorator, guest submission endpoints. Tests including the auth-bypass path.
-5. **WeasyPrint integration + basic template** — service + one template + watermark variant. Smoke test rendering with a real project.
-6. **Stripe export-purchase flow** — extend payment types, webhook handler, export download endpoint.
-7. **Frontend: organizer surface** — list page, create wizard, dashboard, share-link manager, submission list.
-8. **Frontend: contributor surface** — `/contribute/:token` page, minimal layout, mobile photo capture, submission confirmation.
-9. **Frontend: paywall** — export modal, post-purchase landing.
-10. **End-to-end manual QA + iteration** — see verification below.
+The Lulu code is structurally complete — `LuluService`, `PrintOrder` model, `print_orders.py` endpoints, `print_webhooks.py` for status updates, `print_pdf_builder.py` for print-ready PDFs (ReportLab), `cover_generation_service.py`. The work is mostly **generalization** + **bridging the WeasyPrint template to produce print-ready output**.
+
+#### C1. PrintOrder polymorphism
+- Migration `book_projects_005`: make `cookbook_id` nullable on `print_orders`, add nullable `book_project_id: ForeignKey(book_project.id)`, add a CHECK constraint requiring exactly one to be set (`cookbook_id IS NULL` ≠ `book_project_id IS NULL`). SQLite-aware (CHECK constraints need different syntax than PG; follow the dialect-aware pattern from `book_projects_001`).
+- Update `PrintOrder` model: relationship to `BookProject` alongside `Cookbook`, helper property `content` that returns whichever is set, helper property `content_type` returning `"cookbook" | "book_project"`.
+- Files: `backend/migrations/versions/book_projects_005_print_order_polymorphic.py`, `backend/app/models/print_order.py`
+
+#### C2. WeasyPrint print CSS for BookProject templates
+The headline architectural decision: extend the WeasyPrint template to produce print-ready output (bleed, crop marks, page sizes matching Lulu trim sizes). Lulu accepts PDF/X-3 ideally, but standard PDFs with bleed + crop marks are usable.
+
+- Add a `print` mode to `book_project_pdf_service.render_book_project_pdf`: accepts a `trim_size` parameter (one of the existing `TrimSize` enum values) and a `print_ready: bool`. When true, applies a print-mode CSS overlay alongside the existing `template.css`.
+- New CSS file: `backend/app/services/book_project_templates/wedding_basic/print.css` — overrides `@page { size: <trim>; bleed: 3mm; marks: crop }`, removes the page-number footer (Lulu adds its own), fixes the front cover to a single page with bleed.
+- Verify WeasyPrint output meets Lulu's interior PDF validation. Open issues to investigate during implementation: color space (WeasyPrint outputs RGB; Lulu accepts RGB but CMYK is preferred for cookbooks), embedded fonts (need to confirm all template fonts are embedded subset), PDF/X compliance (out of scope for v1; Lulu accepts standard PDFs).
+- **Fallback if WeasyPrint print output won't validate at Lulu:** post-process with Ghostscript (`gs -dPDFX -sColorConversionStrategy=CMYK ...`) — adds a dependency but solves color + compliance in one pass. Investigate during implementation.
+- A separate template can be added later for a dedicated print layout (e.g. `wedding_basic_print/`), but v1 reuses `wedding_basic` with overlay CSS.
+
+Files: `backend/app/services/book_project_pdf_service.py`, `backend/app/services/book_project_templates/wedding_basic/print.css` (new)
+
+#### C3. Cover generation for BookProjects
+The existing `CoverGenerationService` accepts a `Dict[str, str]` of metadata (title, author, description) and is data-agnostic. Adapt it for BookProject:
+- Map `BookProject.title` → cover title, `BookProject.honorees_joined` → cover author/subtitle, `BookProject.dedication` → back cover blurb.
+- Confirm the existing 3 templates (Minimalist, Classic, Book) work; if not, add a wedding-flavored template. v1 picks one default.
+
+Files: `backend/app/services/cover_generation_service.py` (light extension if needed), wire it into the print-order submit flow
+
+#### C4. Print order endpoints accept BookProjects
+Add branching logic — each existing endpoint either reads `cookbook_id` or `book_project_id` from the request and resolves accordingly:
+- `POST /print-orders/specifications` — already cookbook-aware via `?cookbook_id=X`, add `?book_project_id=X`
+- `POST /print-orders/quote` — accept either ID, fetch recipes from the right entity
+- `POST /print-orders/` (create order) — accept either ID, validate ownership, set the appropriate FK on the PrintOrder row
+- `POST /print-orders/<id>/submit` (the critical path) — branch the PDF generation: cookbook → `print_pdf_builder` (ReportLab); book_project → `book_project_pdf_service` (WeasyPrint print mode)
+- Other endpoints (`/payment`, `/cancel`, `/refund`, etc.) are content-type-agnostic, no changes needed
+
+Files: `backend/app/api/print_orders.py`
+
+#### C5. Webhook handler (`print_webhooks.py`)
+Already content-type-agnostic — it updates `PrintOrder` rows by `lulu_print_job_id` regardless of cookbook vs book_project. Audit confirms no changes needed beyond verifying behavior with a BookProject order.
+
+#### C6. Frontend: order-printed-book flow on the BookProject dashboard
+
+Reuse the existing `PrintOrderModal` (if it's content-type-agnostic) or adapt it. The existing `PrintOrderButton` requires `cookbookId`; generalize to accept either `cookbookId` or `bookProjectId`.
+
+- Add "Order printed book" button to the Export section of `ProjectDashboardPage` (next to the existing Download Preview / Buy Clean PDF buttons).
+- Wire it to open the print order configuration flow (trim size, binding, paper, quantity, shipping address) — reusing whatever cookbook UI exists.
+- Show in-flight print orders on the dashboard (link to the existing `/orders` page).
+
+Files: `frontend/src/components/print/PrintOrderButton.tsx`, `frontend/src/pages/ProjectDashboardPage.tsx`, possibly `frontend/src/components/print/PrintOrderModal.tsx`
+
+#### C7. End-to-end verification in Lulu sandbox
+- Set `LULU_SANDBOX_MODE=true` and real sandbox credentials in `.env`.
+- Create a BookProject with a few recipes, configure a print order, submit. Verify:
+  - Interior + cover PDFs upload to Lulu without validation errors.
+  - Lulu returns a print job ID, stored on `PrintOrder.lulu_print_job_id`.
+  - The validation webhook arrives and updates `interior_validation_status` / `cover_validation_status`.
+  - The status webhooks (`print_job.printing`, etc.) progress the order through the state machine.
+- If interior PDF fails Lulu validation: iterate on the print CSS, add Ghostscript post-processing if needed.
+
+#### Files (Phase 2C summary)
+**New:**
+- `backend/migrations/versions/book_projects_005_print_order_polymorphic.py`
+- `backend/app/services/book_project_templates/wedding_basic/print.css`
+
+**Modified:**
+- `backend/app/models/print_order.py` (polymorphism + properties)
+- `backend/app/services/book_project_pdf_service.py` (print mode)
+- `backend/app/services/cover_generation_service.py` (light extension)
+- `backend/app/api/print_orders.py` (branching logic across multiple endpoints)
+- `frontend/src/components/print/PrintOrderButton.tsx` (accept both IDs)
+- `frontend/src/pages/ProjectDashboardPage.tsx` (Order Printed Book button)
+- Possibly: `frontend/src/components/print/PrintOrderModal.tsx`
+
+**Read but unchanged (existing infrastructure to leverage):**
+- `backend/app/services/lulu_service.py` (fully reusable)
+- `backend/app/api/print_webhooks.py` (content-type-agnostic)
+- `backend/app/services/print_pdf_builder.py` (stays for Cookbook print path; legacy from BookProject perspective)
+
+#### Verification
+End-to-end Lulu sandbox order succeeds: print job created, validation passes, status updates flow, manual `print_job.delivered` webhook simulation results in `PrintOrder.status = DELIVERED`. Frontend correctly displays in-flight order on the project dashboard.
 
 ---
 
-### Verification (end-to-end manual test)
+### Phase 2D: Phase 1.5 polish (variable — ~2-3 days, parallelizable)
 
-After implementation, the following loop should succeed end-to-end without code changes:
+Per the user-confirmed order, these come after Lulu. Listed in rough priority:
 
-1. **Organizer flow (authenticated, web)**:
-   - Log in as test user.
-   - Create a project: project_type=wedding, honorees=["Sarah", "Maya"], occasion_date=2026-08-15, deadline=2026-07-15, title="Sarah & Maya's Recipe Book", dedication populated.
-   - Generate a share link. Copy the URL.
-2. **Contributor flow (unauthenticated, mobile-sized viewport)**:
-   - Open the share-link URL in an incognito window resized to 375×812 (iPhone).
-   - Verify the landing page renders project-type-appropriate copy ("Sarah & Maya are getting married!").
-   - Submit via photo: upload a photo of a recipe card. Verify upload succeeds, OCR parsing completes, recipe lands in the project.
-   - Submit via URL: paste an external recipe URL. Verify parsing.
-   - Provide `display_name="Aunt Linda"` and `email="aunt@example.com"`. Verify `GuestContributor` row created.
-3. **Organizer review**:
-   - Return to organizer dashboard. Verify both submissions appear with "From Aunt Linda" attribution.
-   - Edit one recipe (fix a parsing error). Exclude another.
-4. **Free preview**:
-   - Click "Preview PDF". Verify watermarked PDF downloads, opens in a viewer, renders cover + recipes + attribution legibly.
-5. **Paid export**:
-   - Click "Export Clean PDF". Stripe checkout opens (use Stripe test mode with card `4242 4242 4242 4242`).
-   - On success, ProjectExportSuccessPage renders. Download link works. Clean PDF (no watermark) opens correctly.
-6. **Security checks**:
-   - Revoke the share link. Verify subsequent submissions return 403.
-   - Manually expire a link in DB. Verify the same.
-   - Try guest-submit endpoint with garbage token. Verify 404.
-   - Verify rate limit triggers after configured threshold.
-7. **Run pytest backend suite** + frontend type check + lint. All green.
-8. **Smoke-test existing flows**: ensure personal recipe collection (existing UploadPage, CookbooksPage, etc.) still works unchanged for the existing user base — no regressions from the parsing service refactor.
+1. **User-facing feature name** — replace "Book Projects" placeholder throughout. Search: `/projects` route, nav labels, page titles, contributor landing copy ("Powered by Cookle"), share-link `/contribute/` URL. Decision required from user.
+2. **EditProjectPage UI** — currently can only edit via PATCH API. New route `/projects/:id/edit`, mirrors `CreateProjectPage` with prefilled values. Backend already supports it.
+3. **iOS TabBar entry** — extend the Cookbooks tab to a combined "Books" view that shows both Cookbooks and BookProjects in tabs/sections. Per Phase 1 plan.
+4. **Email notifications** — investigate first whether an email service is configured (sendgrid/postmark/SES). If yes: organizer gets an email when a new submission arrives, when the deadline approaches, when their export is ready. If no: skip until email infra exists.
+5. **Submission deadline UX** — currently stored as metadata, not enforced. At minimum, show a countdown on the contributor landing page; optionally auto-close share links past the deadline.
+
+Each item is small (hours) but combined adds up to a few days. They can be parallelized or done as one-offs as time allows.
 
 ---
 
-### Open Items (resolve before/during implementation)
+### Phase 2E: Premium designer templates (deferred — designer-gated)
 
-- **User-facing feature name** — placeholder "Book Project" used throughout. Confirm name before frontend copy is finalized (impacts: nav label, route paths if changed from `/projects` to e.g. `/books`, share-link landing copy, email subject lines).
-- **Export pricing** — exact $ amount for clean PDF (initial range: $15–25). Set via env var or DB-configurable.
-- **Watermark visual** — text content + placement. Default: "PREVIEW — cookle.food" diagonal repeat at ~15% opacity.
-- **Submission cap default** — for share links, what's a sensible default cap (e.g., 100 submissions per link)? Or no cap by default? Decide during implementation.
-- **Display of contributor email to organizer** — show or hide? Privacy implication. Default: hidden, only used internally.
-- **Recipe storage when contributor doesn't have an account** — recipes get `user_id = project.owner_user_id` so they live in the organizer's space. After Phase 2 magic-link claim, ownership could transfer back. Document this in code.
-- **iOS native (Capacitor)** — when does the iOS app get BookProject support? Phase 1 ships web-first. Native iOS shows the new "Book Projects" section under the Books tab but might lag on the camera/native pieces of the create flow. Confirm scope with user before frontend work begins.
+Gated on the designer friend's deliverables. Each template = a new directory under `backend/app/services/book_project_templates/<template_name>/` with `template.html` + `template.css` (and `print.css` after C2). Plus a chooser UI in `CreateProjectPage` and `EditProjectPage`. Cheap to add per template; high quality bar.
 
 ---
 
-### Critical files to modify
+### Critical files reference (Phase 2 entry points)
 
-**New files:**
-- `backend/app/models/book_project.py`
-- `backend/app/api/book_projects.py`
-- `backend/app/services/book_project_pdf_service.py`
-- `backend/app/services/recipe_parsing_service.py` (refactor target)
-- `backend/app/services/book_project_templates/wedding_basic/template.html`
-- `backend/app/services/book_project_templates/wedding_basic/template.css`
-- `backend/migrations/versions/<auto>_book_projects.py`
-- `frontend/src/pages/ProjectsListPage.tsx`
-- `frontend/src/pages/CreateProjectPage.tsx`
-- `frontend/src/pages/ProjectDashboardPage.tsx`
-- `frontend/src/pages/EditProjectPage.tsx`
-- `frontend/src/pages/ContributorLandingPage.tsx`
-- `frontend/src/pages/ProjectExportSuccessPage.tsx`
-- `frontend/src/components/layout/ContributorLayout.tsx`
-- `frontend/src/components/book-projects/*.tsx` (5 components listed above)
+**Backend:**
+- `backend/app/services/stripe_service.py:686-732` — webhook event routing
+- `backend/app/services/stripe_service.py:562-621` — `_handle_book_project_export_payment_success`
+- `backend/app/services/cloudinary_service.py` — image-only today; needs `upload_pdf` for raw resource type
+- `backend/app/services/book_project_pdf_service.py` — WeasyPrint rendering; needs print-mode variant
+- `backend/app/services/lulu_service.py` — fully reusable, no changes expected
+- `backend/app/api/print_orders.py` — currently cookbook-coupled, needs branching
+- `backend/app/api/payments.py:461` — Stripe webhook receiver
+- `backend/app/api/print_webhooks.py` — Lulu status webhooks (content-type-agnostic)
+- `backend/app/api/book_projects.py:1263-1307` — `download_export` endpoint (needs Cloudinary proxy support)
+- `backend/app/models/print_order.py` — needs polymorphic FK
+- `backend/app/models/book_project.py:234-267` — `BookProjectExport` (add Cloudinary fields)
 
-**Modified files:**
-- `backend/app/models/recipe.py` (Recipe column additions, `can_be_viewed_by` extension)
-- `backend/app/models/payment.py` (PaymentType enum extension)
-- `backend/app/api/__init__.py` (register new blueprint)
-- `backend/app/api/auth.py` (add `@require_share_token_or_auth` decorator)
-- `backend/app/api/recipes/routes.py` (refactor parsing into shared service — behavior preserved)
-- `backend/app/services/stripe_service.py` (add `create_book_project_export_purchase`)
-- `backend/app/api/print_webhooks.py` (extend webhook handler for new payment type — verify file location during impl)
-- `pyproject.toml` (add `weasyprint` dependency)
-- `frontend/src/App.tsx` (new routes)
-- `frontend/src/components/layout/Header.tsx` (nav entry)
-- `frontend/src/components/navigation/TabBar.tsx` (extend Cookbooks tab to include Book Projects)
-- `frontend/src/components/forms/ImageUploadMode.tsx` and siblings (light prop refactor for contributor flow reuse — verify coupling)
-- `frontend/src/services/shareService.ts` (`shareProjectLink` helper)
+**Frontend:**
+- `frontend/src/pages/ProjectDashboardPage.tsx` — add Order Printed Book button
+- `frontend/src/components/print/PrintOrderButton.tsx` — generalize from cookbook-only
+- `frontend/src/components/print/PrintOrderModal.tsx` — likely needs adaptation
+- `frontend/src/pages/OrdersPage.tsx` — existing print orders list; verify it handles BookProject-linked orders
+
+---
+
+### Overall verification gate
+
+Phase 2 is considered done when:
+- A user can buy a clean PDF via Stripe (test card → webhook → render → download), file lives in Cloudinary, persists across deploys.
+- A user can place a Lulu print order from the BookProject dashboard, the order makes it through Lulu sandbox to a `DELIVERED` state, the PrintOrder rows in the DB correctly track status throughout.
+- Production Stripe and Lulu sandbox webhooks are both verified live (not just unit-tested).
+- All existing tests pass (current baseline: 235 passed, 0 skipped on `feature/book-projects`).
+- The branch is up for review/merge — Phase 2 may merge separately from Phase 1 or as one big PR depending on user preference.
 
 ## Timeline
-- Started: 2026-05-14T14:16:15Z
+- Started: 2026-05-15T21:42:30Z
 - Completed:
 
 ## Deviations
-- 2026-05-14T14:30:00Z (Step 1): Scoped the recipe parsing service refactor more narrowly than the plan implied. Investigation revealed the existing upload endpoints (image, multi, text, URL) don't have monolithic parsing logic to extract — actual parsing is already split across existing services (`RecipeParser`, `UrlRecipeService`) and async Celery tasks. The only shared logic worth extracting was the recipe-record-construction helpers (`_create_ingredients`, `_create_instructions`, `_create_tags`, plus three sub-helpers). Moved these to new `backend/app/services/recipe_parsing_service.py` as public `create_recipe_ingredients/instructions/tags` (with private sub-helpers). HTTP-routing-specific concerns (auth, quota, cookbook handling, response shape) stay in routes.py. Existing endpoints reference the service via import. All 36 recipe tests pass. This still provides the foundation task 4 needs: guest submission endpoints can import the same `create_recipe_*` helpers to build Recipes inline without duplicating logic.
-- 2026-05-14T14:45:00Z (Step 2 — type choices): Plan called for PostgreSQL-specific column types (`ARRAY` for honorees, `JSONB` for metadata). Local dev DB is SQLite (per current Flask config — `.env` declares Postgres but config falls back to SQLite for local). Switched `honorees` and `project_metadata` to `sa.JSON` (cross-dialect; renders as JSONB on PostgreSQL, JSON on SQLite). No functional change but loses PG-specific JSONB indexing in dev — production behavior unchanged.
-- 2026-05-14T14:50:00Z (Step 2 — migration SQLite compatibility): Added `bind.dialect.name == "sqlite"` checks to skip `op.create_foreign_key` for new Recipe columns on SQLite (SQLite doesn't support `ALTER TABLE ADD CONSTRAINT`; FK enforcement disabled by default anyway). FK is still defined at the SQLAlchemy ORM level, so app-layer relationships work on both dialects. Matches the pattern already established in other migrations in the project. `Recipe.can_be_viewed_by()` extension for share-token access deferred to Task 4 — needs the share-token request context that the decorator establishes.
-- 2026-05-14T14:55:00Z (Step 2 — deferred extension): `Recipe.can_be_viewed_by(user_id, is_admin)` was supposed to be extended to recognize the "viewer holds a valid project share token" case. Deferring to Task 4 where the share-token decorator is built — extension needs the request context (`g.share_link`, `g.book_project`) that doesn't yet exist.
-- 2026-05-14T16:00:00Z (Step 4 — decorator scope): Plan called for `@require_share_token_or_auth` that falls back to JWT auth when no token is present. Simplified to `@require_share_token` (no fallback) — the organizer accesses their projects through the authenticated organizer endpoints already, and a hybrid decorator would complicate testing without adding capability. Guest endpoints are clearly partitioned under `/book-projects/by-token/<token>/...`.
-- 2026-05-14T16:05:00Z (Step 4 — deferred extension reconsidered): The Task 2 deferral of `Recipe.can_be_viewed_by()` extension is now NOT NEEDED for Phase 1. The guest submission flow only WRITES recipes (the organizer's authenticated dashboard reads them). Contributors can't browse the project — that's a future "see what others have submitted" feature, not in Phase 1. Removing this from the deferred list.
-- 2026-05-14T16:10:00Z (Step 4 — ProcessingJob extension): Added `book_project_id` and `guest_contributor_id` columns to `ProcessingJob` (migration `book_projects_002`) so the existing async OCR Celery pipeline can be reused for guest image submissions. Updated `_create_recipe_from_parsed_data` in `routes.py` so when `job.book_project_id` is set, the resulting Recipe is owned by the project organizer, attached to the project (not a cookbook), and gets the guest-contributor attribution. Guest image submissions skip the upload-count check (no `current_user` to charge against — submission limits are governed by `ProjectShareLink.submission_cap` instead).
-- 2026-05-14T17:00:00Z (Step 5 — local-dev WeasyPrint blocker, not a code issue): On the user's local macOS dev machine, WeasyPrint can't load its system libraries (pango/cairo/glib). Investigation showed Homebrew installed them as arm64 dylibs (/opt/homebrew/lib) but the project's Python venv is x86_64 (under Rosetta) — architecture mismatch. The PDF rendering code is correct; production (Linux on Render) will load the system packages cleanly. PDF-bytes tests are gated by a runtime probe so they skip locally and run when WeasyPrint can actually render. Resolving local dev is a follow-up: either recreate the venv as native arm64 (preferred) or install x86_64 Homebrew alongside the existing arm64 one. Doesn't block Phase 1 implementation.
+None yet.
 
 ## Results Summary
 [To be added on completion]
