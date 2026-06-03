@@ -176,6 +176,26 @@ class CloudinaryService:
         logger.info(f"Successfully uploaded PDF to Cloudinary: {public_id}")
         return result
 
+    def signed_pdf_url(self, public_id: str) -> str:
+        """Return a freshly signed delivery URL for a raw-resource PDF.
+
+        Cloudinary accounts can be configured to require signed URLs for raw
+        resources (the default for some plans). Unsigned URLs then 401, which
+        is what surfaced in prod after the BookProject paid-PDF launch.
+        Signing the URL on every proxy request avoids depending on the
+        console's "Restricted media types" toggle staying off."""
+        if not self.is_enabled():
+            raise RuntimeError("Cloudinary service is not enabled or configured")
+
+        url, _ = cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type="raw",
+            type="upload",
+            sign_url=True,
+            secure=True,
+        )
+        return url
+
     def delete_pdf(self, public_id: str) -> bool:
         """Delete a raw-resource (PDF) from Cloudinary."""
         if not self.is_enabled():

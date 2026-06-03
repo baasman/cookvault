@@ -1379,11 +1379,21 @@ def download_export(current_user, project_id: int, export_id: int) -> Response:
     )
 
     if export.cloudinary_url:
-        # Proxy the download so the client never sees the Cloudinary URL
-        # (which is publicly resolvable — we want all access to go through
-        # the auth'd endpoint).
+        # Proxy the download so the client never sees the Cloudinary URL.
+        # We re-sign every time using the stored public_id rather than
+        # trusting the cached secure_url because Cloudinary accounts default
+        # to requiring signed delivery for raw resources — the cached
+        # unsigned URL 401s. The cloudinary_url column stays as a fallback
+        # for older export rows that may not have a public_id set.
+        from app.services.cloudinary_service import cloudinary_service
+
+        if export.cloudinary_public_id and cloudinary_service.is_enabled():
+            fetch_url = cloudinary_service.signed_pdf_url(export.cloudinary_public_id)
+        else:
+            fetch_url = export.cloudinary_url
+
         try:
-            upstream = requests.get(export.cloudinary_url, stream=True, timeout=30)
+            upstream = requests.get(fetch_url, stream=True, timeout=30)
             upstream.raise_for_status()
         except requests.RequestException as e:
             current_app.logger.error(

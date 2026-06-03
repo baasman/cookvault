@@ -1041,10 +1041,60 @@ class TestDownloadExport:
         )
         assert response.status_code == 410
 
+    @patch("app.services.cloudinary_service.cloudinary_service.signed_pdf_url")
+    @patch("app.services.cloudinary_service.cloudinary_service.is_enabled")
     @patch("app.api.book_projects.requests.get")
-    def test_download_proxies_cloudinary_url(self, mock_get, auth_client, test_user):
+    def test_download_signs_cloudinary_url_when_enabled(
+        self, mock_get, mock_is_enabled, mock_signed, auth_client, test_user
+    ):
+        """Cloudinary accounts may require signed URLs for raw resources.
+        When Cloudinary is enabled and a public_id is stored, the proxy
+        should fetch from a freshly-signed URL rather than the cached
+        secure_url (which may 401)."""
         from app.models import BookProjectExport
 
+        mock_is_enabled.return_value = True
+        mock_signed.return_value = (
+            "https://res.cloudinary.com/test/raw/upload/s--SIG--/proj.pdf"
+        )
+        upstream = MagicMock()
+        upstream.iter_content.return_value = iter([b"%PDF-1.4\nsigned\n"])
+        upstream.raise_for_status.return_value = None
+        mock_get.return_value = upstream
+
+        project = _make_project(test_user)
+        export = BookProjectExport(
+            project_id=project.id,
+            user_id=test_user.id,
+            pdf_file_path=None,
+            cloudinary_public_id="book_project_exports/project-x-abc",
+            cloudinary_url="https://res.cloudinary.com/test/raw/upload/proj.pdf",
+            is_watermarked=False,
+        )
+        db.session.add(export)
+        db.session.commit()
+
+        response = auth_client.get(
+            f"/api/book-projects/{project.id}/exports/{export.id}/download"
+        )
+        assert response.status_code == 200
+        # Signed URL was used, not the cached one.
+        mock_signed.assert_called_once_with("book_project_exports/project-x-abc")
+        assert mock_get.call_args.args[0] == (
+            "https://res.cloudinary.com/test/raw/upload/s--SIG--/proj.pdf"
+        )
+
+    @patch("app.services.cloudinary_service.cloudinary_service.is_enabled")
+    @patch("app.api.book_projects.requests.get")
+    def test_download_proxies_cloudinary_url(
+        self, mock_get, mock_is_enabled, auth_client, test_user
+    ):
+        """Fallback path: when Cloudinary isn't enabled in this process but
+        an export row carries a stored cloudinary_url (e.g. row written by an
+        older deploy), proxy the cached URL directly."""
+        from app.models import BookProjectExport
+
+        mock_is_enabled.return_value = False
         upstream = MagicMock()
         upstream.iter_content.return_value = iter([b"%PDF-1.4\nfrom cloudinary\n"])
         upstream.raise_for_status.return_value = None
