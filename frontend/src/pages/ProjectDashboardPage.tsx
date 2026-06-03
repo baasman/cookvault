@@ -123,7 +123,7 @@ export const ProjectDashboardPage: React.FC = () => {
       <SubmissionsSection
         projectId={projectId}
         submissions={submissions ?? []}
-        currentUserId={user?.id}
+        currentUserId={user?.id ? Number(user.id) : undefined}
         onChange={() =>
           queryClient.invalidateQueries({
             queryKey: ['book-project-submissions', projectId],
