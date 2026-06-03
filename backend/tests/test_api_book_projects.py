@@ -10,6 +10,7 @@ from app.models import (
     BookProject,
     GuestContributor,
     ProjectShareLink,
+    ProjectStatus,
     ProjectType,
     Recipe,
 )
@@ -71,6 +72,39 @@ class TestCreateBookProject:
         assert data["project"]["project_type"] == "general"
         assert data["project"]["status"] == "collecting"
         assert data["project"]["honorees"] == []
+
+    def test_enum_serialized_as_lowercase_value(self, app, test_user):
+        """Regression: SQLAlchemy must serialize ProjectType/ProjectStatus as
+        the lowercase enum VALUE (wedding), not the NAME (WEDDING). The PG
+        enum types in production were created with lowercase values, so a
+        bind sending NAME causes "invalid input value for enum projecttype:
+        WEDDING". SQLite stores enums as plain strings and accepts either,
+        so this test inspects the bind parameters directly to catch the
+        regression on the local SQLite suite."""
+        from sqlalchemy import inspect
+
+        with app.app_context():
+            project = BookProject(
+                owner_user_id=test_user.id,
+                title="Enum bind regression",
+                project_type=ProjectType.WEDDING,
+                status=ProjectStatus.COLLECTING,
+            )
+            db.session.add(project)
+            db.session.flush()  # forces the INSERT compile + bind
+
+            # Round-trip read: the column round-tripped through the dialect's
+            # type so reading it back as a string would be the value, not the
+            # name. We use the model's bound column processor directly.
+            mapper = inspect(BookProject)
+            type_col = mapper.columns["project_type"].type
+            status_col = mapper.columns["status"].type
+            dialect = db.engine.dialect
+            type_processor = type_col.bind_processor(dialect)
+            status_processor = status_col.bind_processor(dialect)
+
+            assert type_processor(ProjectType.WEDDING) == "wedding"
+            assert status_processor(ProjectStatus.COLLECTING) == "collecting"
 
     def test_create_full(self, auth_client):
         response = auth_client.post(
