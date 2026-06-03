@@ -28,9 +28,7 @@ def upgrade():
         batch_op.add_column(
             sa.Column("cloudinary_public_id", sa.String(500), nullable=True)
         )
-        batch_op.add_column(
-            sa.Column("cloudinary_url", sa.String(1000), nullable=True)
-        )
+        batch_op.add_column(sa.Column("cloudinary_url", sa.String(1000), nullable=True))
 
 
 def downgrade():

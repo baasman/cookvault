@@ -107,9 +107,7 @@ class TestCreateBookProject:
         assert response.status_code == 400
 
     def test_create_empty_title(self, auth_client):
-        response = auth_client.post(
-            "/api/book-projects/", json={"title": "   "}
-        )
+        response = auth_client.post("/api/book-projects/", json={"title": "   "})
         assert response.status_code == 400
 
     def test_create_invalid_project_type(self, auth_client):
@@ -313,9 +311,7 @@ class TestSubmissions:
         assert response.status_code == 200
         assert response.get_json()["submissions"] == []
 
-    def test_list_with_guest_contributor(
-        self, auth_client, test_user, sample_recipe
-    ):
+    def test_list_with_guest_contributor(self, auth_client, test_user, sample_recipe):
         project = _make_project(test_user)
         contributor = GuestContributor(
             project_id=project.id,
@@ -476,9 +472,7 @@ class TestSubmitTextByToken:
         assert contributor.project_id == project.id
 
     @patch("app.api.book_projects.RecipeParser")
-    def test_same_email_reuses_contributor(
-        self, mock_parser_cls, client, test_user
-    ):
+    def test_same_email_reuses_contributor(self, mock_parser_cls, client, test_user):
         mock_parser = MagicMock()
         mock_parser.parse_recipe_text.return_value = _FAKE_PARSED_RECIPE
         mock_parser_cls.return_value = mock_parser
@@ -557,9 +551,7 @@ class TestSubmitTextByToken:
 
 class TestSubmitUrlByToken:
     @patch("app.services.url_recipe_service.UrlRecipeService")
-    def test_submit_url_creates_recipe(
-        self, mock_service_cls, client, test_user
-    ):
+    def test_submit_url_creates_recipe(self, mock_service_cls, client, test_user):
         mock_service = MagicMock()
         mock_service.import_from_url.return_value = {
             "recipe_data": _FAKE_PARSED_RECIPE,
@@ -781,9 +773,7 @@ class TestCreateRecipeFromParsedDataBookProject:
 
 class TestExportPreview:
     @patch("app.api.book_projects.render_book_project_pdf", create=True)
-    @patch(
-        "app.services.book_project_pdf_service.render_book_project_pdf"
-    )
+    @patch("app.services.book_project_pdf_service.render_book_project_pdf")
     def test_create_preview_renders_and_records(
         self, mock_render, _mock_render_alias, auth_client, test_user, tmp_path
     ):
@@ -883,9 +873,7 @@ class TestExportPurchase:
         assert export.pdf_file_path is None
         assert export.user_id == test_user.id
         # The StripeService should have been called once with the placeholder export.
-        assert (
-            mock_service.create_book_project_export_payment_intent.call_count == 1
-        )
+        assert mock_service.create_book_project_export_payment_intent.call_count == 1
 
     def test_purchase_not_owned(self, auth_client, second_user):
         project = _make_project(second_user)
@@ -1020,9 +1008,7 @@ class TestDownloadExport:
         assert response.status_code == 410
 
     @patch("app.api.book_projects.requests.get")
-    def test_download_proxies_cloudinary_url(
-        self, mock_get, auth_client, test_user
-    ):
+    def test_download_proxies_cloudinary_url(self, mock_get, auth_client, test_user):
         from app.models import BookProjectExport
 
         upstream = MagicMock()
@@ -1115,9 +1101,7 @@ class TestRegenerateExport:
         db.session.commit()
         return paid_export
 
-    def test_regenerate_rejects_without_prior_paid_export(
-        self, auth_client, test_user
-    ):
+    def test_regenerate_rejects_without_prior_paid_export(self, auth_client, test_user):
         project = _make_project(test_user)
         response = auth_client.post(
             f"/api/book-projects/{project.id}/export/regenerate", json={}
@@ -1168,9 +1152,7 @@ class TestRegenerateExport:
 
 
 class TestWebhookHandler:
-    @patch(
-        "app.services.book_project_pdf_service.render_book_project_pdf"
-    )
+    @patch("app.services.book_project_pdf_service.render_book_project_pdf")
     @patch(
         "app.services.stripe_service.StripeService._handle_subscription_payment_success"
     )

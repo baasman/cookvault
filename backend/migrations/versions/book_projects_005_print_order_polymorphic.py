@@ -102,7 +102,5 @@ def downgrade():
                 nullable=False,
             )
 
-    op.drop_index(
-        "ix_print_orders_book_project_id", table_name="print_orders"
-    )
+    op.drop_index("ix_print_orders_book_project_id", table_name="print_orders")
     op.drop_column("print_orders", "book_project_id")

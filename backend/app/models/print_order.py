@@ -340,9 +340,7 @@ class PrintOrder(db.Model):
 
     def to_dict(self, include_shipping: bool = False) -> Dict[str, Any]:
         """Convert order to dictionary."""
-        content_type = (
-            "cookbook" if self.cookbook_id is not None else "book_project"
-        )
+        content_type = "cookbook" if self.cookbook_id is not None else "book_project"
         # Title is convenient for list/detail views; populate from whichever
         # entity is linked. Cheap because both relationships are typically
         # eager-loaded with the order.

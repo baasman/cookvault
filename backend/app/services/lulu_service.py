@@ -118,25 +118,61 @@ class LuluService:
     #             <weight 3> <paper-color 2> <finish 3> <laminate 3>
     POD_PACKAGE_IDS = {
         # (trim, binding, paper, color_pages): SKU
-        (TrimSize.A5, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
-            "0148X0210BWSTDPB060UW444MNG",
-        (TrimSize.A5, BindingType.PERFECT_BOUND, PaperType.STANDARD_CREAM, False):
-            "0148X0210BWSTDPB060UC444MNG",
-        (TrimSize.US_TRADE, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
-            "0600X0900BWSTDPB060UW444MNG",
-        (TrimSize.US_TRADE, BindingType.PERFECT_BOUND, PaperType.STANDARD_CREAM, False):
-            "0600X0900BWSTDPB060UC444MNG",
-        (TrimSize.DIGEST, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
-            "0550X0850BWSTDPB060UW444MNG",
-        (TrimSize.US_LETTER, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
-            "0850X1100BWSTDPB060UW444MNG",
-        (TrimSize.A4, BindingType.PERFECT_BOUND, PaperType.STANDARD_WHITE, False):
-            "0210X0297BWSTDPB060UW444MNG",
+        (
+            TrimSize.A5,
+            BindingType.PERFECT_BOUND,
+            PaperType.STANDARD_WHITE,
+            False,
+        ): "0148X0210BWSTDPB060UW444MNG",
+        (
+            TrimSize.A5,
+            BindingType.PERFECT_BOUND,
+            PaperType.STANDARD_CREAM,
+            False,
+        ): "0148X0210BWSTDPB060UC444MNG",
+        (
+            TrimSize.US_TRADE,
+            BindingType.PERFECT_BOUND,
+            PaperType.STANDARD_WHITE,
+            False,
+        ): "0600X0900BWSTDPB060UW444MNG",
+        (
+            TrimSize.US_TRADE,
+            BindingType.PERFECT_BOUND,
+            PaperType.STANDARD_CREAM,
+            False,
+        ): "0600X0900BWSTDPB060UC444MNG",
+        (
+            TrimSize.DIGEST,
+            BindingType.PERFECT_BOUND,
+            PaperType.STANDARD_WHITE,
+            False,
+        ): "0550X0850BWSTDPB060UW444MNG",
+        (
+            TrimSize.US_LETTER,
+            BindingType.PERFECT_BOUND,
+            PaperType.STANDARD_WHITE,
+            False,
+        ): "0850X1100BWSTDPB060UW444MNG",
+        (
+            TrimSize.A4,
+            BindingType.PERFECT_BOUND,
+            PaperType.STANDARD_WHITE,
+            False,
+        ): "0210X0297BWSTDPB060UW444MNG",
         # Color variants
-        (TrimSize.A5, BindingType.PERFECT_BOUND, PaperType.PREMIUM_COLOR, True):
-            "0148X0210FCSTDPB080CW444MNG",
-        (TrimSize.US_TRADE, BindingType.PERFECT_BOUND, PaperType.PREMIUM_COLOR, True):
-            "0600X0900FCSTDPB080CW444MNG",
+        (
+            TrimSize.A5,
+            BindingType.PERFECT_BOUND,
+            PaperType.PREMIUM_COLOR,
+            True,
+        ): "0148X0210FCSTDPB080CW444MNG",
+        (
+            TrimSize.US_TRADE,
+            BindingType.PERFECT_BOUND,
+            PaperType.PREMIUM_COLOR,
+            True,
+        ): "0600X0900FCSTDPB080CW444MNG",
     }
 
     # Legacy per-attribute mappings kept for downstream consumers that need
@@ -432,11 +468,15 @@ class LuluService:
                     if isinstance(error_data, dict):
                         error_message = error_data.get(
                             "message",
-                            error_data.get("detail", f"API error: {response.status_code}"),
+                            error_data.get(
+                                "detail", f"API error: {response.status_code}"
+                            ),
                         )
                     elif isinstance(error_data, list) and error_data:
                         # List of field errors — stringify for visibility.
-                        error_message = f"API error: {response.status_code}: {error_data}"
+                        error_message = (
+                            f"API error: {response.status_code}: {error_data}"
+                        )
                     else:
                         error_message = f"API error: {response.status_code}"
                     raise LuluAPIError(error_message, response.status_code, error_data)
@@ -532,9 +572,7 @@ class LuluService:
             raise LuluAPIError(f"File upload error: {str(e)}")
 
         file_url = upload["url"]
-        logger.info(
-            f"Hosted {file_type} PDF on Cloudinary for Lulu fetch: {file_url}"
-        )
+        logger.info(f"Hosted {file_type} PDF on Cloudinary for Lulu fetch: {file_url}")
         return file_url
 
     def upload_interior_pdf(

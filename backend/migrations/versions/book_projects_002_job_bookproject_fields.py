@@ -78,11 +78,7 @@ def downgrade():
             "processing_job",
             type_="foreignkey",
         )
-    op.drop_index(
-        "ix_processing_job_guest_contributor_id", table_name="processing_job"
-    )
-    op.drop_index(
-        "ix_processing_job_book_project_id", table_name="processing_job"
-    )
+    op.drop_index("ix_processing_job_guest_contributor_id", table_name="processing_job")
+    op.drop_index("ix_processing_job_book_project_id", table_name="processing_job")
     op.drop_column("processing_job", "guest_contributor_id")
     op.drop_column("processing_job", "book_project_id")

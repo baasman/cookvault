@@ -259,7 +259,6 @@ class EmailService:
             )
             return False
 
-
     def send_book_project_export_ready(
         self,
         email: str,
@@ -314,7 +313,7 @@ class EmailService:
 
             text_content = (
                 f"Hi {username},\n\n"
-                f"The clean (no-watermark) PDF of \"{project_title}\" is ready to download.\n\n"
+                f'The clean (no-watermark) PDF of "{project_title}" is ready to download.\n\n'
                 f"Open your book dashboard: {dashboard_url}\n\n"
                 "If you keep adding recipes you can regenerate the clean PDF for free.\n"
             )

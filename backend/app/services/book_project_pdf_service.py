@@ -68,6 +68,7 @@ class RenderedPdf(TypedDict):
     cloudinary_url: Optional[str]
     pdf_file_path: Optional[str]
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -132,9 +133,8 @@ def _preload_weasyprint_dylibs() -> None:
         try:
             ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
         except OSError as e:
-            logger.warning(
-                "Could not pre-load WeasyPrint dylib %s: %s", path, e
-            )
+            logger.warning("Could not pre-load WeasyPrint dylib %s: %s", path, e)
+
 
 # Template directory relative to this module. Each subdirectory is one named
 # template with a template.html (Jinja2) and template.css (print CSS).
@@ -159,9 +159,7 @@ def _included_recipes(project: BookProject) -> list[Recipe]:
     ]
 
 
-def _build_template_context(
-    project: BookProject, watermarked: bool
-) -> dict:
+def _build_template_context(project: BookProject, watermarked: bool) -> dict:
     """Assemble the variables passed to the Jinja2 template."""
     included = _included_recipes(project)
     return {
@@ -291,7 +289,10 @@ def _output_dir() -> Path:
     if base:
         path = Path(base)
     else:
-        path = Path(current_app.config.get("UPLOAD_FOLDER", "uploads")) / "book_project_exports"
+        path = (
+            Path(current_app.config.get("UPLOAD_FOLDER", "uploads"))
+            / "book_project_exports"
+        )
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -344,9 +345,7 @@ def render_book_project_pdf(
 
     template_dir = _TEMPLATES_ROOT / template_name
     if not template_dir.is_dir():
-        raise FileNotFoundError(
-            f"Book project template not found: {template_name}"
-        )
+        raise FileNotFoundError(f"Book project template not found: {template_name}")
 
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -410,9 +409,7 @@ def render_book_project_pdf_to_bytes(
 
     template_dir = _TEMPLATES_ROOT / template_name
     if not template_dir.is_dir():
-        raise FileNotFoundError(
-            f"Book project template not found: {template_name}"
-        )
+        raise FileNotFoundError(f"Book project template not found: {template_name}")
 
     _preload_weasyprint_dylibs()
     from weasyprint import CSS, HTML
@@ -432,9 +429,7 @@ def render_book_project_pdf_to_bytes(
     if print_ready:
         print_css_path = template_dir / "print.css"
         if print_css_path.exists():
-            stylesheets.append(
-                CSS(string=print_css_path.read_text(encoding="utf-8"))
-            )
+            stylesheets.append(CSS(string=print_css_path.read_text(encoding="utf-8")))
         # Trim-size override last so it wins.
         stylesheets.append(CSS(string=_page_size_css(trim_size)))
 

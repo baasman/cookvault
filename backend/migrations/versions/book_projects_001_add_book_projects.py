@@ -20,7 +20,14 @@ branch_labels = None
 depends_on = None
 
 
-_PROJECT_TYPE_VALUES = ("wedding", "anniversary", "heirloom", "memorial", "holiday", "general")
+_PROJECT_TYPE_VALUES = (
+    "wedding",
+    "anniversary",
+    "heirloom",
+    "memorial",
+    "holiday",
+    "general",
+)
 _PROJECT_STATUS_VALUES = ("collecting", "review", "finalized", "exported")
 
 
@@ -67,9 +74,7 @@ def upgrade():
             server_default=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_book_project_owner_user_id", "book_project", ["owner_user_id"]
-    )
+    op.create_index("ix_book_project_owner_user_id", "book_project", ["owner_user_id"])
 
     op.create_table(
         "project_share_link",
@@ -89,9 +94,7 @@ def upgrade():
             nullable=False,
             server_default="0",
         ),
-        sa.Column(
-            "revoked", sa.Boolean(), nullable=False, server_default=sa.false()
-        ),
+        sa.Column("revoked", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column(
             "created_at",
             sa.DateTime(),
@@ -243,16 +246,12 @@ def downgrade():
     op.drop_table("book_project_export")
 
     op.drop_index("ix_guest_contributor_email", table_name="guest_contributor")
-    op.drop_index(
-        "ix_guest_contributor_share_link_id", table_name="guest_contributor"
-    )
+    op.drop_index("ix_guest_contributor_share_link_id", table_name="guest_contributor")
     op.drop_index("ix_guest_contributor_project_id", table_name="guest_contributor")
     op.drop_table("guest_contributor")
 
     op.drop_index("ix_project_share_link_token", table_name="project_share_link")
-    op.drop_index(
-        "ix_project_share_link_project_id", table_name="project_share_link"
-    )
+    op.drop_index("ix_project_share_link_project_id", table_name="project_share_link")
     op.drop_table("project_share_link")
 
     op.drop_index("ix_book_project_owner_user_id", table_name="book_project")

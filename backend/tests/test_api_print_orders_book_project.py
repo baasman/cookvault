@@ -21,7 +21,9 @@ from app.models.print_order import (
 )
 
 
-def _make_book_project_print_order(test_user, project, status=PrintOrderStatus.PROCESSING):
+def _make_book_project_print_order(
+    test_user, project, status=PrintOrderStatus.PROCESSING
+):
     """Helper that creates a persisted PrintOrder linked to a BookProject."""
     spec = PrintSpecification(
         trim_size=TrimSize.A5,
@@ -142,9 +144,7 @@ class TestWebhooksWithBookProjectOrder:
 
 
 class TestSpecifications:
-    def test_specifications_accepts_book_project_id(
-        self, auth_client, test_user
-    ):
+    def test_specifications_accepts_book_project_id(self, auth_client, test_user):
         project = _make_project(test_user)
         response = auth_client.get(
             f"/api/print-orders/specifications?book_project_id={project.id}"

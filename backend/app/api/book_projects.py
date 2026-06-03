@@ -151,7 +151,9 @@ def create_book_project(current_user) -> Response:
             occasion_date=_parse_date(data.get("occasion_date")),
             submission_deadline=_parse_date(data.get("submission_deadline")),
             cover_image_url=(data.get("cover_image_url") or "").strip() or None,
-            project_metadata=data.get("metadata") if isinstance(data.get("metadata"), dict) else {},
+            project_metadata=data.get("metadata")
+            if isinstance(data.get("metadata"), dict)
+            else {},
         )
         db.session.add(project)
         db.session.commit()
@@ -419,9 +421,7 @@ def list_submissions(current_user, project_id: int) -> Response:
     return jsonify({"submissions": submissions}), 200
 
 
-@bp.route(
-    "/<int:project_id>/submissions/<int:recipe_id>", methods=["PATCH"]
-)
+@bp.route("/<int:project_id>/submissions/<int:recipe_id>", methods=["PATCH"])
 @require_auth
 def update_submission(current_user, project_id: int, recipe_id: int) -> Response:
     """Edit submission metadata that's specific to the project context. For now this
@@ -432,9 +432,7 @@ def update_submission(current_user, project_id: int, recipe_id: int) -> Response
     if not project:
         return jsonify({"error": "Project not found"}), 404
 
-    recipe = Recipe.query.filter_by(
-        id=recipe_id, book_project_id=project.id
-    ).first()
+    recipe = Recipe.query.filter_by(id=recipe_id, book_project_id=project.id).first()
     if not recipe:
         return jsonify({"error": "Submission not found"}), 404
 
@@ -770,7 +768,9 @@ def submit_image_by_token(token: str) -> Response:
 
     if not allowed_file(file.filename):
         return jsonify(
-            {"error": f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}
+            {
+                "error": f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+            }
         ), 400
 
     file.seek(0, 2)
@@ -922,7 +922,9 @@ def submit_text_as_organizer(current_user, project_id: int) -> Response:
 
     try:
         parser = RecipeParser()
-        parsed_recipe = parser.parse_recipe_text(recipe_text, translate_to_english=False)
+        parsed_recipe = parser.parse_recipe_text(
+            recipe_text, translate_to_english=False
+        )
         recipe = _build_organizer_recipe(
             project=project,
             parsed_recipe=parsed_recipe,
@@ -1092,7 +1094,9 @@ def submit_image_as_organizer(current_user, project_id: int) -> Response:
         return jsonify({"error": "No file selected"}), 400
     if not allowed_file(file.filename):
         return jsonify(
-            {"error": f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}
+            {
+                "error": f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+            }
         ), 400
 
     file.seek(0, 2)
@@ -1346,9 +1350,7 @@ def list_exports(current_user, project_id: int) -> Response:
     return jsonify({"exports": [e.to_dict() for e in exports]}), 200
 
 
-@bp.route(
-    "/<int:project_id>/exports/<int:export_id>/download", methods=["GET"]
-)
+@bp.route("/<int:project_id>/exports/<int:export_id>/download", methods=["GET"])
 @require_auth
 def download_export(current_user, project_id: int, export_id: int) -> Response:
     """Stream the generated PDF if the caller owns it. Paid exports that
@@ -1373,8 +1375,7 @@ def download_export(current_user, project_id: int, export_id: int) -> Response:
         ), 202
 
     download_name = (
-        f"book-project-{project.id}"
-        f"{'-preview' if export.is_watermarked else ''}.pdf"
+        f"book-project-{project.id}{'-preview' if export.is_watermarked else ''}.pdf"
     )
 
     if export.cloudinary_url:

@@ -44,9 +44,7 @@ def populated_project_id(app, test_user):
         db.session.add(project)
         db.session.flush()
 
-        linda = GuestContributor(
-            project_id=project.id, display_name="Aunt Linda"
-        )
+        linda = GuestContributor(project_id=project.id, display_name="Aunt Linda")
         db.session.add(linda)
         db.session.flush()
 
@@ -202,9 +200,7 @@ class TestRenderPdfBytes:
 
         with app.app_context():
             project = db.session.get(BookProject, populated_project_id)
-            pdf_bytes = render_book_project_pdf_to_bytes(
-                project, watermarked=False
-            )
+            pdf_bytes = render_book_project_pdf_to_bytes(project, watermarked=False)
         assert pdf_bytes.startswith(b"%PDF-")
         assert len(pdf_bytes) > 1000
 
@@ -215,13 +211,9 @@ class TestRenderPdfBytes:
 
         with app.app_context():
             project = db.session.get(BookProject, populated_project_id)
-            pdf_bytes = render_book_project_pdf_to_bytes(
-                project, watermarked=True
-            )
+            pdf_bytes = render_book_project_pdf_to_bytes(project, watermarked=True)
             assert pdf_bytes.startswith(b"%PDF-")
-            clean = render_book_project_pdf_to_bytes(
-                project, watermarked=False
-            )
+            clean = render_book_project_pdf_to_bytes(project, watermarked=False)
             assert len(pdf_bytes) > 1000
             assert len(clean) > 1000
 
@@ -239,9 +231,7 @@ class TestRenderPdfBytes:
                     template_name="does_not_exist",
                 )
 
-    def test_render_print_ready_requires_trim_size(
-        self, app, populated_project_id
-    ):
+    def test_render_print_ready_requires_trim_size(self, app, populated_project_id):
         from app.services.book_project_pdf_service import (
             render_book_project_pdf_to_bytes,
         )
@@ -347,4 +337,4 @@ class TestTemplateRenderingNoWeasyPrint:
             html = template.render(**context)
 
         assert "PREVIEW" not in html
-        assert "watermark" not in html.lower() or "class=\"watermark\"" not in html
+        assert "watermark" not in html.lower() or 'class="watermark"' not in html

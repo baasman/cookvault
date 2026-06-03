@@ -127,7 +127,11 @@ class BookProject(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
         if include_counts:
-            included_recipes = [r for r in self.recipes if not getattr(r, "is_excluded_from_project", False)]
+            included_recipes = [
+                r
+                for r in self.recipes
+                if not getattr(r, "is_excluded_from_project", False)
+            ]
             result["recipe_count"] = len(included_recipes)
             result["contributor_count"] = len(self.contributors)
         return result

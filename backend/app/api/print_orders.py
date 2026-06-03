@@ -64,16 +64,24 @@ def _resolve_printable_entity(source, current_user):
     book_project_id = source.get("book_project_id")
 
     if cookbook_id and book_project_id:
-        return None, None, (
-            jsonify(
-                {"error": "Specify either cookbook_id or book_project_id, not both"}
+        return (
+            None,
+            None,
+            (
+                jsonify(
+                    {"error": "Specify either cookbook_id or book_project_id, not both"}
+                ),
+                400,
             ),
-            400,
         )
     if not cookbook_id and not book_project_id:
-        return None, None, (
-            jsonify({"error": "cookbook_id or book_project_id is required"}),
-            400,
+        return (
+            None,
+            None,
+            (
+                jsonify({"error": "cookbook_id or book_project_id is required"}),
+                400,
+            ),
         )
 
     if cookbook_id:
@@ -83,13 +91,17 @@ def _resolve_printable_entity(source, current_user):
         if cookbook.user_id != current_user.id:
             return None, None, (jsonify({"error": "Access denied"}), 403)
         if cookbook.google_books_id is not None:
-            return None, None, (
-                jsonify(
-                    {
-                        "error": "Print orders are not available for Google Books cookbooks"
-                    }
+            return (
+                None,
+                None,
+                (
+                    jsonify(
+                        {
+                            "error": "Print orders are not available for Google Books cookbooks"
+                        }
+                    ),
+                    400,
                 ),
-                400,
             )
         return cookbook, "cookbook", None
 
@@ -125,8 +137,7 @@ def _build_interior_pdf(order: PrintOrder, current_user):
         cookbook_dict = cookbook.to_dict(current_user_id=current_user.id)
         recipes = cookbook.get_recipes_for_user(current_user.id)
         recipes_dict = [
-            r.to_dict(current_user_id=current_user.id, is_admin=True)
-            for r in recipes
+            r.to_dict(current_user_id=current_user.id, is_admin=True) for r in recipes
         ]
 
         template_map = {
@@ -158,8 +169,10 @@ def _build_interior_pdf(order: PrintOrder, current_user):
         trim_size=order.specification.trim_size,
     )
     cover_dict = build_book_project_cover_metadata(project)
-    return interior_pdf, cover_dict, _included_recipe_count(
-        project, "book_project", current_user
+    return (
+        interior_pdf,
+        cover_dict,
+        _included_recipe_count(project, "book_project", current_user),
     )
 
 
@@ -230,8 +243,8 @@ def get_print_specifications(current_user):
             if err:
                 return err
             recipe_count = _included_recipe_count(entity, entity_type, current_user)
-            response_data["estimated_page_count"] = (
-                cover_service.estimate_page_count(recipe_count)
+            response_data["estimated_page_count"] = cover_service.estimate_page_count(
+                recipe_count
             )
             response_data["recipe_count"] = recipe_count
 
@@ -266,9 +279,7 @@ def validate_cover_data(current_user):
             entity_dict = build_book_project_cover_metadata(entity)
 
         cover_service = CoverGenerationService()
-        validation_result = cover_service.validate_cover_content(
-            entity_dict, trim_size
-        )
+        validation_result = cover_service.validate_cover_content(entity_dict, trim_size)
         return jsonify(validation_result)
 
     except Exception as e:
@@ -673,9 +684,7 @@ def submit_print_order(current_user, order_id):
             if not interior_url:
                 return jsonify({"error": "Failed to upload interior PDF"}), 500
             order.interior_file_url = interior_url
-            logger.info(
-                f"Uploaded interior PDF for order {order.order_number}"
-            )
+            logger.info(f"Uploaded interior PDF for order {order.order_number}")
         except Exception as e:
             lulu_service.handle_api_error(e, "interior PDF upload")
             return jsonify({"error": "Failed to prepare interior file"}), 500
@@ -714,9 +723,7 @@ def submit_print_order(current_user, order_id):
             if not cover_url:
                 return jsonify({"error": "Failed to upload cover PDF"}), 500
             order.cover_file_url = cover_url
-            logger.info(
-                f"Uploaded cover PDF for order {order.order_number}"
-            )
+            logger.info(f"Uploaded cover PDF for order {order.order_number}")
         except Exception as e:
             lulu_service.handle_api_error(e, "cover PDF generation/upload")
             return jsonify({"error": "Failed to prepare cover file"}), 500
