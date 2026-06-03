@@ -499,22 +499,32 @@ const ExportSection: React.FC<{ projectId: number; projectTitle: string }> = ({
           </div>
         )}
 
-        <div
-          className="mt-4 pt-4 border-t"
-          style={{ borderColor: '#e8dccf' }}
-        >
-          <p className="text-sm mb-2" style={{ color: '#6b5a52' }}>
-            Or have it professionally printed and shipped — bound paperback, your
-            choice of trim and quantity.
-          </p>
-          <PrintOrderButton
-            entityType="book_project"
-            entityId={projectId}
-            entityTitle={projectTitle}
-            buttonText="Order printed book"
-            variant="outline"
-          />
-        </div>
+        {/*
+         * Print-on-demand via Lulu is wired through the backend
+         * (POST /print-orders/) but the Lulu API integration itself needs
+         * to be rebuilt against the current spec before submissions
+         * succeed end-to-end — see task #34 for the rebuild scope.
+         * Hidden in the UI until then so users don't try a flow that
+         * breaks at Lulu's catalog validation.
+         */}
+        {false && (
+          <div
+            className="mt-4 pt-4 border-t"
+            style={{ borderColor: '#e8dccf' }}
+          >
+            <p className="text-sm mb-2" style={{ color: '#6b5a52' }}>
+              Or have it professionally printed and shipped — bound paperback, your
+              choice of trim and quantity.
+            </p>
+            <PrintOrderButton
+              entityType="book_project"
+              entityId={projectId}
+              entityTitle={projectTitle}
+              buttonText="Order printed book"
+              variant="outline"
+            />
+          </div>
+        )}
       </div>
 
       <ExportPaywallModal
