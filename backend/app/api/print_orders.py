@@ -31,7 +31,6 @@ from app.services.book_project_pdf_service import (
     render_book_project_pdf_to_bytes,
 )
 from app.services.lulu_service import LuluService
-from app.services.pdf_service import PDFService
 from app.services.cover_generation_service import CoverGenerationService
 from app.services.stripe_service import StripeService
 from app.utils.validation import validate_json_data

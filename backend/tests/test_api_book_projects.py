@@ -10,7 +10,6 @@ from app.models import (
     BookProject,
     GuestContributor,
     ProjectShareLink,
-    ProjectStatus,
     ProjectType,
     Recipe,
 )
