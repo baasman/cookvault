@@ -1392,8 +1392,13 @@ def download_export(current_user, project_id: int, export_id: int) -> Response:
         else:
             fetch_url = export.cloudinary_url
 
+        # Attach API credentials as Basic Auth. The delivery CDN accepts this
+        # as a server-to-server fallback when account-level raw restrictions
+        # block signed URLs from working on their own.
+        basic_auth = cloudinary_service.delivery_basic_auth()
+
         try:
-            upstream = requests.get(fetch_url, stream=True, timeout=30)
+            upstream = requests.get(fetch_url, stream=True, timeout=30, auth=basic_auth)
             upstream.raise_for_status()
         except requests.RequestException as e:
             current_app.logger.error(

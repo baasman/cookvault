@@ -176,6 +176,19 @@ class CloudinaryService:
         logger.info(f"Successfully uploaded PDF to Cloudinary: {public_id}")
         return result
 
+    def delivery_basic_auth(self) -> Optional[tuple[str, str]]:
+        """Return (api_key, api_secret) for HTTP Basic Auth on delivery
+        requests. Some Cloudinary plans gate raw resource delivery behind
+        account-level restrictions that signed URLs alone don't bypass;
+        passing API credentials as Basic Auth on the proxy fetch does."""
+        if not self.is_enabled():
+            return None
+        api_key = current_app.config.get("CLOUDINARY_API_KEY")
+        api_secret = current_app.config.get("CLOUDINARY_API_SECRET")
+        if not api_key or not api_secret:
+            return None
+        return (api_key, api_secret)
+
     def signed_pdf_url(self, public_id: str) -> str:
         """Return a freshly signed delivery URL for a raw-resource PDF.
 
