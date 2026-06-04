@@ -606,15 +606,12 @@ class StripeService:
         # succeeded — the user can re-download via a regeneration endpoint
         # rather than losing their purchase.
         try:
-            rendered = render_book_project_pdf(project, watermarked=False)
-            export.pdf_file_path = rendered["pdf_file_path"]
-            export.cloudinary_public_id = rendered["cloudinary_public_id"]
-            export.cloudinary_url = rendered["cloudinary_url"]
+            pdf_bytes = render_book_project_pdf(project, watermarked=False)
+            export.pdf_data = pdf_bytes
             export.is_watermarked = False
             logger.info(
                 f"Rendered clean PDF for BookProjectExport {export_id}: "
-                f"cloudinary={rendered['cloudinary_public_id']} "
-                f"disk={rendered['pdf_file_path']}"
+                f"{len(pdf_bytes):,} bytes stored inline"
             )
 
             # Notify the owner — they're typically no longer on the page when

@@ -9,13 +9,11 @@ share-token decorator. PDF export and Stripe payment endpoints also follow in la
 steps; their stub endpoints are not yet defined here.
 """
 
-import os
 import secrets
 import traceback
 from datetime import date, datetime
 from typing import Optional
 
-import requests
 from flask import (
     Blueprint,
     Response,
@@ -23,8 +21,6 @@ from flask import (
     g,
     jsonify,
     request,
-    send_file,
-    stream_with_context,
 )
 
 from app import db
@@ -1179,7 +1175,7 @@ def create_export_preview(current_user, project_id: int) -> Response:
     from app.services.book_project_pdf_service import render_book_project_pdf
 
     try:
-        rendered = render_book_project_pdf(project, watermarked=True)
+        pdf_bytes = render_book_project_pdf(project, watermarked=True)
     except FileNotFoundError as e:
         current_app.logger.error(
             f"Preview template missing for project {project_id}: {e}"
@@ -1196,9 +1192,7 @@ def create_export_preview(current_user, project_id: int) -> Response:
             project_id=project.id,
             user_id=current_user.id,
             payment_id=None,
-            pdf_file_path=rendered["pdf_file_path"],
-            cloudinary_public_id=rendered["cloudinary_public_id"],
-            cloudinary_url=rendered["cloudinary_url"],
+            pdf_data=pdf_bytes,
             is_watermarked=True,
         )
         db.session.add(export)
@@ -1290,7 +1284,7 @@ def regenerate_clean_export(current_user, project_id: int) -> Response:
     from app.services.book_project_pdf_service import render_book_project_pdf
 
     try:
-        rendered = render_book_project_pdf(project, watermarked=False)
+        pdf_bytes = render_book_project_pdf(project, watermarked=False)
     except FileNotFoundError as e:
         current_app.logger.error(
             f"Regenerate template missing for project {project_id}: {e}"
@@ -1307,9 +1301,7 @@ def regenerate_clean_export(current_user, project_id: int) -> Response:
             project_id=project.id,
             user_id=current_user.id,
             payment_id=None,  # regenerated rows don't have their own payment
-            pdf_file_path=rendered["pdf_file_path"],
-            cloudinary_public_id=rendered["cloudinary_public_id"],
-            cloudinary_url=rendered["cloudinary_url"],
+            pdf_data=pdf_bytes,
             is_watermarked=False,
         )
         db.session.add(export)
@@ -1366,10 +1358,12 @@ def download_export(current_user, project_id: int, export_id: int) -> Response:
     if not export:
         return jsonify({"error": "Export not found"}), 404
 
-    if not export.cloudinary_url and not export.pdf_file_path:
-        # Paid exports are rendered by the webhook; until that fires the file
-        # isn't stored anywhere. Frontend can poll the list endpoint to detect
-        # ready.
+    if not export.pdf_data:
+        # Paid exports are rendered by the webhook; until that fires the
+        # bytes aren't stored. Older export rows (pre-2026-06-04) that used
+        # disk or Cloudinary storage also land here — those orphans 202
+        # forever; user just clicks regenerate to get a fresh export through
+        # the DB-storage path.
         return jsonify(
             {"error": "Export is still being generated", "status": "pending"}
         ), 202
@@ -1378,55 +1372,8 @@ def download_export(current_user, project_id: int, export_id: int) -> Response:
         f"book-project-{project.id}{'-preview' if export.is_watermarked else ''}.pdf"
     )
 
-    if export.cloudinary_url:
-        # Proxy the download so the client never sees the Cloudinary URL.
-        # We re-sign every time using the stored public_id rather than
-        # trusting the cached secure_url because Cloudinary accounts default
-        # to requiring signed delivery for raw resources — the cached
-        # unsigned URL 401s. The cloudinary_url column stays as a fallback
-        # for older export rows that may not have a public_id set.
-        from app.services.cloudinary_service import cloudinary_service
-
-        if export.cloudinary_public_id and cloudinary_service.is_enabled():
-            fetch_url = cloudinary_service.signed_pdf_url(export.cloudinary_public_id)
-        else:
-            fetch_url = export.cloudinary_url
-
-        try:
-            upstream = requests.get(fetch_url, stream=True, timeout=30)
-            upstream.raise_for_status()
-        except requests.RequestException as e:
-            current_app.logger.error(
-                f"Failed to fetch export from Cloudinary: export={export.id} "
-                f"public_id={export.cloudinary_public_id}: {e}\n{traceback.format_exc()}"
-            )
-            return jsonify({"error": "Export file is missing"}), 410
-
-        def _proxy():
-            try:
-                for chunk in upstream.iter_content(chunk_size=8192):
-                    if chunk:
-                        yield chunk
-            finally:
-                upstream.close()
-
-        return Response(
-            stream_with_context(_proxy()),
-            mimetype="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{download_name}"',
-            },
-        )
-
-    if not os.path.exists(export.pdf_file_path):
-        current_app.logger.error(
-            f"Export file missing from disk: export={export.id} path={export.pdf_file_path}"
-        )
-        return jsonify({"error": "Export file is missing"}), 410
-
-    return send_file(
-        export.pdf_file_path,
+    return Response(
+        export.pdf_data,
         mimetype="application/pdf",
-        as_attachment=True,
-        download_name=download_name,
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
     )
