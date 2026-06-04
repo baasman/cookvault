@@ -24,16 +24,14 @@ import io
 import logging
 import os
 import sys
-import uuid
 from pathlib import Path
-from typing import Optional, TypedDict
+from typing import Optional
 
 from flask import current_app
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.models import BookProject, Recipe
 from app.models.print_order import TrimSize
-from app.services.cloudinary_service import cloudinary_service
 
 
 # Physical dimensions for each Lulu trim size. Used to emit a runtime
@@ -56,17 +54,6 @@ def _page_size_css(trim_size: TrimSize) -> str:
     it overrides any size declared in template.css or print.css."""
     width_mm, height_mm = _TRIM_SIZE_MM[trim_size]
     return f"@page {{ size: {width_mm}mm {height_mm}mm; }}"
-
-
-class RenderedPdf(TypedDict):
-    """Where the rendered PDF lives. Exactly one of cloudinary_url or
-    pdf_file_path is populated; the other is None. Callers persist all three
-    fields onto the BookProjectExport row and the download endpoint picks
-    whichever storage backend is set."""
-
-    cloudinary_public_id: Optional[str]
-    cloudinary_url: Optional[str]
-    pdf_file_path: Optional[str]
 
 
 logger = logging.getLogger(__name__)
@@ -282,109 +269,23 @@ def _join_names(names: list[str]) -> str:
     return f"{', '.join(names[:-1])} & {names[-1]}"
 
 
-def _output_dir() -> Path:
-    """Where generated PDFs are written on disk. Configurable via env so prod
-    can point at an attached volume."""
-    base = current_app.config.get("BOOK_PROJECT_EXPORT_DIR")
-    if base:
-        path = Path(base)
-    else:
-        path = (
-            Path(current_app.config.get("UPLOAD_FOLDER", "uploads"))
-            / "book_project_exports"
-        )
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
 def render_book_project_pdf(
     project: BookProject,
     *,
     watermarked: bool,
     template_name: str = "wedding_basic",
-) -> RenderedPdf:
-    """Render the project to a PDF and return where it was stored.
-
-    When Cloudinary is enabled (USE_CLOUDINARY=true + creds configured) the
-    PDF is rendered to bytes and uploaded as a raw resource — surviving
-    Render's ephemeral disk between deploys. Otherwise the PDF is written to
-    the local upload directory for dev/local use.
+) -> bytes:
+    """Render the project to PDF bytes. The caller owns storage — for
+    BookProjectExport rows we store the bytes inline on the row (TOAST
+    handles the few-hundred-KB blobs transparently). Print orders that need
+    a hosted URL for Lulu to fetch can use the print_ready variant.
 
     Raises if the template doesn't exist or if WeasyPrint's system libraries
-    are missing on the host — callers should catch and translate to an HTTP
-    500 (with logging) so the user gets a coherent error rather than a stack
-    trace.
+    are missing on the host.
     """
-    if cloudinary_service.is_enabled():
-        pdf_bytes = render_book_project_pdf_to_bytes(
-            project, watermarked=watermarked, template_name=template_name
-        )
-        filename = (
-            f"project-{project.id}"
-            f"{'-preview' if watermarked else '-clean'}-{uuid.uuid4().hex}.pdf"
-        )
-        upload = cloudinary_service.upload_pdf(
-            pdf_bytes,
-            filename=filename,
-            folder="book_project_exports",
-        )
-        logger.info(
-            "Rendered BookProject PDF to Cloudinary: project=%s template=%s "
-            "watermarked=%s public_id=%s bytes=%s",
-            project.id,
-            template_name,
-            watermarked,
-            upload["public_id"],
-            upload["bytes"],
-        )
-        return {
-            "cloudinary_public_id": upload["public_id"],
-            "cloudinary_url": upload["url"],
-            "pdf_file_path": None,
-        }
-
-    template_dir = _TEMPLATES_ROOT / template_name
-    if not template_dir.is_dir():
-        raise FileNotFoundError(f"Book project template not found: {template_name}")
-
-    env = Environment(
-        loader=FileSystemLoader(str(template_dir)),
-        autoescape=select_autoescape(["html"]),
+    return render_book_project_pdf_to_bytes(
+        project, watermarked=watermarked, template_name=template_name
     )
-    template = env.get_template("template.html")
-    context = _build_template_context(project, watermarked=watermarked)
-    html_str = template.render(**context)
-
-    css_path = template_dir / "template.css"
-    css_str: Optional[str] = None
-    if css_path.exists():
-        css_str = css_path.read_text(encoding="utf-8")
-
-    out_path = _output_dir() / f"project-{project.id}-{uuid.uuid4().hex}.pdf"
-
-    # Imported here so module import works on hosts where WeasyPrint's system
-    # deps aren't installed — only PDF generation itself fails, the rest of
-    # the app (and tests that don't touch this path) still runs.
-    _preload_weasyprint_dylibs()
-    from weasyprint import CSS, HTML
-
-    html_doc = HTML(string=html_str, base_url=str(template_dir))
-    stylesheets = [CSS(string=css_str)] if css_str else None
-    html_doc.write_pdf(target=str(out_path), stylesheets=stylesheets)
-
-    logger.info(
-        "Rendered BookProject PDF to disk: project=%s template=%s watermarked=%s out=%s",
-        project.id,
-        template_name,
-        watermarked,
-        out_path,
-    )
-
-    return {
-        "cloudinary_public_id": None,
-        "cloudinary_url": None,
-        "pdf_file_path": str(out_path),
-    }
 
 
 def render_book_project_pdf_to_bytes(

@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
 )
@@ -264,6 +265,12 @@ class BookProjectExport(db.Model):
     )
     payment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("payments.id"))
 
+    # PDF bytes stored inline. ~150 KB per export; Postgres TOAST handles
+    # this transparently. Replaces the Cloudinary + ephemeral-disk dance
+    # which had vendor-specific raw delivery restrictions blocking the
+    # paid-flow critical path. Older columns kept for inspection of
+    # pre-migration export rows but no longer written to.
+    pdf_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     pdf_file_path: Mapped[Optional[str]] = mapped_column(String(500))
     cloudinary_public_id: Mapped[Optional[str]] = mapped_column(String(500))
     cloudinary_url: Mapped[Optional[str]] = mapped_column(String(1000))
@@ -289,6 +296,6 @@ class BookProjectExport(db.Model):
             "user_id": self.user_id,
             "payment_id": self.payment_id,
             "is_watermarked": self.is_watermarked,
-            "is_ready": bool(self.pdf_file_path or self.cloudinary_url),
+            "is_ready": self.pdf_data is not None and len(self.pdf_data) > 0,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

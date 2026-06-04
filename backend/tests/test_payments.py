@@ -133,15 +133,8 @@ class TestStripeWebhookBookProjectExport:
             PaymentType,
         )
 
-        # Place a rendered PDF on disk so the render mock returns a real path
-        # the handler can store on the export row.
-        fake_pdf = tmp_path / "clean.pdf"
-        fake_pdf.write_bytes(b"%PDF-1.4\nclean export\n")
-        mock_render.return_value = {
-            "cloudinary_public_id": None,
-            "cloudinary_url": None,
-            "pdf_file_path": str(fake_pdf),
-        }
+        # Render mock returns bytes the handler stores inline on the export row.
+        mock_render.return_value = b"%PDF-1.4\nclean export bytes\n"
 
         with app.app_context():
             project = BookProject(
@@ -156,7 +149,7 @@ class TestStripeWebhookBookProjectExport:
                 project_id=project.id,
                 user_id=test_user.id,
                 payment_id=None,
-                pdf_file_path=None,
+                pdf_data=None,
                 is_watermarked=False,
             )
             db.session.add(export)
@@ -206,7 +199,7 @@ class TestStripeWebhookBookProjectExport:
 
             assert refreshed_payment.status == PaymentStatus.SUCCEEDED
             assert refreshed_export.payment_id == payment_id
-            assert refreshed_export.pdf_file_path == str(fake_pdf)
+            assert refreshed_export.pdf_data == b"%PDF-1.4\nclean export bytes\n"
             assert refreshed_export.is_watermarked is False
 
         # Render was called with watermarked=False — clean PDF, not preview.

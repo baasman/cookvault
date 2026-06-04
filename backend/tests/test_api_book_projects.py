@@ -809,17 +809,11 @@ class TestExportPreview:
     @patch("app.api.book_projects.render_book_project_pdf", create=True)
     @patch("app.services.book_project_pdf_service.render_book_project_pdf")
     def test_create_preview_renders_and_records(
-        self, mock_render, _mock_render_alias, auth_client, test_user, tmp_path
+        self, mock_render, _mock_render_alias, auth_client, test_user
     ):
         from app.models import BookProjectExport
 
-        fake_pdf = tmp_path / "preview.pdf"
-        fake_pdf.write_bytes(b"%PDF-1.4\n%fake\n")
-        mock_render.return_value = {
-            "cloudinary_public_id": None,
-            "cloudinary_url": None,
-            "pdf_file_path": str(fake_pdf),
-        }
+        mock_render.return_value = b"%PDF-1.4\nmocked preview\n"
 
         project = _make_project(test_user)
         response = auth_client.post(
@@ -829,16 +823,16 @@ class TestExportPreview:
         data = response.get_json()
         assert data["export"]["is_watermarked"] is True
         assert data["export"]["payment_id"] is None
+        assert data["export"]["is_ready"] is True
         assert "download_url" in data
 
         export = db.session.get(BookProjectExport, data["export"]["id"])
         assert export.user_id == test_user.id
         assert export.project_id == project.id
-        assert export.pdf_file_path == str(fake_pdf)
+        # Bytes stored inline on the row.
+        assert export.pdf_data == b"%PDF-1.4\nmocked preview\n"
         assert mock_render.call_count == 1
-        # render_book_project_pdf(project, watermarked=True)
-        kwargs = mock_render.call_args.kwargs
-        assert kwargs.get("watermarked") is True
+        assert mock_render.call_args.kwargs.get("watermarked") is True
 
     def test_preview_not_owned(self, auth_client, second_user):
         project = _make_project(second_user)
@@ -846,31 +840,6 @@ class TestExportPreview:
             f"/api/book-projects/{project.id}/export/preview", json={}
         )
         assert response.status_code == 404
-
-    @patch("app.api.book_projects.render_book_project_pdf", create=True)
-    @patch("app.services.book_project_pdf_service.render_book_project_pdf")
-    def test_create_preview_persists_cloudinary_fields(
-        self, mock_render, _mock_render_alias, auth_client, test_user
-    ):
-        from app.models import BookProjectExport
-
-        mock_render.return_value = {
-            "cloudinary_public_id": "book_project_exports/project-1-abc",
-            "cloudinary_url": "https://res.cloudinary.com/test/raw/upload/.../clean.pdf",
-            "pdf_file_path": None,
-        }
-
-        project = _make_project(test_user)
-        response = auth_client.post(
-            f"/api/book-projects/{project.id}/export/preview", json={}
-        )
-        assert response.status_code == 201
-        export_id = response.get_json()["export"]["id"]
-
-        export = db.session.get(BookProjectExport, export_id)
-        assert export.cloudinary_public_id == "book_project_exports/project-1-abc"
-        assert export.cloudinary_url.startswith("https://res.cloudinary.com/")
-        assert export.pdf_file_path is None
 
 
 class TestExportPurchase:
@@ -904,7 +873,8 @@ class TestExportPurchase:
         export = db.session.get(BookProjectExport, data["export_id"])
         assert export is not None
         assert export.is_watermarked is False
-        assert export.pdf_file_path is None
+        # Placeholder row — no bytes yet, the webhook handler fills them in.
+        assert export.pdf_data is None
         assert export.user_id == test_user.id
         # The StripeService should have been called once with the placeholder export.
         assert mock_service.create_book_project_export_payment_intent.call_count == 1
@@ -925,13 +895,13 @@ class TestListExports:
         e1 = BookProjectExport(
             project_id=project.id,
             user_id=test_user.id,
-            pdf_file_path="/tmp/a.pdf",
+            pdf_data=b"%PDF-",
             is_watermarked=True,
         )
         e2 = BookProjectExport(
             project_id=project.id,
             user_id=test_user.id,
-            pdf_file_path=None,
+            pdf_data=None,
             is_watermarked=False,
         )
         db.session.add_all([e1, e2])
@@ -950,17 +920,14 @@ class TestListExports:
 
 
 class TestDownloadExport:
-    def test_download_ready_file(self, auth_client, test_user, tmp_path):
+    def test_download_returns_bytes(self, auth_client, test_user):
         from app.models import BookProjectExport
-
-        pdf_path = tmp_path / "ready.pdf"
-        pdf_path.write_bytes(b"%PDF-1.4\nclean export\n")
 
         project = _make_project(test_user)
         export = BookProjectExport(
             project_id=project.id,
             user_id=test_user.id,
-            pdf_file_path=str(pdf_path),
+            pdf_data=b"%PDF-1.4\nclean export bytes\n",
             is_watermarked=False,
         )
         db.session.add(export)
@@ -971,16 +938,17 @@ class TestDownloadExport:
         )
         assert response.status_code == 200
         assert response.mimetype == "application/pdf"
-        assert response.data.startswith(b"%PDF-")
+        assert response.data == b"%PDF-1.4\nclean export bytes\n"
+        assert "attachment" in response.headers.get("Content-Disposition", "")
 
-    def test_download_pending(self, auth_client, test_user):
+    def test_download_pending_when_no_bytes(self, auth_client, test_user):
         from app.models import BookProjectExport
 
         project = _make_project(test_user)
         export = BookProjectExport(
             project_id=project.id,
             user_id=test_user.id,
-            pdf_file_path=None,
+            pdf_data=None,
             is_watermarked=False,
         )
         db.session.add(export)
@@ -992,19 +960,15 @@ class TestDownloadExport:
         assert response.status_code == 202
         assert response.get_json()["status"] == "pending"
 
-    def test_download_other_users_export(
-        self, auth_client, test_user, second_user, tmp_path
-    ):
+    def test_download_other_users_export(self, auth_client, test_user, second_user):
         from app.models import BookProjectExport
 
         project = _make_project(test_user)
         # Export belongs to the OTHER user.
-        pdf_path = tmp_path / "other.pdf"
-        pdf_path.write_bytes(b"%PDF-")
         export = BookProjectExport(
             project_id=project.id,
             user_id=second_user.id,
-            pdf_file_path=str(pdf_path),
+            pdf_data=b"%PDF-",
             is_watermarked=False,
         )
         db.session.add(export)
@@ -1023,52 +987,22 @@ class TestDownloadExport:
         )
         assert response.status_code == 404
 
-    def test_download_file_missing_from_disk(self, auth_client, test_user):
-        from app.models import BookProjectExport
-
-        project = _make_project(test_user)
-        export = BookProjectExport(
-            project_id=project.id,
-            user_id=test_user.id,
-            pdf_file_path="/nonexistent/path/file.pdf",
-            is_watermarked=False,
-        )
-        db.session.add(export)
-        db.session.commit()
-
-        response = auth_client.get(
-            f"/api/book-projects/{project.id}/exports/{export.id}/download"
-        )
-        assert response.status_code == 410
-
-    @patch("app.services.cloudinary_service.cloudinary_service.signed_pdf_url")
-    @patch("app.services.cloudinary_service.cloudinary_service.is_enabled")
-    @patch("app.api.book_projects.requests.get")
-    def test_download_signs_cloudinary_url_when_enabled(
-        self, mock_get, mock_is_enabled, mock_signed, auth_client, test_user
+    def test_download_orphan_row_with_legacy_storage_pending(
+        self, auth_client, test_user
     ):
-        """Cloudinary accounts may require signed URLs for raw resources.
-        When Cloudinary is enabled and a public_id is stored, the proxy
-        should fetch from a freshly-signed URL rather than the cached
-        secure_url (which may 401)."""
+        """Legacy rows from before the DB-storage refactor (those with
+        pdf_file_path or cloudinary_* set but no pdf_data) surface as 202
+        pending. The user regenerates and the fresh row goes through the
+        DB-storage path."""
         from app.models import BookProjectExport
-
-        mock_is_enabled.return_value = True
-        mock_signed.return_value = (
-            "https://res.cloudinary.com/test/raw/upload/s--SIG--/proj.pdf"
-        )
-        upstream = MagicMock()
-        upstream.iter_content.return_value = iter([b"%PDF-1.4\nsigned\n"])
-        upstream.raise_for_status.return_value = None
-        mock_get.return_value = upstream
 
         project = _make_project(test_user)
         export = BookProjectExport(
             project_id=project.id,
             user_id=test_user.id,
-            pdf_file_path=None,
-            cloudinary_public_id="book_project_exports/project-x-abc",
-            cloudinary_url="https://res.cloudinary.com/test/raw/upload/proj.pdf",
+            pdf_data=None,
+            pdf_file_path="/old/disk/path.pdf",
+            cloudinary_url="https://res.cloudinary.com/test/raw/upload/old.pdf",
             is_watermarked=False,
         )
         db.session.add(export)
@@ -1077,81 +1011,7 @@ class TestDownloadExport:
         response = auth_client.get(
             f"/api/book-projects/{project.id}/exports/{export.id}/download"
         )
-        assert response.status_code == 200
-        # Signed URL was used, not the cached one.
-        mock_signed.assert_called_once_with("book_project_exports/project-x-abc")
-        assert mock_get.call_args.args[0] == (
-            "https://res.cloudinary.com/test/raw/upload/s--SIG--/proj.pdf"
-        )
-
-    @patch("app.services.cloudinary_service.cloudinary_service.is_enabled")
-    @patch("app.api.book_projects.requests.get")
-    def test_download_proxies_cloudinary_url(
-        self, mock_get, mock_is_enabled, auth_client, test_user
-    ):
-        """Fallback path: when Cloudinary isn't enabled in this process but
-        an export row carries a stored cloudinary_url (e.g. row written by an
-        older deploy), proxy the cached URL directly."""
-        from app.models import BookProjectExport
-
-        mock_is_enabled.return_value = False
-        upstream = MagicMock()
-        upstream.iter_content.return_value = iter([b"%PDF-1.4\nfrom cloudinary\n"])
-        upstream.raise_for_status.return_value = None
-        mock_get.return_value = upstream
-
-        project = _make_project(test_user)
-        export = BookProjectExport(
-            project_id=project.id,
-            user_id=test_user.id,
-            pdf_file_path=None,
-            cloudinary_public_id="book_project_exports/project-x-abc",
-            cloudinary_url="https://res.cloudinary.com/test/raw/upload/proj.pdf",
-            is_watermarked=False,
-        )
-        db.session.add(export)
-        db.session.commit()
-
-        response = auth_client.get(
-            f"/api/book-projects/{project.id}/exports/{export.id}/download"
-        )
-        assert response.status_code == 200
-        assert response.mimetype == "application/pdf"
-        # Body streamed from upstream.
-        assert response.data == b"%PDF-1.4\nfrom cloudinary\n"
-        # Cloudinary URL is fetched server-side, never sent to the client.
-        assert "cloudinary" not in response.headers.get("Location", "").lower()
-        mock_get.assert_called_once()
-        assert mock_get.call_args.args[0] == (
-            "https://res.cloudinary.com/test/raw/upload/proj.pdf"
-        )
-
-    @patch("app.api.book_projects.requests.get")
-    def test_download_cloudinary_unreachable_returns_410(
-        self, mock_get, auth_client, test_user
-    ):
-        import requests as real_requests
-
-        from app.models import BookProjectExport
-
-        mock_get.side_effect = real_requests.RequestException("connection refused")
-
-        project = _make_project(test_user)
-        export = BookProjectExport(
-            project_id=project.id,
-            user_id=test_user.id,
-            pdf_file_path=None,
-            cloudinary_public_id="book_project_exports/project-y",
-            cloudinary_url="https://res.cloudinary.com/test/raw/upload/proj.pdf",
-            is_watermarked=False,
-        )
-        db.session.add(export)
-        db.session.commit()
-
-        response = auth_client.get(
-            f"/api/book-projects/{project.id}/exports/{export.id}/download"
-        )
-        assert response.status_code == 410
+        assert response.status_code == 202
 
 
 class TestRegenerateExport:
@@ -1178,7 +1038,7 @@ class TestRegenerateExport:
             project_id=project.id,
             user_id=test_user.id,
             payment_id=payment.id,
-            pdf_file_path="/tmp/original.pdf",
+            pdf_data=b"%PDF-1.4\noriginal paid\n",
             is_watermarked=False,
         )
         db.session.add(paid_export)
@@ -1202,17 +1062,11 @@ class TestRegenerateExport:
     @patch("app.api.book_projects.render_book_project_pdf", create=True)
     @patch("app.services.book_project_pdf_service.render_book_project_pdf")
     def test_regenerate_creates_new_export_after_paid(
-        self, mock_render, _alias, auth_client, test_user, tmp_path
+        self, mock_render, _alias, auth_client, test_user
     ):
         from app.models import BookProjectExport
 
-        fake_pdf = tmp_path / "regenerated.pdf"
-        fake_pdf.write_bytes(b"%PDF-1.4\nfresh\n")
-        mock_render.return_value = {
-            "cloudinary_public_id": None,
-            "cloudinary_url": None,
-            "pdf_file_path": str(fake_pdf),
-        }
+        mock_render.return_value = b"%PDF-1.4\nfresh regenerated\n"
 
         project = _make_project(test_user)
         paid = self._seed_paid_export(test_user, project)
@@ -1228,9 +1082,9 @@ class TestRegenerateExport:
         assert data["export"]["payment_id"] is None
         assert data["export"]["is_ready"] is True
 
-        # Both exports exist; the new one is the regeneration.
+        # Both exports exist; the new one carries the fresh bytes inline.
         new_export = db.session.get(BookProjectExport, new_id)
-        assert new_export.pdf_file_path == str(fake_pdf)
+        assert new_export.pdf_data == b"%PDF-1.4\nfresh regenerated\n"
         # Render kwargs explicit — clean, not preview.
         assert mock_render.call_args.kwargs.get("watermarked") is False
 
@@ -1251,13 +1105,7 @@ class TestWebhookHandler:
         from app.models.payment import Payment, PaymentStatus, PaymentType
         from app.services.stripe_service import StripeService
 
-        fake_pdf = tmp_path / "clean.pdf"
-        fake_pdf.write_bytes(b"%PDF-1.4\nclean\n")
-        mock_render.return_value = {
-            "cloudinary_public_id": None,
-            "cloudinary_url": None,
-            "pdf_file_path": str(fake_pdf),
-        }
+        mock_render.return_value = b"%PDF-1.4\nclean paid\n"
 
         with app.app_context():
             project = BookProject(
@@ -1272,7 +1120,7 @@ class TestWebhookHandler:
                 project_id=project.id,
                 user_id=test_user.id,
                 payment_id=None,
-                pdf_file_path=None,
+                pdf_data=None,
                 is_watermarked=False,
             )
             db.session.add(export)
@@ -1304,7 +1152,7 @@ class TestWebhookHandler:
             db.session.refresh(export)
             assert payment.status == PaymentStatus.SUCCEEDED
             assert export.payment_id == payment.id
-            assert export.pdf_file_path == str(fake_pdf)
+            assert export.pdf_data == b"%PDF-1.4\nclean paid\n"
             assert export.is_watermarked is False
 
 
